@@ -275,6 +275,7 @@ for i, it in enumerate(items):
     it['id'] = f'jy{i:04d}'
     it['code'] = ''
     it['sup'] = SUP
+    it['note'] = '久允牌價 115/06/26'
 data = {
     'app': 'screw-pricing', 'version': 1, 'source': '久允螺絲牌價表 115年06月26日起',
     'categories': [{'id': cid, 'name': nm, 'discount': ''} for cid, nm in CATS],
@@ -285,10 +286,10 @@ with open(os.path.join(HERE, 'jiuyun.json'), 'w', encoding='utf-8') as f:
 catname = dict(CATS)
 with open(os.path.join(HERE, 'jiuyun.csv'), 'w', encoding='utf-8-sig', newline='') as f:
     w = csv.writer(f)
-    w.writerow(['類別', '品名', '規格', '材質', '頭型', '牙系', '長度', '單位', '牌價', '折扣'])
+    w.writerow(['類別', '品名', '規格', '材質', '頭型', '牙系', '長度', '單位', '牌價', '折扣', '備註'])
     for it in items:
         w.writerow([catname[it['cat']], it['name'], it['spec'], it['material'], it['head'], it['thread'],
-                    it['length'], it['unit'], it['price'], it['disc']])
+                    it['length'], it['unit'], it['price'], it['disc'], it['note']])
 from collections import Counter
 print(len(items), 'items'); print(Counter(catname[i['cat']] for i in items))
 
