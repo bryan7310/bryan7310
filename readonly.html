@@ -397,11 +397,40 @@ function mergeNewSuppliers() {
 // 查價專用版（頁面有 <meta name="screw-readonly">）：只用內建牌價，不能修改；只記住報價單
 const READONLY = !!document.querySelector('meta[name="screw-readonly"]');
 const RO_KEY = KEY + '.readonly';
+// 全系統改用 1 PCS 單價：100支／100個／籮(144支) 除以包裝數；每公斤（有每公斤個數）除以個數
+function pcsFactor(it) {
+  const u = String(it.unit || ''); let m;
+  if ((m = u.match(/^(\d+)\s*(支|個|PCS|pcs)$/))) return +m[1];
+  if ((m = u.match(/\((\d+)\s*支\)/))) return +m[1];
+  if (u === 'kg' && +it.perKg > 0) return +it.perKg;
+  return 1;
+}
+function toPcs(it) {
+  if (it.pcs) return 1;
+  const f = pcsFactor(it);
+  if (f !== 1) {
+    it.origPrice = it.price; it.origUnit = it.unit;
+    it.price = Math.round(it.price / f * 1e6) / 1e6;
+    it.unit = /個|kg/.test(it.unit) ? '個' : '支';
+  }
+  it.pcs = true;
+  return f;
+}
+const toPcsItem = it => (toPcs(it), it);
+function normalizePcs() {
+  const fac = new Map();
+  S.items.forEach(it => { const f = toPcs(it); if (f !== 1) fac.set(it.id, f); });
+  if (!S.pcsQuote) {   // 舊報價單的數量（份）換算成支／個
+    (S.quote || []).forEach(q => { const f = fac.get(q.itemId); if (f) { q.qty = Math.round(q.qty * f * 1000) / 1000; if (q.snap) toPcs(q.snap); } });
+    S.pcsQuote = true;
+  }
+}
 function load() {
   if (READONLY) {
     S = builtinData();
-    try { const q = JSON.parse(localStorage.getItem(RO_KEY) || '{}'); S.quote = q.quote || []; S.qmeta = q.qmeta; } catch (e) { S.quote = []; }
+    try { const q = JSON.parse(localStorage.getItem(RO_KEY) || '{}'); S.quote = q.quote || []; S.qmeta = q.qmeta; S.pcsQuote = !!q.pcsQuote; } catch (e) { S.quote = []; }
     S.settings = Object.assign({ decimals: 2 }, S.settings || {});
+    normalizePcs();
     return;
   }
   try { const raw = localStorage.getItem(KEY); if (raw) { S = JSON.parse(raw); } } catch (e) {}
@@ -413,6 +442,7 @@ function load() {
   S.items.forEach(i => { if (i.sup === '阡阡' && i.material === '鐵(編號3)') i.material = '中碳鋼'; });
   S.settings = Object.assign({ decimals: 2 }, S.settings || {});
   S.quote = S.quote || []; S.items = S.items || [];
+  normalizePcs();
 }
 // 重複品項：
 //  1. 品名、規格、材質、電鍍、頭型都相同（不分供應商）
@@ -432,7 +462,7 @@ function dupGroup(it) {
   if (nk(it.spec)) (DUP.byCat.get(it.cat + '|' + specKey(it)) || []).forEach(x => { if (supName(x) !== supName(it)) g.add(x); });
   return [...g];
 }
-function save() { DUP = null; try { if (READONLY) localStorage.setItem(RO_KEY, JSON.stringify({ quote: S.quote, qmeta: S.qmeta })); else localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} const st = document.getElementById('stamp'); if (st) st.textContent = `${S.categories.length} 類 · ${S.items.length} 項`; }
+function save() { DUP = null; try { if (READONLY) localStorage.setItem(RO_KEY, JSON.stringify({ quote: S.quote, qmeta: S.qmeta, pcsQuote: true })); else localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} const st = document.getElementById('stamp'); if (st) st.textContent = `${S.categories.length} 類 · ${S.items.length} 項`; }
 
 /* ---------- 折扣與價格 ---------- */
 // "65" / "6.5" / "0.65" / "65折" / "65 95" (多段) → 0.65 / 0.6175
@@ -463,7 +493,7 @@ function itemFactor(it) {
   const c = catById(it.cat); const f = c ? parseDisc(c.discount) : null;
   return { f: f == null || isNaN(f) ? 1 : f, own: false };
 }
-const decFor = n => Math.abs(n) < 1 && n !== 0 ? Math.max(S.settings.decimals, 3) : S.settings.decimals;
+const decFor = n => { const a = Math.abs(n); return a && a < 0.1 ? Math.max(S.settings.decimals, 4) : a && a < 1 ? Math.max(S.settings.decimals, 3) : S.settings.decimals; };
 const round = (n, d = decFor(n)) => { const p = Math.pow(10, d); return Math.round((n + Number.EPSILON) * p) / p; };
 const fmt = (n, d = decFor(n)) => isFinite(n) ? n.toLocaleString('zh-TW', { minimumFractionDigits: d, maximumFractionDigits: d }) : '—';
 const fmtList = n => isFinite(n) ? n.toLocaleString('zh-TW', { maximumFractionDigits: 4 }) : '—';
@@ -521,9 +551,13 @@ function specParts(spec) {
 const SUP_NOTE = { '久允': '久允牌價 115/06/26' };
 const SUP_SOURCE = { '久允': '久允螺絲牌價表（115 年 06 月 26 日起）', '順聯': '順聯螺帽報價單（112 年 01 月 01 日起）', '阡阡': '阡阡實業華司時價表（115 年 04 月 26 日起）', '虹瑩': '虹瑩 CAP 合金鋼內六角系列價目表', '東日': '東日不鏽鋼牌價本（折數 115 年 04 月 07 日起）', '金同利': '金同利牌價表（折數 111 年 07 月 26 日起）', '長驥': '長驥（環球牌）價目表（折數 112 年 04 月 26 日起）', '鑫城': '鑫城螺絲商品價目對照表（115 年 04 月 03 日起）', '豐通': '宗基五金／豐通工業實價表（115 年 04 月 08 日）' };
 // 每公斤個數（華司等秤重計價的品項）：顯示個數，公斤價另換算成每 100 個參考價
+// 原牌價（換算前）
+function origText(it) {
+  return it.origUnit ? `原牌價 ${fmtList(it.origPrice)}/${it.origUnit}` : '';
+}
 function perKgText(it) {
   const pk = +it.perKg; if (!(pk > 0)) return '';
-  return `約 ${pk.toLocaleString('zh-TW')} 個/kg` + (it.unit === 'kg' ? `・≈ ${fmt(netPrice(it) / pk * 100)} 元/100個` : '');
+  return `約 ${pk.toLocaleString('zh-TW')} 個/kg`;
 }
 // 單位是「100支」這種整包時，數量以份計
 const qtyText = (q, unit) => unit && /^\d/.test(unit) ? `${q} 份（每份 ${unit}）` : `${q}${unit || ''}`;
@@ -692,7 +726,7 @@ function renderSearch() {
       const { f, own } = itemFactor(it); const c = catById(it.cat);
       return `<div class="res">
         <div class="main"><div><span class="nm">${esc(it.name)}</span>${it.spec ? `<span class="spec">${esc(it.spec)}</span>` : ''}</div>
-          <div class="meta">${noteOf(it) ? `<span class="src">${esc(noteOf(it))}</span>` : ''}${it.code ? `<span class="num">${esc(it.code)}</span>` : ''}${[attr(it, 'material'), attr(it, 'finish'), attr(it, 'head'), attr(it, 'thread'), it.grade ? it.grade + ' 級' : '', c?.name, perKgText(it)].filter(Boolean).map(v => `<span>${esc(v)}</span>`).join('')}</div>
+          <div class="meta">${noteOf(it) ? `<span class="src">${esc(noteOf(it))}</span>` : ''}${it.code ? `<span class="num">${esc(it.code)}</span>` : ''}${[attr(it, 'material'), attr(it, 'finish'), attr(it, 'head'), attr(it, 'thread'), it.grade ? it.grade + ' 級' : '', c?.name, origText(it), perKgText(it)].filter(Boolean).map(v => `<span>${esc(v)}</span>`).join('')}</div>
 ${dupHtml(it)}</div>
         <div class="r"><span class="lbl">牌價</span><span class="num list">${fmtList(it.price)}</span></div>
         <div class="r"><span class="lbl">折扣</span><span class="disc${own ? ' own' : ''}" title="${own ? '此品項有個別折扣' : '類別折扣'}">${esc(fmtDisc(f))}</span></div>
@@ -726,7 +760,7 @@ function quoteLines() {
     const it = live || q.snap; if (!it) return null;
     const f = live ? q.snap.f : (it.f ?? 1);
     const unit = round(it.price * f);
-    return { q, it, f, unit, sub: round(unit * q.qty), gone: !live };
+    return { q, it, f, unit, sub: round(it.price * f * q.qty), gone: !live };   // 小計用未四捨五入的單價計算
   }).filter(Boolean);
 }
 function quoteTotals(lines) {
@@ -743,7 +777,7 @@ function renderQuote() {
   if (!lines.length) { tb.innerHTML = `<tr><td class="empty">報價單是空的。在「查價」頁按「加入」把品項放進來。</td></tr>`; $('#totals').innerHTML = ''; return; }
   tb.innerHTML = `<thead><tr><th>品項</th><th class="r">牌價</th><th class="r">折扣</th><th class="r">單價</th><th class="r">數量</th><th class="r">小計</th><th></th></tr></thead><tbody>` +
     lines.map((l, i) => `<tr>
-      <td><b>${esc(l.it.name)}</b> <span class="num">${esc(l.it.spec || '')}</span><div class="hint">${noteOf(l.it) ? `<span class="src">${esc(noteOf(l.it))}</span> ` : ''}${esc([l.it.code, attr(l.it, 'material'), attr(l.it, 'finish'), perKgText(l.it)].filter(Boolean).join(' · '))}${l.gone ? ' · <span style="color:var(--danger)">品項已從牌價表移除</span>' : ''}</div>${l.gone ? '' : dupHtml(l.it)}</td>
+      <td><b>${esc(l.it.name)}</b> <span class="num">${esc(l.it.spec || '')}</span><div class="hint">${noteOf(l.it) ? `<span class="src">${esc(noteOf(l.it))}</span> ` : ''}${esc([l.it.code, attr(l.it, 'material'), attr(l.it, 'finish'), origText(l.it)].filter(Boolean).join(' · '))}${l.gone ? ' · <span style="color:var(--danger)">品項已從牌價表移除</span>' : ''}</div>${l.gone ? '' : dupHtml(l.it)}</td>
       <td class="r num">${fmtList(l.it.price)}</td>
       <td class="r"><span class="disc">${esc(fmtDisc(l.f))}</span></td>
       <td class="r num">${fmt(l.unit)}</td>
@@ -962,7 +996,7 @@ $('#impGo').addEventListener('click', () => {
   const prepared = items.map(it => { const cat = resolveCat(it); touched.add(cat); const { catName, ...rest } = it;
     return { id: uid(), cat, ...rest, ...(sup ? { sup } : {}), note: rest.note || tag }; });
   if (replace) S.items = S.items.filter(i => !(touched.has(i.cat) && (i.sup || '') === sup));
-  S.items.push(...prepared); save();
+  prepared.forEach(toPcs); S.items.push(...prepared); save();
   const names = [...touched].map(id => catById(id)?.name).join('、');
   resetImport(); renderManage(); toast(`已匯入 ${prepared.length} 項到「${names}」`);
 });
@@ -975,7 +1009,7 @@ $('#addOne').addEventListener('click', () => {
   if (!isFinite(price)) { toast('牌價要是數字'); return; }
   const d = $('#oneDisc').value.trim(); if (d && isNaN(parseDisc(d))) { toast('個別折扣格式錯誤'); return; }
   const oneSup = $('#oneSup').value.trim();
-  S.items.push({ id: uid(), cat, ...(oneSup ? { sup: oneSup, note: oneSup + '牌價' } : {}), code: $('#oneCode').value.trim(), name: $('#oneName').value.trim(), spec: $('#oneSpec').value.trim(), material: $('#oneMat').value.trim(), finish: $('#oneFin').value.trim(), head: $('#oneHead').value.trim(), system: $('#oneSys').value, dia: $('#oneDia').value.trim(), thread: $('#oneThread').value.trim(), length: $('#oneLen').value.trim(), unit: $('#oneUnit').value.trim(), price, disc: d });
+  S.items.push(toPcsItem({ id: uid(), cat, ...(oneSup ? { sup: oneSup, note: oneSup + '牌價' } : {}), code: $('#oneCode').value.trim(), name: $('#oneName').value.trim(), spec: $('#oneSpec').value.trim(), material: $('#oneMat').value.trim(), finish: $('#oneFin').value.trim(), head: $('#oneHead').value.trim(), system: $('#oneSys').value, dia: $('#oneDia').value.trim(), thread: $('#oneThread').value.trim(), length: $('#oneLen').value.trim(), unit: $('#oneUnit').value.trim(), price, disc: d }));
   save();
   ['oneCode', 'oneSpec', 'onePrice', 'oneLen', 'oneDia'].forEach(id => $('#' + id).value = ''); renderManage(); toast('已加入');
 });
