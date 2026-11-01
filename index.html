@@ -528,10 +528,12 @@ const qtyText = (q, unit) => unit && /^\d/.test(unit) ? `${q} 份（每份 ${uni
 function noteOf(it) { return (it.note || SUP_NOTE[it.sup] || '').trim(); }
 const FINISH_RE = /五彩|彩鋅|白鋅|黑鋅|藍白鋅|鍍鋅|鍍鎳|鍍鉻|鍍銅|鍍黃|染黑|發黑|黑色|電鍍|白皮|達克羅|熱浸鋅|磷酸皮膜/;
 // 螺絲類別（篩選用的大分類）
-const GROUPS = ['螺絲', '內六角螺絲', '螺帽', '華司', '馬車', '壁虎', '鑽尾', '其他'];
+const GROUPS = ['螺絲', '內六角螺絲', '螺帽', '華司', '彈簧扣環', '馬車', '壁虎', '鑽尾', '其他'];
 const WASHER_CATS = ['qq-wsh', 'dr-wsh', 'cj-sw', 'ft-wsh'];
 function groupOf(it) {
   const n = it.name || '', c = it.cat || '';
+  // 彈簧扣環：品名有「彈簧」或「扣環」、或材質是彈簧鋼（螺絲附彈簧華司仍算螺絲）
+  if (((/彈簧|扣環/.test(n)) || it.material === '彈簧鋼') && !/螺絲/.test(n)) return '彈簧扣環';
   if (it.group) return it.group;
   if (/壁虎|膨脹/.test(n) || c === 'dr-anc') return '壁虎';
   if (/馬車/.test(n)) return '馬車';
@@ -558,7 +560,7 @@ function washerDims(it) {
   const r = { od: n(od), thick: n(t) }; WD.set(it, r); return r;
 }
 function attr(it, key) {
-  if (key === 'od' || key === 'thick') return groupOf(it) === '華司' ? washerDims(it)[key] : '';
+  if (key === 'od' || key === 'thick') return /華司|彈簧扣環/.test(groupOf(it)) ? washerDims(it)[key] : '';
   if (key === 'head') return headName(it.head || (it.nut ? '' : HEADS.find(h => (it.name || '').includes(h)) || ''));
   if (key === 'cat') return it.cat;
   if (key === 'group') return groupOf(it);
@@ -668,7 +670,7 @@ function renderFilters(base) {
     sel.value = flt[k]; sel.classList.toggle('on', !!flt[k]); sel.disabled = !vals.length;
   }
   // 外徑、厚度只在螺絲類別選「華司」時顯示
-  const ws = flt.group === '華司';
+  const ws = flt.group === '華司' || flt.group === '彈簧扣環';
   $('#w-od').hidden = $('#w-thick').hidden = !ws;
   $('#fReset').hidden = !FACETS.some(([k]) => flt[k]);
 }
@@ -697,7 +699,7 @@ ${dupHtml(it)}</div>
     }).join('') + (list.length > LIMIT ? `<div class="more">共 ${list.length} 筆，只顯示前 ${LIMIT} 筆，請輸入更多關鍵字縮小範圍</div>` : `<div class="more">共 ${list.length} 筆</div>`);
 }
 $('#q').addEventListener('input', renderSearch);
-FACETS.forEach(([k]) => $('#f-' + k).addEventListener('change', e => { flt[k] = e.target.value; if (k === 'group' && flt.group !== '華司') flt.od = flt.thick = ''; renderSearch(); }));
+FACETS.forEach(([k]) => $('#f-' + k).addEventListener('change', e => { flt[k] = e.target.value; if (k === 'group' && !/^(華司|彈簧扣環)$/.test(flt.group)) flt.od = flt.thick = ''; renderSearch(); }));
 $('#fReset').addEventListener('click', () => { FACETS.forEach(([k]) => flt[k] = ''); renderSearch(); });
 $('#results').addEventListener('click', e => {
   const b = e.target.closest('[data-add]'); if (!b) return;
