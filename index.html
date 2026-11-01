@@ -576,8 +576,8 @@ const FACETS = [
 ];
 const flt = { material: '', finish: '', cat: '', head: '', system: '', dia: '', length: '' };
 // 電鍍沒寫的品項歸在「未標示」，方便篩出來
-// 材質篩選：SUS302、303、304、白鐵歸成同一類（品項本身仍顯示原材質）
-const MAT_GROUP = m => /^SUS30[234](\/30[234])*$/i.test(m) || m === '白鐵' ? 'SUS302/303/304' : m;
+// 材質篩選：SUS302、303、304、白鐵歸成同一類；低碳鋼併入鐵（品項本身仍顯示原材質）
+const MAT_GROUP = m => /^SUS30[234](\/30[234])*$/i.test(m) || m === '白鐵' ? 'SUS302/303/304' : m === '低碳鋼' ? '鐵' : m;
 const facetVal = (it, k) => k === 'material' ? MAT_GROUP(attr(it, k)) : attr(it, k) || (k === 'finish' ? '未標示' : '');
 function matchFacets(it, skip) { return FACETS.every(([k]) => k === skip || !flt[k] || facetVal(it, k) === flt[k]); }
 
