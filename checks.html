@@ -1,0 +1,1035 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>支票登記</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=IBM+Plex+Mono:wght@500;600&display=swap">
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+/* 版面：上方三個分頁（待代收／已代收／資料管理）；待代收頁上方是登記表單，下方是依到期日排列的支票，勾選後底部出現送代收列。 */
+:root {
+  --bg: #F1F2F0; --surface: #FFFFFF; --sunken: #E8EAE7; --ink: #1B2025; --muted: #5B6670; --line: #D6DAD8;
+  --steel: #34495A; --top-ink: #FFFFFF; --zinc: #E9B512; --zinc-ink: #7A5700; --zinc-soft: #FBF1CC;
+  --ok: #2E7D4F; --danger: #B3261E; --danger-soft: #FBE3E1; --warn: #9A5B00; --warn-soft: #FDEBD3;
+  --a0: #2F6FA3; --a0-soft: #DCEAF6;   /* 帳戶色 1 */
+  --a1: #8A6400; --a1-soft: #FBF1CC;   /* 帳戶色 2 */
+  --a2: #2E7D4F; --a2-soft: #DDF1E4;   /* 帳戶色 3 */
+  --a3: #7B4AA8; --a3-soft: #EEE4F7;   /* 帳戶色 4 */
+  --ax: #5B6670; --ax-soft: #E8EAE7;   /* 其他／未註記 */
+  --font-body: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", system-ui, sans-serif;
+  --font-num: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --r: 8px; color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #121618; --surface: #1B2023; --sunken: #23292D; --ink: #E6E9EA; --muted: #9BA5AC; --line: #2F363B;
+    --steel: #2A3A46; --top-ink: #E6E9EA; --zinc-ink: #F2C94C; --zinc-soft: #3A3215;
+    --ok: #6CC793; --danger: #F2847C; --danger-soft: #3D2120; --warn: #F0B263; --warn-soft: #3A2A14;
+    --a0: #7DB6E8; --a0-soft: #1C2E3D; --a1: #F2C94C; --a1-soft: #3A3215; --a2: #6CC793; --a2-soft: #1C3326;
+    --a3: #C29BE6; --a3-soft: #2E2238; --ax: #9BA5AC; --ax-soft: #23292D; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #121618; --surface: #1B2023; --sunken: #23292D; --ink: #E6E9EA; --muted: #9BA5AC; --line: #2F363B;
+  --steel: #2A3A46; --top-ink: #E6E9EA; --zinc-ink: #F2C94C; --zinc-soft: #3A3215;
+  --ok: #6CC793; --danger: #F2847C; --danger-soft: #3D2120; --warn: #F0B263; --warn-soft: #3A2A14;
+  --a0: #7DB6E8; --a0-soft: #1C2E3D; --a1: #F2C94C; --a1-soft: #3A3215; --a2: #6CC793; --a2-soft: #1C3326;
+  --a3: #C29BE6; --a3-soft: #2E2238; --ax: #9BA5AC; --ax-soft: #23292D; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--ink); font: 15px/1.55 var(--font-body); -webkit-text-size-adjust: 100%; }
+.num { font-family: var(--font-num); font-variant-numeric: tabular-nums; }
+button, input, select, textarea { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--zinc); outline-offset: 2px; }
+
+.top { position: sticky; top: 0; z-index: 5; background: var(--steel); color: var(--top-ink); padding-top: env(safe-area-inset-top, 0px); }
+.top-inner { max-width: 1040px; margin: 0 auto; padding: 10px max(16px, env(safe-area-inset-right, 0px)) 0 max(16px, env(safe-area-inset-left, 0px)); }
+.brand { display: flex; align-items: baseline; gap: 10px; }
+.brand h1 { margin: 0; font-size: 18px; font-weight: 700; letter-spacing: .04em; }
+.brand .mark { display: inline-block; width: 14px; height: 10px; border: 2px solid var(--zinc); border-radius: 2px; margin-right: 6px; }
+.brand small { opacity: .75; font-size: 12px; }
+.tabs { display: flex; gap: 2px; margin-top: 8px; overflow-x: auto; }
+.tab { appearance: none; border: 0; background: transparent; color: inherit; opacity: .72; padding: 8px 14px 10px; cursor: pointer; border-bottom: 3px solid transparent; font-weight: 500; white-space: nowrap; }
+.tab[aria-selected="true"] { opacity: 1; border-bottom-color: var(--zinc); }
+.badge { display: inline-block; min-width: 20px; padding: 0 6px; margin-left: 4px; border-radius: 10px; background: var(--zinc); color: #1B2025; font: 600 12px/20px var(--font-num); text-align: center; }
+
+main { max-width: 1040px; margin: 0 auto; padding: 16px max(16px, env(safe-area-inset-right, 0px)) 120px max(16px, env(safe-area-inset-left, 0px)); display: grid; gap: 16px; }
+section.view { display: grid; gap: 16px; min-width: 0; }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 16px; display: grid; gap: 12px; min-width: 0; }
+.panel h2 { margin: 0; font-size: 16px; }
+.hint { color: var(--muted); font-size: 13px; margin: 0; }
+.hint.warn { color: var(--danger); font-weight: 500; }
+.row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.grow { flex: 1 1 auto; min-width: 0; }
+label.fld { display: grid; gap: 4px; font-size: 13px; color: var(--muted); min-width: 0; }
+label.fld b { color: var(--danger); font-weight: 500; }
+input[type=text], input[type=date], input[type=search], select, textarea {
+  background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; min-width: 0; width: 100%; color: var(--ink);
+}
+input.amt { text-align: right; font-family: var(--font-num); font-size: 17px; font-weight: 600; }
+.btn { appearance: none; border: 1px solid var(--line); background: var(--surface); padding: 8px 14px; border-radius: 6px; cursor: pointer; font-weight: 500; white-space: nowrap; color: var(--ink); }
+.btn:hover { border-color: var(--muted); }
+.btn.primary { background: var(--zinc); border-color: var(--zinc); color: #1B2025; }
+.btn.primary:hover { filter: brightness(.95); }
+.btn.primary:disabled { opacity: .5; cursor: default; filter: none; }
+.btn.ghost { border-color: transparent; background: transparent; color: var(--muted); }
+.btn.danger { color: var(--danger); }
+.btn.arm { background: var(--danger); border-color: var(--danger); color: #fff; }
+.btn.sm { padding: 4px 10px; font-size: 13px; }
+
+/* 登記表單 */
+.entry { display: grid; grid-template-columns: 1.2fr 1.2fr 1.1fr 1.1fr 1fr 1fr; gap: 10px; align-items: end; }
+.entry .note { grid-column: span 4; }
+.entry .acts { grid-column: span 2; display: flex; gap: 8px; justify-content: flex-end; }
+.entry .acts .btn.primary { flex: 1; padding: 10px 14px; }
+@media (max-width: 820px) { .entry { grid-template-columns: 1fr 1fr; } .entry .note, .entry .acts { grid-column: 1 / -1; } }
+.picks { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 13px; color: var(--muted); }
+.pick { appearance: none; border: 1px dashed var(--line); background: var(--sunken); border-radius: 999px; padding: 2px 10px; cursor: pointer; font-size: 12px; color: var(--ink); }
+.pick:hover { border-color: var(--muted); }
+
+/* 統計 */
+.stats { display: flex; flex-wrap: wrap; gap: 8px 20px; align-items: baseline; }
+.stat { display: grid; }
+.stat span { font-size: 12px; color: var(--muted); }
+.stat b { font: 600 20px/1.3 var(--font-num); }
+.stat.hl b { color: var(--zinc-ink); }
+
+/* 支票列 */
+.list { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; }
+.lh, .ck { display: grid; grid-template-columns: 28px 128px minmax(0, 1.2fr) minmax(0, 1fr) 112px 56px; gap: 10px; align-items: center; padding: 9px 12px; }
+.lh { font-size: 12px; color: var(--muted); letter-spacing: .06em; background: var(--sunken); }
+.lh .r, .ck .r { text-align: right; }
+.ck { border-top: 1px solid var(--line); cursor: pointer; }
+.ck:hover { background: color-mix(in srgb, var(--sunken) 50%, transparent); }
+.ck.on { background: var(--zinc-soft); }
+.ck.new { animation: flash 1.6s ease-out; }
+@keyframes flash { from { background: var(--zinc-soft); } }
+.ck input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--zinc-ink); cursor: pointer; margin: 0; }
+.ck .who b { font-weight: 600; }
+.ck small, .ck .sub { display: block; font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+.ck .amt { font-weight: 600; font-size: 16px; }
+.ck .due { font-weight: 600; }
+.tag { display: inline-block; font: 500 11px/1.7 var(--font-body); padding: 0 6px; border-radius: 4px; white-space: nowrap; }
+.tag.late { color: var(--danger); background: var(--danger-soft); }
+.tag.soon { color: var(--warn); background: var(--warn-soft); }
+.empty { padding: 28px 16px; text-align: center; color: var(--muted); border-top: 1px solid var(--line); }
+.mobile-lbl { display: none; }
+@media (max-width: 640px) {
+  .lh { display: none; }
+  .ck { grid-template-columns: 26px minmax(0, 1fr) auto; grid-template-areas: "cb who amt" "cb due due" "cb no ed"; gap: 2px 10px; }
+  .ck > :nth-child(1) { grid-area: cb; align-self: start; padding-top: 3px; }
+  .ck .due { grid-area: due; font-size: 13px; }
+  .ck .who { grid-area: who; }
+  .ck .no { grid-area: no; font-size: 13px; }
+  .ck .amt { grid-area: amt; }
+  .ck .ed { grid-area: ed; justify-self: end; }
+  .ck .no small { display: inline; margin-left: 6px; }
+}
+
+/* 帳戶色 chip */
+.chip { display: inline-flex; align-items: center; gap: 4px; font: 600 12px/1.8 var(--font-body); padding: 0 8px; border-radius: 999px; white-space: nowrap; background: var(--ax-soft); color: var(--ax); }
+.c0 { --c: var(--a0); --cs: var(--a0-soft); } .c1 { --c: var(--a1); --cs: var(--a1-soft); } .c2 { --c: var(--a2); --cs: var(--a2-soft); } .c3 { --c: var(--a3); --cs: var(--a3-soft); } .cx { --c: var(--ax); --cs: var(--ax-soft); }
+.chip[class*=" c"] { background: var(--cs); color: var(--c); }
+
+/* 送代收列 */
+.sendbar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 6; background: var(--surface); border-top: 2px solid var(--zinc); box-shadow: 0 -6px 20px rgb(0 0 0 / .12); padding-bottom: env(safe-area-inset-bottom, 0px); }
+.sendbar .in { max-width: 1040px; margin: 0 auto; padding: 10px max(16px, env(safe-area-inset-right, 0px)) 12px max(16px, env(safe-area-inset-left, 0px)); display: grid; gap: 8px; }
+.sendbar .sum { display: flex; flex-wrap: wrap; gap: 4px 16px; align-items: baseline; }
+.sendbar .sum b { font: 700 22px/1.2 var(--font-num); color: var(--zinc-ink); }
+.sendbar .ctl { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.sendbar input[type=date] { width: auto; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; flex-wrap: wrap; }
+.seg button { appearance: none; border: 0; background: var(--surface); padding: 7px 12px; cursor: pointer; color: var(--ink); }
+.seg button + button { border-left: 1px solid var(--line); }
+.seg button[aria-pressed="true"] { background: var(--steel); color: var(--top-ink); }
+.seg button small { opacity: .75; font-size: 11px; margin-left: 4px; }
+
+/* 已代收 */
+.filters { display: grid; grid-template-columns: 120px auto minmax(0, 1fr); gap: 8px; align-items: center; }
+@media (max-width: 640px) { .filters { grid-template-columns: 1fr; } }
+.acsum { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 8px; }
+.acbox { border-radius: 8px; padding: 8px 12px; background: var(--cs, var(--sunken)); color: var(--ink); border: 0; text-align: left; cursor: pointer; display: grid; gap: 2px; }
+.acbox .t { font-weight: 600; color: var(--c, var(--muted)); font-size: 13px; }
+.acbox .v { font: 600 17px/1.3 var(--font-num); }
+.acbox .s { font-size: 12px; color: var(--muted); }
+.acbox[aria-pressed="true"] { outline: 2px solid var(--c, var(--muted)); }
+.batch { border-top: 1px solid var(--line); }
+.batch > summary { list-style: none; display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; gap: 10px; align-items: center; padding: 10px 12px; cursor: pointer; }
+.batch > summary::-webkit-details-marker { display: none; }
+.batch > summary::before { content: "▸"; color: var(--muted); grid-row: 1; grid-column: 1; }
+.batch[open] > summary::before { content: "▾"; }
+.batch > summary .lab { grid-column: 2; display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center; min-width: 0; }
+.batch > summary .lab small { color: var(--muted); font-size: 12px; }
+.batch > summary .cnt { color: var(--muted); font-size: 13px; white-space: nowrap; }
+.batch > summary .tot { font: 600 16px/1.3 var(--font-num); text-align: right; min-width: 100px; }
+.batch .body { padding: 0 12px 12px 34px; display: grid; gap: 8px; }
+.btable { width: 100%; border-collapse: collapse; font-size: 13px; }
+.btable th { font-weight: 500; color: var(--muted); font-size: 12px; text-align: left; padding: 5px 6px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.btable td { padding: 6px; border-bottom: 1px solid var(--line); }
+.btable .r { text-align: right; white-space: nowrap; }
+.btable tr { cursor: pointer; }
+.btable tbody tr:hover { background: var(--sunken); }
+.bwrap { overflow-x: auto; }
+.more { padding: 10px 14px; color: var(--muted); font-size: 13px; border-top: 1px solid var(--line); text-align: center; }
+@media (max-width: 640px) {
+  .batch > summary { grid-template-columns: auto minmax(0, 1fr) auto; }
+  .batch > summary .cnt { grid-column: 2; grid-row: 2; }
+  .batch > summary .tot { grid-column: 3; grid-row: 1 / span 2; min-width: 0; }
+  .batch .body { padding-left: 12px; }
+  .btable .hm { display: none; }
+}
+
+/* 資料管理 */
+.acrow { display: grid; grid-template-columns: 90px 1fr 1fr 1.2fr auto; gap: 8px; align-items: end; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
+@media (max-width: 680px) { .acrow { grid-template-columns: 1fr 1fr; } }
+
+dialog { border: 1px solid var(--line); border-radius: 10px; padding: 0; background: var(--surface); color: var(--ink); width: min(640px, calc(100vw - 32px)); }
+dialog::backdrop { background: rgb(0 0 0 / .4); }
+dialog form { padding: 16px; display: grid; gap: 12px; }
+dialog .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+dialog .grid .full { grid-column: 1 / -1; }
+@media (max-width: 480px) { dialog .grid { grid-template-columns: 1fr; } }
+
+.toast { position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 10px 16px; border-radius: 8px; font-size: 14px; z-index: 20; display: flex; gap: 12px; align-items: center; max-width: calc(100vw - 32px); }
+.toast button { appearance: none; border: 0; background: transparent; color: var(--zinc); font-weight: 600; cursor: pointer; padding: 0; }
+body.has-bar .toast { bottom: auto; top: calc(110px + env(safe-area-inset-top, 0px)); }
+@media (max-width: 640px) {
+  .sendbar .in { gap: 6px; padding-top: 8px; padding-bottom: 8px; }
+  .sendbar .sum b { font-size: 18px; }
+  .sendbar .seg button small { display: none; }
+  .sendbar .ctl .grow { display: none; }
+  .sendbar .ctl .btn { flex: 1; padding: 8px 6px; }
+}
+
+#printArea { display: none; }
+@media print {
+  body { background: #fff; color: #000; }
+  body > *:not(#printArea) { display: none !important; }
+  #printArea { display: block; font: 13px/1.5 var(--font-body); }
+  #printArea h2 { font-size: 17px; margin: 0 0 4px; }
+  #printArea p { margin: 0 0 10px; }
+  #printArea table { width: 100%; border-collapse: collapse; }
+  #printArea th, #printArea td { border: 1px solid #555; padding: 4px 6px; }
+  #printArea .r { text-align: right; }
+}
+@media (prefers-reduced-motion: no-preference) { .btn, .tab, .ck { transition: background-color .12s, border-color .12s, opacity .12s; } }
+@media (prefers-reduced-motion: reduce) { .ck.new { animation: none; } }
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="top-inner">
+    <div class="brand"><h1><span class="mark"></span>支票登記</h1><small id="stamp"></small></div>
+    <nav class="tabs" role="tablist">
+      <button class="tab" role="tab" data-tab="pending" aria-selected="true">待代收<span class="badge" id="pcount">0</span></button>
+      <button class="tab" role="tab" data-tab="done" aria-selected="false">已代收</button>
+      <button class="tab" role="tab" data-tab="data" aria-selected="false">資料管理</button>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <!-- 待代收 -->
+  <section class="view" id="view-pending">
+    <div class="panel">
+      <h2>登記收到的支票</h2>
+      <form class="entry" id="entry" autocomplete="off">
+        <label class="fld"><span>戶名（客戶） <b>*</b></span><input type="text" id="fName" list="dlNames" required></label>
+        <label class="fld">付款行／分行<input type="text" id="fBank" list="dlBanks"></label>
+        <label class="fld">支票號碼<input type="text" id="fNo" class="num" autocapitalize="characters"></label>
+        <label class="fld">帳號<input type="text" id="fAcct" class="num" inputmode="numeric"></label>
+        <label class="fld"><span>到期日 <b>*</b></span><input type="date" id="fDue" required></label>
+        <label class="fld"><span>金額 <b>*</b></span><input type="text" id="fAmt" class="amt" inputmode="numeric" required placeholder="0"></label>
+        <label class="fld note">備註<input type="text" id="fNote" placeholder="選填"></label>
+        <div class="acts">
+          <button type="button" class="btn ghost" id="fClear">清空</button>
+          <button type="submit" class="btn primary" id="fSubmit">登記</button>
+        </div>
+      </form>
+      <div class="picks" id="picks" hidden></div>
+      <p class="hint" id="entryHint">輸入戶名會自動帶出這個客戶上次的付款行與帳號。</p>
+    </div>
+
+    <div class="panel">
+      <div class="row">
+        <h2 class="grow">待代收支票（依到期日）</h2>
+      </div>
+      <div class="stats">
+        <div class="stat"><span>待代收</span><b id="sPendN">0 張</b></div>
+        <div class="stat"><span>待代收合計</span><b id="sPendAmt">0</b></div>
+        <div class="stat"><span>已到期／7 天內到期</span><b id="sSoon">0 / 0</b></div>
+      </div>
+      <div class="row">
+        <span class="hint">勾選到期日在</span>
+        <input type="date" id="qsDate" style="width:auto">
+        <span class="hint">以前的支票</span>
+        <button class="btn sm" id="qsGo">勾選</button>
+        <button class="btn sm" id="qsAll">全選</button>
+        <button class="btn sm ghost" id="qsNone">清除勾選</button>
+        <input type="search" id="pSearch" placeholder="篩選戶名、號碼、金額" class="grow" style="flex-basis:180px">
+      </div>
+    </div>
+
+    <div class="list" id="pList"></div>
+  </section>
+
+  <!-- 已代收 -->
+  <section class="view" id="view-done" hidden>
+    <div class="panel">
+      <div class="filters">
+        <select id="dYear" aria-label="年度"></select>
+        <div class="seg" id="dAcct"></div>
+        <input type="search" id="dSearch" placeholder="搜尋全部年度：戶名、號碼、金額、分行">
+      </div>
+      <div class="acsum" id="dSum"></div>
+    </div>
+    <div class="list" id="dList"></div>
+  </section>
+
+  <!-- 資料管理 -->
+  <section class="view" id="view-data" hidden>
+    <div class="panel">
+      <h2>匯入舊的 Excel 支票表單</h2>
+      <p class="hint">選原本的「支票代收」.xls / .xlsx。會讀取戶名、分行、號碼、帳號、到期日、金額，以及「入賬」欄的代收備註（例如 <span class="num">10/8上海</span>、<span class="num">9/30超</span>、<span class="num">9/9土</span>）自動歸類。表單最後一段沒有備註的支票會放進「待代收」。已存在的支票（號碼與金額相同）不會重複匯入。</p>
+      <div class="row">
+        <input type="file" id="impFile" accept=".xls,.xlsx,.csv">
+      </div>
+      <div id="impResult" class="hint"></div>
+      <div class="row" id="impActs" hidden>
+        <button class="btn primary" id="impGo">確定匯入</button>
+        <button class="btn ghost" id="impCancel">取消</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>代收帳戶</h2>
+      <p class="hint">「簡稱」用在代收備註，例如代收日 10/3、簡稱「超」會記成 <span class="num">10/3超</span>。「匯入辨識字」是匯入舊表單時用來判斷帳戶的字（用逗號分隔，由上往下比對）。</p>
+      <div id="acList" style="display:grid;gap:8px"></div>
+      <div class="row"><button class="btn sm" id="acAdd">新增帳戶</button></div>
+    </div>
+
+    <div class="panel">
+      <h2>匯出與備份</h2>
+      <p class="hint">資料存在這台裝置的瀏覽器裡，換電腦、換手機或清除瀏覽資料前，請先匯出備份。</p>
+      <div class="row">
+        <button class="btn" id="expXlsx">匯出 Excel</button>
+        <button class="btn" id="expJson">備份（JSON）</button>
+        <label class="btn">還原備份<input type="file" id="impJson" accept=".json" hidden></label>
+        <span class="grow"></span>
+        <button class="btn danger" id="wipe">清除全部資料</button>
+      </div>
+    </div>
+  </section>
+</main>
+
+<div class="sendbar" id="sendbar" hidden>
+  <div class="in">
+    <div class="sum">
+      <span>已勾選 <b id="selN" class="num">0</b> 張</span>
+      <span>這次代收合計 <b id="selAmt" class="num">0</b></span>
+      <span class="hint" id="selRange"></span>
+    </div>
+    <div class="ctl">
+      <div class="seg" id="sendAcct" role="group" aria-label="代收帳戶"></div>
+      <label class="hint">代收日 <input type="date" id="sendDate"></label>
+      <span class="chip" id="sendLabel"></span>
+      <span class="grow"></span>
+      <button class="btn" id="sendCopy">複製清單</button>
+      <button class="btn" id="sendPrint">列印清單</button>
+      <button class="btn primary" id="sendGo">送代收</button>
+    </div>
+  </div>
+</div>
+
+<dialog id="dlg">
+  <form method="dialog" id="eForm">
+    <h2 style="margin:0;font-size:16px">編輯支票</h2>
+    <div class="grid">
+      <label class="fld">戶名<input type="text" id="eName" list="dlNames" required></label>
+      <label class="fld">付款行／分行<input type="text" id="eBank" list="dlBanks"></label>
+      <label class="fld">支票號碼<input type="text" id="eNo" class="num"></label>
+      <label class="fld">帳號<input type="text" id="eAcct" class="num"></label>
+      <label class="fld">到期日<input type="date" id="eDue"></label>
+      <label class="fld">金額<input type="text" id="eAmt" class="amt" inputmode="numeric" required></label>
+      <label class="fld full">備註<input type="text" id="eNote"></label>
+      <label class="fld">狀態<select id="eStatus"></select></label>
+      <label class="fld" id="eCDateWrap">代收日<input type="date" id="eCDate"></label>
+      <label class="fld full" id="eRawWrap">原表單代收備註<input type="text" id="eRaw"></label>
+    </div>
+    <p class="hint" id="eInfo"></p>
+    <div class="row">
+      <button type="button" class="btn danger" id="eDel">刪除</button>
+      <span class="grow"></span>
+      <button type="button" class="btn ghost" id="eCancel">取消</button>
+      <button type="submit" class="btn primary" id="eSave" value="save">儲存</button>
+    </div>
+  </form>
+</dialog>
+
+<datalist id="dlNames"></datalist>
+<datalist id="dlBanks"></datalist>
+<div id="printArea"></div>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+'use strict';
+const KEY = 'checkbook.v1';
+const DEFAULT_ACCOUNTS = [
+  { id: 'chao', code: '超',  bank: '上海銀行', holder: '陳彥超',   alias: '陳彥超,超' },
+  { id: 'sh',   code: '上海', bank: '上海銀行', holder: '志瑞螺絲', alias: '上海,海' },
+  { id: 'land', code: '土',  bank: '土地銀行', holder: '志瑞螺絲', alias: '土銀,土' },
+];
+let db = { checks: [], accounts: DEFAULT_ACCOUNTS.map(a => ({ ...a })) };
+const sel = new Set();
+let sendAcct = 'sh';
+let doneYear = '';      // '' = 全部
+let doneAcct = '*';     // '*' = 全部；'-' = 其他／未註記
+let lastNewId = null;
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const money = n => Math.round(n || 0).toLocaleString('zh-TW');
+const pad = n => String(n).padStart(2, '0');
+const isoOf = d => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+const today = () => isoOf(new Date());
+const addDays = (iso, n) => { const [y, m, d] = iso.split('-').map(Number); return isoOf(new Date(y, m - 1, d + n)); };
+const slash = iso => iso ? iso.replace(/-/g, '/') : '—';
+const md = iso => iso ? (+iso.slice(5, 7)) + '/' + (+iso.slice(8, 10)) : '';
+const uid = () => 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+const toHalf = s => String(s ?? '').replace(/[！-～]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0)).replace(/　/g, ' ');
+function parseAmt(s) {
+  const t = toHalf(s).replace(/[,\s$NT元]/gi, '');
+  if (!t) return NaN;
+  const n = Number(t);
+  return isFinite(n) ? n : NaN;
+}
+
+/* ---------- 儲存 ---------- */
+function load() {
+  try {
+    const s = localStorage.getItem(KEY);
+    if (s) {
+      const o = JSON.parse(s);
+      if (o && Array.isArray(o.checks)) db.checks = o.checks;
+      if (o && Array.isArray(o.accounts) && o.accounts.length) db.accounts = o.accounts;
+    }
+  } catch (e) { /* 無法讀取時用空資料 */ }
+}
+function save() {
+  try { localStorage.setItem(KEY, JSON.stringify(db)); }
+  catch (e) { toast('儲存失敗：' + e.message); }
+}
+
+/* ---------- 帳戶 ---------- */
+const acctById = id => db.accounts.find(a => a.id === id);
+const acctIdx = id => db.accounts.findIndex(a => a.id === id);
+const acctCls = id => { const i = acctIdx(id); return i < 0 ? 'cx' : 'c' + (i % 4); };
+const acctName = a => a ? a.bank + ' ' + a.holder : '其他／未註記';
+function labelOf(c) {
+  if (!c.col) return '';
+  const a = acctById(c.col.a);
+  if (c.col.d && a) return md(c.col.d) + a.code;
+  return c.col.raw || (c.col.d ? md(c.col.d) : '已代收（未註記）');
+}
+function chip(c) {
+  return `<span class="chip ${acctCls(c.col && c.col.a)}">${esc(labelOf(c))}</span>`;
+}
+
+/* ---------- 分頁 ---------- */
+let curTab = 'pending';
+function showTab(t) {
+  curTab = t;
+  document.querySelectorAll('.tab').forEach(b => b.setAttribute('aria-selected', String(b.dataset.tab === t)));
+  for (const v of ['pending', 'done', 'data']) $('view-' + v).hidden = v !== t;
+  if (t === 'done') renderDone();
+  if (t === 'data') renderAccounts();
+  renderBar();
+}
+document.querySelectorAll('.tab').forEach(b => b.addEventListener('click', () => showTab(b.dataset.tab)));
+
+/* ---------- 自動完成 ---------- */
+function refreshLists() {
+  const names = new Map(), banks = new Map();
+  for (const c of db.checks) {
+    const k = c.due || '';
+    if (c.name && (!names.has(c.name) || names.get(c.name) < k)) names.set(c.name, k);
+    if (c.bank) banks.set(c.bank, (banks.get(c.bank) || 0) + 1);
+  }
+  $('dlNames').innerHTML = [...names.entries()].sort((a, b) => b[1].localeCompare(a[1])).map(([n]) => `<option value="${esc(n)}">`).join('');
+  $('dlBanks').innerHTML = [...banks.entries()].sort((a, b) => b[1] - a[1]).map(([n]) => `<option value="${esc(n)}">`).join('');
+}
+function historyOf(name) {
+  return db.checks.filter(c => c.name === name).sort((a, b) => (b.recv || b.due || '').localeCompare(a.recv || a.due || '') || (b.due || '').localeCompare(a.due || ''));
+}
+function onNameInput() {
+  const name = $('fName').value.trim();
+  const hist = name ? historyOf(name) : [];
+  const box = $('picks');
+  if (!hist.length) { box.hidden = true; $('entryHint').className = 'hint'; $('entryHint').textContent = name ? '新客戶。' : '輸入戶名會自動帶出這個客戶上次的付款行與帳號。'; return; }
+  const combos = [];
+  for (const c of hist) {
+    const k = (c.bank || '') + '|' + (c.acct || '');
+    if (!combos.some(x => x.k === k)) combos.push({ k, bank: c.bank || '', acct: c.acct || '', no: c.no || '' });
+    if (combos.length >= 4) break;
+  }
+  if (!$('fBank').value && !$('fAcct').value) { $('fBank').value = combos[0].bank; $('fAcct').value = combos[0].acct; }
+  $('fNo').placeholder = combos[0].no ? '上次 ' + combos[0].no : '';
+  box.innerHTML = '<span>這個客戶用過：</span>' + combos.map((x, i) => `<button type="button" class="pick" data-i="${i}">${esc(x.bank)} <span class="num">${esc(x.acct)}</span></button>`).join('');
+  box.querySelectorAll('.pick').forEach(b => b.addEventListener('click', () => {
+    const x = combos[+b.dataset.i]; $('fBank').value = x.bank; $('fAcct').value = x.acct; $('fNo').placeholder = x.no ? '上次 ' + x.no : ''; $('fNo').focus();
+  }));
+  box.hidden = false;
+  $('entryHint').className = 'hint';
+  $('entryHint').textContent = `${name} 共 ${hist.length} 張，上次到期日 ${slash(hist[0].due)}、NT$ ${money(hist[0].amt)}。`;
+}
+$('fName').addEventListener('change', onNameInput);
+$('fName').addEventListener('input', () => { if (historyOf($('fName').value.trim()).length) onNameInput(); });
+
+/* ---------- 登記 ---------- */
+let dupArmed = '';
+function clearEntry() {
+  for (const id of ['fName', 'fBank', 'fNo', 'fAcct', 'fDue', 'fAmt', 'fNote']) $(id).value = '';
+  $('fNo').placeholder = ''; $('picks').hidden = true; dupArmed = '';
+  $('fSubmit').textContent = '登記'; $('entryHint').className = 'hint';
+  $('entryHint').textContent = '輸入戶名會自動帶出這個客戶上次的付款行與帳號。';
+}
+$('fClear').addEventListener('click', () => { clearEntry(); $('fName').focus(); });
+$('fNo').addEventListener('input', () => { if (dupArmed) { dupArmed = ''; $('fSubmit').textContent = '登記'; } });
+$('entry').addEventListener('submit', e => {
+  e.preventDefault();
+  const amt = parseAmt($('fAmt').value);
+  if (!(amt > 0)) { $('entryHint').className = 'hint warn'; $('entryHint').textContent = '金額格式不對。'; $('fAmt').focus(); return; }
+  const no = toHalf($('fNo').value).trim().toUpperCase();
+  if (no) {
+    const dup = db.checks.find(c => (c.no || '').toUpperCase() === no);
+    if (dup && dupArmed !== no) {
+      dupArmed = no;
+      $('entryHint').className = 'hint warn';
+      $('entryHint').textContent = `號碼 ${no} 已經登記過（${dup.name}，到期 ${slash(dup.due)}，NT$ ${money(dup.amt)}${dup.col ? '，' + labelOf(dup) : '，待代收'}）。確定要再登記一次請再按「確定登記」。`;
+      $('fSubmit').textContent = '確定登記';
+      return;
+    }
+  }
+  const c = {
+    id: uid(), name: $('fName').value.trim(), bank: $('fBank').value.trim(), no,
+    acct: toHalf($('fAcct').value).trim(), due: $('fDue').value, amt, note: $('fNote').value.trim(), recv: today(), col: null,
+  };
+  db.checks.push(c); save(); lastNewId = c.id;
+  toast(`已登記 ${c.name} ${c.no} NT$ ${money(c.amt)}`);
+  clearEntry(); refreshLists(); renderPending();
+  $('fName').focus();
+});
+
+/* ---------- 待代收清單 ---------- */
+const pendingAll = () => db.checks.filter(c => !c.col).sort((a, b) => (a.due || '9').localeCompare(b.due || '9') || a.name.localeCompare(b.name, 'zh-Hant'));
+function matchQ(c, q) {
+  if (!q) return true;
+  const qa = parseAmt(q);
+  const hay = [c.name, c.bank, c.no, c.acct, c.note, labelOf(c), slash(c.due)].join(' ').toUpperCase();
+  return hay.includes(q.toUpperCase()) || (qa > 0 && Math.round(qa) === Math.round(c.amt));
+}
+function dueTag(due, t, soon) {
+  if (!due) return '';
+  if (due < t) return '<span class="tag late">已到期</span>';
+  if (due <= soon) return '<span class="tag soon">7 天內</span>';
+  return '';
+}
+function renderPending() {
+  const all = pendingAll();
+  for (const id of [...sel]) if (!all.some(c => c.id === id)) sel.delete(id);
+  const t = today(), soon = addDays(t, 7);
+  $('pcount').textContent = all.length;
+  $('sPendN').textContent = all.length + ' 張';
+  $('sPendAmt').textContent = money(all.reduce((s, c) => s + c.amt, 0));
+  $('sSoon').textContent = all.filter(c => c.due && c.due < t).length + ' / ' + all.filter(c => c.due && c.due >= t && c.due <= soon).length;
+  const q = $('pSearch').value.trim();
+  const list = all.filter(c => matchQ(c, q));
+  let h = '<div class="lh"><span></span><span>到期日</span><span>戶名／付款行</span><span>號碼／帳號</span><span class="r">金額</span><span></span></div>';
+  if (!list.length) h += `<div class="empty">${all.length ? '沒有符合的支票' : '目前沒有待代收的支票。收到支票時在上面登記，或到「資料管理」匯入舊表單。'}</div>`;
+  for (const c of list) {
+    h += `<div class="ck${sel.has(c.id) ? ' on' : ''}${c.id === lastNewId ? ' new' : ''}" data-id="${c.id}">
+      <span><input type="checkbox" aria-label="勾選 ${esc(c.name)} ${esc(c.no)}"${sel.has(c.id) ? ' checked' : ''}></span>
+      <span class="due num">${slash(c.due)} ${dueTag(c.due, t, soon)}</span>
+      <span class="who"><b>${esc(c.name)}</b><small>${esc(c.bank)}${c.note ? ' · ' + esc(c.note) : ''}</small></span>
+      <span class="no num">${esc(c.no) || '—'}<small>${esc(c.acct)}</small></span>
+      <span class="amt num r">${money(c.amt)}</span>
+      <span class="ed r"><button type="button" class="btn ghost sm" data-edit="${c.id}">編輯</button></span>
+    </div>`;
+  }
+  $('pList').innerHTML = h;
+  lastNewId = null;
+  renderBar();
+}
+$('pList').addEventListener('click', e => {
+  const ed = e.target.closest('[data-edit]');
+  if (ed) { openEdit(ed.dataset.edit); return; }
+  const row = e.target.closest('.ck'); if (!row) return;
+  const id = row.dataset.id;
+  const cb = row.querySelector('input[type=checkbox]');
+  if (e.target !== cb) cb.checked = !cb.checked;
+  cb.checked ? sel.add(id) : sel.delete(id);
+  row.classList.toggle('on', cb.checked);
+  renderBar();
+});
+$('pSearch').addEventListener('input', renderPending);
+$('qsGo').addEventListener('click', () => {
+  const d = $('qsDate').value; if (!d) { $('qsDate').focus(); return; }
+  for (const c of pendingAll()) if (c.due && c.due <= d) sel.add(c.id);
+  renderPending();
+});
+$('qsAll').addEventListener('click', () => { const q = $('pSearch').value.trim(); for (const c of pendingAll()) if (matchQ(c, q)) sel.add(c.id); renderPending(); });
+$('qsNone').addEventListener('click', () => { sel.clear(); renderPending(); });
+
+/* ---------- 送代收列 ---------- */
+function selected() { return pendingAll().filter(c => sel.has(c.id)); }
+function renderSendAcct() {
+  if (!acctById(sendAcct)) sendAcct = db.accounts[0] ? db.accounts[0].id : '';
+  $('sendAcct').innerHTML = db.accounts.map(a => `<button type="button" data-a="${a.id}" aria-pressed="${a.id === sendAcct}">${esc(a.code)}<small>${esc(a.bank)} ${esc(a.holder)}</small></button>`).join('');
+}
+$('sendAcct').addEventListener('click', e => { const b = e.target.closest('[data-a]'); if (!b) return; sendAcct = b.dataset.a; renderSendAcct(); renderBar(); });
+function renderBar() {
+  const s = selected();
+  const show = curTab === 'pending' && s.length > 0;
+  $('sendbar').hidden = !show;
+  document.body.classList.toggle('has-bar', show);
+  if (!show) return;
+  $('selN').textContent = s.length;
+  $('selAmt').textContent = money(s.reduce((x, c) => x + c.amt, 0));
+  const dues = s.map(c => c.due).filter(Boolean).sort();
+  $('selRange').textContent = dues.length ? `到期日 ${slash(dues[0])} ～ ${slash(dues[dues.length - 1])}` : '';
+  if (!$('sendDate').value) $('sendDate').value = today();
+  const a = acctById(sendAcct);
+  const lb = $('sendLabel');
+  lb.className = 'chip ' + acctCls(sendAcct);
+  lb.textContent = a ? '備註：' + md($('sendDate').value) + a.code : '';
+}
+$('sendDate').addEventListener('change', renderBar);
+function listTitle(acctId, date) {
+  const a = acctById(acctId);
+  return { title: '支票代收清單' + (a ? '　' + acctName(a) : ''), sub: date ? '代收日 ' + slash(date) : '' };
+}
+function sortForList(arr) { return arr.slice().sort((a, b) => (a.due || '').localeCompare(b.due || '') || a.name.localeCompare(b.name, 'zh-Hant')); }
+function copyList(arr, acctId, date) {
+  const { title, sub } = listTitle(acctId, date);
+  const rows = sortForList(arr);
+  const lines = [title + (sub ? '　' + sub : ''), ['筆數', '戶名', '付款行', '票據號碼', '到期日', '票據金額'].join('\t')];
+  rows.forEach((c, i) => lines.push([i + 1, c.name, c.bank, c.no, slash(c.due), c.amt].join('\t')));
+  lines.push(['', '', '', '', '票據總金額', rows.reduce((s, c) => s + c.amt, 0)].join('\t'));
+  const txt = lines.join('\n');
+  const done = () => toast('已複製清單，可以貼到 Excel 或 LINE');
+  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(done, () => fallbackCopy(txt, done));
+  else fallbackCopy(txt, done);
+}
+function fallbackCopy(txt, done) {
+  const ta = document.createElement('textarea'); ta.value = txt; ta.style.position = 'fixed'; ta.style.opacity = '0';
+  document.body.appendChild(ta); ta.select();
+  try { document.execCommand('copy'); done(); } catch (e) { toast('無法複製'); }
+  ta.remove();
+}
+function printList(arr, acctId, date) {
+  const { title, sub } = listTitle(acctId, date);
+  const rows = sortForList(arr);
+  $('printArea').innerHTML = `<h2>${esc(title)}</h2><p>${esc(sub)}　共 ${rows.length} 張</p>
+    <table><thead><tr><th>筆數</th><th>戶名</th><th>付款行</th><th>票據號碼</th><th>帳號</th><th>到期日</th><th class="r">票據金額</th></tr></thead><tbody>
+    ${rows.map((c, i) => `<tr><td>${i + 1}</td><td>${esc(c.name)}</td><td>${esc(c.bank)}</td><td>${esc(c.no)}</td><td>${esc(c.acct)}</td><td>${slash(c.due)}</td><td class="r">${money(c.amt)}</td></tr>`).join('')}
+    <tr><td colspan="6" class="r"><b>票據總金額</b></td><td class="r"><b>${money(rows.reduce((s, c) => s + c.amt, 0))}</b></td></tr></tbody></table>`;
+  window.print();
+}
+$('sendCopy').addEventListener('click', () => copyList(selected(), sendAcct, $('sendDate').value));
+$('sendPrint').addEventListener('click', () => printList(selected(), sendAcct, $('sendDate').value));
+$('sendGo').addEventListener('click', () => {
+  const s = selected(); if (!s.length) return;
+  const d = $('sendDate').value || today();
+  const a = acctById(sendAcct); if (!a) return;
+  const ids = s.map(c => c.id);
+  for (const c of s) c.col = { d, a: a.id };
+  save(); sel.clear();
+  const total = s.reduce((x, c) => x + c.amt, 0);
+  renderPending();
+  toast(`${s.length} 張（NT$ ${money(total)}）已記為 ${md(d)}${a.code}`, '復原', () => {
+    for (const c of db.checks) if (ids.includes(c.id)) c.col = null;
+    save(); ids.forEach(id => sel.add(id)); renderPending(); if (curTab === 'done') renderDone();
+  });
+});
+
+/* ---------- 已代收 ---------- */
+function batchKey(c) {
+  if (c.col.d) return c.col.d + '|' + (acctById(c.col.a) ? c.col.a : '-' + (c.col.raw || ''));
+  return 'x|' + (c.col.raw || '') + '|' + (c.due || '').slice(0, 4);
+}
+const yearOfCol = c => (c.col.d || c.due || '').slice(0, 4);
+function groupBatches(list) {
+  const m = new Map();
+  for (const c of list) {
+    const k = batchKey(c);
+    if (!m.has(k)) m.set(k, { key: k, d: c.col.d || '', a: acctById(c.col.a) ? c.col.a : '', raw: c.col.raw || '', year: yearOfCol(c), items: [] });
+    m.get(k).items.push(c);
+  }
+  return [...m.values()].sort((x, y) => (y.d || y.year + '-00').localeCompare(x.d || x.year + '-00') || y.key.localeCompare(x.key));
+}
+function renderDoneFilters() {
+  const done = db.checks.filter(c => c.col);
+  const years = [...new Set(done.map(yearOfCol).filter(Boolean))].sort().reverse();
+  if (doneYear === null || (doneYear && !years.includes(doneYear))) {
+    const maxY = String(new Date().getFullYear());
+    doneYear = years.find(y => y <= maxY) || years[0] || '';
+  }
+  $('dYear').innerHTML = years.map(y => `<option value="${y}">${y} 年</option>`).join('') + '<option value="">全部年度</option>';
+  $('dYear').value = doneYear;
+  const opts = [{ v: '*', t: '全部' }, ...db.accounts.map(a => ({ v: a.id, t: a.code })), { v: '-', t: '其他' }];
+  $('dAcct').innerHTML = opts.map(o => `<button type="button" data-v="${esc(o.v)}" aria-pressed="${o.v === doneAcct}">${esc(o.t)}</button>`).join('');
+}
+let doneShown = 60;
+function renderDone(keepCount) {
+  if (!keepCount) doneShown = 60;
+  renderDoneFilters();
+  const q = $('dSearch').value.trim();
+  let list = db.checks.filter(c => c.col);
+  if (!q && doneYear) list = list.filter(c => yearOfCol(c) === doneYear);
+  if (q) list = list.filter(c => matchQ(c, q));
+  // 各帳戶統計（套用年度與搜尋，不套用帳戶篩選）
+  const buckets = db.accounts.map(a => ({ id: a.id, a, n: 0, amt: 0, b: new Set() }));
+  const other = { id: '-', a: null, n: 0, amt: 0, b: new Set() };
+  for (const c of list) {
+    const bk = buckets.find(x => x.id === c.col.a) || other;
+    bk.n++; bk.amt += c.amt; bk.b.add(batchKey(c));
+  }
+  const showB = [...buckets, ...(other.n ? [other] : [])];
+  $('dSum').innerHTML = showB.map(x => `<button type="button" class="acbox ${x.a ? acctCls(x.id) : 'cx'}" data-v="${x.id}" aria-pressed="${doneAcct === x.id}">
+      <span class="t">${x.a ? esc(x.a.code) + '　' + esc(acctName(x.a)) : '其他／未註記'}</span>
+      <span class="v">NT$ ${money(x.amt)}</span>
+      <span class="s">${x.b.size} 次代收 · ${x.n} 張</span></button>`).join('');
+  if (doneAcct !== '*') list = list.filter(c => doneAcct === '-' ? !acctById(c.col.a) : c.col.a === doneAcct);
+  const groups = groupBatches(list);
+  const total = list.reduce((s, c) => s + c.amt, 0);
+  let h = `<div class="lh" style="grid-template-columns:1fr auto"><span>${q ? '搜尋「' + esc(q) + '」' : (doneYear ? doneYear + ' 年' : '全部年度')}：${groups.length} 次代收、${list.length} 張</span><span class="num">NT$ ${money(total)}</span></div>`;
+  if (!groups.length) h += '<div class="empty">沒有已代收的支票</div>';
+  groups.slice(0, doneShown).forEach((g, i) => {
+    const a = acctById(g.a);
+    const lab = g.d && a ? md(g.d) + a.code : (g.raw || '未註記');
+    const sum = g.items.reduce((s, c) => s + c.amt, 0);
+    const desc = g.d ? slash(g.d) + (a ? '　' + acctName(a) : '') : (g.year ? g.year + ' 年到期' : '') + '（舊資料）';
+    h += `<details class="batch" data-g="${i}"${q ? ' open' : ''}><summary>
+      <span class="lab"><span class="chip ${g.a ? acctCls(g.a) : 'cx'}">${esc(lab)}</span><small>${esc(desc)}</small></span>
+      <span class="cnt">${g.items.length} 張</span><span class="tot">${money(sum)}</span></summary><div class="body"></div></details>`;
+  });
+  if (groups.length > doneShown) h += `<button type="button" class="more btn ghost" id="dMore" style="width:100%;border-radius:0">再顯示 ${Math.min(60, groups.length - doneShown)} 筆（共 ${groups.length} 次代收）</button>`;
+  $('dList').innerHTML = h;
+  $('dList')._groups = groups;
+  $('dList').querySelectorAll('details.batch').forEach(d => {
+    if (d.open) fillBatch(d);
+    d.addEventListener('toggle', () => { if (d.open) fillBatch(d); });
+  });
+  const more = $('dMore'); if (more) more.addEventListener('click', () => { doneShown += 60; renderDone(true); });
+}
+function fillBatch(d) {
+  const body = d.querySelector('.body'); if (body.childElementCount) return;
+  const g = $('dList')._groups[+d.dataset.g];
+  const rows = sortForList(g.items);
+  body.innerHTML = `<div class="bwrap"><table class="btable"><thead><tr><th>到期日</th><th>戶名</th><th class="hm">付款行</th><th>號碼</th><th class="hm">帳號</th><th class="r">金額</th></tr></thead><tbody>
+    ${rows.map(c => `<tr data-id="${c.id}"><td class="num">${slash(c.due)}</td><td>${esc(c.name)}${c.note ? ' <small class="hint">' + esc(c.note) + '</small>' : ''}</td><td class="hm">${esc(c.bank)}</td><td class="num">${esc(c.no)}</td><td class="num hm">${esc(c.acct)}</td><td class="r num">${money(c.amt)}</td></tr>`).join('')}
+    </tbody></table></div>
+    <div class="row"><span class="hint grow">點一列可編輯（改帳戶、改日期或退回待代收）</span>
+    <button type="button" class="btn sm" data-act="copy">複製清單</button>
+    <button type="button" class="btn sm" data-act="print">列印清單</button>
+    <button type="button" class="btn sm danger" data-act="undo">整批退回待代收</button></div>`;
+  body.querySelectorAll('tbody tr').forEach(tr => tr.addEventListener('click', () => openEdit(tr.dataset.id)));
+  body.querySelectorAll('[data-act]').forEach(b => b.addEventListener('click', () => {
+    const act = b.dataset.act;
+    if (act === 'copy') copyList(g.items, g.a, g.d);
+    else if (act === 'print') printList(g.items, g.a, g.d);
+    else if (act === 'undo') {
+      if (!b.classList.contains('arm')) { b.classList.add('arm'); b.textContent = '再按一次確認退回'; setTimeout(() => { b.classList.remove('arm'); b.textContent = '整批退回待代收'; }, 3000); return; }
+      const back = g.items.map(c => ({ c, col: c.col }));
+      for (const c of g.items) c.col = null;
+      save(); renderPending(); renderDone();
+      toast(`${g.items.length} 張已退回待代收`, '復原', () => { for (const x of back) x.c.col = x.col; save(); renderPending(); renderDone(); });
+    }
+  }));
+}
+$('dYear').addEventListener('change', () => { doneYear = $('dYear').value; renderDone(); });
+$('dAcct').addEventListener('click', e => { const b = e.target.closest('[data-v]'); if (!b) return; doneAcct = b.dataset.v; renderDone(); });
+$('dSum').addEventListener('click', e => { const b = e.target.closest('[data-v]'); if (!b) return; doneAcct = doneAcct === b.dataset.v ? '*' : b.dataset.v; renderDone(); });
+let dTimer; $('dSearch').addEventListener('input', () => { clearTimeout(dTimer); dTimer = setTimeout(() => renderDone(), 200); });
+
+/* ---------- 編輯 ---------- */
+let editId = null;
+function openEdit(id) {
+  const c = db.checks.find(x => x.id === id); if (!c) return;
+  editId = id;
+  $('eName').value = c.name; $('eBank').value = c.bank || ''; $('eNo').value = c.no || ''; $('eAcct').value = c.acct || '';
+  $('eDue').value = c.due || ''; $('eAmt').value = c.amt; $('eNote').value = c.note || '';
+  $('eStatus').innerHTML = '<option value="">待代收</option>' + db.accounts.map(a => `<option value="${a.id}">已代收：${esc(a.code)}（${esc(acctName(a))}）</option>`).join('') + '<option value="-">已代收：其他／未註記</option>';
+  $('eStatus').value = !c.col ? '' : (acctById(c.col.a) ? c.col.a : '-');
+  $('eCDate').value = c.col ? (c.col.d || '') : today();
+  $('eRaw').value = c.col ? (c.col.raw || '') : '';
+  $('eInfo').textContent = [c.recv ? '登記日 ' + slash(c.recv) : '', c.dueRaw ? '原表單到期日：' + c.dueRaw : ''].filter(Boolean).join('　');
+  $('eDel').classList.remove('arm'); $('eDel').textContent = '刪除';
+  syncStatus();
+  $('dlg').showModal();
+}
+function syncStatus() {
+  const v = $('eStatus').value;
+  $('eCDateWrap').hidden = v === '';
+  $('eRawWrap').hidden = v !== '-' && !$('eRaw').value;
+}
+$('eStatus').addEventListener('change', () => { if ($('eStatus').value && !$('eCDate').value) $('eCDate').value = today(); syncStatus(); });
+$('eCancel').addEventListener('click', () => $('dlg').close());
+$('eDel').addEventListener('click', () => {
+  const b = $('eDel');
+  if (!b.classList.contains('arm')) { b.classList.add('arm'); b.textContent = '再按一次確認刪除'; return; }
+  const i = db.checks.findIndex(x => x.id === editId); if (i < 0) return;
+  const [c] = db.checks.splice(i, 1);
+  save(); $('dlg').close(); sel.delete(c.id); afterChange();
+  toast(`已刪除 ${c.name} ${c.no}`, '復原', () => { db.checks.splice(i, 0, c); save(); afterChange(); });
+});
+$('eForm').addEventListener('submit', e => {
+  e.preventDefault();
+  const c = db.checks.find(x => x.id === editId); if (!c) return;
+  const amt = parseAmt($('eAmt').value);
+  if (!(amt >= 0)) { $('eAmt').focus(); return; }
+  c.name = $('eName').value.trim(); c.bank = $('eBank').value.trim(); c.no = toHalf($('eNo').value).trim().toUpperCase();
+  c.acct = toHalf($('eAcct').value).trim(); c.due = $('eDue').value; c.amt = amt; c.note = $('eNote').value.trim();
+  const st = $('eStatus').value;
+  if (!st) c.col = null;
+  else c.col = { d: $('eCDate').value || '', a: st === '-' ? '' : st, ...(($('eRaw').value.trim() && st === '-') || (!$('eCDate').value && $('eRaw').value.trim()) ? { raw: $('eRaw').value.trim() } : {}) };
+  save(); $('dlg').close(); afterChange(); toast('已儲存');
+});
+function afterChange() { refreshLists(); renderPending(); if (curTab === 'done') renderDone(true); }
+
+/* ---------- 匯入舊表單 ---------- */
+function excelDate(v) {
+  if (typeof v === 'number') {
+    if (!(v > 0) || !window.XLSX) return '';
+    const p = XLSX.SSF.parse_date_code(v);
+    return p && p.y ? p.y + '-' + pad(p.m) + '-' + pad(p.d) : '';
+  }
+  if (v instanceof Date) return isoOf(v);
+  const m = toHalf(v).match(/(\d{2,4})\D+(\d{1,2})\D+(\d{1,2})/);
+  if (!m) return '';
+  let y = +m[1]; if (y < 1000) y += 1911;  // 民國年
+  const mo = +m[2], d = +m[3];
+  if (mo < 1 || mo > 12 || d < 1) return '';
+  const last = new Date(y, mo, 0).getDate();
+  return y + '-' + pad(mo) + '-' + pad(Math.min(d, last));
+}
+function matchAcct(raw) {
+  for (const a of db.accounts) {
+    const words = String(a.alias || '').split(/[,，、\s]+/).filter(Boolean);
+    if (!words.length) words.push(a.code);
+    if (words.some(w => raw.includes(w))) return a.id;
+  }
+  return '';
+}
+function inferDate(mo, d, due) {
+  if (mo < 1 || mo > 12 || d < 1 || d > 31) return '';
+  const base = due ? +due.slice(0, 4) : new Date().getFullYear();
+  const dt = due ? Date.parse(due) : Date.now();
+  let best = '', bd = Infinity;
+  for (const y of [base - 1, base, base + 1]) {
+    const t = Date.UTC(y, mo - 1, d);
+    if (Math.abs(t - dt) < bd) { bd = Math.abs(t - dt); best = y + '-' + pad(mo) + '-' + pad(Math.min(d, new Date(y, mo, 0).getDate())); }
+  }
+  return best;
+}
+function parseRemark(cells, due) {
+  // cells：代收／入賬欄的原始值，優先用後面那欄（新的格式都寫在「入賬」欄）
+  let raw = '', serial = null, sawV = false;
+  for (const v of cells) {
+    if (v === '' || v == null) continue;
+    if (typeof v === 'number' && v > 20000 && v < 80000) { serial = v; raw = raw || excelDate(v).replace(/^\d+-0?(\d+)-0?(\d+)$/, '$1/$2'); continue; }
+    const s = toHalf(v).trim();
+    if (!s) continue;
+    if (/^v$/i.test(s)) { sawV = true; continue; }
+    if (!raw) raw = s;
+  }
+  if (!raw && serial == null && !sawV) return null;
+  if (!raw) return { d: '', a: '', raw: '' };
+  let d = '';
+  if (serial != null) d = excelDate(serial);
+  else { const m = raw.match(/(\d{1,2})\s*[\/.]\s*(\d{1,2})/); if (m) d = inferDate(+m[1], +m[2], due); }
+  const a = matchAcct(raw);
+  const out = { d, a };
+  // 能完整用「日期＋簡稱」表示時就不另存原文，其餘保留原文
+  const ac = acctById(a);
+  if (!(d && ac && raw.replace(/\s/g, '') === md(d) + ac.code)) out.raw = raw;
+  return out;
+}
+let impPending = null;
+function parseWorkbook(wb) {
+  const out = [];
+  for (const name of wb.SheetNames) {
+    const aoa = XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, raw: true, defval: '' });
+    const hi = aoa.findIndex(r => r.some(v => String(v).trim() === '戶名') && r.some(v => /金額/.test(String(v))));
+    if (hi < 0) continue;
+    const H = aoa[hi].map(v => String(v).trim());
+    const col = n => H.findIndex(h => h === n);
+    const ci = { name: col('戶名'), bank: [col('分行'), col('付款行'), col('付款行／分行')].find(i => i >= 0), no: [col('號碼'), col('支票號碼'), col('票據號碼')].find(i => i >= 0),
+      acct: col('帳號'), due: [col('到期日'), col('票據日期')].find(i => i >= 0), amt: H.findIndex(h => /金額/.test(h)), note: col('備註') };
+    let rem = [col('代收'), col('入賬'), col('代收備註')].filter(i => i >= 0);
+    if (!rem.length) rem = [ci.amt + 1, ci.amt + 2];
+    rem.sort((a, b) => b - a);
+    const rows = [];
+    let lastDue = '';
+    for (let r = hi + 1; r < aoa.length; r++) {
+      const R = aoa[r];
+      const nm = String(R[ci.name] ?? '').trim();
+      const amtRaw = R[ci.amt];
+      const amt = typeof amtRaw === 'number' ? amtRaw : parseAmt(amtRaw);
+      if (!nm && !(amt > 0)) continue;
+      const dueV = ci.due != null && ci.due >= 0 ? R[ci.due] : '';
+      const due = excelDate(dueV);
+      const c = {
+        id: uid(), name: nm, bank: ci.bank != null && ci.bank >= 0 ? String(R[ci.bank] ?? '').trim() : '',
+        no: ci.no != null && ci.no >= 0 ? toHalf(R[ci.no]).trim().toUpperCase() : '', acct: ci.acct >= 0 ? String(R[ci.acct] ?? '').trim() : '',
+        due, amt: amt > 0 ? amt : 0, note: ci.note >= 0 ? String(R[ci.note] ?? '').trim() : '', recv: '', col: null,
+      };
+      if (!due && dueV !== '') c.dueRaw = String(dueV);
+      // 到期日打錯時，用上一列的到期日推算代收備註的年份
+      c._rem = parseRemark(rem.map(i => R[i]), due || lastDue);
+      if (due) lastDue = due;
+      rows.push(c);
+    }
+    if (rows.length) out.push({ sheet: name, rows });
+  }
+  return out;
+}
+$('impFile').addEventListener('change', async () => {
+  const f = $('impFile').files[0]; if (!f) return;
+  if (!window.XLSX) { $('impResult').textContent = 'Excel 讀取元件還沒載入，請確認網路連線後再試一次。'; return; }
+  $('impResult').textContent = '讀取中…';
+  try {
+    const wb = XLSX.read(await f.arrayBuffer(), { type: 'array' });
+    const sheets = parseWorkbook(wb);
+    if (!sheets.length) { $('impResult').textContent = '找不到含「戶名」與「金額」欄位的工作表。'; return; }
+    const rows = sheets.flatMap(s => s.rows);
+    // 最後一筆有代收備註之後、沒有備註的支票 → 待代收；之前沒備註的 → 舊資料已代收（未註記）
+    let lastRem = -1; rows.forEach((c, i) => { if (c._rem) lastRem = i; });
+    rows.forEach((c, i) => { c.col = c._rem || (i < lastRem ? { d: '', a: '', raw: '' } : null); delete c._rem; });
+    const have = new Set(db.checks.map(c => (c.no || '').toUpperCase() + '|' + Math.round(c.amt)));
+    const fresh = [], dups = [];
+    for (const c of rows) {
+      const k = c.no + '|' + Math.round(c.amt);
+      if (c.no && have.has(k)) dups.push(c); else fresh.push(c);
+    }
+    impPending = fresh;
+    const pend = fresh.filter(c => !c.col);
+    const byA = {};
+    for (const c of fresh.filter(c => c.col)) { const k = acctById(c.col.a) ? c.col.a : '-'; byA[k] = (byA[k] || 0) + 1; }
+    const parts = db.accounts.filter(a => byA[a.id]).map(a => `${a.code} ${byA[a.id]} 張`);
+    if (byA['-']) parts.push(`其他／未註記 ${byA['-']} 張`);
+    $('impResult').innerHTML = `讀到 <b>${rows.length}</b> 張支票（工作表：${sheets.map(s => esc(s.sheet)).join('、')}）。<br>
+      將匯入 <b>${fresh.length}</b> 張：已代收 ${fresh.length - pend.length} 張（${parts.join('、') || '—'}），待代收 <b>${pend.length}</b> 張、合計 NT$ ${money(pend.reduce((s, c) => s + c.amt, 0))}。` +
+      (dups.length ? `<br>${dups.length} 張已經存在，會略過。` : '') +
+      (fresh.some(c => c.dueRaw) ? `<br>${fresh.filter(c => c.dueRaw).length} 張到期日無法辨識，匯入後可在編輯畫面補上。` : '');
+    $('impActs').hidden = !fresh.length;
+  } catch (e) {
+    $('impResult').textContent = '讀取失敗：' + e.message;
+  }
+});
+$('impGo').addEventListener('click', () => {
+  if (!impPending) return;
+  db.checks.push(...impPending);
+  const n = impPending.length; impPending = null;
+  save(); $('impActs').hidden = true; $('impFile').value = ''; $('impResult').textContent = `已匯入 ${n} 張。`;
+  doneYear = null; refreshLists(); renderPending(); toast(`已匯入 ${n} 張支票`);
+});
+$('impCancel').addEventListener('click', () => { impPending = null; $('impActs').hidden = true; $('impFile').value = ''; $('impResult').textContent = ''; });
+
+/* ---------- 匯出／備份 ---------- */
+function download(name, blob) {
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+const stampName = () => today().replace(/-/g, '');
+$('expJson').addEventListener('click', () => download(`支票登記備份_${stampName()}.json`, new Blob([JSON.stringify(db)], { type: 'application/json' })));
+$('impJson').addEventListener('change', async () => {
+  const f = $('impJson').files[0]; if (!f) return;
+  try {
+    const o = JSON.parse(await f.text());
+    if (!o || !Array.isArray(o.checks)) throw new Error('不是支票登記的備份檔');
+    db.checks = o.checks; if (Array.isArray(o.accounts) && o.accounts.length) db.accounts = o.accounts;
+    save(); sel.clear(); doneYear = null; refreshLists(); renderSendAcct(); renderPending(); renderAccounts();
+    toast(`已還原 ${db.checks.length} 張支票`);
+  } catch (e) { toast('還原失敗：' + e.message); }
+  $('impJson').value = '';
+});
+$('expXlsx').addEventListener('click', () => {
+  if (!window.XLSX) { toast('Excel 元件還沒載入，請確認網路連線'); return; }
+  // 欄位與原表單相同：戶名、分行、號碼、帳號、到期日、金額、代收、入賬（代收備註）、小計、備註
+  const aoa = [['支票代收 ' + slash(today())], ['', '戶名', '分行', '號碼', '帳號', '到期日', '金額', '代收', '入賬', '小計', '', '備註']];
+  const done = db.checks.filter(c => c.col);
+  const groups = groupBatches(done).reverse();
+  const toRow = (c, extra) => {
+    const dd = c.due ? (() => { const [y, m, d] = c.due.split('-').map(Number); return new Date(y, m - 1, d); })() : (c.dueRaw || '');
+    return ['', c.name, c.bank, c.no, c.acct, dd, c.amt, '', labelOf(c), ...(extra || ['', '']), c.note || ''];
+  };
+  for (const g of groups) {
+    const rows = sortForList(g.items);
+    const sum = rows.reduce((s, c) => s + c.amt, 0);
+    rows.forEach((c, i) => aoa.push(toRow(c, i === rows.length - 1 && g.d ? [sum, labelOf(c)] : null)));
+  }
+  for (const c of pendingAll()) aoa.push(toRow(c));
+  const ws = XLSX.utils.aoa_to_sheet(aoa, { cellDates: true, dateNF: 'yyyy/m/d' });
+  ws['!cols'] = [{ wch: 3 }, { wch: 10 }, { wch: 12 }, { wch: 13 }, { wch: 14 }, { wch: 11 }, { wch: 10 }, { wch: 5 }, { wch: 11 }, { wch: 10 }, { wch: 11 }, { wch: 16 }];
+  const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, '代收');
+  XLSX.writeFile(wb, `支票登記_${stampName()}.xlsx`);
+});
+$('wipe').addEventListener('click', () => {
+  const b = $('wipe');
+  if (!b.classList.contains('arm')) { b.classList.add('arm'); b.textContent = '再按一次確認清除'; setTimeout(() => { b.classList.remove('arm'); b.textContent = '清除全部資料'; }, 3000); return; }
+  const old = db.checks; db.checks = []; save(); sel.clear(); refreshLists(); renderPending();
+  b.classList.remove('arm'); b.textContent = '清除全部資料';
+  toast(`已清除 ${old.length} 張`, '復原', () => { db.checks = old; save(); refreshLists(); renderPending(); });
+});
+
+/* ---------- 代收帳戶設定 ---------- */
+function renderAccounts() {
+  const used = id => db.checks.some(c => c.col && c.col.a === id);
+  $('acList').innerHTML = db.accounts.map((a, i) => `<div class="acrow" data-i="${i}">
+    <label class="fld">簡稱<input type="text" data-k="code" value="${esc(a.code)}"></label>
+    <label class="fld">銀行<input type="text" data-k="bank" value="${esc(a.bank)}"></label>
+    <label class="fld">戶名<input type="text" data-k="holder" value="${esc(a.holder)}"></label>
+    <label class="fld">匯入辨識字<input type="text" data-k="alias" value="${esc(a.alias || '')}"></label>
+    <span><span class="chip ${acctCls(a.id)}">${esc(md(today()) + a.code)}</span>
+    ${used(a.id) ? '' : `<button type="button" class="btn ghost sm danger" data-del="${i}">移除</button>`}</span></div>`).join('');
+}
+$('acList').addEventListener('change', e => {
+  const inp = e.target.closest('input[data-k]'); if (!inp) return;
+  const a = db.accounts[+inp.closest('.acrow').dataset.i];
+  const v = inp.value.trim();
+  if (inp.dataset.k === 'code' && !v) { inp.value = a.code; return; }
+  a[inp.dataset.k] = v; save(); renderAccounts(); renderSendAcct(); renderBar();
+});
+$('acList').addEventListener('click', e => {
+  const b = e.target.closest('[data-del]'); if (!b) return;
+  db.accounts.splice(+b.dataset.del, 1); save(); renderAccounts(); renderSendAcct();
+});
+$('acAdd').addEventListener('click', () => {
+  db.accounts.push({ id: 'a' + Date.now().toString(36), code: '新', bank: '', holder: '', alias: '' });
+  save(); renderAccounts(); renderSendAcct();
+  const inputs = $('acList').querySelectorAll('.acrow:last-child input'); if (inputs[0]) { inputs[0].select(); inputs[0].focus(); }
+});
+
+/* ---------- toast ---------- */
+let tTimer;
+function toast(msg, actLabel, act) {
+  const t = $('toast');
+  t.innerHTML = `<span>${esc(msg)}</span>` + (actLabel ? `<button type="button">${esc(actLabel)}</button>` : '');
+  if (actLabel) t.querySelector('button').addEventListener('click', () => { t.hidden = true; act(); });
+  t.hidden = false; clearTimeout(tTimer); tTimer = setTimeout(() => { t.hidden = true; }, actLabel ? 7000 : 2600);
+}
+
+/* ---------- 啟動 ---------- */
+load();
+doneYear = null;
+$('stamp').textContent = '今天 ' + slash(today());
+$('qsDate').value = addDays(today(), 7);
+refreshLists(); renderSendAcct(); renderPending();
+</script>
+</body>
+</html>
