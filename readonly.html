@@ -288,7 +288,7 @@ details > summary { cursor: pointer; font-weight: 500; }
         <label class="fld" style="flex:1 1 100px">材質<input type="text" id="oneMat" placeholder="鐵、SUS304"></label>
         <label class="fld" style="flex:1 1 100px">電鍍<input type="text" id="oneFin" placeholder="五彩、鍍鋅"></label>
         <label class="fld" style="flex:1 1 100px">頭型<input type="text" id="oneHead" placeholder="自動判斷"></label>
-        <label class="fld" style="flex:0 1 110px">牙系<select id="oneSys"><option value="">自動判斷</option><option>公制</option><option>英制</option></select></label>
+        <label class="fld" style="flex:0 1 110px">牙系<select id="oneSys"><option value="">自動判斷</option><option>公制</option><option>英制</option><option>番數牙</option></select></label>
         <label class="fld" style="flex:0 1 90px">直徑<input type="text" id="oneDia" placeholder="自動判斷"></label>
         <label class="fld" style="flex:1 1 100px">牙型<input type="text" id="oneThread" placeholder="粗牙、鐵板牙…"></label>
         <label class="fld" style="flex:0 1 90px">長度<input type="text" id="oneLen" placeholder="自動判斷"></label>
@@ -571,6 +571,11 @@ function attr(it, key) {
     if (key === 'finish') return hit ? hit[0] : '';
     return hit ? (m.replace(hit[0], '').trim() || m) : m;
   }
+  // 牙系：直徑或規格有 # 的（8#、#8）歸「番數牙」
+  if (key === 'system') {
+    const d = attr(it, 'dia');
+    if (/#/.test(d) || (!d && /^\s*(#\d|\d+#)/.test(it.spec || ''))) return '番數牙';
+  }
   if (it[key]) return String(it[key]).trim();
   if (it.nut && (key === 'length' || key === 'head')) return '';   // 螺帽沒有長度、頭型
   const sp = specParts(it.spec);
@@ -632,7 +637,7 @@ const FIN_GROUP = f => /^(鍍鋅|電鍍|電鋅|鋅)$/.test(f) ? '電鍍／鍍鋅
   : /^(鍍鎳|鎳)$/.test(f) ? '鍍鎳'
   : /CR3\+R/i.test(f) ? '三價處理（CR3+R）'
   : /^(白皮|黑身)$/.test(f) ? '白皮／黑身' : f;
-const facetVal = (it, k) => k === 'material' ? MAT_GROUP(attr(it, k)) : k === 'finish' && attr(it, k) ? FIN_GROUP(attr(it, k)) : attr(it, k) || (k === 'finish' ? '未標示' : '');
+const facetVal = (it, k) => k === 'dia' ? attr(it, k).replace(/^#(\d+)$/, '$1#') : k === 'material' ? MAT_GROUP(attr(it, k)) : k === 'finish' && attr(it, k) ? FIN_GROUP(attr(it, k)) : attr(it, k) || (k === 'finish' ? '未標示' : '');
 function matchFacets(it, skip) { return FACETS.every(([k]) => k === skip || (skip === 'group' && (k === 'od' || k === 'thick')) || !flt[k] || facetVal(it, k) === flt[k]); }
 
 /* ---------- 查價頁 ---------- */
@@ -656,7 +661,7 @@ function renderFilters(base) {
     else if (k === 'length') vals.sort((a, b) => lenValue(a) - lenValue(b) || a.localeCompare(b));
     else if (k === 'od' || k === 'thick') vals.sort((a, b) => a - b);
     else if (k === 'dia') vals.sort((a, b) => diaValue(a) - diaValue(b) || a.localeCompare(b));
-    else if (k === 'system') vals.sort((a, b) => (a === '英制') - (b === '英制'));
+    else if (k === 'system') { const o = ['公制', '英制', '番數牙']; vals.sort((a, b) => o.indexOf(a) - o.indexOf(b)); }
     else vals.sort((a, b) => (a === '未標示') - (b === '未標示') || a.localeCompare(b, 'zh-Hant'));
     const name = v => (k === 'od' || k === 'thick') ? v + ' mm' : k === 'cat' ? catById(v).name + (parseDisc(catById(v).discount) > 0 ? `（${fmtDisc(parseDisc(catById(v).discount))}）` : '') : k === 'length' && /^\d+(\.\d+)?$/.test(v) ? v + ' mm' : v;
     const sel = $('#f-' + k);
