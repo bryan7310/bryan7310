@@ -59,6 +59,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .brand h1 { margin: 0; font-size: 18px; font-weight: 700; letter-spacing: .04em; }
 .brand .bolt { display: inline-block; width: 12px; height: 12px; border-radius: 2px; background: var(--zinc); transform: rotate(45deg); margin-right: 4px; }
 .brand small { opacity: .75; font-size: 12px; }
+.brand .ro { font-size: 12px; font-weight: 500; padding: 1px 8px; border-radius: 999px; background: var(--zinc); color: #1B2025; vertical-align: middle; }
 .tabs { display: flex; gap: 2px; margin-top: 8px; }
 .tab { appearance: none; border: 0; background: transparent; color: inherit; opacity: .72; padding: 8px 14px 10px; cursor: pointer; border-bottom: 3px solid transparent; font-weight: 500; }
 .tab[aria-selected="true"] { opacity: 1; border-bottom-color: var(--zinc); }
@@ -389,7 +390,16 @@ function mergeNewSuppliers() {
   S.loadedSups = [...loaded];
   if (fresh.length || fixed) try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {}
 }
+// 查價專用版（頁面有 <meta name="screw-readonly">）：只用內建牌價，不能修改；只記住報價單
+const READONLY = !!document.querySelector('meta[name="screw-readonly"]');
+const RO_KEY = KEY + '.readonly';
 function load() {
+  if (READONLY) {
+    S = builtinData();
+    try { const q = JSON.parse(localStorage.getItem(RO_KEY) || '{}'); S.quote = q.quote || []; S.qmeta = q.qmeta; } catch (e) { S.quote = []; }
+    S.settings = Object.assign({ decimals: 2 }, S.settings || {});
+    return;
+  }
   try { const raw = localStorage.getItem(KEY); if (raw) { S = JSON.parse(raw); } } catch (e) {}
   // 沒有資料，或只剩舊版範例資料時，改用內建牌價表
   if (!S || !Array.isArray(S.categories) || (S.items.length && S.items.every(i => i.ex))) {
@@ -418,7 +428,7 @@ function dupGroup(it) {
   if (nk(it.spec)) (DUP.byCat.get(it.cat + '|' + specKey(it)) || []).forEach(x => { if (supName(x) !== supName(it)) g.add(x); });
   return [...g];
 }
-function save() { DUP = null; try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} const st = document.getElementById('stamp'); if (st) st.textContent = `${S.categories.length} 類 · ${S.items.length} 項`; }
+function save() { DUP = null; try { if (READONLY) localStorage.setItem(RO_KEY, JSON.stringify({ quote: S.quote, qmeta: S.qmeta })); else localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} const st = document.getElementById('stamp'); if (st) st.textContent = `${S.categories.length} 類 · ${S.items.length} 項`; }
 
 /* ---------- 折扣與價格 ---------- */
 // "65" / "6.5" / "0.65" / "65折" / "65 95" (多段) → 0.65 / 0.6175
@@ -631,7 +641,7 @@ function renderFilters(base) {
   $('#fReset').hidden = !FACETS.some(([k]) => flt[k]);
 }
 function renderSearch() {
-  $('#sampleBar').hidden = !S.items.some(i => i.ex);
+  if ($('#sampleBar')) $('#sampleBar').hidden = !S.items.some(i => i.ex);
   const terms = norm($('#q').value).split(/\s+/).filter(Boolean);
   const base = terms.length ? S.items.filter(it => { const t = searchText(it); return terms.every(w => t.includes(w)); }) : S.items;
   renderFilters(base);
@@ -739,6 +749,7 @@ function catOptions(sel, withNew) {
   return S.categories.map(c => `<option value="${c.id}"${c.id === sel ? ' selected' : ''}>${esc(c.name)}</option>`).join('') + (withNew ? `<option value="__file"${sel === '__file' ? ' selected' : ''}>依表格中的「類別」欄自動分類</option>` : '');
 }
 function renderManage() {
+  if (READONLY) return;
   $('#cats').innerHTML = S.categories.length ? S.categories.map(c => {
     const f = parseDisc(c.discount); const n = S.items.filter(i => i.cat === c.id).length;
     return `<div class="cat" data-cid="${c.id}">
@@ -785,6 +796,7 @@ const GUESS = {
 };
 let imp = { mode: 'list', rows: null, map: [], wb: null };
 function setMode(m) {
+  if (READONLY) return;
   imp.mode = m; $$('#impMode button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.mode === m)));
   $('#matrixOpts').hidden = m !== 'matrix';
   $('#modeHint').textContent = m === 'list'
@@ -830,6 +842,7 @@ function loadSheet(name) { setRows(XLSX.utils.sheet_to_json(imp.wb.Sheets[name],
 $('#impSheet').addEventListener('change', e => loadSheet(e.target.value));
 
 function buildPreview() {
+  if (READONLY) return;
   const box = $('#impPreview');
   if (!imp.rows || !imp.rows.length) { box.hidden = true; return; }
   box.hidden = false;
@@ -985,6 +998,10 @@ function render() {
   if (tab === 'search') renderSearch(); else if (tab === 'quote') renderQuote(); else renderManage();
 }
 load();
+if (READONLY) {
+  $('#tab-manage').remove(); $('#view-manage').innerHTML = ''; $('#sampleBar').remove();
+  $('.brand h1').insertAdjacentHTML('beforeend', ' <span class="ro">查價專用</span>');
+}
 if (S.qmeta) { $('#qCustomer').value = S.qmeta.c || ''; $('#qExtra').value = S.qmeta.x || ''; $('#qTax').value = S.qmeta.t || '0'; }
 setMode('list');
 render();

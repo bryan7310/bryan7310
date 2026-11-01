@@ -31,3 +31,7 @@
 
 ## 資料儲存
 資料存在該瀏覽器的 localStorage，換裝置或清除瀏覽資料前請先備份。
+
+## 查價專用版
+`readonly.html` 只能查價、加入報價單、複製報價文字，沒有「牌價管理」，資料固定用內建牌價。
+更新 `index.html` 或內建牌價後執行 `python3 data/build_readonly.py` 重新產生。
