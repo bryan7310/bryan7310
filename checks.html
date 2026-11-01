@@ -1,0 +1,579 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>支票開立</title>
+<style>
+:root{
+  --bg:#f5f6f8; --card:#fff; --ink:#1d2330; --muted:#6b7280; --line:#dfe3ea;
+  --brand:#1f6feb; --brand-ink:#fff; --ok:#16803c; --warn:#b45309; --danger:#c62828;
+  --chip:#eef3ff;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#14171c; --card:#1d2128; --ink:#e7eaf0; --muted:#9aa3b2; --line:#2e3440;
+    --brand:#4c8dff; --brand-ink:#fff; --ok:#4ade80; --warn:#fbbf24; --danger:#f87171; --chip:#22304a;
+  }
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font-family:"PingFang TC","Microsoft JhengHei","Noto Sans TC",system-ui,sans-serif;font-size:16px}
+header{background:var(--card);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5}
+.wrap{max-width:1100px;margin:0 auto;padding:0 16px}
+.top{display:flex;align-items:center;gap:16px;flex-wrap:wrap;min-height:56px}
+h1{font-size:20px;margin:0}
+nav{display:flex;gap:4px}
+nav button{border:0;background:transparent;color:var(--muted);padding:10px 14px;font-size:16px;border-radius:8px;cursor:pointer}
+nav button.on{background:var(--chip);color:var(--brand);font-weight:700}
+main{padding:20px 0 60px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:20px;margin-bottom:16px}
+.card h2{font-size:17px;margin:0 0 14px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px}
+label{display:block;font-size:14px;color:var(--muted);margin-bottom:6px}
+input,select,textarea{width:100%;font:inherit;color:var(--ink);background:var(--card);border:1px solid var(--line);
+  border-radius:8px;padding:10px 12px;min-height:44px}
+input:focus,select:focus{outline:2px solid var(--brand);outline-offset:-1px}
+.date3{display:grid;grid-template-columns:1.2fr 1fr 1fr;gap:6px}
+.date3 span{font-size:12px;color:var(--muted)}
+.hint{font-size:13px;color:var(--muted);margin-top:6px}
+.words{font-size:15px;color:var(--brand);margin-top:6px;min-height:20px}
+.btns{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.btn{border:1px solid var(--line);background:var(--card);color:var(--ink);font:inherit;padding:10px 16px;border-radius:8px;cursor:pointer;min-height:44px}
+.btn:hover{border-color:var(--brand)}
+.btn.primary{background:var(--brand);border-color:var(--brand);color:var(--brand-ink);font-weight:700}
+.btn.danger{color:var(--danger)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn.sm{padding:6px 10px;min-height:34px;font-size:14px}
+.combo{position:relative}
+.combo-list{position:absolute;left:0;right:0;top:100%;margin-top:4px;max-height:300px;overflow:auto;background:var(--card);
+  border:1px solid var(--line);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.15);z-index:20;display:none}
+.combo-list.open{display:block}
+.combo-list div{padding:10px 12px;cursor:pointer}
+.combo-list div.act,.combo-list div:hover{background:var(--chip)}
+.combo-list .new{color:var(--brand)}
+.combo .arrow{position:absolute;right:6px;top:6px;bottom:6px;width:34px;border:0;background:transparent;color:var(--muted);cursor:pointer;font-size:14px}
+.combo input{padding-right:40px}
+/* preview */
+.pv-box{overflow:auto}
+.pv-scale{transform-origin:0 0}
+.check{position:relative;background:#fffdf5;color:#000;font-family:"PMingLiU","新細明體","MingLiU","Noto Serif TC","Songti TC",serif;font-weight:700;overflow:hidden}
+.screen .check{border:1px dashed #b8b8b8;box-shadow:0 2px 10px rgba(0,0,0,.08)}
+.f{position:absolute;display:flex;white-space:nowrap;padding-left:.6mm;line-height:1}
+.f.vb{align-items:flex-end;padding-bottom:.4mm}
+.f.vc{align-items:center}
+.f.vt{align-items:flex-start;padding-top:.4mm}
+.guides .f{outline:1px dotted rgba(31,111,235,.55)}
+/* table */
+.toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:12px}
+.toolbar > div{min-width:150px}
+.tbl-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:15px}
+th,td{padding:10px 8px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}
+th{font-size:13px;color:var(--muted);font-weight:600}
+td.num{text-align:right;font-variant-numeric:tabular-nums}
+tr.sel td{background:var(--chip)}
+input[type=checkbox]{width:20px;height:20px;min-height:0;accent-color:var(--brand);cursor:pointer}
+.tag{font-size:12px;padding:2px 8px;border-radius:99px;border:1px solid currentColor}
+.tag.ok{color:var(--ok)} .tag.no{color:var(--warn)}
+.sum{display:flex;gap:16px;flex-wrap:wrap;align-items:center;margin-top:14px;padding-top:14px;border-top:1px solid var(--line)}
+.sum b{font-size:18px}
+.empty{color:var(--muted);text-align:center;padding:40px 0}
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#222;color:#fff;padding:10px 18px;border-radius:8px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:50}
+.toast.show{opacity:1}
+.hidden{display:none!important}
+#printArea{display:none}
+@media (max-width:600px){ .card{padding:16px} th,td{padding:8px 6px} }
+@media print{
+  body{background:#fff}
+  header,main,.toast{display:none!important}
+  #printArea{display:block}
+  #printArea .check{background:transparent;break-after:page;page-break-after:always}
+  #printArea .check:last-child{break-after:auto;page-break-after:auto}
+}
+</style>
+<style id="pageStyle"></style>
+</head>
+<body>
+<header><div class="wrap top">
+  <h1>支票開立</h1>
+  <nav>
+    <button data-tab="form" class="on">開票</button>
+    <button data-tab="list">開票明細 <span id="pendingCount"></span></button>
+    <button data-tab="set">設定</button>
+  </nav>
+</div></header>
+
+<main class="wrap">
+<!-- 開票 -->
+<section id="tab-form">
+  <div class="card">
+    <h2 id="formTitle">新增支票</h2>
+    <div class="grid">
+      <div style="grid-column:1/-1">
+        <label for="payee">公司抬頭</label>
+        <div class="combo">
+          <input id="payee" autocomplete="off" placeholder="點選或輸入公司名稱">
+          <button class="arrow" type="button" tabindex="-1" aria-label="展開">▼</button>
+          <div class="combo-list" id="payeeList"></div>
+        </div>
+        <div class="hint">清單裡沒有的公司直接輸入，存儲時會自動加入清單。</div>
+      </div>
+      <div>
+        <label for="amount">金額（元）</label>
+        <input id="amount" inputmode="numeric" placeholder="例：152308">
+        <div class="words" id="amountWords"></div>
+      </div>
+      <div>
+        <label>支票日期（民國）</label>
+        <div class="date3">
+          <div><input id="dy" inputmode="numeric"><span>年</span></div>
+          <div><input id="dm" inputmode="numeric"><span>月</span></div>
+          <div><input id="dd" inputmode="numeric"><span>日</span></div>
+        </div>
+      </div>
+      <div>
+        <label for="note">備註（不會印出）</label>
+        <input id="note" placeholder="例：10月貨款">
+      </div>
+    </div>
+    <div class="btns" style="margin-top:18px">
+      <button class="btn primary" id="saveBtn">存儲</button>
+      <button class="btn" id="saveNextBtn">存儲並繼續開下一張</button>
+      <button class="btn hidden" id="cancelEdit">取消編輯</button>
+    </div>
+  </div>
+  <div class="card">
+    <h2>支票預覽</h2>
+    <div class="pv-box screen guides" id="pvBox"><div class="pv-scale" id="pvScale"></div></div>
+    <div class="hint">虛線框是紙張範圍，藍色點線是 Excel 裡各欄位的儲存格位置。</div>
+  </div>
+</section>
+
+<!-- 開票明細 -->
+<section id="tab-list" class="hidden">
+  <div class="card">
+    <div class="toolbar">
+      <div><label for="fStatus">狀態</label>
+        <select id="fStatus"><option value="all">全部</option><option value="no" selected>未列印</option><option value="ok">已列印</option></select></div>
+      <div><label for="fMonth">支票年月</label><select id="fMonth"></select></div>
+      <div style="flex:1;min-width:180px"><label for="fText">搜尋抬頭</label><input id="fText" placeholder="輸入關鍵字"></div>
+    </div>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr>
+          <th><input type="checkbox" id="chkAll" title="全選"></th>
+          <th>列印順序</th><th>支票日期</th><th>公司抬頭</th><th style="text-align:right">金額</th><th>備註</th><th>狀態</th><th></th>
+        </tr></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+    <div class="empty hidden" id="emptyMsg">沒有符合的支票</div>
+    <div class="sum">
+      <span>已勾選 <b id="selCount">0</b> 張，合計 <b id="selTotal">0</b> 元</span>
+      <span style="flex:1"></span>
+      <button class="btn" id="markBtn" disabled>標記為已列印</button>
+      <button class="btn" id="unmarkBtn" disabled>改回未列印</button>
+      <button class="btn danger" id="delSelBtn" disabled>刪除勾選</button>
+      <button class="btn primary" id="printBtn" disabled>🖨 列印勾選的支票</button>
+    </div>
+    <div class="hint">列印順序依支票日期由早到晚，同一天依開立先後。每張支票一頁。</div>
+  </div>
+</section>
+
+<!-- 設定 -->
+<section id="tab-set" class="hidden">
+  <div class="card">
+    <h2>列印位置校正</h2>
+    <div class="grid">
+      <div><label for="offX">整體往右移（mm，負數往左）</label><input id="offX" type="number" step="0.5"></div>
+      <div><label for="offY">整體往下移（mm，負數往上）</label><input id="offY" type="number" step="0.5"></div>
+      <div><label for="pageW">紙張寬（mm）</label><input id="pageW" type="number" step="0.1"></div>
+      <div><label for="pageH">紙張高（mm）</label><input id="pageH" type="number" step="0.1"></div>
+    </div>
+    <div class="hint">預設照 Excel 檔：紙張 Monarch 信封（190.5 × 98.4 mm）橫印，左邊界 26 mm、上邊界 13 mm。
+      列印時請在列印對話框選同樣的紙張、邊界選「無」、縮放 100%（不要「符合頁面大小」）。先用白紙試印一張對著支票看，再調整上面的偏移。</div>
+    <div class="btns" style="margin-top:14px">
+      <button class="btn" id="testPrint">試印一張（範例資料）</button>
+      <button class="btn" id="resetLayout">恢復預設</button>
+    </div>
+  </div>
+  <div class="card">
+    <h2>公司抬頭清單（<span id="coCount"></span> 家）</h2>
+    <div class="btns" style="margin-bottom:12px">
+      <input id="newCo" placeholder="新增公司名稱" style="flex:1;min-width:200px">
+      <button class="btn" id="addCo">新增</button>
+    </div>
+    <div id="coList" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+  </div>
+  <div class="card">
+    <h2>資料備份</h2>
+    <div class="btns">
+      <button class="btn" id="expJson">備份（JSON）</button>
+      <button class="btn" id="impJson">還原備份</button>
+      <button class="btn" id="expCsv">匯出開票明細（CSV，可用 Excel 開）</button>
+      <input type="file" id="impFile" accept=".json" class="hidden">
+    </div>
+    <div class="hint">資料存在這台電腦的瀏覽器裡，換電腦或清除瀏覽資料前請先備份。</div>
+  </div>
+</section>
+</main>
+
+<div id="printArea"></div>
+<div class="toast" id="toast"></div>
+
+<script>
+const DEFAULT_COMPANIES = ["茂益工業有限公司", "復億工業社", "富邦螺絲有限公司", "大內股份有限公司", "登鈺工廠股份有限公司", "東日實業股份有限公司", "東加螺絲五金行", "台灣耐落螺絲工業股份有限公司", "泰興毅彈簧五金股份有限公司", "通億螺絲有限公司", "統昱企業社", "立得五金有限公司", "立國實業股份有限公司", "路竹新益工廠股份有限公司", "隆勝企業社", "高立螺絲工業股份有限公司", "高炘螺絲五金企業社", "虹瑩螺絲企業有限公司", "家新螺絲工業社", "廣豐工業社", "堃旺理貨行", "樺林離型紙股份有限公司", "宏悅工業有限公司", "鴻鎰螺絲興業社", "基鉦新實業有限公司", "嘉里大榮物流股份有限公司", "傑螺工業股份有限公司", "久盈金屬工業有限公司", "鍵財機械企業股份有限公司", "金良興股份有限公司", "金興工業社", "進溢工業社", "璟豐工業股份有限公司", "僑隆實業股份有限公司", "全宏工業社", "全偉螺絲企業有限公司", "泉心螺絲廠股份有限公司", "新益華司工業社", "鑫豐盛螺絲企業社", "鑫豪螺絲有限公司", "信禾企業社", "祥興螺栓股份有限公司", "興昌工業社", "致岡國際有限公司", "臻品商行", "彰利工業社", "正益螺絲企業有限公司", "程泰螺絲工業有限公司", "崇宇拉釘有限公司", "上貿螺絲工業社", "尚頂精密有限公司", "雙合鑫股份有限公司", "澤發企業有限公司", "宗鴻企業社", "總迪實業有限公司", "三王金屬實業社", "益廷工業社", "易興工業有限公司", "義順企業有限公司", "佑宗企業股份有限公司", "昱銘穎有限公司", "元祥金屬工業股份有限公司", "永益昇有限公司", "泳辰企業有限公司", "湧祥工業有限公司", "金元達金屬股份有限公司", "白興工業有限公司", "日瀅企業社", "豐通工業有限公司", "東昇實業社", "立堡包裝材料有限公司", "高銪企業股份有限公司", "宏昕螺絲有限公司", "宏昌昱有限公司", "浤森螺絲五金有限公司", "吉全螺帽有限公司", "久允螺絲有限公司", "豪美有限公司", "朔宬工業有限公司", "金同利螺絲有限公司", "鉅元五金有限公司", "鈞昶企業股份有限公司", "阡阡實業有限公司", "薪雨工業有限公司", "鑫城螺絲有限公司", "星宇螺絲工業社", "展源工業社", "振吉螺絲工廠有限公司", "長驥企業有限公司", "正貿螺絲行", "昶易工業股份有限公司", "呈美工業股份有限公司", "上允鐵線有限公司", "聖泰工業股份有限公司", "順聯螺帽有限公司", "亦郁嘉企業有限公司", "億量企業股份有限公司", "佑典螺絲工業社"];
+
+/* 版面：依 Excel 列印範圍 A1:F6 換算（mm，從紙張左上角起算） */
+const DEFAULT_LAYOUT = { pageW:190.5, pageH:98.4, offX:0, offY:0 };
+const FIELDS = {
+  year:  { x:135.3, y:18.0, w:13.5,  h:8.2, v:'vb', pt:12 },  // D2
+  month: { x:148.8, y:18.0, w:11.1,  h:8.2, v:'vb', pt:12 },  // E2
+  day:   { x:159.9, y:18.0, w:20.4,  h:8.2, v:'vb', pt:12 },  // F2
+  payee: { x:67.3,  y:26.2, w:113.0, h:9.8, v:'vc', pt:14 },  // C3:F3
+  words: { x:62.8,  y:36.0, w:117.5, h:7.9, v:'vc', pt:14 },  // B4:F4
+  num:   { x:67.3,  y:46.3, w:68.0,  h:6.9, v:'vt', pt:14 },  // C6
+};
+
+const KEY = 'checkApp.v1';
+const $ = s => document.querySelector(s);
+let db = load();
+let editingId = null;
+let selected = new Set();
+
+function load(){
+  let d = null;
+  try { d = JSON.parse(localStorage.getItem(KEY)); } catch(e){}
+  if (!d || typeof d !== 'object') d = {};
+  if (!Array.isArray(d.companies)) d.companies = DEFAULT_COMPANIES.slice();
+  if (!Array.isArray(d.checks)) d.checks = [];
+  d.layout = Object.assign({}, DEFAULT_LAYOUT, d.layout || {});
+  if (!d.seq) d.seq = d.checks.reduce((m,c)=>Math.max(m,c.seq||0),0);
+  return d;
+}
+function save(){
+  try { localStorage.setItem(KEY, JSON.stringify(db)); }
+  catch(e){ alert('存檔失敗：' + e.message); }
+}
+function toast(msg){ const t=$('#toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove('show'),1800); }
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmt = n => Number(n).toLocaleString('en-US');
+
+/* 金額轉國字大寫（同 Excel [DBNum2] 格式 + 「元整」） */
+function toChinese(n){
+  n = Math.floor(Number(n));
+  if (!isFinite(n) || n <= 0) return '';
+  const D='零壹貳參肆伍陸柒捌玖', U=['','拾','佰','仟'], G=['','萬','億','兆'];
+  const s = String(n); const groups=[];
+  for (let i=s.length; i>0; i-=4) groups.unshift(s.slice(Math.max(0,i-4), i));
+  let out='', zero=false;
+  groups.forEach((g, gi) => {
+    const gIdx = groups.length-1-gi; let part='';
+    g = g.padStart(4,'0');
+    for (let i=0;i<4;i++){
+      const d = +g[i];
+      if (d===0){ zero = true; continue; }
+      if (zero && (out||part)) part += '零';
+      zero = false;
+      part += D[d] + U[3-i];
+    }
+    if (part) out += part + G[gIdx];
+  });
+  return out + '元整';
+}
+
+/* 日期 */
+function today(){ const t=new Date(); return { y:t.getFullYear()-1911, m:t.getMonth()+1, d:t.getDate() }; }
+function dateKey(c){ return c.y*10000 + c.m*100 + c.d; }
+function dateStr(c){ return `${c.y}/${String(c.m).padStart(2,'0')}/${String(c.d).padStart(2,'0')}`; }
+function validDate(y,m,d){
+  if (!(y>=1 && m>=1 && m<=12 && d>=1)) return false;
+  const last = new Date(y+1911, m, 0).getDate();
+  return d <= last;
+}
+
+/* ---------- 支票繪製 ---------- */
+function checkHTML(c){
+  const L = db.layout;
+  const vals = { year:c.y, month:c.m, day:c.d, payee:c.payee, words:toChinese(c.amount), num:fmt(c.amount) };
+  let h = `<div class="check" style="width:${L.pageW}mm;height:${L.pageH}mm">`;
+  for (const k in FIELDS){
+    const f = FIELDS[k];
+    h += `<div class="f ${f.v}" data-k="${k}" style="left:${f.x+ +L.offX}mm;top:${f.y+ +L.offY}mm;width:${f.w}mm;height:${f.h}mm;font-size:${f.pt}pt"><span>${esc(vals[k] ?? '')}</span></div>`;
+  }
+  return h + '</div>';
+}
+/* 太長的抬頭自動縮小字體，避免超出欄位 */
+function fitText(root){
+  root.querySelectorAll('.f').forEach(box=>{
+    const span = box.firstElementChild; let pt = FIELDS[box.dataset.k].pt;
+    box.style.fontSize = pt+'pt';
+    while (span.offsetWidth > box.clientWidth - 2 && pt > 7){ pt -= 0.5; box.style.fontSize = pt+'pt'; }
+  });
+}
+function setPageStyle(){
+  $('#pageStyle').textContent = `@page{size:${db.layout.pageW}mm ${db.layout.pageH}mm;margin:0}`;
+}
+
+/* ---------- 開票表單 ---------- */
+function formData(){
+  return {
+    payee: $('#payee').value.trim(),
+    amount: Number(String($('#amount').value).replace(/[^\d]/g,'')),
+    y: parseInt($('#dy').value,10), m: parseInt($('#dm').value,10), d: parseInt($('#dd').value,10),
+    note: $('#note').value.trim(),
+  };
+}
+function renderPreview(){
+  const c = formData();
+  $('#amountWords').textContent = c.amount ? toChinese(c.amount) : '';
+  const box = $('#pvScale');
+  box.innerHTML = checkHTML({ ...c, y:c.y||'', m:c.m||'', d:c.d||'', amount:c.amount||0, payee:c.payee });
+  if (!c.amount) box.querySelectorAll('[data-k=words] span,[data-k=num] span').forEach(s=>s.textContent='');
+  fitText(box);
+  const chk = box.firstElementChild;
+  const avail = $('#pvBox').clientWidth;
+  const s = Math.min(1.4, avail / chk.offsetWidth);
+  box.style.transform = `scale(${s})`;
+  box.style.height = chk.offsetHeight * s + 'px';
+  box.style.width = chk.offsetWidth + 'px';
+  $('#pvBox').style.height = chk.offsetHeight * s + 4 + 'px';
+}
+function resetForm(keepDate){
+  editingId = null;
+  $('#payee').value=''; $('#amount').value=''; $('#note').value='';
+  if (!keepDate){ const t=today(); $('#dy').value=t.y; $('#dm').value=t.m; $('#dd').value=t.d; }
+  $('#formTitle').textContent='新增支票';
+  $('#saveBtn').textContent='存儲'; $('#saveNextBtn').classList.remove('hidden'); $('#cancelEdit').classList.add('hidden');
+  renderPreview();
+}
+function submit(next){
+  const c = formData();
+  if (!c.payee){ toast('請選擇或輸入公司抬頭'); $('#payee').focus(); return; }
+  if (!c.amount){ toast('請輸入金額'); $('#amount').focus(); return; }
+  if (!validDate(c.y,c.m,c.d)){ toast('支票日期不正確'); $('#dy').focus(); return; }
+  if (!db.companies.includes(c.payee)) db.companies.push(c.payee);
+  if (editingId){
+    const old = db.checks.find(x=>x.id===editingId);
+    Object.assign(old, c);
+    toast('已更新');
+  } else {
+    db.seq++;
+    db.checks.push({ id: Date.now().toString(36)+Math.random().toString(36).slice(2,6), seq: db.seq, created: Date.now(), printedAt: null, ...c });
+    toast(`已存儲：${c.payee} ${fmt(c.amount)} 元`);
+  }
+  save(); renderList(); renderCompanies();
+  const wasEdit = !!editingId;
+  resetForm(true);
+  if (wasEdit) showTab('list');
+  else if (next) $('#payee').focus();
+  else showTab('list');
+}
+function editCheck(id){
+  const c = db.checks.find(x=>x.id===id); if (!c) return;
+  editingId = id;
+  $('#payee').value=c.payee; $('#amount').value=c.amount; $('#dy').value=c.y; $('#dm').value=c.m; $('#dd').value=c.d; $('#note').value=c.note||'';
+  $('#formTitle').textContent='編輯支票';
+  $('#saveBtn').textContent='更新'; $('#saveNextBtn').classList.add('hidden'); $('#cancelEdit').classList.remove('hidden');
+  showTab('form'); renderPreview();
+}
+
+/* 公司下拉選單 */
+(function combo(){
+  const inp=$('#payee'), list=$('#payeeList'); let act=-1, items=[];
+  function open(all){
+    const q = all ? '' : inp.value.trim();
+    items = db.companies.filter(n => !q || n.includes(q));
+    let h = items.map((n,i)=>`<div data-i="${i}">${esc(n)}</div>`).join('');
+    if (q && !db.companies.includes(q)) h += `<div class="new" data-new="1">＋ 使用新公司「${esc(q)}」</div>`;
+    list.innerHTML = h || '<div style="color:var(--muted);cursor:default">沒有符合的公司</div>';
+    act = -1; list.classList.add('open');
+  }
+  function close(){ list.classList.remove('open'); }
+  function pick(n){ inp.value = n; close(); renderPreview(); $('#amount').focus(); }
+  inp.addEventListener('focus', ()=>open(true));
+  inp.addEventListener('input', ()=>{ open(false); renderPreview(); });
+  inp.addEventListener('keydown', e=>{
+    const els=[...list.querySelectorAll('[data-i],[data-new]')];
+    if (e.key==='ArrowDown'||e.key==='ArrowUp'){
+      if (!list.classList.contains('open')) open(false);
+      e.preventDefault(); act = Math.max(0, Math.min(els.length-1, act + (e.key==='ArrowDown'?1:-1)));
+      els.forEach((el,i)=>el.classList.toggle('act', i===act)); els[act]?.scrollIntoView({block:'nearest'});
+    } else if (e.key==='Enter'){
+      e.preventDefault();
+      const el = els[act] || (els.length===1 ? els[0] : null);
+      if (el) pick(el.dataset.new ? inp.value.trim() : items[+el.dataset.i]); else { close(); $('#amount').focus(); }
+    } else if (e.key==='Escape') close();
+  });
+  list.addEventListener('mousedown', e=>{
+    const el = e.target.closest('[data-i],[data-new]'); if (!el) return;
+    e.preventDefault(); pick(el.dataset.new ? inp.value.trim() : items[+el.dataset.i]);
+  });
+  document.querySelector('.combo .arrow').addEventListener('mousedown', e=>{
+    e.preventDefault(); if (list.classList.contains('open')) close(); else { inp.focus(); open(true); }
+  });
+  inp.addEventListener('blur', ()=>setTimeout(close,120));
+})();
+
+['#amount','#dy','#dm','#dd'].forEach(s=>$(s).addEventListener('input', renderPreview));
+$('#amount').addEventListener('blur', ()=>{ const v=String($('#amount').value).replace(/[^\d]/g,''); $('#amount').value = v ? fmt(v) : ''; });
+$('#amount').addEventListener('focus', ()=>{ $('#amount').value = String($('#amount').value).replace(/[^\d]/g,''); });
+['#amount','#dy','#dm','#dd','#note'].forEach(s=>$(s).addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); submit(true); } }));
+$('#saveBtn').onclick = ()=>submit(false);
+$('#saveNextBtn').onclick = ()=>submit(true);
+$('#cancelEdit').onclick = ()=>{ resetForm(); showTab('list'); };
+
+/* ---------- 開票明細 ---------- */
+function sorted(){ return db.checks.slice().sort((a,b)=> dateKey(a)-dateKey(b) || a.seq-b.seq); }
+function filtered(){
+  const st=$('#fStatus').value, mo=$('#fMonth').value, q=$('#fText').value.trim();
+  return sorted().filter(c =>
+    (st==='all' || (st==='ok' ? c.printedAt : !c.printedAt)) &&
+    (!mo || `${c.y}-${c.m}`===mo) &&
+    (!q || c.payee.includes(q)));
+}
+function renderMonths(){
+  const sel=$('#fMonth'), cur=sel.value;
+  const ms=[...new Set(sorted().map(c=>`${c.y}-${c.m}`))].reverse();
+  sel.innerHTML = '<option value="">全部</option>' + ms.map(m=>{ const [y,mm]=m.split('-'); return `<option value="${m}">${y} 年 ${mm} 月</option>`; }).join('');
+  if (ms.includes(cur)) sel.value=cur;
+}
+function renderList(){
+  renderMonths();
+  const rows = filtered();
+  const ids = new Set(db.checks.map(c=>c.id));
+  selected.forEach(id=>{ if(!ids.has(id)) selected.delete(id); });
+  const order = new Map(sorted().filter(c=>selected.has(c.id)).map((c,i)=>[c.id,i+1]));
+  $('#tbody').innerHTML = rows.map(c=>`
+    <tr class="${selected.has(c.id)?'sel':''}" data-id="${c.id}">
+      <td><input type="checkbox" class="rowchk" ${selected.has(c.id)?'checked':''}></td>
+      <td>${order.get(c.id) ? `<b>第 ${order.get(c.id)} 張</b>` : ''}</td>
+      <td>${dateStr(c)}</td>
+      <td>${esc(c.payee)}</td>
+      <td class="num">${fmt(c.amount)}</td>
+      <td style="color:var(--muted)">${esc(c.note||'')}</td>
+      <td>${c.printedAt ? `<span class="tag ok" title="${new Date(c.printedAt).toLocaleString()}">已列印</span>` : '<span class="tag no">未列印</span>'}</td>
+      <td><button class="btn sm" data-act="edit">編輯</button> <button class="btn sm danger" data-act="del">刪除</button></td>
+    </tr>`).join('');
+  $('#emptyMsg').classList.toggle('hidden', rows.length>0);
+  const visSel = rows.filter(c=>selected.has(c.id)).length;
+  $('#chkAll').checked = rows.length>0 && visSel===rows.length;
+  $('#chkAll').indeterminate = visSel>0 && visSel<rows.length;
+  const sel = db.checks.filter(c=>selected.has(c.id));
+  $('#selCount').textContent = sel.length;
+  $('#selTotal').textContent = fmt(sel.reduce((s,c)=>s+c.amount,0));
+  ['#printBtn','#markBtn','#unmarkBtn','#delSelBtn'].forEach(s=>$(s).disabled = !sel.length);
+  const pend = db.checks.filter(c=>!c.printedAt).length;
+  $('#pendingCount').textContent = pend ? `(${pend})` : '';
+}
+$('#tbody').addEventListener('click', e=>{
+  const tr = e.target.closest('tr'); if (!tr) return; const id = tr.dataset.id;
+  const act = e.target.dataset.act;
+  if (act==='edit') return editCheck(id);
+  if (act==='del'){
+    const c=db.checks.find(x=>x.id===id);
+    if (confirm(`刪除這張支票？\n${dateStr(c)}　${c.payee}　${fmt(c.amount)} 元`)){ db.checks=db.checks.filter(x=>x.id!==id); selected.delete(id); save(); renderList(); }
+    return;
+  }
+  if (e.target.closest('button')) return;
+  if (selected.has(id)) selected.delete(id); else selected.add(id);
+  renderList();
+});
+$('#chkAll').addEventListener('change', e=>{
+  filtered().forEach(c=> e.target.checked ? selected.add(c.id) : selected.delete(c.id)); renderList();
+});
+['#fStatus','#fMonth'].forEach(s=>$(s).addEventListener('change', renderList));
+$('#fText').addEventListener('input', renderList);
+function markSel(v){ db.checks.forEach(c=>{ if(selected.has(c.id)) c.printedAt = v ? Date.now() : null; }); save(); renderList(); }
+$('#markBtn').onclick = ()=>{ markSel(true); selected.clear(); renderList(); toast('已標記為已列印'); };
+$('#unmarkBtn').onclick = ()=>{ markSel(false); toast('已改回未列印'); };
+$('#delSelBtn').onclick = ()=>{
+  if (!confirm(`刪除勾選的 ${selected.size} 張支票？`)) return;
+  db.checks = db.checks.filter(c=>!selected.has(c.id)); selected.clear(); save(); renderList();
+};
+
+/* ---------- 列印 ---------- */
+function printChecks(list, after){
+  setPageStyle();
+  const area=$('#printArea');
+  area.innerHTML = list.map(checkHTML).join('');
+  area.style.display='block'; fitText(area); area.style.display='';
+  const done = ()=>{ window.removeEventListener('afterprint', done); setTimeout(()=>{ area.innerHTML=''; after && after(); }, 50); };
+  window.addEventListener('afterprint', done);
+  window.print();
+}
+$('#printBtn').onclick = ()=>{
+  const list = sorted().filter(c=>selected.has(c.id));
+  if (!list.length) return;
+  const already = list.filter(c=>c.printedAt).length;
+  if (already && !confirm(`勾選的支票中有 ${already} 張已經印過，確定要再印？`)) return;
+  printChecks(list, ()=>{
+    if (confirm(`支票有正確印出來嗎？\n按「確定」把這 ${list.length} 張標記為已列印。`)){
+      list.forEach(c=>c.printedAt=Date.now()); selected.clear(); save(); renderList();
+    }
+  });
+};
+
+/* ---------- 設定 ---------- */
+function renderLayoutInputs(){ ['offX','offY','pageW','pageH'].forEach(k=>$('#'+k).value = db.layout[k]); }
+['offX','offY','pageW','pageH'].forEach(k=>$('#'+k).addEventListener('change', e=>{
+  const v = parseFloat(e.target.value);
+  db.layout[k] = isFinite(v) ? v : DEFAULT_LAYOUT[k]; save(); renderLayoutInputs(); renderPreview();
+}));
+$('#resetLayout').onclick = ()=>{ db.layout = { ...DEFAULT_LAYOUT }; save(); renderLayoutInputs(); renderPreview(); toast('已恢復預設'); };
+$('#testPrint').onclick = ()=>{ const t=today(); printChecks([{ payee:'隆勝企業社', amount:152308, ...t }]); };
+
+function renderCompanies(){
+  $('#coCount').textContent = db.companies.length;
+  $('#coList').innerHTML = db.companies.map((n,i)=>`<span class="tag" style="color:var(--ink);border-color:var(--line);padding:6px 10px;font-size:14px">${esc(n)} <a href="#" data-i="${i}" style="color:var(--danger);text-decoration:none;margin-left:4px" title="移除">✕</a></span>`).join('');
+}
+$('#coList').addEventListener('click', e=>{
+  const a=e.target.closest('a'); if(!a) return; e.preventDefault();
+  const n=db.companies[+a.dataset.i];
+  if (confirm(`從清單移除「${n}」？（已開的支票不受影響）`)){ db.companies.splice(+a.dataset.i,1); save(); renderCompanies(); }
+});
+function addCo(){ const n=$('#newCo').value.trim(); if(!n) return; if(db.companies.includes(n)) return toast('清單裡已經有了'); db.companies.push(n); save(); $('#newCo').value=''; renderCompanies(); toast('已新增'); }
+$('#addCo').onclick = addCo;
+$('#newCo').addEventListener('keydown', e=>{ if(e.key==='Enter') addCo(); });
+
+function download(name, text, type){
+  const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([text],{type})); a.download=name; a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href), 1000);
+}
+const stamp = ()=>{ const t=today(); return `${t.y}${String(t.m).padStart(2,'0')}${String(t.d).padStart(2,'0')}`; };
+$('#expJson').onclick = ()=>download(`支票備份_${stamp()}.json`, JSON.stringify(db,null,1), 'application/json');
+$('#impJson').onclick = ()=>$('#impFile').click();
+$('#impFile').addEventListener('change', async e=>{
+  const f=e.target.files[0]; if(!f) return;
+  try{
+    const d=JSON.parse(await f.text());
+    if (!Array.isArray(d.checks)) throw new Error('不是支票備份檔');
+    if (!confirm(`還原備份會取代目前資料（備份內有 ${d.checks.length} 張支票），確定？`)) return;
+    localStorage.setItem(KEY, JSON.stringify(d)); db=load(); selected.clear();
+    renderAll(); toast('已還原');
+  }catch(err){ alert('還原失敗：'+err.message); }
+  e.target.value='';
+});
+$('#expCsv').onclick = ()=>{
+  const q = s => `"${String(s).replace(/"/g,'""')}"`;
+  const lines = [['支票日期','公司抬頭','金額','國字金額','備註','狀態','列印時間'].join(',')];
+  sorted().forEach(c=>lines.push([dateStr(c), q(c.payee), c.amount, toChinese(c.amount), q(c.note||''), c.printedAt?'已列印':'未列印', c.printedAt?q(new Date(c.printedAt).toLocaleString()):''].join(',')));
+  download(`開票明細_${stamp()}.csv`, '﻿'+lines.join('\r\n'), 'text/csv');
+};
+
+/* ---------- 分頁 ---------- */
+function showTab(t){
+  document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on', b.dataset.tab===t));
+  ['form','list','set'].forEach(k=>$('#tab-'+k).classList.toggle('hidden', k!==t));
+  if (t==='form') renderPreview();
+  if (t==='list') renderList();
+}
+document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>showTab(b.dataset.tab));
+window.addEventListener('resize', ()=>{ if(!$('#tab-form').classList.contains('hidden')) renderPreview(); });
+
+function renderAll(){ renderLayoutInputs(); renderCompanies(); renderList(); resetForm(); setPageStyle(); }
+renderAll();
+</script>
+</body>
+</html>
