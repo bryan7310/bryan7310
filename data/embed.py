@@ -2,7 +2,7 @@
 import json, os, re
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-SOURCES = ['jiuyun.json', 'shunlian.json', 'qianqian.json', 'cap.json', 'dongri.json']   # 新增供應商時加在這裡
+SOURCES = ['jiuyun.json', 'shunlian.json', 'qianqian.json', 'cap.json', 'dongri.json', 'dongri2.json']   # 新增供應商時加在這裡
 
 merged = {'app': 'screw-pricing', 'version': 1, 'sources': [], 'categories': [], 'items': [], 'settings': {'decimals': 2}}
 for fn in SOURCES:
