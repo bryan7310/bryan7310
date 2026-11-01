@@ -89,8 +89,17 @@ textarea { min-height: 110px; font-family: var(--font-num); font-size: 13px; }
 /* search */
 .searchbar { display: flex; gap: 8px; }
 .searchbar input { font-size: 16px; padding: 12px 14px; }
-.searchbar select { flex: 0 1 220px; font-size: 16px; padding: 12px 10px; }
-@media (max-width: 560px) { .searchbar { flex-direction: column; } .searchbar select { flex: none; } }
+.filters { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)) auto; gap: 8px; align-items: end; }
+.flt { display: grid; gap: 3px; min-width: 0; }
+.flt span { font-size: 12px; color: var(--muted); letter-spacing: .04em; }
+.flt select { appearance: none; -webkit-appearance: none; cursor: pointer; font-weight: 500; padding: 10px 30px 10px 12px; border-radius: 8px;
+  background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+  background-position: right 14px center, right 9px center; background-size: 5px 5px; background-repeat: no-repeat; text-overflow: ellipsis; }
+.flt select.on { border-color: var(--zinc); background-color: var(--zinc-soft); }
+.flt select:disabled { opacity: .5; cursor: default; }
+#fReset { padding: 10px 12px; }
+@media (max-width: 760px) { .filters { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 480px) { .filters { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 
 .results { display: grid; gap: 0; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; }
 .res-head, .res { display: grid; grid-template-columns: minmax(0, 1fr) 90px 72px 100px 96px; gap: 12px; align-items: center; padding: 10px 14px; }
@@ -177,8 +186,15 @@ details > summary { cursor: pointer; font-weight: 500; }
       <span class="grow">目前顯示的是<b>範例資料</b>。到「牌價管理」匯入你的牌價表後即可替換。</span>
       <button class="btn sm" id="clearSample">清除範例資料</button>
     </div>
+    <div class="filters" id="filters">
+      <label class="flt"><span>材質</span><select id="f-material"></select></label>
+      <label class="flt"><span>螺絲類別</span><select id="f-cat"></select></label>
+      <label class="flt"><span>頭型</span><select id="f-head"></select></label>
+      <label class="flt"><span>牙系</span><select id="f-thread"></select></label>
+      <label class="flt"><span>長度</span><select id="f-length"></select></label>
+      <button class="btn" id="fReset" hidden>清除篩選</button>
+    </div>
     <div class="searchbar">
-      <select id="catSel" aria-label="大類別"></select>
       <input type="search" id="q" placeholder="輸入品名、規格或品號，例如 M4x20、304 六角" autocomplete="off">
     </div>
     <div class="results" id="results"></div>
@@ -253,6 +269,9 @@ details > summary { cursor: pointer; font-weight: 500; }
         <label class="fld" style="flex:2 1 180px">品名<input type="text" id="oneName"></label>
         <label class="fld" style="flex:1 1 120px">規格<input type="text" id="oneSpec" placeholder="M4×20"></label>
         <label class="fld" style="flex:1 1 100px">材質<input type="text" id="oneMat"></label>
+        <label class="fld" style="flex:1 1 100px">頭型<input type="text" id="oneHead" placeholder="自動判斷"></label>
+        <label class="fld" style="flex:1 1 100px">牙系<input type="text" id="oneThread" placeholder="自動判斷"></label>
+        <label class="fld" style="flex:0 1 90px">長度<input type="text" id="oneLen" placeholder="自動判斷"></label>
         <label class="fld" style="flex:0 1 80px">單位<input type="text" id="oneUnit"></label>
         <label class="fld" style="flex:0 1 110px">牌價<input type="text" id="onePrice" class="num"></label>
         <label class="fld" style="flex:0 1 110px">個別折扣<input type="text" id="oneDisc" class="num" placeholder="同類別"></label>
@@ -311,6 +330,12 @@ function sampleData() {
   const add = (cat, code, name, spec, material, unit, price, disc) => items.push({ id: uid(), cat, code, name, spec, material, unit, price, disc: disc || '', ex: true });
   [['M3', [6, 8, 10, 12], .9], ['M4', [8, 10, 12, 16, 20, 25], 1.2], ['M5', [10, 16, 20, 30], 1.8], ['M6', [12, 20, 30, 40], 2.6]].forEach(([d, ls, b]) =>
     ls.forEach(l => add('c1', `PH-${d}${String(l).padStart(3, '0')}`, '盤頭十字機械螺絲', `${d}×${l}`, 'SUS304', '支', +(b + l * 0.035).toFixed(2))));
+  [['M4', [10, 16, 20], 0.8], ['M5', [12, 20, 25], 1.1]].forEach(([d, ls, b]) =>
+    ls.forEach(l => add('c1', `FH-${d}${String(l).padStart(3, '0')}`, '平頭十字機械螺絲', `${d}×${l}`, '鐵鍍鋅', '支', +(b + l * 0.02).toFixed(2))));
+  [['M5', [12, 16, 20], 2.4], ['M6', [16, 20, 30], 3.2]].forEach(([d, ls, b]) =>
+    ls.forEach(l => add('c1', `SC-${d}${String(l).padStart(3, '0')}`, '內六角螺絲', `${d}×${l}`, 'SUS304', '支', +(b + l * 0.06).toFixed(2))));
+  [['M10', '1.25', [30, 40, 50], 13.5], ['M12', '1.5', [40, 50], 20]].forEach(([d, p, ls, b]) =>
+    ls.forEach(l => add('c2', `HF-${d}${String(l).padStart(3, '0')}`, '六角螺栓（細牙）', `${d}×${p}×${l}`, '8.8 級鍍鋅', '支', +(b + l * 0.14).toFixed(1))));
   [['M8', [20, 30, 40, 50], 6.5], ['M10', [30, 40, 50, 60], 11], ['M12', [40, 50, 60, 80], 17]].forEach(([d, ls, b]) =>
     ls.forEach(l => add('c2', `HB-${d}${String(l).padStart(3, '0')}`, '六角螺栓（全牙）', `${d}×${l}`, '8.8 級鍍鋅', '支', +(b + l * 0.12).toFixed(1))));
   [['#8', ['1/2"', '3/4"', '1"'], .55], ['#10', ['3/4"', '1"', '1-1/2"'], .75]].forEach(([d, ls, b], i) =>
@@ -376,7 +401,7 @@ function norm(s) {
   return String(s ?? '').replace(/[！-～]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0))
     .replace(/　/g, ' ').toLowerCase().replace(/\s*[x×*]\s*/g, '×');
 }
-function searchText(it) { return norm([it.code, it.name, it.spec, it.material, catById(it.cat)?.name].join(' ')); }
+function searchText(it) { return norm([it.code, it.name, it.spec, it.material, it.head, it.thread, catById(it.cat)?.name].join(' ')); }
 
 /* ---------- UI 共用 ---------- */
 let toastT;
@@ -402,28 +427,80 @@ function setTab(t) {
 }
 $$('.tab').forEach(b => b.addEventListener('click', () => setTab(b.dataset.tab)));
 
+/* ---------- 規格屬性（沒填時從品名、規格自動判斷） ---------- */
+const HEADS = ['內六角', '六角', '半圓頭', '圓頭', '盤頭', '大扁頭', '扁頭', '平頭', '沉頭', '丸頭', '蝶頭', '華司頭', '喇叭頭', '截頭', '無頭', '圓柱頭', '方頭'];
+function specParts(spec) {
+  const p = String(spec || '').replace(/\s+/g, '').split(/[×xX*]/).filter(Boolean);
+  return { dia: p[0] || '', pitch: p.length >= 3 ? p[1] : '', len: p.length >= 2 ? p[p.length - 1] : '' };
+}
+function attr(it, key) {
+  if (key === 'cat') return it.cat;
+  if (key === 'material') return (it.material || '').trim();
+  if (it[key]) return String(it[key]).trim();
+  const sp = specParts(it.spec);
+  if (key === 'length') return sp.len.replace(/mm$/i, '');
+  if (key === 'head') return HEADS.find(h => (it.name || '').includes(h)) || '';
+  if (key === 'thread') {
+    const d = sp.dia, n = it.name || '';
+    if (/自攻|鑽尾|木螺絲/.test(n) || /^(#|ST)/i.test(d)) return '自攻牙';
+    if (/UNC/i.test(d + n)) return 'UNC 英制粗牙';
+    if (/UNF/i.test(d + n)) return 'UNF 英制細牙';
+    if (/^M\d/i.test(d)) return sp.pitch || /細牙/.test(n) ? '公制細牙' : '公制粗牙';
+    if (/["\/]/.test(d)) return '英制';
+    return '';
+  }
+  return '';
+}
+// 長度排序：英吋換成 mm 再比
+function lenValue(v) {
+  const s = String(v).replace(/mm|L/gi, '');
+  const inch = /["\/]/.test(s);
+  const m = s.replace(/"/g, '').match(/^(?:(\d+)-)?(\d+(?:\.\d+)?)(?:\/(\d+))?$/);
+  if (!m) return Infinity;
+  let n = m[3] ? +m[2] / +m[3] : +m[2]; if (m[1]) n += +m[1];
+  return inch ? n * 25.4 : n;
+}
+const FACETS = [
+  ['material', '材質'], ['cat', '螺絲類別'], ['head', '頭型'], ['thread', '牙系'], ['length', '長度'],
+];
+const flt = { material: '', cat: '', head: '', thread: '', length: '' };
+function matchFacets(it, skip) { return FACETS.every(([k]) => k === skip || !flt[k] || attr(it, k) === flt[k]); }
+
 /* ---------- 查價頁 ---------- */
-let curCat = 'all';
 const LIMIT = 200;
+function renderFilters(base) {
+  if (flt.cat && !catById(flt.cat)) flt.cat = '';
+  for (const [k, label] of FACETS) {
+    const counts = new Map();
+    base.forEach(it => { if (matchFacets(it, k)) { const v = attr(it, k); if (v) counts.set(v, (counts.get(v) || 0) + 1); } });
+    if (flt[k] && !counts.has(flt[k])) counts.set(flt[k], 0);
+    let vals = [...counts.keys()];
+    if (k === 'cat') vals = S.categories.map(c => c.id).filter(id => counts.has(id));
+    else if (k === 'length') vals.sort((a, b) => lenValue(a) - lenValue(b) || a.localeCompare(b));
+    else vals.sort((a, b) => a.localeCompare(b, 'zh-Hant'));
+    const name = v => k === 'cat' ? `${catById(v).name}（${fmtDisc(parseDisc(catById(v).discount))}）` : k === 'length' && /^\d+(\.\d+)?$/.test(v) ? v + ' mm' : v;
+    const sel = $('#f-' + k);
+    sel.innerHTML = `<option value="">全部${label}</option>` + vals.map(v => `<option value="${esc(v)}">${esc(name(v))}　${counts.get(v)}</option>`).join('');
+    sel.value = flt[k]; sel.classList.toggle('on', !!flt[k]); sel.disabled = !vals.length;
+  }
+  $('#fReset').hidden = !FACETS.some(([k]) => flt[k]);
+}
 function renderSearch() {
   $('#sampleBar').hidden = !S.items.some(i => i.ex);
-  if (curCat !== 'all' && !catById(curCat)) curCat = 'all';
-  $('#catSel').innerHTML = `<option value="all">全部類別（${S.items.length}）</option>` +
-    S.categories.map(c => `<option value="${c.id}">${esc(c.name)}　${esc(fmtDisc(parseDisc(c.discount)))}（${S.items.filter(i => i.cat === c.id).length}）</option>`).join('');
-  $('#catSel').value = curCat;
   const terms = norm($('#q').value).split(/\s+/).filter(Boolean);
-  let list = S.items.filter(it => curCat === 'all' || it.cat === curCat);
-  if (terms.length) list = list.filter(it => { const t = searchText(it); return terms.every(w => t.includes(w)); });
+  const base = terms.length ? S.items.filter(it => { const t = searchText(it); return terms.every(w => t.includes(w)); }) : S.items;
+  renderFilters(base);
+  const list = base.filter(it => matchFacets(it));
   const box = $('#results');
   if (!S.items.length) { box.innerHTML = `<div class="empty">還沒有任何品項。到「牌價管理」新增類別並匯入牌價表。</div>`; return; }
-  if (!list.length) { box.innerHTML = `<div class="empty">找不到符合「${esc($('#q').value)}」的品項</div>`; return; }
+  if (!list.length) { box.innerHTML = `<div class="empty">找不到符合條件的品項，試試清除篩選或換個關鍵字</div>`; return; }
   const shown = list.slice(0, LIMIT);
   box.innerHTML = `<div class="res-head"><span>品項</span><span>牌價</span><span>折扣</span><span>淨價</span><span></span></div>` +
     shown.map(it => {
       const { f, own } = itemFactor(it); const c = catById(it.cat);
       return `<div class="res">
         <div class="main"><div><span class="nm">${esc(it.name)}</span>${it.spec ? `<span class="spec">${esc(it.spec)}</span>` : ''}</div>
-          <div class="meta">${it.code ? `<span class="num">${esc(it.code)}</span>` : ''}${it.material ? `<span>${esc(it.material)}</span>` : ''}${c ? `<span>${esc(c.name)}</span>` : ''}</div></div>
+          <div class="meta">${it.code ? `<span class="num">${esc(it.code)}</span>` : ''}${[it.material, attr(it, 'head'), attr(it, 'thread'), c?.name].filter(Boolean).map(v => `<span>${esc(v)}</span>`).join('')}</div></div>
         <div class="r"><span class="lbl">牌價</span><span class="num list">${fmtList(it.price)}</span></div>
         <div class="r"><span class="lbl">折扣</span><span class="disc${own ? ' own' : ''}" title="${own ? '此品項有個別折扣' : '類別折扣'}">${esc(fmtDisc(f))}</span></div>
         <div class="r"><span class="lbl">淨價${it.unit ? ' / ' + esc(it.unit) : ''}</span><span class="num net">${fmt(netPrice(it))}</span></div>
@@ -432,7 +509,8 @@ function renderSearch() {
     }).join('') + (list.length > LIMIT ? `<div class="more">共 ${list.length} 筆，只顯示前 ${LIMIT} 筆，請輸入更多關鍵字縮小範圍</div>` : `<div class="more">共 ${list.length} 筆</div>`);
 }
 $('#q').addEventListener('input', renderSearch);
-$('#catSel').addEventListener('change', e => { curCat = e.target.value; renderSearch(); });
+FACETS.forEach(([k]) => $('#f-' + k).addEventListener('change', e => { flt[k] = e.target.value; renderSearch(); }));
+$('#fReset').addEventListener('click', () => { FACETS.forEach(([k]) => flt[k] = ''); renderSearch(); });
 $('#results').addEventListener('click', e => {
   const b = e.target.closest('[data-add]'); if (!b) return;
   const id = b.dataset.add; const qty = Math.max(1, parseFloat($(`[data-qty="${id}"]`).value) || 1);
@@ -443,7 +521,7 @@ $('#results').addEventListener('click', e => {
 $('#clearSample').addEventListener('click', e => armed(e.currentTarget, '確定清除？', () => {
   S.items = S.items.filter(i => !i.ex);
   S.categories = S.categories.filter(c => !c.ex || S.items.some(i => i.cat === c.id));
-  S.quote = S.quote.filter(q => S.items.some(i => i.id === q.itemId)); curCat = 'all';
+  S.quote = S.quote.filter(q => S.items.some(i => i.id === q.itemId)); flt.cat = '';
   save(); render(); toast('已清除範例資料');
 }));
 
@@ -537,7 +615,7 @@ $('#cats').addEventListener('change', e => {
 $('#cats').addEventListener('click', e => {
   const b = e.target.closest('[data-cdel]'); if (!b) return; const id = b.closest('[data-cid]').dataset.cid;
   const n = S.items.filter(i => i.cat === id).length;
-  armed(b, n ? `連同 ${n} 項刪除？` : '確定？', () => { S.categories = S.categories.filter(c => c.id !== id); S.items = S.items.filter(i => i.cat !== id); if (curCat === id) curCat = 'all'; save(); renderManage(); });
+  armed(b, n ? `連同 ${n} 項刪除？` : '確定？', () => { S.categories = S.categories.filter(c => c.id !== id); S.items = S.items.filter(i => i.cat !== id); if (flt.cat === id) flt.cat = ''; save(); renderManage(); });
 });
 function addCategory(name, discount) { const c = { id: uid(), name, discount: discount || '' }; S.categories.push(c); return c; }
 $('#addCat').addEventListener('click', () => {
@@ -550,10 +628,10 @@ $('#addCat').addEventListener('click', () => {
 
 /* ---------- 匯入 ---------- */
 const FIELDS = [
-  ['', '（略過）'], ['code', '品號'], ['name', '品名'], ['spec', '規格'], ['material', '材質'], ['unit', '單位'], ['price', '牌價'], ['disc', '個別折扣'], ['cat', '類別'],
+  ['', '（略過）'], ['code', '品號'], ['name', '品名'], ['spec', '規格'], ['material', '材質'], ['head', '頭型'], ['thread', '牙系'], ['length', '長度'], ['unit', '單位'], ['price', '牌價'], ['disc', '個別折扣'], ['cat', '類別'],
 ];
 const GUESS = {
-  code: /品號|料號|編號|代號|貨號|型號|code|part|sku/i, name: /品名|名稱|品項|產品|name|desc/i, spec: /規格|尺寸|size|spec|直徑|長度/i,
+  code: /品號|料號|編號|代號|貨號|型號|code|part|sku/i, name: /品名|名稱|品項|產品|name|desc/i, spec: /規格|尺寸|size|spec|直徑/i, head: /頭型|頭部|head/i, thread: /牙系|牙型|牙別|螺紋|thread/i, length: /長度|length|^L$/i,
   material: /材質|材料|表面|處理|material|finish/i, unit: /單位|unit/i, price: /牌價|定價|價格|售價|單價|price|list/i, disc: /折扣|折數|discount/i, cat: /類別|分類|大類|category|class/i,
 };
 let imp = { mode: 'list', rows: null, map: [], wb: null };
@@ -561,7 +639,7 @@ function setMode(m) {
   imp.mode = m; $$('#impMode button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.mode === m)));
   $('#matrixOpts').hidden = m !== 'matrix';
   $('#modeHint').textContent = m === 'list'
-    ? '清單格式：第一列是欄位名稱（品號、品名、規格、材質、單位、牌價…），之後每列一個品項。系統會自動對應欄位，可在預覽中調整。'
+    ? '清單格式：第一列是欄位名稱（品號、品名、規格、材質、頭型、牙系、長度、單位、牌價…）。頭型、牙系、長度沒有的話會從品名和規格自動判斷，之後每列一個品項。系統會自動對應欄位，可在預覽中調整。'
     : '尺寸矩陣：第一列是直徑（M3、M4、M5…），第一欄是長度（6、8、10…），交叉格填牌價。會自動展開成 M4×10 這類規格。';
   buildPreview();
 }
@@ -646,7 +724,7 @@ function convertRows() {
       const o = {}; imp.map.forEach((k, i) => { if (k) o[k] = r[i] ?? ''; });
       const price = parsePrice(o.price);
       if (!isFinite(price) || !(o.name || o.spec || o.code)) { skipped++; continue; }
-      items.push({ code: o.code || '', name: o.name || '', spec: o.spec || '', material: o.material || '', unit: o.unit || '', price, disc: o.disc || '', catName: o.cat || '' });
+      items.push({ code: o.code || '', name: o.name || '', spec: o.spec || '', material: o.material || '', head: o.head || '', thread: o.thread || '', length: o.length || '', unit: o.unit || '', price, disc: o.disc || '', catName: o.cat || '' });
     }
   } else {
     const hdr = imp.rows[0]; const name = $('#mxName').value.trim() || (catById($('#impCat').value)?.name ?? '');
@@ -686,9 +764,9 @@ $('#addOne').addEventListener('click', () => {
   if (!($('#oneName').value.trim() || $('#oneSpec').value.trim())) { toast('請輸入品名或規格'); return; }
   if (!isFinite(price)) { toast('牌價要是數字'); return; }
   const d = $('#oneDisc').value.trim(); if (d && isNaN(parseDisc(d))) { toast('個別折扣格式錯誤'); return; }
-  S.items.push({ id: uid(), cat, code: $('#oneCode').value.trim(), name: $('#oneName').value.trim(), spec: $('#oneSpec').value.trim(), material: $('#oneMat').value.trim(), unit: $('#oneUnit').value.trim(), price, disc: d });
+  S.items.push({ id: uid(), cat, code: $('#oneCode').value.trim(), name: $('#oneName').value.trim(), spec: $('#oneSpec').value.trim(), material: $('#oneMat').value.trim(), head: $('#oneHead').value.trim(), thread: $('#oneThread').value.trim(), length: $('#oneLen').value.trim(), unit: $('#oneUnit').value.trim(), price, disc: d });
   save();
-  ['oneCode', 'oneSpec', 'onePrice'].forEach(id => $('#' + id).value = ''); renderManage(); toast('已加入');
+  ['oneCode', 'oneSpec', 'onePrice', 'oneLen'].forEach(id => $('#' + id).value = ''); renderManage(); toast('已加入');
 });
 
 /* ---------- 品項瀏覽 ---------- */
@@ -697,8 +775,8 @@ function renderBrowser() {
   const c = $('#brCat').value || 'all'; const terms = norm($('#brQ').value).split(/\s+/).filter(Boolean);
   let list = S.items.filter(i => c === 'all' || i.cat === c);
   if (terms.length) list = list.filter(it => { const t = searchText(it); return terms.every(w => t.includes(w)); });
-  $('#brTable').innerHTML = list.length ? `<table class="itable"><thead><tr><th>類別</th><th>品號</th><th>品名</th><th>規格</th><th>材質</th><th>單位</th><th>牌價</th><th>個別折扣</th><th></th></tr></thead><tbody>` +
-    list.slice(0, 300).map(it => `<tr><td>${esc(catById(it.cat)?.name)}</td><td class="num">${esc(it.code)}</td><td>${esc(it.name)}</td><td class="num">${esc(it.spec)}</td><td>${esc(it.material)}</td><td>${esc(it.unit)}</td><td class="num">${fmtList(it.price)}</td><td><input type="text" class="num" style="width:80px;padding:3px 6px" value="${esc(it.disc)}" data-idisc="${it.id}" id="id-${it.id}" placeholder="—"></td><td><button class="btn ghost sm danger" data-idel="${it.id}">刪除</button></td></tr>`).join('') +
+  $('#brTable').innerHTML = list.length ? `<table class="itable"><thead><tr><th>類別</th><th>品號</th><th>品名</th><th>規格</th><th>材質</th><th>頭型</th><th>牙系</th><th>長度</th><th>單位</th><th>牌價</th><th>個別折扣</th><th></th></tr></thead><tbody>` +
+    list.slice(0, 300).map(it => `<tr><td>${esc(catById(it.cat)?.name)}</td><td class="num">${esc(it.code)}</td><td>${esc(it.name)}</td><td class="num">${esc(it.spec)}</td><td>${esc(it.material)}</td><td>${esc(attr(it, 'head'))}</td><td>${esc(attr(it, 'thread'))}</td><td class="num">${esc(attr(it, 'length'))}</td><td>${esc(it.unit)}</td><td class="num">${fmtList(it.price)}</td><td><input type="text" class="num" style="width:80px;padding:3px 6px" value="${esc(it.disc)}" data-idisc="${it.id}" id="id-${it.id}" placeholder="—"></td><td><button class="btn ghost sm danger" data-idel="${it.id}">刪除</button></td></tr>`).join('') +
     `</tbody></table>${list.length > 300 ? `<div class="more">只顯示前 300 筆（共 ${list.length}）</div>` : ''}` : `<div class="empty">沒有品項</div>`;
 }
 $('#itemBrowser').addEventListener('toggle', renderBrowser);
@@ -729,7 +807,7 @@ function restore(text) {
 }
 $('#bkFile').addEventListener('change', async e => { const f = e.target.files[0]; if (f) restore(await f.text()); e.target.value = ''; });
 $('#bkRestoreText').addEventListener('click', () => { const t = $('#bkText').value.trim(); if (t) restore(t); else toast('請先貼上備份內容'); });
-$('#wipeAll').addEventListener('click', e => armed(e.currentTarget, '確定全部刪除？', () => { S = { categories: [], items: [], settings: S.settings, quote: [] }; curCat = 'all'; save(); render(); toast('已刪除全部資料'); }));
+$('#wipeAll').addEventListener('click', e => armed(e.currentTarget, '確定全部刪除？', () => { S = { categories: [], items: [], settings: S.settings, quote: [] }; FACETS.forEach(([k]) => flt[k] = ''); save(); render(); toast('已刪除全部資料'); }));
 
 /* ---------- 啟動 ---------- */
 function render() {
