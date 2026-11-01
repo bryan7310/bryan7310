@@ -624,7 +624,9 @@ const flt = { material: '', finish: '', group: '', cat: '', head: '', system: ''
 // 材質篩選：所有 SUS 系列、白鐵歸成「不鏽鋼」；合金鋼、中碳鋼各自合併；1022 滲碳併入鐵；低碳鋼、鐵(SPCC)、鐵(SPHC)併入鐵（品項本身仍顯示原材質）
 const MAT_GROUP = m => /^SUS|白鐵|不鏽鋼/i.test(m) ? '不鏽鋼' : m === '低碳鋼' || /^鐵\(SP[CH]C/.test(m) || /^1022/.test(m) ? '鐵'
   : /^合金鋼/.test(m) ? '合金鋼' : /^中碳鋼/.test(m) ? '中碳鋼' : m;
-const facetVal = (it, k) => k === 'material' ? MAT_GROUP(attr(it, k)) : attr(it, k) || (k === 'finish' ? '未標示' : '');
+// 電鍍篩選：鍍鋅、電鍍、電鋅、鋅歸成同一類
+const FIN_GROUP = f => /^(鍍鋅|電鍍|電鋅|鋅)$/.test(f) ? '電鍍／鍍鋅' : f;
+const facetVal = (it, k) => k === 'material' ? MAT_GROUP(attr(it, k)) : k === 'finish' && attr(it, k) ? FIN_GROUP(attr(it, k)) : attr(it, k) || (k === 'finish' ? '未標示' : '');
 function matchFacets(it, skip) { return FACETS.every(([k]) => k === skip || (skip === 'group' && (k === 'od' || k === 'thick')) || !flt[k] || facetVal(it, k) === flt[k]); }
 
 /* ---------- 查價頁 ---------- */
