@@ -1,0 +1,749 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>螺絲查價系統</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=IBM+Plex+Mono:wght@500;600&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+/* Layout: sticky header with three tabs (查價 / 報價單 / 牌價管理); one centered working column, rows stack on phones. */
+:root {
+  --bg: #F1F2F0;
+  --surface: #FFFFFF;
+  --sunken: #E8EAE7;
+  --ink: #1B2025;
+  --muted: #5B6670;
+  --line: #D6DAD8;
+  --steel: #34495A;
+  --top-ink: #FFFFFF;
+  --zinc: #E9B512;          /* 鍍黃鋅 */
+  --zinc-ink: #7A5700;
+  --zinc-soft: #FBF1CC;
+  --ok: #2E7D4F;
+  --danger: #B3261E;
+  --danger-soft: #FBE3E1;
+  --font-body: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", system-ui, sans-serif;
+  --font-num: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --r: 8px;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #121618; --surface: #1B2023; --sunken: #23292D; --ink: #E6E9EA; --muted: #9BA5AC;
+    --line: #2F363B; --steel: #2A3A46; --top-ink: #E6E9EA; --zinc: #E9B512; --zinc-ink: #F2C94C; --zinc-soft: #3A3215;
+    --ok: #6CC793; --danger: #F2847C; --danger-soft: #3D2120; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #121618; --surface: #1B2023; --sunken: #23292D; --ink: #E6E9EA; --muted: #9BA5AC;
+  --line: #2F363B; --steel: #2A3A46; --top-ink: #E6E9EA; --zinc: #E9B512; --zinc-ink: #F2C94C; --zinc-soft: #3A3215;
+  --ok: #6CC793; --danger: #F2847C; --danger-soft: #3D2120; color-scheme: dark;
+}
+:root { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--ink); font: 15px/1.55 var(--font-body); -webkit-text-size-adjust: 100%; }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--steel); }
+.num, input.num { font-family: var(--font-num); font-variant-numeric: tabular-nums; }
+button, input, select, textarea { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--zinc); outline-offset: 2px; }
+
+/* header */
+.top { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--steel); color: var(--top-ink); }
+.top-inner { max-width: 1040px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 10px 0; }
+.brand { display: flex; align-items: baseline; gap: 10px; }
+.brand h1 { margin: 0; font-size: 18px; font-weight: 700; letter-spacing: .04em; }
+.brand .bolt { display: inline-block; width: 12px; height: 12px; border-radius: 2px; background: var(--zinc); transform: rotate(45deg); margin-right: 4px; }
+.brand small { opacity: .75; font-size: 12px; }
+.tabs { display: flex; gap: 2px; margin-top: 8px; }
+.tab { appearance: none; border: 0; background: transparent; color: inherit; opacity: .72; padding: 8px 14px 10px; cursor: pointer; border-bottom: 3px solid transparent; font-weight: 500; }
+.tab[aria-selected="true"] { opacity: 1; border-bottom-color: var(--zinc); }
+.badge { display: inline-block; min-width: 20px; padding: 0 6px; margin-left: 4px; border-radius: 10px; background: var(--zinc); color: #1B2025; font: 600 12px/20px var(--font-num); text-align: center; }
+
+main { max-width: 1040px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 16px 48px; display: grid; gap: 16px; }
+section.view { display: grid; gap: 16px; min-width: 0; }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 16px; display: grid; gap: 12px; min-width: 0; }
+.panel h2 { margin: 0; font-size: 16px; text-wrap: balance; }
+.panel h3 { margin: 0; font-size: 14px; color: var(--muted); font-weight: 500; }
+.hint { color: var(--muted); font-size: 13px; margin: 0; }
+.row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.grow { flex: 1 1 200px; min-width: 0; }
+label.fld { display: grid; gap: 4px; font-size: 13px; color: var(--muted); }
+input[type=text], input[type=number], input[type=search], select, textarea {
+  background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; min-width: 0; width: 100%;
+}
+textarea { min-height: 110px; font-family: var(--font-num); font-size: 13px; }
+.btn { appearance: none; border: 1px solid var(--line); background: var(--surface); padding: 8px 14px; border-radius: 6px; cursor: pointer; font-weight: 500; white-space: nowrap; }
+.btn:hover { border-color: var(--muted); }
+.btn.primary { background: var(--zinc); border-color: var(--zinc); color: #1B2025; }
+.btn.primary:hover { filter: brightness(.95); }
+.btn.ghost { border-color: transparent; background: transparent; color: var(--muted); }
+.btn.danger { color: var(--danger); }
+.btn.arm { background: var(--danger); border-color: var(--danger); color: #fff; }
+.btn.sm { padding: 4px 10px; font-size: 13px; }
+
+/* search */
+.searchbar { display: flex; gap: 8px; }
+.searchbar input { font-size: 16px; padding: 12px 14px; }
+.chips { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; scrollbar-width: thin; }
+.chip { appearance: none; border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 5px 12px; cursor: pointer; white-space: nowrap; font-size: 14px; }
+.chip .d { font-family: var(--font-num); font-size: 12px; color: var(--zinc-ink); margin-left: 4px; }
+.chip[aria-pressed="true"] { background: var(--steel); border-color: var(--steel); color: var(--top-ink); }
+.chip[aria-pressed="true"] .d { color: var(--zinc); }
+
+.results { display: grid; gap: 0; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; }
+.res-head, .res { display: grid; grid-template-columns: minmax(0, 1fr) 90px 72px 100px 96px; gap: 12px; align-items: center; padding: 10px 14px; }
+.res-head { font-size: 12px; color: var(--muted); letter-spacing: .06em; background: var(--sunken); }
+.res-head span:nth-child(n+2), .res .r { text-align: right; }
+.res + .res { border-top: 1px solid var(--line); }
+.res .nm { font-weight: 500; overflow-wrap: anywhere; }
+.res .spec { font-family: var(--font-num); font-weight: 600; margin-left: 6px; }
+.res .meta { font-size: 12px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 4px 10px; }
+.res .list { color: var(--muted); }
+.disc { display: inline-block; font: 600 12px/1.6 var(--font-num); color: var(--zinc-ink); background: var(--zinc-soft); padding: 0 6px; border-radius: 4px; }
+.disc.own { outline: 1px dashed var(--zinc-ink); }
+.net { font-size: 17px; font-weight: 600; }
+.add { display: flex; gap: 4px; justify-content: flex-end; }
+.add input { width: 52px; padding: 5px 4px; text-align: center; font-family: var(--font-num); }
+.lbl { display: none; font-size: 11px; color: var(--muted); }
+.empty { padding: 28px 16px; text-align: center; color: var(--muted); }
+.more { padding: 10px 14px; color: var(--muted); font-size: 13px; border-top: 1px solid var(--line); text-align: center; }
+@media (max-width: 680px) {
+  .res-head { display: none; }
+  .res { grid-template-columns: 1fr 1fr 1fr; gap: 6px 10px; }
+  .res .main { grid-column: 1 / -1; }
+  .res .r { text-align: left; }
+  .lbl { display: block; }
+  .res .add { grid-column: 1 / -1; justify-content: stretch; }
+  .res .add input { width: 72px; }
+  .res .add .btn { flex: 1; }
+}
+
+.sample { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; background: var(--zinc-soft); border: 1px solid var(--zinc); color: var(--ink); border-radius: var(--r); padding: 10px 14px; font-size: 14px; }
+
+/* quote */
+.qtable { width: 100%; border-collapse: collapse; font-size: 14px; }
+.qwrap { overflow-x: auto; }
+.qtable th { font-weight: 500; color: var(--muted); font-size: 12px; text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.qtable td { padding: 8px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+.qtable .r { text-align: right; white-space: nowrap; }
+.qtable td:first-child { min-width: 170px; }
+.qtable input { width: 72px; padding: 4px 6px; text-align: right; font-family: var(--font-num); }
+.totals { display: grid; gap: 4px; justify-items: end; font-size: 14px; }
+.totals div { display: flex; gap: 16px; }
+.totals .grand { font-size: 20px; font-weight: 700; }
+.totals .grand .num { color: var(--zinc-ink); }
+
+/* manage */
+.cats { display: grid; gap: 8px; }
+.cat { display: grid; grid-template-columns: minmax(0, 1fr) 150px auto auto; gap: 8px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.cat:last-child { border-bottom: 0; }
+.cat .eff { font-size: 12px; color: var(--muted); }
+.cat .cnt { font-size: 12px; color: var(--muted); white-space: nowrap; }
+@media (max-width: 560px) { .cat { grid-template-columns: 1fr 1fr; } }
+.preview { overflow-x: auto; border: 1px solid var(--line); border-radius: 6px; }
+.preview table { border-collapse: collapse; font-size: 13px; min-width: 100%; }
+.preview th, .preview td { padding: 6px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; text-align: left; }
+.preview th select { width: auto; padding: 3px 6px; font-size: 12px; }
+.preview tr.hdr td { color: var(--muted); font-style: italic; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.seg button { appearance: none; border: 0; background: var(--surface); padding: 7px 12px; cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--steel); color: var(--top-ink); }
+.toast { position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 10px 16px; border-radius: 8px; font-size: 14px; z-index: 20; max-width: calc(100% - 32px); }
+details > summary { cursor: pointer; font-weight: 500; }
+.itable { width: 100%; border-collapse: collapse; font-size: 13px; }
+.itable td, .itable th { padding: 6px 8px; border-bottom: 1px solid var(--line); text-align: left; white-space: nowrap; }
+.itable th { color: var(--muted); font-weight: 500; }
+@media (prefers-reduced-motion: no-preference) { .btn, .chip, .tab { transition: background-color .12s, border-color .12s, opacity .12s; } }
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="top-inner">
+    <div class="brand"><h1><span class="bolt"></span>螺絲查價</h1><small id="stamp"></small></div>
+    <nav class="tabs" role="tablist">
+      <button class="tab" role="tab" data-tab="search" aria-selected="true" id="tab-search">查價</button>
+      <button class="tab" role="tab" data-tab="quote" aria-selected="false" id="tab-quote">報價單<span class="badge" id="qcount" hidden>0</span></button>
+      <button class="tab" role="tab" data-tab="manage" aria-selected="false" id="tab-manage">牌價管理</button>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <!-- 查價 -->
+  <section class="view" id="view-search">
+    <div class="sample" id="sampleBar" hidden>
+      <span class="grow">目前顯示的是<b>範例資料</b>。到「牌價管理」匯入你的牌價表後即可替換。</span>
+      <button class="btn sm" id="clearSample">清除範例資料</button>
+    </div>
+    <div class="searchbar">
+      <input type="search" id="q" placeholder="輸入品名、規格或品號，例如 M4x20、304 六角" autocomplete="off">
+    </div>
+    <div class="chips" id="catChips"></div>
+    <div class="results" id="results"></div>
+  </section>
+
+  <!-- 報價單 -->
+  <section class="view" id="view-quote" hidden>
+    <div class="panel">
+      <div class="row"><h2 class="grow">報價單</h2>
+        <button class="btn" id="copyQuote">複製報價文字</button>
+        <button class="btn danger" id="clearQuote" data-armable>清空</button>
+      </div>
+      <div class="row">
+        <label class="fld" style="flex:1 1 200px">客戶 / 案名<input type="text" id="qCustomer" placeholder="選填"></label>
+        <label class="fld" style="flex:0 1 160px">整單再折（選填）<input type="text" id="qExtra" class="num" placeholder="例如 95"></label>
+        <label class="fld" style="flex:0 1 auto">營業稅<select id="qTax"><option value="0">未稅</option><option value="1">加 5% 稅</option></select></label>
+      </div>
+      <div class="qwrap"><table class="qtable" id="qtable"></table></div>
+      <div class="totals" id="totals"></div>
+      <textarea id="quoteText" readonly hidden></textarea>
+    </div>
+  </section>
+
+  <!-- 牌價管理 -->
+  <section class="view" id="view-manage" hidden>
+    <div class="panel">
+      <h2>大類別與折扣</h2>
+      <p class="hint">折扣可寫成 <span class="num">65</span>、<span class="num">6.5</span> 或 <span class="num">0.65</span>（都代表 65 折）。多段折扣用空格隔開，例如 <span class="num">65 95</span> 代表 65 折再 95 折。</p>
+      <div class="cats" id="cats"></div>
+      <div class="row">
+        <input type="text" id="newCatName" class="grow" placeholder="新類別名稱，例如：六角螺栓">
+        <input type="text" id="newCatDisc" class="num" style="flex:0 1 110px" placeholder="折扣 65">
+        <button class="btn primary" id="addCat">新增類別</button>
+      </div>
+    </div>
+
+    <div class="panel" id="importPanel">
+      <h2>匯入牌價表</h2>
+      <p class="hint">可上傳 Excel (.xlsx / .xls) 或 CSV，也可以從 Excel 直接複製貼上。</p>
+      <div class="row">
+        <label class="fld grow">匯入到類別<select id="impCat"></select></label>
+        <label class="fld" style="flex:0 1 auto">表格格式
+          <span class="seg" id="impMode"><button type="button" data-mode="list" aria-pressed="true">清單</button><button type="button" data-mode="matrix" aria-pressed="false">尺寸矩陣</button></span>
+        </label>
+        <label class="fld" style="flex:0 1 auto">既有資料
+          <select id="impReplace"><option value="replace">取代此類別的品項</option><option value="append">附加在後面</option></select>
+        </label>
+      </div>
+      <p class="hint" id="modeHint"></p>
+      <div class="row" id="matrixOpts" hidden>
+        <label class="fld grow">品名（套用到整張矩陣）<input type="text" id="mxName" placeholder="例如：盤頭十字機械螺絲"></label>
+        <label class="fld" style="flex:0 1 160px">材質（選填）<input type="text" id="mxMat" placeholder="例如：SUS304"></label>
+        <label class="fld" style="flex:0 1 120px">單位（選填）<input type="text" id="mxUnit" placeholder="例如：支"></label>
+      </div>
+      <div class="row">
+        <input type="file" id="impFile" accept=".xlsx,.xls,.csv,.txt" class="grow">
+        <select id="impSheet" hidden style="flex:0 1 200px"></select>
+      </div>
+      <textarea id="impPaste" placeholder="或直接把 Excel 的儲存格複製後貼在這裡"></textarea>
+      <div id="impPreview" hidden class="panel" style="padding:0;border:0;gap:8px">
+        <h3 id="impSummary"></h3>
+        <div class="preview" id="impTable"></div>
+        <div class="row"><span class="grow hint" id="impWarn"></span><button class="btn" id="impCancel">取消</button><button class="btn primary" id="impGo">確認匯入</button></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>單筆新增</h2>
+      <div class="row">
+        <label class="fld" style="flex:1 1 140px">類別<select id="oneCat"></select></label>
+        <label class="fld" style="flex:1 1 120px">品號<input type="text" id="oneCode"></label>
+        <label class="fld" style="flex:2 1 180px">品名<input type="text" id="oneName"></label>
+        <label class="fld" style="flex:1 1 120px">規格<input type="text" id="oneSpec" placeholder="M4×20"></label>
+        <label class="fld" style="flex:1 1 100px">材質<input type="text" id="oneMat"></label>
+        <label class="fld" style="flex:0 1 80px">單位<input type="text" id="oneUnit"></label>
+        <label class="fld" style="flex:0 1 110px">牌價<input type="text" id="onePrice" class="num"></label>
+        <label class="fld" style="flex:0 1 110px">個別折扣<input type="text" id="oneDisc" class="num" placeholder="同類別"></label>
+      </div>
+      <div class="row"><span class="grow"></span><button class="btn primary" id="addOne">加入</button></div>
+    </div>
+
+    <div class="panel">
+      <details id="itemBrowser">
+        <summary>檢視 / 刪除品項</summary>
+        <div style="display:grid;gap:10px;margin-top:12px">
+          <div class="row"><select id="brCat" style="flex:0 1 220px"></select><input type="search" id="brQ" class="grow" placeholder="篩選"></div>
+          <div class="preview" id="brTable"></div>
+        </div>
+      </details>
+    </div>
+
+    <div class="panel">
+      <h2>設定與備份</h2>
+      <div class="row">
+        <label class="fld" style="flex:0 1 180px">淨價小數位<select id="setDec"><option>0</option><option>1</option><option>2</option><option>3</option><option>4</option></select></label>
+      </div>
+      <p class="hint">資料只存在這台裝置的瀏覽器裡。換電腦或清除瀏覽資料前，請先備份。</p>
+      <div class="row">
+        <button class="btn" id="bkDownload">下載備份檔</button>
+        <button class="btn" id="bkCopy">複製備份內容</button>
+        <label class="btn" for="bkFile" style="display:inline-block">從備份檔還原</label>
+        <input type="file" id="bkFile" accept=".json,application/json" hidden>
+        <button class="btn danger" id="wipeAll" data-armable>刪除全部資料</button>
+      </div>
+      <textarea id="bkText" placeholder="也可以把備份內容貼在這裡，再按「從文字還原」" style="min-height:70px"></textarea>
+      <div class="row"><span class="grow"></span><button class="btn" id="bkRestoreText">從文字還原</button></div>
+    </div>
+  </section>
+</main>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+(() => {
+'use strict';
+const KEY = 'screwPricing.v1';
+const $ = (s, el = document) => el.querySelector(s);
+const $$ = (s, el = document) => [...el.querySelectorAll(s)];
+const uid = () => Math.random().toString(36).slice(2, 10);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+/* ---------- 範例資料 ---------- */
+function sampleData() {
+  const cats = [
+    { id: 'c1', name: '機械螺絲', discount: '65', ex: true },
+    { id: 'c2', name: '六角螺栓', discount: '60', ex: true },
+    { id: 'c3', name: '自攻螺絲', discount: '70', ex: true },
+    { id: 'c4', name: '螺帽 / 華司', discount: '55 95', ex: true },
+  ];
+  const items = [];
+  const add = (cat, code, name, spec, material, unit, price, disc) => items.push({ id: uid(), cat, code, name, spec, material, unit, price, disc: disc || '', ex: true });
+  [['M3', [6, 8, 10, 12], .9], ['M4', [8, 10, 12, 16, 20, 25], 1.2], ['M5', [10, 16, 20, 30], 1.8], ['M6', [12, 20, 30, 40], 2.6]].forEach(([d, ls, b]) =>
+    ls.forEach(l => add('c1', `PH-${d}${String(l).padStart(3, '0')}`, '盤頭十字機械螺絲', `${d}×${l}`, 'SUS304', '支', +(b + l * 0.035).toFixed(2))));
+  [['M8', [20, 30, 40, 50], 6.5], ['M10', [30, 40, 50, 60], 11], ['M12', [40, 50, 60, 80], 17]].forEach(([d, ls, b]) =>
+    ls.forEach(l => add('c2', `HB-${d}${String(l).padStart(3, '0')}`, '六角螺栓（全牙）', `${d}×${l}`, '8.8 級鍍鋅', '支', +(b + l * 0.12).toFixed(1))));
+  [['#8', ['1/2"', '3/4"', '1"'], .55], ['#10', ['3/4"', '1"', '1-1/2"'], .75]].forEach(([d, ls, b], i) =>
+    ls.forEach((l, j) => add('c3', `TS-${i}${j}`, '平頭十字自攻螺絲', `${d}×${l}`, '鐵鍍黑', '支', +(b + j * .2).toFixed(2))));
+  ['M4', 'M5', 'M6', 'M8', 'M10', 'M12'].forEach((d, i) => {
+    add('c4', `HN-${d}`, '六角螺帽', d, 'SUS304', '個', +(0.6 + i * .7).toFixed(1));
+    add('c4', `FW-${d}`, '平華司', d, 'SUS304', '個', +(0.3 + i * .35).toFixed(2), i > 3 ? '50' : '');
+  });
+  return { categories: cats, items, settings: { decimals: 2 }, quote: [] };
+}
+
+/* ---------- 狀態與儲存 ---------- */
+let S;
+function load() {
+  try { const raw = localStorage.getItem(KEY); if (raw) { S = JSON.parse(raw); } } catch (e) {}
+  if (!S || !Array.isArray(S.categories)) S = sampleData();
+  S.settings = Object.assign({ decimals: 2 }, S.settings || {});
+  S.quote = S.quote || []; S.items = S.items || [];
+}
+function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} const st = document.getElementById('stamp'); if (st) st.textContent = `${S.categories.length} 類 · ${S.items.length} 項`; }
+
+/* ---------- 折扣與價格 ---------- */
+// "65" / "6.5" / "0.65" / "65折" / "65 95" (多段) → 0.65 / 0.6175
+function parseDisc(s) {
+  if (s == null) return null;
+  const str = String(s).trim();
+  if (!str) return null;
+  const parts = str.replace(/折|%/g, ' ').split(/[\s×xX*,+、\/]+/).filter(Boolean);
+  if (!parts.length) return null;
+  let f = 1;
+  for (const p of parts) {
+    const n = parseFloat(p);
+    if (!isFinite(n) || n <= 0) return NaN;
+    if (n <= 1) f *= n; else if (n <= 10) f *= n / 10; else if (n <= 100) f *= n / 100; else return NaN;
+  }
+  return f;
+}
+function fmtDisc(f) {
+  if (f == null || isNaN(f)) return '—';
+  if (Math.abs(f - 1) < 1e-9) return '原價';
+  const v = +(f * 100).toFixed(2);
+  return (Number.isInteger(v) && v % 10 === 0 ? v / 10 : v) + '折';
+}
+const catById = id => S.categories.find(c => c.id === id);
+function itemFactor(it) {
+  const own = parseDisc(it.disc);
+  if (own != null && !isNaN(own)) return { f: own, own: true };
+  const c = catById(it.cat); const f = c ? parseDisc(c.discount) : null;
+  return { f: f == null || isNaN(f) ? 1 : f, own: false };
+}
+const round = (n, d = S.settings.decimals) => { const p = Math.pow(10, d); return Math.round((n + Number.EPSILON) * p) / p; };
+const fmt = (n, d = S.settings.decimals) => isFinite(n) ? n.toLocaleString('zh-TW', { minimumFractionDigits: d, maximumFractionDigits: d }) : '—';
+const fmtList = n => isFinite(n) ? n.toLocaleString('zh-TW', { maximumFractionDigits: 4 }) : '—';
+function netPrice(it) { return round(it.price * itemFactor(it).f); }
+function parsePrice(v) {
+  if (typeof v === 'number') return v;
+  const n = parseFloat(String(v ?? '').replace(/[,\s$＄元NT]/gi, ''));
+  return isFinite(n) ? n : NaN;
+}
+
+/* ---------- 搜尋 ---------- */
+function norm(s) {
+  return String(s ?? '').replace(/[！-～]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0))
+    .replace(/　/g, ' ').toLowerCase().replace(/\s*[x×*]\s*/g, '×');
+}
+function searchText(it) { return norm([it.code, it.name, it.spec, it.material, catById(it.cat)?.name].join(' ')); }
+
+/* ---------- UI 共用 ---------- */
+let toastT;
+function toast(msg) { const t = $('#toast'); t.textContent = msg; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => t.hidden = true, 2200); }
+// 兩段式確認（不使用 confirm()）
+function armed(btn, label, fn) {
+  if (btn.dataset.armed) { delete btn.dataset.armed; btn.classList.remove('arm'); btn.textContent = btn.dataset.orig; fn(); return; }
+  btn.dataset.orig = btn.textContent; btn.dataset.armed = '1'; btn.classList.add('arm'); btn.textContent = label;
+  setTimeout(() => { if (btn.dataset.armed) { delete btn.dataset.armed; btn.classList.remove('arm'); btn.textContent = btn.dataset.orig; } }, 3500);
+}
+async function copyText(text, fallbackEl) {
+  try { await navigator.clipboard.writeText(text); toast('已複製'); }
+  catch (e) { if (fallbackEl) { fallbackEl.hidden = false; fallbackEl.value = text; fallbackEl.select(); toast('請按 Ctrl+C / 長按複製'); } }
+}
+
+/* ---------- 分頁 ---------- */
+let tab = 'search';
+function setTab(t) {
+  tab = t;
+  $$('.tab').forEach(b => b.setAttribute('aria-selected', String(b.dataset.tab === t)));
+  ['search', 'quote', 'manage'].forEach(v => $('#view-' + v).hidden = v !== t);
+  render();
+}
+$$('.tab').forEach(b => b.addEventListener('click', () => setTab(b.dataset.tab)));
+
+/* ---------- 查價頁 ---------- */
+let curCat = 'all';
+const LIMIT = 200;
+function renderSearch() {
+  $('#sampleBar').hidden = !S.items.some(i => i.ex);
+  const chips = [`<button class="chip" data-cat="all" aria-pressed="${curCat === 'all'}">全部</button>`]
+    .concat(S.categories.map(c => `<button class="chip" data-cat="${c.id}" aria-pressed="${curCat === c.id}">${esc(c.name)}<span class="d">${esc(fmtDisc(parseDisc(c.discount)))}</span></button>`));
+  $('#catChips').innerHTML = chips.join('');
+  const terms = norm($('#q').value).split(/\s+/).filter(Boolean);
+  let list = S.items.filter(it => curCat === 'all' || it.cat === curCat);
+  if (terms.length) list = list.filter(it => { const t = searchText(it); return terms.every(w => t.includes(w)); });
+  const box = $('#results');
+  if (!S.items.length) { box.innerHTML = `<div class="empty">還沒有任何品項。到「牌價管理」新增類別並匯入牌價表。</div>`; return; }
+  if (!list.length) { box.innerHTML = `<div class="empty">找不到符合「${esc($('#q').value)}」的品項</div>`; return; }
+  const shown = list.slice(0, LIMIT);
+  box.innerHTML = `<div class="res-head"><span>品項</span><span>牌價</span><span>折扣</span><span>淨價</span><span></span></div>` +
+    shown.map(it => {
+      const { f, own } = itemFactor(it); const c = catById(it.cat);
+      return `<div class="res">
+        <div class="main"><div><span class="nm">${esc(it.name)}</span>${it.spec ? `<span class="spec">${esc(it.spec)}</span>` : ''}</div>
+          <div class="meta">${it.code ? `<span class="num">${esc(it.code)}</span>` : ''}${it.material ? `<span>${esc(it.material)}</span>` : ''}${c ? `<span>${esc(c.name)}</span>` : ''}</div></div>
+        <div class="r"><span class="lbl">牌價</span><span class="num list">${fmtList(it.price)}</span></div>
+        <div class="r"><span class="lbl">折扣</span><span class="disc${own ? ' own' : ''}" title="${own ? '此品項有個別折扣' : '類別折扣'}">${esc(fmtDisc(f))}</span></div>
+        <div class="r"><span class="lbl">淨價${it.unit ? ' / ' + esc(it.unit) : ''}</span><span class="num net">${fmt(netPrice(it))}</span></div>
+        <div class="add"><input type="number" min="1" value="1" aria-label="數量" data-qty="${it.id}" id="qty-${it.id}"><button class="btn sm primary" data-add="${it.id}">加入</button></div>
+      </div>`;
+    }).join('') + (list.length > LIMIT ? `<div class="more">共 ${list.length} 筆，只顯示前 ${LIMIT} 筆，請輸入更多關鍵字縮小範圍</div>` : `<div class="more">共 ${list.length} 筆</div>`);
+}
+$('#q').addEventListener('input', renderSearch);
+$('#catChips').addEventListener('click', e => { const b = e.target.closest('[data-cat]'); if (b) { curCat = b.dataset.cat; renderSearch(); } });
+$('#results').addEventListener('click', e => {
+  const b = e.target.closest('[data-add]'); if (!b) return;
+  const id = b.dataset.add; const qty = Math.max(1, parseFloat($(`[data-qty="${id}"]`).value) || 1);
+  const ex = S.quote.find(q => q.itemId === id);
+  if (ex) ex.qty += qty; else S.quote.push({ itemId: id, qty });
+  save(); renderBadge(); toast('已加入報價單');
+});
+$('#clearSample').addEventListener('click', e => armed(e.currentTarget, '確定清除？', () => {
+  S.items = S.items.filter(i => !i.ex);
+  S.categories = S.categories.filter(c => !c.ex || S.items.some(i => i.cat === c.id));
+  S.quote = S.quote.filter(q => S.items.some(i => i.id === q.itemId)); curCat = 'all';
+  save(); render(); toast('已清除範例資料');
+}));
+
+/* ---------- 報價單 ---------- */
+function quoteLines() {
+  return S.quote.map(q => {
+    const live = S.items.find(i => i.id === q.itemId);
+    if (live) q.snap = { ...live, f: itemFactor(live).f };   // 品項被刪除時仍保留報價
+    const it = live || q.snap; if (!it) return null;
+    const f = live ? q.snap.f : (it.f ?? 1);
+    const unit = round(it.price * f);
+    return { q, it, f, unit, sub: round(unit * q.qty), gone: !live };
+  }).filter(Boolean);
+}
+function quoteTotals(lines) {
+  const sum = lines.reduce((a, l) => a + l.sub, 0);
+  const ex = parseDisc($('#qExtra').value);
+  const after = ex && !isNaN(ex) ? round(sum * ex, 0) : null;
+  const base = after ?? round(sum, 0);
+  const tax = $('#qTax').value === '1' ? Math.round(base * 0.05) : 0;
+  return { sum, ex, after, tax, total: base + tax };
+}
+function renderQuote() {
+  const lines = quoteLines();
+  const tb = $('#qtable');
+  if (!lines.length) { tb.innerHTML = `<tr><td class="empty">報價單是空的。在「查價」頁按「加入」把品項放進來。</td></tr>`; $('#totals').innerHTML = ''; return; }
+  tb.innerHTML = `<thead><tr><th>品項</th><th class="r">牌價</th><th class="r">折扣</th><th class="r">單價</th><th class="r">數量</th><th class="r">小計</th><th></th></tr></thead><tbody>` +
+    lines.map((l, i) => `<tr>
+      <td><b>${esc(l.it.name)}</b> <span class="num">${esc(l.it.spec || '')}</span><div class="hint">${esc([l.it.code, l.it.material].filter(Boolean).join(' · '))}${l.gone ? ' · <span style="color:var(--danger)">品項已從牌價表移除</span>' : ''}</div></td>
+      <td class="r num">${fmtList(l.it.price)}</td>
+      <td class="r"><span class="disc">${esc(fmtDisc(l.f))}</span></td>
+      <td class="r num">${fmt(l.unit)}</td>
+      <td class="r"><input type="number" min="0" step="any" value="${l.q.qty}" data-qi="${i}" id="qq-${i}" aria-label="數量">${l.it.unit ? ' ' + esc(l.it.unit) : ''}</td>
+      <td class="r num">${fmt(l.sub)}</td>
+      <td class="r"><button class="btn ghost sm" data-qdel="${i}" aria-label="移除">✕</button></td></tr>`).join('') + '</tbody>';
+  const t = quoteTotals(lines);
+  $('#totals').innerHTML = `<div><span>小計</span><span class="num">${fmt(t.sum)}</span></div>` +
+    (t.after != null ? `<div><span>整單再打 ${esc(fmtDisc(t.ex))}</span><span class="num">${fmt(t.after, 0)}</span></div>` : '') +
+    (t.tax ? `<div><span>營業稅 5%</span><span class="num">${fmt(t.tax, 0)}</span></div>` : '') +
+    `<div class="grand"><span>${t.tax ? '含稅總計' : '總計'}</span><span class="num">${fmt(t.total, 0)}</span></div>`;
+}
+$('#qtable').addEventListener('change', e => {
+  const i = e.target.dataset.qi; if (i == null) return;
+  const v = parseFloat(e.target.value); if (!(v > 0)) S.quote.splice(+i, 1); else S.quote[+i].qty = v;
+  save(); renderQuote(); renderBadge();
+});
+$('#qtable').addEventListener('click', e => { const b = e.target.closest('[data-qdel]'); if (b) { S.quote.splice(+b.dataset.qdel, 1); save(); renderQuote(); renderBadge(); } });
+['qExtra', 'qTax', 'qCustomer'].forEach(id => $('#' + id).addEventListener('input', () => { S.qmeta = { c: $('#qCustomer').value, x: $('#qExtra').value, t: $('#qTax').value }; save(); renderQuote(); }));
+$('#clearQuote').addEventListener('click', e => armed(e.currentTarget, '確定清空？', () => { S.quote = []; save(); renderQuote(); renderBadge(); }));
+$('#copyQuote').addEventListener('click', () => {
+  const lines = quoteLines(); if (!lines.length) { toast('報價單是空的'); return; }
+  const d = new Date(); const t = quoteTotals(lines);
+  const out = [`報價單　${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}`];
+  if ($('#qCustomer').value.trim()) out.push(`客戶：${$('#qCustomer').value.trim()}`);
+  out.push('');
+  lines.forEach((l, i) => out.push(`${i + 1}. ${l.it.name} ${l.it.spec || ''}${l.it.material ? ' ' + l.it.material : ''}\n   牌價 ${fmtList(l.it.price)} × ${fmtDisc(l.f)} = ${fmt(l.unit)}　× ${l.q.qty}${l.it.unit || ''} = ${fmt(l.sub)}`));
+  out.push('', `小計：${fmt(t.sum)}`);
+  if (t.after != null) out.push(`整單再打 ${fmtDisc(t.ex)}：${fmt(t.after, 0)}`);
+  if (t.tax) out.push(`營業稅 5%：${fmt(t.tax, 0)}`);
+  out.push(`${t.tax ? '含稅總計' : '總計'}：${fmt(t.total, 0)}`);
+  copyText(out.join('\n'), $('#quoteText'));
+});
+function renderBadge() { const n = S.quote.length; const b = $('#qcount'); b.hidden = !n; b.textContent = n; }
+
+/* ---------- 牌價管理：類別 ---------- */
+function catOptions(sel, withNew) {
+  return S.categories.map(c => `<option value="${c.id}"${c.id === sel ? ' selected' : ''}>${esc(c.name)}</option>`).join('') + (withNew ? `<option value="__file"${sel === '__file' ? ' selected' : ''}>依表格中的「類別」欄自動分類</option>` : '');
+}
+function renderManage() {
+  $('#cats').innerHTML = S.categories.length ? S.categories.map(c => {
+    const f = parseDisc(c.discount); const n = S.items.filter(i => i.cat === c.id).length;
+    return `<div class="cat" data-cid="${c.id}">
+      <input type="text" value="${esc(c.name)}" data-cname id="cn-${c.id}" aria-label="類別名稱">
+      <div><input type="text" class="num" value="${esc(c.discount)}" data-cdisc id="cd-${c.id}" aria-label="折扣"><div class="eff">${f == null ? '未設定（原價）' : isNaN(f) ? '<span style="color:var(--danger)">折扣格式錯誤</span>' : '= ' + fmtDisc(f) + '（×' + +f.toFixed(4) + '）'}</div></div>
+      <span class="cnt">${n} 項</span>
+      <button class="btn danger sm" data-cdel>刪除</button></div>`;
+  }).join('') : `<p class="hint">還沒有類別。先新增一個，例如「機械螺絲」折扣 65。</p>`;
+  const ic = $('#impCat').value; $('#impCat').innerHTML = catOptions(ic || S.categories[0]?.id, true);
+  const oc = $('#oneCat').value; $('#oneCat').innerHTML = catOptions(oc || S.categories[0]?.id);
+  const bc = $('#brCat').value; $('#brCat').innerHTML = `<option value="all">全部類別</option>` + catOptions(bc);
+  if (bc) $('#brCat').value = bc;
+  $('#setDec').value = S.settings.decimals;
+  renderBrowser();
+}
+$('#cats').addEventListener('change', e => {
+  const row = e.target.closest('[data-cid]'); if (!row) return; const c = catById(row.dataset.cid);
+  if (e.target.matches('[data-cname]')) c.name = e.target.value.trim() || c.name;
+  if (e.target.matches('[data-cdisc]')) c.discount = e.target.value.trim();
+  save(); renderManage(); toast('已更新');
+});
+$('#cats').addEventListener('click', e => {
+  const b = e.target.closest('[data-cdel]'); if (!b) return; const id = b.closest('[data-cid]').dataset.cid;
+  const n = S.items.filter(i => i.cat === id).length;
+  armed(b, n ? `連同 ${n} 項刪除？` : '確定？', () => { S.categories = S.categories.filter(c => c.id !== id); S.items = S.items.filter(i => i.cat !== id); if (curCat === id) curCat = 'all'; save(); renderManage(); });
+});
+function addCategory(name, discount) { const c = { id: uid(), name, discount: discount || '' }; S.categories.push(c); return c; }
+$('#addCat').addEventListener('click', () => {
+  const name = $('#newCatName').value.trim(); const d = $('#newCatDisc').value.trim();
+  if (!name) { toast('請輸入類別名稱'); return; }
+  if (d && isNaN(parseDisc(d))) { toast('折扣格式錯誤，請輸入像 65 或 6.5 這樣的數字'); return; }
+  const c = addCategory(name, d); save();
+  $('#newCatName').value = ''; $('#newCatDisc').value = ''; renderManage(); $('#impCat').value = c.id; toast(`已新增「${name}」`);
+});
+
+/* ---------- 匯入 ---------- */
+const FIELDS = [
+  ['', '（略過）'], ['code', '品號'], ['name', '品名'], ['spec', '規格'], ['material', '材質'], ['unit', '單位'], ['price', '牌價'], ['disc', '個別折扣'], ['cat', '類別'],
+];
+const GUESS = {
+  code: /品號|料號|編號|代號|貨號|型號|code|part|sku/i, name: /品名|名稱|品項|產品|name|desc/i, spec: /規格|尺寸|size|spec|直徑|長度/i,
+  material: /材質|材料|表面|處理|material|finish/i, unit: /單位|unit/i, price: /牌價|定價|價格|售價|單價|price|list/i, disc: /折扣|折數|discount/i, cat: /類別|分類|大類|category|class/i,
+};
+let imp = { mode: 'list', rows: null, map: [], wb: null };
+function setMode(m) {
+  imp.mode = m; $$('#impMode button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.mode === m)));
+  $('#matrixOpts').hidden = m !== 'matrix';
+  $('#modeHint').textContent = m === 'list'
+    ? '清單格式：第一列是欄位名稱（品號、品名、規格、材質、單位、牌價…），之後每列一個品項。系統會自動對應欄位，可在預覽中調整。'
+    : '尺寸矩陣：第一列是直徑（M3、M4、M5…），第一欄是長度（6、8、10…），交叉格填牌價。會自動展開成 M4×10 這類規格。';
+  buildPreview();
+}
+$('#impMode').addEventListener('click', e => { const b = e.target.closest('[data-mode]'); if (b) setMode(b.dataset.mode); });
+function parseDelimited(text) {
+  const delim = text.includes('\t') ? '\t' : ',';
+  const rows = []; let row = [], cell = '', q = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (q) { if (ch === '"') { if (text[i + 1] === '"') { cell += '"'; i++; } else q = false; } else cell += ch; }
+    else if (ch === '"' && cell === '') q = true;
+    else if (ch === delim) { row.push(cell); cell = ''; }
+    else if (ch === '\n' || ch === '\r') { if (ch === '\r' && text[i + 1] === '\n') i++; row.push(cell); rows.push(row); row = []; cell = ''; }
+    else cell += ch;
+  }
+  if (cell !== '' || row.length) { row.push(cell); rows.push(row); }
+  return rows;
+}
+function cleanRows(rows) {
+  return rows.map(r => r.map(c => (c == null ? '' : String(c)).trim())).filter(r => r.some(c => c !== ''));
+}
+function setRows(rows) { imp.rows = cleanRows(rows); imp.map = []; buildPreview(); }
+$('#impPaste').addEventListener('input', e => { $('#impFile').value = ''; $('#impSheet').hidden = true; const t = e.target.value; if (t.trim()) setRows(parseDelimited(t)); else { imp.rows = null; buildPreview(); } });
+$('#impFile').addEventListener('change', async e => {
+  const f = e.target.files[0]; if (!f) return; $('#impPaste').value = '';
+  try {
+    if (/\.(xlsx|xls)$/i.test(f.name)) {
+      if (!window.XLSX) { toast('Excel 解析元件沒有載入，請改用 CSV 或直接貼上'); return; }
+      const wb = XLSX.read(await f.arrayBuffer(), { type: 'array' }); imp.wb = wb;
+      const sel = $('#impSheet'); sel.innerHTML = wb.SheetNames.map(n => `<option>${esc(n)}</option>`).join(''); sel.hidden = wb.SheetNames.length < 2;
+      loadSheet(wb.SheetNames[0]);
+    } else {
+      let text = await f.text(); if (text.includes('�')) { try { text = new TextDecoder('big5').decode(await f.arrayBuffer()); } catch (_) {} }
+      setRows(parseDelimited(text.replace(/^﻿/, '')));
+    }
+  } catch (err) { toast('讀取檔案失敗：' + err.message); }
+});
+function loadSheet(name) { setRows(XLSX.utils.sheet_to_json(imp.wb.Sheets[name], { header: 1, raw: false, defval: '' })); }
+$('#impSheet').addEventListener('change', e => loadSheet(e.target.value));
+
+function buildPreview() {
+  const box = $('#impPreview');
+  if (!imp.rows || !imp.rows.length) { box.hidden = true; return; }
+  box.hidden = false;
+  const res = convertRows();
+  if (imp.mode === 'list') {
+    const hdr = imp.rows[0]; const w = Math.max(...imp.rows.slice(0, 30).map(r => r.length));
+    if (!imp.map.length) {
+      const used = new Set();
+      imp.map = Array.from({ length: w }, (_, i) => { const h = hdr[i] || ''; for (const k of Object.keys(GUESS)) if (!used.has(k) && GUESS[k].test(h)) { used.add(k); return k; } return ''; });
+      imp.hasHeader = imp.map.some(Boolean);
+      if (!imp.hasHeader) imp.map = Array.from({ length: w }, (_, i) => ['code', 'name', 'spec', 'material', 'unit', 'price'][i] || '');
+      return buildPreview();
+    }
+    const body = imp.rows.slice(0, 8);
+    $('#impTable').innerHTML = `<table><thead><tr>${imp.map.map((m, i) => `<th><select data-map="${i}" id="map-${i}">${FIELDS.map(([k, l]) => `<option value="${k}"${k === m ? ' selected' : ''}>${l}</option>`).join('')}</select></th>`).join('')}</tr></thead><tbody>` +
+      body.map((r, ri) => `<tr class="${ri === 0 && imp.hasHeader ? 'hdr' : ''}">${imp.map.map((_, i) => `<td>${esc(r[i] ?? '')}</td>`).join('')}</tr>`).join('') + '</tbody></table>';
+  } else {
+    $('#impTable').innerHTML = `<table><thead><tr><th>品名</th><th>規格</th><th>牌價</th></tr></thead><tbody>` +
+      res.items.slice(0, 8).map(it => `<tr><td>${esc(it.name)}</td><td class="num">${esc(it.spec)}</td><td class="num">${fmtList(it.price)}</td></tr>`).join('') + '</tbody></table>';
+  }
+  $('#impSummary').textContent = `預覽：可匯入 ${res.items.length} 項` + (res.skipped ? `，${res.skipped} 列因為沒有牌價會略過` : '');
+  const warn = [];
+  if (imp.mode === 'list' && !imp.map.includes('price')) warn.push('請在上方下拉選單指定哪一欄是「牌價」');
+  if (imp.mode === 'list' && !imp.map.includes('name') && !imp.map.includes('spec') && !imp.map.includes('code')) warn.push('至少要指定品名、規格或品號其中一欄');
+  if ($('#impCat').value === '__file' && !imp.map.includes('cat')) warn.push('選了「依類別欄分類」，請指定哪一欄是類別');
+  if (!S.categories.length && $('#impCat').value !== '__file') warn.push('請先在上方新增一個類別');
+  if (imp.mode === 'matrix' && $('#impCat').value === '__file') warn.push('尺寸矩陣請選擇要匯入的類別');
+  $('#impWarn').textContent = warn.join('；');
+  $('#impGo').disabled = !!warn.length || !res.items.length;
+}
+$('#impTable').addEventListener('change', e => { const i = e.target.dataset.map; if (i != null) { imp.map[+i] = e.target.value; buildPreview(); } });
+$('#impCat').addEventListener('change', buildPreview);
+['mxName', 'mxMat', 'mxUnit'].forEach(id => $('#' + id).addEventListener('input', buildPreview));
+
+function convertRows() {
+  const items = []; let skipped = 0;
+  if (!imp.rows) return { items, skipped };
+  if (imp.mode === 'list') {
+    const start = imp.hasHeader ? 1 : 0;
+    for (const r of imp.rows.slice(start)) {
+      const o = {}; imp.map.forEach((k, i) => { if (k) o[k] = r[i] ?? ''; });
+      const price = parsePrice(o.price);
+      if (!isFinite(price) || !(o.name || o.spec || o.code)) { skipped++; continue; }
+      items.push({ code: o.code || '', name: o.name || '', spec: o.spec || '', material: o.material || '', unit: o.unit || '', price, disc: o.disc || '', catName: o.cat || '' });
+    }
+  } else {
+    const hdr = imp.rows[0]; const name = $('#mxName').value.trim() || (catById($('#impCat').value)?.name ?? '');
+    for (const r of imp.rows.slice(1)) {
+      const len = r[0]; if (!len) { skipped++; continue; }
+      for (let c = 1; c < r.length; c++) {
+        const price = parsePrice(r[c]); const dia = hdr[c];
+        if (!dia || !isFinite(price) || r[c] === '') continue;
+        const L = /^\d/.test(len) || !/^\d/.test(dia) ? `${dia}×${len}` : `${len}×${dia}`;
+        items.push({ code: '', name, spec: L.replace(/\s+/g, ''), material: $('#mxMat').value.trim(), unit: $('#mxUnit').value.trim(), price, disc: '' });
+      }
+    }
+  }
+  return { items, skipped };
+}
+function resetImport() { imp = { mode: imp.mode, rows: null, map: [], wb: null }; $('#impPaste').value = ''; $('#impFile').value = ''; $('#impSheet').hidden = true; buildPreview(); }
+$('#impCancel').addEventListener('click', resetImport);
+$('#impGo').addEventListener('click', () => {
+  const { items } = convertRows(); const target = $('#impCat').value; const replace = $('#impReplace').value === 'replace';
+  const byFile = target === '__file'; const touched = new Set();
+  const resolveCat = it => {
+    if (!byFile) return target;
+    const nm = (it.catName || '未分類').trim(); let c = S.categories.find(x => x.name === nm);
+    if (!c) c = addCategory(nm, ''); return c.id;
+  };
+  const prepared = items.map(it => { const cat = resolveCat(it); touched.add(cat); const { catName, ...rest } = it; return { id: uid(), cat, ...rest }; });
+  if (replace) S.items = S.items.filter(i => !touched.has(i.cat));
+  S.items.push(...prepared); save();
+  const names = [...touched].map(id => catById(id)?.name).join('、');
+  resetImport(); renderManage(); toast(`已匯入 ${prepared.length} 項到「${names}」`);
+});
+
+/* ---------- 單筆新增 ---------- */
+$('#addOne').addEventListener('click', () => {
+  const cat = $('#oneCat').value; const price = parsePrice($('#onePrice').value);
+  if (!cat) { toast('請先新增類別'); return; }
+  if (!($('#oneName').value.trim() || $('#oneSpec').value.trim())) { toast('請輸入品名或規格'); return; }
+  if (!isFinite(price)) { toast('牌價要是數字'); return; }
+  const d = $('#oneDisc').value.trim(); if (d && isNaN(parseDisc(d))) { toast('個別折扣格式錯誤'); return; }
+  S.items.push({ id: uid(), cat, code: $('#oneCode').value.trim(), name: $('#oneName').value.trim(), spec: $('#oneSpec').value.trim(), material: $('#oneMat').value.trim(), unit: $('#oneUnit').value.trim(), price, disc: d });
+  save();
+  ['oneCode', 'oneSpec', 'onePrice'].forEach(id => $('#' + id).value = ''); renderManage(); toast('已加入');
+});
+
+/* ---------- 品項瀏覽 ---------- */
+function renderBrowser() {
+  if (!$('#itemBrowser').open) return;
+  const c = $('#brCat').value || 'all'; const terms = norm($('#brQ').value).split(/\s+/).filter(Boolean);
+  let list = S.items.filter(i => c === 'all' || i.cat === c);
+  if (terms.length) list = list.filter(it => { const t = searchText(it); return terms.every(w => t.includes(w)); });
+  $('#brTable').innerHTML = list.length ? `<table class="itable"><thead><tr><th>類別</th><th>品號</th><th>品名</th><th>規格</th><th>材質</th><th>單位</th><th>牌價</th><th>個別折扣</th><th></th></tr></thead><tbody>` +
+    list.slice(0, 300).map(it => `<tr><td>${esc(catById(it.cat)?.name)}</td><td class="num">${esc(it.code)}</td><td>${esc(it.name)}</td><td class="num">${esc(it.spec)}</td><td>${esc(it.material)}</td><td>${esc(it.unit)}</td><td class="num">${fmtList(it.price)}</td><td><input type="text" class="num" style="width:80px;padding:3px 6px" value="${esc(it.disc)}" data-idisc="${it.id}" id="id-${it.id}" placeholder="—"></td><td><button class="btn ghost sm danger" data-idel="${it.id}">刪除</button></td></tr>`).join('') +
+    `</tbody></table>${list.length > 300 ? `<div class="more">只顯示前 300 筆（共 ${list.length}）</div>` : ''}` : `<div class="empty">沒有品項</div>`;
+}
+$('#itemBrowser').addEventListener('toggle', renderBrowser);
+$('#brCat').addEventListener('change', renderBrowser); $('#brQ').addEventListener('input', renderBrowser);
+$('#brTable').addEventListener('click', e => { const b = e.target.closest('[data-idel]'); if (b) { S.items = S.items.filter(i => i.id !== b.dataset.idel); save(); renderManage(); } });
+$('#brTable').addEventListener('change', e => {
+  const id = e.target.dataset.idisc; if (!id) return; const v = e.target.value.trim();
+  if (v && isNaN(parseDisc(v))) { toast('折扣格式錯誤'); return; }
+  S.items.find(i => i.id === id).disc = v; save(); toast(v ? `已設為 ${fmtDisc(parseDisc(v))}` : '改回類別折扣');
+});
+
+/* ---------- 設定與備份 ---------- */
+$('#setDec').addEventListener('change', e => { S.settings.decimals = +e.target.value; save(); toast('已更新小數位'); });
+const backup = () => JSON.stringify({ app: 'screw-pricing', version: 1, exported: new Date().toISOString(), categories: S.categories, items: S.items, settings: S.settings }, null, 1);
+$('#bkDownload').addEventListener('click', () => {
+  try {
+    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([backup()], { type: 'application/json' }));
+    const d = new Date(); a.download = `螺絲牌價備份-${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}.json`;
+    document.body.appendChild(a); a.click(); a.remove(); toast('如果沒有開始下載，請改用「複製備份內容」');
+  } catch (e) { toast('無法下載，請改用「複製備份內容」'); }
+});
+$('#bkCopy').addEventListener('click', () => copyText(backup(), $('#bkText')));
+function restore(text) {
+  try {
+    const d = JSON.parse(text); if (!Array.isArray(d.categories) || !Array.isArray(d.items)) throw new Error('格式不符');
+    S = { categories: d.categories, items: d.items, settings: Object.assign({ decimals: 2 }, d.settings), quote: [] }; save(); render(); toast(`已還原 ${d.categories.length} 類、${d.items.length} 項`);
+  } catch (e) { toast('還原失敗：內容不是有效的備份'); }
+}
+$('#bkFile').addEventListener('change', async e => { const f = e.target.files[0]; if (f) restore(await f.text()); e.target.value = ''; });
+$('#bkRestoreText').addEventListener('click', () => { const t = $('#bkText').value.trim(); if (t) restore(t); else toast('請先貼上備份內容'); });
+$('#wipeAll').addEventListener('click', e => armed(e.currentTarget, '確定全部刪除？', () => { S = { categories: [], items: [], settings: S.settings, quote: [] }; curCat = 'all'; save(); render(); toast('已刪除全部資料'); }));
+
+/* ---------- 啟動 ---------- */
+function render() {
+  $('#stamp').textContent = `${S.categories.length} 類 · ${S.items.length} 項`;
+  renderBadge();
+  if (tab === 'search') renderSearch(); else if (tab === 'quote') renderQuote(); else renderManage();
+}
+load();
+if (S.qmeta) { $('#qCustomer').value = S.qmeta.c || ''; $('#qExtra').value = S.qmeta.x || ''; $('#qTax').value = S.qmeta.t || '0'; }
+setMode('list');
+render();
+})();
+</script>
+</body>
+</html>
