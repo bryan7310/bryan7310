@@ -90,7 +90,7 @@ textarea { min-height: 110px; font-family: var(--font-num); font-size: 13px; }
 /* search */
 .searchbar { display: flex; gap: 8px; }
 .searchbar input { font-size: 16px; padding: 12px 14px; }
-.filters { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)) auto; gap: 8px; align-items: end; }
+.filters { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)) auto; gap: 8px; align-items: end; }
 .flt { display: grid; gap: 3px; min-width: 0; }
 .flt span { font-size: 12px; color: var(--muted); letter-spacing: .04em; }
 .flt select { appearance: none; -webkit-appearance: none; cursor: pointer; font-weight: 500; padding: 10px 30px 10px 12px; border-radius: 8px;
@@ -194,6 +194,7 @@ details > summary { cursor: pointer; font-weight: 500; }
       <button class="btn sm" id="clearSample">清除範例資料</button>
     </div>
     <div class="filters" id="filters">
+      <label class="flt"><span>廠商</span><select id="f-sup"></select></label>
       <label class="flt"><span>材質</span><select id="f-material"></select></label>
       <label class="flt"><span>電鍍</span><select id="f-finish"></select></label>
       <label class="flt"><span>螺絲類別</span><select id="f-group"></select></label>
@@ -560,6 +561,7 @@ function washerDims(it) {
   const r = { od: n(od), thick: n(t) }; WD.set(it, r); return r;
 }
 function attr(it, key) {
+  if (key === 'sup') return it.sup || '自行新增';
   if (key === 'od' || key === 'thick') return /華司|彈簧扣環/.test(groupOf(it)) ? washerDims(it)[key] : '';
   if (key === 'head') return headName(it.head || (it.nut ? '' : HEADS.find(h => (it.name || '').includes(h)) || ''));
   if (key === 'cat') return it.cat;
@@ -624,9 +626,9 @@ function lenValue(v) {
   return inch ? n * 25.4 : n;
 }
 const FACETS = [
-  ['material', '材質'], ['finish', '電鍍'], ['group', '螺絲類別'], ['head', '頭型'], ['system', '牙系'], ['dia', '直徑'], ['length', '長度'], ['od', '外徑'], ['thick', '厚度'],
+  ['sup', '廠商'], ['material', '材質'], ['finish', '電鍍'], ['group', '螺絲類別'], ['head', '頭型'], ['system', '牙系'], ['dia', '直徑'], ['length', '長度'], ['od', '外徑'], ['thick', '厚度'],
 ];
-const flt = { material: '', finish: '', group: '', cat: '', head: '', system: '', dia: '', length: '', od: '', thick: '' };
+const flt = { sup: '', material: '', finish: '', group: '', cat: '', head: '', system: '', dia: '', length: '', od: '', thick: '' };
 // 電鍍沒寫的品項歸在「未標示」，方便篩出來
 // 材質篩選：所有 SUS 系列、白鐵歸成「不鏽鋼」；合金鋼、中碳鋼各自合併；1022 滲碳併入鐵；低碳鋼、鐵(SPCC)、鐵(SPHC)併入鐵（品項本身仍顯示原材質）
 const MAT_GROUP = m => /^SUS|白鐵|不鏽鋼/i.test(m) ? '不鏽鋼' : m === '低碳鋼' || /^鐵\(SP[CH]C/.test(m) || /^1022/.test(m) ? '鐵'
