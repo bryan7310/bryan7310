@@ -195,7 +195,7 @@ details > summary { cursor: pointer; font-weight: 500; }
     <div class="filters" id="filters">
       <label class="flt"><span>材質</span><select id="f-material"></select></label>
       <label class="flt"><span>電鍍</span><select id="f-finish"></select></label>
-      <label class="flt"><span>螺絲類別</span><select id="f-cat"></select></label>
+      <label class="flt"><span>螺絲類別</span><select id="f-group"></select></label>
       <label class="flt"><span>頭型</span><select id="f-head"></select></label>
       <label class="flt"><span>牙系</span><select id="f-system"></select></label>
       <label class="flt"><span>直徑</span><select id="f-dia"></select></label>
@@ -514,9 +514,28 @@ function perKgText(it) {
 const qtyText = (q, unit) => unit && /^\d/.test(unit) ? `${q} 份（每份 ${unit}）` : `${q}${unit || ''}`;
 function noteOf(it) { return (it.note || SUP_NOTE[it.sup] || '').trim(); }
 const FINISH_RE = /五彩|彩鋅|白鋅|黑鋅|藍白鋅|鍍鋅|鍍鎳|鍍鉻|鍍銅|鍍黃|染黑|發黑|黑色|電鍍|白皮|達克羅|熱浸鋅|磷酸皮膜/;
+// 螺絲類別（篩選用的大分類）
+const GROUPS = ['螺絲', '內六角螺絲', '螺帽', '華司', '馬車', '壁虎', '鑽尾', '其他'];
+const WASHER_CATS = ['qq-wsh', 'dr-wsh', 'cj-sw'];
+function groupOf(it) {
+  const n = it.name || '', c = it.cat || '';
+  if (it.group) return it.group;
+  if (/壁虎|膨脹/.test(n) || c === 'dr-anc') return '壁虎';
+  if (/馬車/.test(n)) return '馬車';
+  if (/鑽尾/.test(n) || c === 'jt-roof') return '鑽尾';
+  if (/T帽/.test(n)) return '螺帽';
+  if (/^六角釘/.test(n)) return '螺絲';
+  if (/吊環|吊帽|鬆緊|下古|鋼索|塞頭|開口銷|R型銷|牙條|U型螺絲|釘/.test(n) && !/螺釘/.test(n)) return '其他';
+  if (/內六角|等高套筒/.test(n) || /^cap-(shcs|set|csk|btn|shd)$/.test(c)) return '內六角螺絲';
+  if (WASHER_CATS.includes(c) || (/華司/.test(n) && !/螺絲|頭|面|附|SWS/.test(n))) return '華司';
+  if (/帽/.test(n)) return '螺帽';
+  if (/螺絲|螺栓|螺釘|牙|SWS/.test(n)) return '螺絲';
+  return '其他';
+}
 function attr(it, key) {
   if (key === 'head') return headName(it.head || (it.nut ? '' : HEADS.find(h => (it.name || '').includes(h)) || ''));
   if (key === 'cat') return it.cat;
+  if (key === 'group') return groupOf(it);
   if (key === 'material' || key === 'finish') {
     // 舊資料材質欄可能寫成「鐵五彩」，自動拆成材質與電鍍
     const m = (it.material || '').trim();
@@ -572,9 +591,9 @@ function lenValue(v) {
   return inch ? n * 25.4 : n;
 }
 const FACETS = [
-  ['material', '材質'], ['finish', '電鍍'], ['cat', '螺絲類別'], ['head', '頭型'], ['system', '牙系'], ['dia', '直徑'], ['length', '長度'],
+  ['material', '材質'], ['finish', '電鍍'], ['group', '螺絲類別'], ['head', '頭型'], ['system', '牙系'], ['dia', '直徑'], ['length', '長度'],
 ];
-const flt = { material: '', finish: '', cat: '', head: '', system: '', dia: '', length: '' };
+const flt = { material: '', finish: '', group: '', cat: '', head: '', system: '', dia: '', length: '' };
 // 電鍍沒寫的品項歸在「未標示」，方便篩出來
 // 材質篩選：所有 SUS 系列、白鐵歸成「不鏽鋼」；合金鋼、中碳鋼各自合併；1022 滲碳併入鐵；低碳鋼、鐵(SPCC)、鐵(SPHC)併入鐵（品項本身仍顯示原材質）
 const MAT_GROUP = m => /^SUS|白鐵|不鏽鋼/i.test(m) ? '不鏽鋼' : m === '低碳鋼' || /^鐵\(SP[CH]C/.test(m) || /^1022/.test(m) ? '鐵'
@@ -599,6 +618,7 @@ function renderFilters(base) {
     if (flt[k] && !counts.has(flt[k])) counts.set(flt[k], 0);
     let vals = [...counts.keys()];
     if (k === 'cat') vals = S.categories.map(c => c.id).filter(id => counts.has(id));
+    else if (k === 'group') vals = GROUPS.filter(g => counts.has(g));
     else if (k === 'length') vals.sort((a, b) => lenValue(a) - lenValue(b) || a.localeCompare(b));
     else if (k === 'dia') vals.sort((a, b) => diaValue(a) - diaValue(b) || a.localeCompare(b));
     else if (k === 'system') vals.sort((a, b) => (a === '英制') - (b === '英制'));
