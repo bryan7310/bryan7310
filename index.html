@@ -429,9 +429,9 @@ function parsePrice(v) {
 }
 
 /* ---------- 搜尋 ---------- */
-// 頭型同義詞：圓頭 = 丸頭（「半圓頭」不受影響）
-const HEAD_ALIAS = { '圓頭': '丸頭' };
-const HEAD_ALIAS_RE = /(?<!半)圓頭/g;
+// 頭型同義詞：圓頭 = 丸頭（「半圓頭」不受影響）、平頭 = 皿頭
+const HEAD_ALIAS = { '圓頭': '丸頭', '平頭': '皿頭' };
+const HEAD_ALIAS_RE = /(?<!半)圓頭|平頭/g;
 const headName = h => String(h || '').trim().replace(HEAD_ALIAS_RE, m => HEAD_ALIAS[m]);
 function norm(s) {
   return String(s ?? '').replace(/[！-～]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0))
