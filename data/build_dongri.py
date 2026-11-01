@@ -190,6 +190,11 @@ for r, c, v in parse(T.UB):
 for r, c, v in parse(T.PIN):
     add('dr-pin', '開口銷', f'{r}×{inch(c)}', r, inch(c), v, '100支', 38)
 
+# 204 壁虎：比照 304 套管式、平頭式（48 折）的牌價，204 材質 38 折（使用者指定）
+for it in [x for x in items if x['cat'] == 'dr-anc' and x['disc'] == '48']:
+    items.append({**it, 'id': f'dr{len(items):04d}', 'material': 'SUS204', 'disc': '38', 'batch': '東日204',
+                  'note': '東日牌價（比照304牌價）204 38折'})
+
 data = {'app': 'screw-pricing', 'version': 1, 'source': '東日不鏽鋼牌價本（106/8/1）＋折數表（115/04/07）',
         'categories': [{'id': c, 'name': n, 'discount': ''} for c, n in CATS], 'items': items}
 json.dump(data, open(os.path.join(HERE, 'dongri.json'), 'w', encoding='utf-8'), ensure_ascii=False, separators=(',', ':'))
