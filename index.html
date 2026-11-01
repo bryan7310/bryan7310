@@ -596,7 +596,7 @@ $('#impFile').addEventListener('change', async e => {
       const sel = $('#impSheet'); sel.innerHTML = wb.SheetNames.map(n => `<option>${esc(n)}</option>`).join(''); sel.hidden = wb.SheetNames.length < 2;
       loadSheet(wb.SheetNames[0]);
     } else {
-      let text = await f.text(); if (text.includes('�')) { try { text = new TextDecoder('big5').decode(await f.arrayBuffer()); } catch (_) {} }
+      let text = await f.text(); if (text.includes('\uFFFD')) { try { text = new TextDecoder('big5').decode(await f.arrayBuffer()); } catch (_) {} }
       setRows(parseDelimited(text.replace(/^﻿/, '')));
     }
   } catch (err) { toast('讀取檔案失敗：' + err.message); }
