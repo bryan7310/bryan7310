@@ -112,6 +112,11 @@ textarea { min-height: 110px; font-family: var(--font-num); font-size: 13px; }
 .res .list { color: var(--muted); }
 .disc { display: inline-block; font: 600 12px/1.6 var(--font-num); color: var(--zinc-ink); background: var(--zinc-soft); padding: 0 6px; border-radius: 4px; }
 .disc.own { outline: 1px dashed var(--zinc-ink); }
+.dup { margin-top: 6px; display: flex; flex-wrap: wrap; gap: 4px 6px; align-items: center; font-size: 12px; }
+.dup b { color: var(--zinc-ink); font-weight: 600; }
+.dup span { padding: 1px 6px; border-radius: 4px; background: var(--sunken); white-space: nowrap; }
+.dup span.me { outline: 1px solid var(--muted); }
+.dup span.low { background: var(--zinc-soft); color: var(--zinc-ink); font-weight: 600; }
 .src { display: inline-block; font-size: 11px; line-height: 1.7; padding: 0 6px; border-radius: 4px; border: 1px solid var(--steel); color: var(--steel); white-space: nowrap; }
 .net { font-size: 17px; font-weight: 600; }
 .add { display: flex; gap: 4px; justify-content: flex-end; }
@@ -243,8 +248,12 @@ details > summary { cursor: pointer; font-weight: 500; }
           <span class="seg" id="impMode"><button type="button" data-mode="list" aria-pressed="true">清單</button><button type="button" data-mode="matrix" aria-pressed="false">尺寸矩陣</button></span>
         </label>
         <label class="fld" style="flex:0 1 auto">既有資料
-          <select id="impReplace"><option value="replace">取代此類別的品項</option><option value="append">附加在後面</option></select>
+          <select id="impReplace"><option value="replace">取代此類別中同供應商的品項</option><option value="append">附加在後面</option></select>
         </label>
+      </div>
+      <div class="row">
+        <label class="fld" style="flex:1 1 160px">供應商<input type="text" id="impSup" placeholder="例如：久允、順聯"></label>
+        <label class="fld" style="flex:1 1 160px">牌價日期（選填）<input type="text" id="impDate" placeholder="例如：115/06/26"></label>
       </div>
       <p class="hint" id="modeHint"></p>
       <div class="row" id="matrixOpts" hidden>
@@ -268,6 +277,7 @@ details > summary { cursor: pointer; font-weight: 500; }
       <h2>單筆新增</h2>
       <div class="row">
         <label class="fld" style="flex:1 1 140px">類別<select id="oneCat"></select></label>
+        <label class="fld" style="flex:1 1 110px">供應商<input type="text" id="oneSup"></label>
         <label class="fld" style="flex:1 1 120px">品號<input type="text" id="oneCode"></label>
         <label class="fld" style="flex:2 1 180px">品名<input type="text" id="oneName"></label>
         <label class="fld" style="flex:1 1 120px">規格<input type="text" id="oneSpec" placeholder="M4×20"></label>
@@ -359,7 +369,25 @@ function load() {
   S.settings = Object.assign({ decimals: 2 }, S.settings || {});
   S.quote = S.quote || []; S.items = S.items || [];
 }
-function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} const st = document.getElementById('stamp'); if (st) st.textContent = `${S.categories.length} 類 · ${S.items.length} 項`; }
+// 重複品項：
+//  1. 品名、規格、材質、電鍍、頭型都相同（不分供應商）
+//  2. 不同供應商、同一類別，規格、材質、電鍍、頭型相同（各家品名寫法不同也能比對）
+let DUP = null;
+const supName = it => it.sup || '未標示供應商';
+const nk = v => norm(v).replace(/[\s（）()]/g, '');
+const specKey = it => [nk(it.spec), attr(it, 'material'), attr(it, 'finish'), attr(it, 'head')].join('|');
+function dupKey(it) { return nk(it.name) + '|' + specKey(it); }
+function dupGroup(it) {
+  if (!DUP) {
+    DUP = { byName: new Map(), byCat: new Map() };
+    const push = (m, k, x) => (m.get(k) || m.set(k, []).get(k)).push(x);
+    for (const x of S.items) { push(DUP.byName, dupKey(x), x); if (nk(x.spec)) push(DUP.byCat, x.cat + '|' + specKey(x), x); }
+  }
+  const g = new Set(DUP.byName.get(dupKey(it)) || [it]);
+  if (nk(it.spec)) (DUP.byCat.get(it.cat + '|' + specKey(it)) || []).forEach(x => { if (supName(x) !== supName(it)) g.add(x); });
+  return [...g];
+}
+function save() { DUP = null; try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} const st = document.getElementById('stamp'); if (st) st.textContent = `${S.categories.length} 類 · ${S.items.length} 項`; }
 
 /* ---------- 折扣與價格 ---------- */
 // "65" / "6.5" / "0.65" / "65折" / "65 95" (多段) → 0.65 / 0.6175
@@ -509,6 +537,13 @@ const facetVal = (it, k) => attr(it, k) || (k === 'finish' ? '未標示' : '');
 function matchFacets(it, skip) { return FACETS.every(([k]) => k === skip || !flt[k] || facetVal(it, k) === flt[k]); }
 
 /* ---------- 查價頁 ---------- */
+function dupHtml(it) {
+  const g = dupGroup(it); if (g.length < 2) return '';
+  const rows = g.map(x => ({ x, net: netPrice(x) })).sort((a, b) => a.net - b.net);
+  const low = rows[0].net;
+  return `<div class="dup"><b>重複品項 ${g.length} 筆：</b>` + rows.map(({ x, net }) =>
+    `<span class="${x === it ? 'me' : ''}${net === low ? ' low' : ''}">${esc(supName(x))} ${esc(fmtDisc(itemFactor(x).f))} 淨價 ${fmt(net)}${net === low ? '（最低）' : ''}</span>`).join('') + '</div>';
+}
 const LIMIT = 200;
 function renderFilters(base) {
   if (flt.cat && !catById(flt.cat)) flt.cat = '';
@@ -544,7 +579,8 @@ function renderSearch() {
       const { f, own } = itemFactor(it); const c = catById(it.cat);
       return `<div class="res">
         <div class="main"><div><span class="nm">${esc(it.name)}</span>${it.spec ? `<span class="spec">${esc(it.spec)}</span>` : ''}</div>
-          <div class="meta">${noteOf(it) ? `<span class="src">${esc(noteOf(it))}</span>` : ''}${it.code ? `<span class="num">${esc(it.code)}</span>` : ''}${[attr(it, 'material'), attr(it, 'finish'), attr(it, 'head'), attr(it, 'thread'), c?.name].filter(Boolean).map(v => `<span>${esc(v)}</span>`).join('')}</div></div>
+          <div class="meta">${noteOf(it) ? `<span class="src">${esc(noteOf(it))}</span>` : ''}${it.code ? `<span class="num">${esc(it.code)}</span>` : ''}${[attr(it, 'material'), attr(it, 'finish'), attr(it, 'head'), attr(it, 'thread'), c?.name].filter(Boolean).map(v => `<span>${esc(v)}</span>`).join('')}</div>
+${dupHtml(it)}</div>
         <div class="r"><span class="lbl">牌價</span><span class="num list">${fmtList(it.price)}</span></div>
         <div class="r"><span class="lbl">折扣</span><span class="disc${own ? ' own' : ''}" title="${own ? '此品項有個別折扣' : '類別折扣'}">${esc(fmtDisc(f))}</span></div>
         <div class="r"><span class="lbl">淨價${it.unit ? ' / ' + esc(it.unit) : ''}</span><span class="num net">${fmt(netPrice(it))}</span></div>
@@ -594,7 +630,7 @@ function renderQuote() {
   if (!lines.length) { tb.innerHTML = `<tr><td class="empty">報價單是空的。在「查價」頁按「加入」把品項放進來。</td></tr>`; $('#totals').innerHTML = ''; return; }
   tb.innerHTML = `<thead><tr><th>品項</th><th class="r">牌價</th><th class="r">折扣</th><th class="r">單價</th><th class="r">數量</th><th class="r">小計</th><th></th></tr></thead><tbody>` +
     lines.map((l, i) => `<tr>
-      <td><b>${esc(l.it.name)}</b> <span class="num">${esc(l.it.spec || '')}</span><div class="hint">${noteOf(l.it) ? `<span class="src">${esc(noteOf(l.it))}</span> ` : ''}${esc([l.it.code, attr(l.it, 'material'), attr(l.it, 'finish')].filter(Boolean).join(' · '))}${l.gone ? ' · <span style="color:var(--danger)">品項已從牌價表移除</span>' : ''}</div></td>
+      <td><b>${esc(l.it.name)}</b> <span class="num">${esc(l.it.spec || '')}</span><div class="hint">${noteOf(l.it) ? `<span class="src">${esc(noteOf(l.it))}</span> ` : ''}${esc([l.it.code, attr(l.it, 'material'), attr(l.it, 'finish')].filter(Boolean).join(' · '))}${l.gone ? ' · <span style="color:var(--danger)">品項已從牌價表移除</span>' : ''}</div>${l.gone ? '' : dupHtml(l.it)}</td>
       <td class="r num">${fmtList(l.it.price)}</td>
       <td class="r"><span class="disc">${esc(fmtDisc(l.f))}</span></td>
       <td class="r num">${fmt(l.unit)}</td>
@@ -621,13 +657,13 @@ $('#copyQuote').addEventListener('click', () => {
   const out = [`報價單　${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}`];
   if ($('#qCustomer').value.trim()) out.push(`客戶：${$('#qCustomer').value.trim()}`);
   out.push('');
-  lines.forEach((l, i) => out.push(`${i + 1}. ${l.it.name} ${l.it.spec || ''}${[attr(l.it, 'material'), attr(l.it, 'finish')].filter(Boolean).map(v => ' ' + v).join('')}${noteOf(l.it) ? '（' + noteOf(l.it) + '）' : ''}\n   牌價 ${fmtList(l.it.price)} × ${fmtDisc(l.f)} = ${fmt(l.unit)}　× ${qtyText(l.q.qty, l.it.unit)} = ${fmt(l.sub)}`));
+  lines.forEach((l, i) => out.push(`${i + 1}. ${l.it.name} ${l.it.spec || ''}${[attr(l.it, 'material'), attr(l.it, 'finish')].filter(Boolean).map(v => ' ' + v).join('')}${noteOf(l.it) ? '（' + noteOf(l.it) + '）' : ''}${dupGroup(l.it).length > 1 ? `［重複品項：${dupGroup(l.it).map(x => supName(x) + ' ' + fmtDisc(itemFactor(x).f)).join('、')}］` : ''}\n   牌價 ${fmtList(l.it.price)} × ${fmtDisc(l.f)} = ${fmt(l.unit)}　× ${qtyText(l.q.qty, l.it.unit)} = ${fmt(l.sub)}`));
   out.push('', `小計：${fmt(t.sum)}`);
   if (t.after != null) out.push(`整單再打 ${fmtDisc(t.ex)}：${fmt(t.after, 0)}`);
   if (t.tax) out.push(`營業稅 5%：${fmt(t.tax, 0)}`);
   out.push(`${t.tax ? '含稅總計' : '總計'}：${fmt(t.total, 0)}`);
-  const sups = [...new Set(lines.map(l => l.it.sup).filter(sup => SUP_SOURCE[sup]))];
-  if (sups.length) out.push('', ...sups.map(sup => `※ ${sup}品項依${SUP_SOURCE[sup]}計價。`));
+  const sups = [...new Set(lines.map(l => l.it.sup).filter(Boolean))];
+  if (sups.length) out.push('', ...sups.map(sup => `※ ${sup}品項依${SUP_SOURCE[sup] || (S.supInfo?.[sup]?.date ? `${sup}牌價表（${S.supInfo[sup].date} 起）` : `${sup}提供之牌價`)}計價。`));
   copyText(out.join('\n'), $('#quoteText'));
 });
 function renderBadge() { const n = S.quote.length; const b = $('#qcount'); b.hidden = !n; b.textContent = n; }
@@ -748,19 +784,26 @@ function buildPreview() {
     $('#impTable').innerHTML = `<table><thead><tr><th>品名</th><th>規格</th><th>牌價</th></tr></thead><tbody>` +
       res.items.slice(0, 8).map(it => `<tr><td>${esc(it.name)}</td><td class="num">${esc(it.spec)}</td><td class="num">${fmtList(it.price)}</td></tr>`).join('') + '</tbody></table>';
   }
-  $('#impSummary').textContent = `預覽：可匯入 ${res.items.length} 項` + (res.skipped ? `，${res.skipped} 列因為沒有牌價會略過` : '');
+  const impSup = $('#impSup').value.trim(), keep = S.items.filter(i => $('#impReplace').value !== 'replace' || (i.sup || '') !== impSup);
+  const keys = new Set(keep.map(dupKey)), catKeys = new Set(keep.filter(i => (i.sup || '') !== impSup).map(i => i.cat + '|' + specKey(i)));
+  const dupN = res.items.filter(it => keys.has(dupKey(it)) || catKeys.has($('#impCat').value + '|' + specKey(it))).length;
+  $('#impSummary').textContent = `預覽：可匯入 ${res.items.length} 項` + (res.skipped ? `，${res.skipped} 列因為沒有牌價會略過` : '') +
+    (dupN ? `；其中 ${dupN} 項和現有品項重複，查價時會並列各供應商與折數` : '');
   const warn = [];
   if (imp.mode === 'list' && !imp.map.includes('price')) warn.push('請在上方下拉選單指定哪一欄是「牌價」');
   if (imp.mode === 'list' && !imp.map.includes('name') && !imp.map.includes('spec') && !imp.map.includes('code')) warn.push('至少要指定品名、規格或品號其中一欄');
   if ($('#impCat').value === '__file' && !imp.map.includes('cat')) warn.push('選了「依類別欄分類」，請指定哪一欄是類別');
   if (!S.categories.length && $('#impCat').value !== '__file') warn.push('請先在上方新增一個類別');
+  if (!$('#impSup').value.trim()) warn.push('請填寫供應商，重複品項才能標註是哪一家');
   if (imp.mode === 'matrix' && $('#impCat').value === '__file') warn.push('尺寸矩陣請選擇要匯入的類別');
   $('#impWarn').textContent = warn.join('；');
   $('#impGo').disabled = !!warn.length || !res.items.length;
 }
 $('#impTable').addEventListener('change', e => { const i = e.target.dataset.map; if (i != null) { imp.map[+i] = e.target.value; buildPreview(); } });
 $('#impCat').addEventListener('change', buildPreview);
-['mxName', 'mxMat', 'mxUnit'].forEach(id => $('#' + id).addEventListener('input', buildPreview));
+['mxName', 'mxMat', 'mxUnit', 'impSup'].forEach(id => $('#' + id).addEventListener('input', buildPreview));
+$('#impReplace').addEventListener('change', buildPreview);
+[].forEach(id => $('#' + id).addEventListener('input', buildPreview));
 
 function convertRows() {
   const items = []; let skipped = 0;
@@ -797,8 +840,12 @@ $('#impGo').addEventListener('click', () => {
     const nm = (it.catName || '未分類').trim(); let c = S.categories.find(x => x.name === nm);
     if (!c) c = addCategory(nm, ''); return c.id;
   };
-  const prepared = items.map(it => { const cat = resolveCat(it); touched.add(cat); const { catName, ...rest } = it; return { id: uid(), cat, ...rest }; });
-  if (replace) S.items = S.items.filter(i => !touched.has(i.cat));
+  const sup = $('#impSup').value.trim(), date = $('#impDate').value.trim();
+  const tag = sup ? `${sup}牌價${date ? ' ' + date : ''}` : '';
+  if (sup) { S.supInfo = S.supInfo || {}; S.supInfo[sup] = { date }; }
+  const prepared = items.map(it => { const cat = resolveCat(it); touched.add(cat); const { catName, ...rest } = it;
+    return { id: uid(), cat, ...rest, ...(sup ? { sup } : {}), note: rest.note || tag }; });
+  if (replace) S.items = S.items.filter(i => !(touched.has(i.cat) && (i.sup || '') === sup));
   S.items.push(...prepared); save();
   const names = [...touched].map(id => catById(id)?.name).join('、');
   resetImport(); renderManage(); toast(`已匯入 ${prepared.length} 項到「${names}」`);
@@ -811,7 +858,8 @@ $('#addOne').addEventListener('click', () => {
   if (!($('#oneName').value.trim() || $('#oneSpec').value.trim())) { toast('請輸入品名或規格'); return; }
   if (!isFinite(price)) { toast('牌價要是數字'); return; }
   const d = $('#oneDisc').value.trim(); if (d && isNaN(parseDisc(d))) { toast('個別折扣格式錯誤'); return; }
-  S.items.push({ id: uid(), cat, code: $('#oneCode').value.trim(), name: $('#oneName').value.trim(), spec: $('#oneSpec').value.trim(), material: $('#oneMat').value.trim(), finish: $('#oneFin').value.trim(), head: $('#oneHead').value.trim(), system: $('#oneSys').value, dia: $('#oneDia').value.trim(), thread: $('#oneThread').value.trim(), length: $('#oneLen').value.trim(), unit: $('#oneUnit').value.trim(), price, disc: d });
+  const oneSup = $('#oneSup').value.trim();
+  S.items.push({ id: uid(), cat, ...(oneSup ? { sup: oneSup, note: oneSup + '牌價' } : {}), code: $('#oneCode').value.trim(), name: $('#oneName').value.trim(), spec: $('#oneSpec').value.trim(), material: $('#oneMat').value.trim(), finish: $('#oneFin').value.trim(), head: $('#oneHead').value.trim(), system: $('#oneSys').value, dia: $('#oneDia').value.trim(), thread: $('#oneThread').value.trim(), length: $('#oneLen').value.trim(), unit: $('#oneUnit').value.trim(), price, disc: d });
   save();
   ['oneCode', 'oneSpec', 'onePrice', 'oneLen', 'oneDia'].forEach(id => $('#' + id).value = ''); renderManage(); toast('已加入');
 });
@@ -822,8 +870,8 @@ function renderBrowser() {
   const c = $('#brCat').value || 'all'; const terms = norm($('#brQ').value).split(/\s+/).filter(Boolean);
   let list = S.items.filter(i => c === 'all' || i.cat === c);
   if (terms.length) list = list.filter(it => { const t = searchText(it); return terms.every(w => t.includes(w)); });
-  $('#brTable').innerHTML = list.length ? `<table class="itable"><thead><tr><th>類別</th><th>品號</th><th>品名</th><th>規格</th><th>材質</th><th>電鍍</th><th>頭型</th><th>牙系</th><th>直徑</th><th>牙型</th><th>長度</th><th>單位</th><th>牌價</th><th>個別折扣</th><th>備註</th><th></th></tr></thead><tbody>` +
-    list.slice(0, 300).map(it => `<tr><td>${esc(catById(it.cat)?.name)}</td><td class="num">${esc(it.code)}</td><td>${esc(it.name)}</td><td class="num">${esc(it.spec)}</td><td>${esc(attr(it, 'material'))}</td><td>${esc(attr(it, 'finish'))}</td><td>${esc(attr(it, 'head'))}</td><td>${esc(attr(it, 'system'))}</td><td class="num">${esc(attr(it, 'dia'))}</td><td>${esc(attr(it, 'thread'))}</td><td class="num">${esc(attr(it, 'length'))}</td><td>${esc(it.unit)}</td><td class="num">${fmtList(it.price)}</td><td><input type="text" class="num" style="width:80px;padding:3px 6px" value="${esc(it.disc)}" data-idisc="${it.id}" id="id-${it.id}" placeholder="—"></td><td>${esc(noteOf(it))}</td><td><button class="btn ghost sm danger" data-idel="${it.id}">刪除</button></td></tr>`).join('') +
+  $('#brTable').innerHTML = list.length ? `<table class="itable"><thead><tr><th>類別</th><th>品號</th><th>品名</th><th>規格</th><th>材質</th><th>電鍍</th><th>頭型</th><th>牙系</th><th>直徑</th><th>牙型</th><th>長度</th><th>單位</th><th>牌價</th><th>個別折扣</th><th>供應商</th><th>備註</th><th></th></tr></thead><tbody>` +
+    list.slice(0, 300).map(it => `<tr><td>${esc(catById(it.cat)?.name)}</td><td class="num">${esc(it.code)}</td><td>${esc(it.name)}</td><td class="num">${esc(it.spec)}</td><td>${esc(attr(it, 'material'))}</td><td>${esc(attr(it, 'finish'))}</td><td>${esc(attr(it, 'head'))}</td><td>${esc(attr(it, 'system'))}</td><td class="num">${esc(attr(it, 'dia'))}</td><td>${esc(attr(it, 'thread'))}</td><td class="num">${esc(attr(it, 'length'))}</td><td>${esc(it.unit)}</td><td class="num">${fmtList(it.price)}</td><td><input type="text" class="num" style="width:80px;padding:3px 6px" value="${esc(it.disc)}" data-idisc="${it.id}" id="id-${it.id}" placeholder="—"></td><td>${esc(it.sup || '')}</td><td>${esc(noteOf(it))}</td><td><button class="btn ghost sm danger" data-idel="${it.id}">刪除</button></td></tr>`).join('') +
     `</tbody></table>${list.length > 300 ? `<div class="more">只顯示前 300 筆（共 ${list.length}）</div>` : ''}` : `<div class="empty">沒有品項</div>`;
 }
 $('#itemBrowser').addEventListener('toggle', renderBrowser);
