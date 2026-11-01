@@ -202,6 +202,8 @@ details > summary { cursor: pointer; font-weight: 500; }
       <label class="flt"><span>牙系</span><select id="f-system"></select></label>
       <label class="flt"><span>直徑</span><select id="f-dia"></select></label>
       <label class="flt"><span>長度</span><select id="f-length"></select></label>
+      <label class="flt" id="w-od" hidden><span>外徑</span><select id="f-od"></select></label>
+      <label class="flt" id="w-thick" hidden><span>厚度</span><select id="f-thick"></select></label>
       <button class="btn" id="fReset" hidden>清除篩選</button>
     </div>
     <div class="searchbar">
@@ -544,7 +546,20 @@ function groupOf(it) {
   if (/螺絲|螺栓|螺釘|牙|SWS/.test(n)) return '螺絲';
   return '其他';
 }
+// 華司外徑、厚度：從規格讀出（內×外×厚、外…×厚…、…×厚T）
+const WD = new WeakMap();
+function washerDims(it) {
+  if (WD.has(it)) return WD.get(it);
+  const sp = String(it.spec || '').replace(/^[\d\/#M.]+\s+(?=[\d外])/, '');
+  let m, od = '', t = '';
+  if ((m = sp.match(/外([\d.]+)×厚([\d.]+)/))) { od = m[1]; t = m[2]; }
+  else if ((m = sp.match(/^[\d.]+×([\d.]+)(?:×[\d.]+)?×([\d.]+)(?:\/[\d.]+)?$/))) { od = m[1]; t = m[2]; }
+  else if ((m = sp.match(/^([\d.]+)×([\d.]+)T$/))) { od = m[1]; t = m[2]; }
+  const n = v => v ? String(+v) : '';
+  const r = { od: n(od), thick: n(t) }; WD.set(it, r); return r;
+}
 function attr(it, key) {
+  if (key === 'od' || key === 'thick') return groupOf(it) === '華司' ? washerDims(it)[key] : '';
   if (key === 'head') return headName(it.head || (it.nut ? '' : HEADS.find(h => (it.name || '').includes(h)) || ''));
   if (key === 'cat') return it.cat;
   if (key === 'group') return groupOf(it);
@@ -603,15 +618,15 @@ function lenValue(v) {
   return inch ? n * 25.4 : n;
 }
 const FACETS = [
-  ['material', '材質'], ['finish', '電鍍'], ['group', '螺絲類別'], ['head', '頭型'], ['system', '牙系'], ['dia', '直徑'], ['length', '長度'],
+  ['material', '材質'], ['finish', '電鍍'], ['group', '螺絲類別'], ['head', '頭型'], ['system', '牙系'], ['dia', '直徑'], ['length', '長度'], ['od', '外徑'], ['thick', '厚度'],
 ];
-const flt = { material: '', finish: '', group: '', cat: '', head: '', system: '', dia: '', length: '' };
+const flt = { material: '', finish: '', group: '', cat: '', head: '', system: '', dia: '', length: '', od: '', thick: '' };
 // 電鍍沒寫的品項歸在「未標示」，方便篩出來
 // 材質篩選：所有 SUS 系列、白鐵歸成「不鏽鋼」；合金鋼、中碳鋼各自合併；1022 滲碳併入鐵；低碳鋼、鐵(SPCC)、鐵(SPHC)併入鐵（品項本身仍顯示原材質）
 const MAT_GROUP = m => /^SUS|白鐵|不鏽鋼/i.test(m) ? '不鏽鋼' : m === '低碳鋼' || /^鐵\(SP[CH]C/.test(m) || /^1022/.test(m) ? '鐵'
   : /^合金鋼/.test(m) ? '合金鋼' : /^中碳鋼/.test(m) ? '中碳鋼' : m;
 const facetVal = (it, k) => k === 'material' ? MAT_GROUP(attr(it, k)) : attr(it, k) || (k === 'finish' ? '未標示' : '');
-function matchFacets(it, skip) { return FACETS.every(([k]) => k === skip || !flt[k] || facetVal(it, k) === flt[k]); }
+function matchFacets(it, skip) { return FACETS.every(([k]) => k === skip || (skip === 'group' && (k === 'od' || k === 'thick')) || !flt[k] || facetVal(it, k) === flt[k]); }
 
 /* ---------- 查價頁 ---------- */
 function dupHtml(it) {
@@ -632,14 +647,18 @@ function renderFilters(base) {
     if (k === 'cat') vals = S.categories.map(c => c.id).filter(id => counts.has(id));
     else if (k === 'group') vals = GROUPS.filter(g => counts.has(g));
     else if (k === 'length') vals.sort((a, b) => lenValue(a) - lenValue(b) || a.localeCompare(b));
+    else if (k === 'od' || k === 'thick') vals.sort((a, b) => a - b);
     else if (k === 'dia') vals.sort((a, b) => diaValue(a) - diaValue(b) || a.localeCompare(b));
     else if (k === 'system') vals.sort((a, b) => (a === '英制') - (b === '英制'));
     else vals.sort((a, b) => (a === '未標示') - (b === '未標示') || a.localeCompare(b, 'zh-Hant'));
-    const name = v => k === 'cat' ? catById(v).name + (parseDisc(catById(v).discount) > 0 ? `（${fmtDisc(parseDisc(catById(v).discount))}）` : '') : k === 'length' && /^\d+(\.\d+)?$/.test(v) ? v + ' mm' : v;
+    const name = v => (k === 'od' || k === 'thick') ? v + ' mm' : k === 'cat' ? catById(v).name + (parseDisc(catById(v).discount) > 0 ? `（${fmtDisc(parseDisc(catById(v).discount))}）` : '') : k === 'length' && /^\d+(\.\d+)?$/.test(v) ? v + ' mm' : v;
     const sel = $('#f-' + k);
     sel.innerHTML = `<option value="">全部${label}</option>` + vals.map(v => `<option value="${esc(v)}">${esc(name(v))}　${counts.get(v)}</option>`).join('');
     sel.value = flt[k]; sel.classList.toggle('on', !!flt[k]); sel.disabled = !vals.length;
   }
+  // 外徑、厚度只在螺絲類別選「華司」時顯示
+  const ws = flt.group === '華司';
+  $('#w-od').hidden = $('#w-thick').hidden = !ws;
   $('#fReset').hidden = !FACETS.some(([k]) => flt[k]);
 }
 function renderSearch() {
@@ -667,7 +686,7 @@ ${dupHtml(it)}</div>
     }).join('') + (list.length > LIMIT ? `<div class="more">共 ${list.length} 筆，只顯示前 ${LIMIT} 筆，請輸入更多關鍵字縮小範圍</div>` : `<div class="more">共 ${list.length} 筆</div>`);
 }
 $('#q').addEventListener('input', renderSearch);
-FACETS.forEach(([k]) => $('#f-' + k).addEventListener('change', e => { flt[k] = e.target.value; renderSearch(); }));
+FACETS.forEach(([k]) => $('#f-' + k).addEventListener('change', e => { flt[k] = e.target.value; if (k === 'group' && flt.group !== '華司') flt.od = flt.thick = ''; renderSearch(); }));
 $('#fReset').addEventListener('click', () => { FACETS.forEach(([k]) => flt[k] = ''); renderSearch(); });
 $('#results').addEventListener('click', e => {
   const b = e.target.closest('[data-add]'); if (!b) return;
