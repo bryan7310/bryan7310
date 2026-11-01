@@ -237,6 +237,9 @@ const FIELDS = {
 };
 
 const KEY = 'checkApp.v1';
+/* 公司名稱依筆畫排序（同筆畫再比下一個字） */
+const strokeCollator = new Intl.Collator('zh-Hant-TW', { collation:'stroke' });
+const byStroke = list => list.slice().sort(strokeCollator.compare);
 const $ = s => document.querySelector(s);
 let db = load();
 let editingId = null;
@@ -384,7 +387,7 @@ function editCheck(id){
   const inp=$('#payee'), list=$('#payeeList'); let act=-1, items=[];
   function open(all){
     const q = all ? '' : inp.value.trim();
-    items = db.companies.filter(n => !q || n.includes(q));
+    items = byStroke(db.companies).filter(n => !q || n.includes(q));
     let h = items.map((n,i)=>`<div data-i="${i}">${esc(n)}</div>`).join('');
     if (q && !db.companies.includes(q)) h += `<div class="new" data-new="1">＋ 使用新公司「${esc(q)}」</div>`;
     list.innerHTML = h || '<div style="color:var(--muted);cursor:default">沒有符合的公司</div>';
@@ -526,12 +529,12 @@ $('#testPrint').onclick = ()=>{ const t=today(); printChecks([{ payee:'隆勝企
 
 function renderCompanies(){
   $('#coCount').textContent = db.companies.length;
-  $('#coList').innerHTML = db.companies.map((n,i)=>`<span class="tag" style="color:var(--ink);border-color:var(--line);padding:6px 10px;font-size:14px">${esc(n)} <a href="#" data-i="${i}" style="color:var(--danger);text-decoration:none;margin-left:4px" title="移除">✕</a></span>`).join('');
+  $('#coList').innerHTML = byStroke(db.companies).map(n=>`<span class="tag" style="color:var(--ink);border-color:var(--line);padding:6px 10px;font-size:14px">${esc(n)} <a href="#" data-n="${esc(n)}" style="color:var(--danger);text-decoration:none;margin-left:4px" title="移除">✕</a></span>`).join('');
 }
 $('#coList').addEventListener('click', e=>{
   const a=e.target.closest('a'); if(!a) return; e.preventDefault();
-  const n=db.companies[+a.dataset.i];
-  if (confirm(`從清單移除「${n}」？（已開的支票不受影響）`)){ db.companies.splice(+a.dataset.i,1); save(); renderCompanies(); }
+  const n=a.dataset.n;
+  if (confirm(`從清單移除「${n}」？（已開的支票不受影響）`)){ db.companies=db.companies.filter(x=>x!==n); save(); renderCompanies(); }
 });
 function addCo(){ const n=$('#newCo').value.trim(); if(!n) return; if(db.companies.includes(n)) return toast('清單裡已經有了'); db.companies.push(n); save(); $('#newCo').value=''; renderCompanies(); toast('已新增'); }
 $('#addCo').onclick = addCo;
