@@ -629,7 +629,8 @@ const FIN_GROUP = f => /^(鍍鋅|電鍍|電鋅|鋅)$/.test(f) ? '電鍍／鍍鋅
   : /^(六價鍍鋅|三價鍍鋅|三價鉻鍍鋅／鍍鋅／五彩)$/.test(f) ? '六價／三價鍍鋅'
   : /^(五彩|五彩鋅|六價五彩|電鋅／五彩)$/.test(f) ? '五彩'
   : /^(鍍鎳|鎳)$/.test(f) ? '鍍鎳'
-  : /CR3\+R/i.test(f) ? '三價處理（CR3+R）' : f;
+  : /CR3\+R/i.test(f) ? '三價處理（CR3+R）'
+  : /^(白皮|黑身)$/.test(f) ? '白皮／黑身' : f;
 const facetVal = (it, k) => k === 'material' ? MAT_GROUP(attr(it, k)) : k === 'finish' && attr(it, k) ? FIN_GROUP(attr(it, k)) : attr(it, k) || (k === 'finish' ? '未標示' : '');
 function matchFacets(it, skip) { return FACETS.every(([k]) => k === skip || (skip === 'group' && (k === 'od' || k === 'thick')) || !flt[k] || facetVal(it, k) === flt[k]); }
 
