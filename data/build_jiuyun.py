@@ -28,8 +28,17 @@ def inch(v):
     v = str(v)
     return v if v.endswith('"') else v + '"'
 
+# 材質與電鍍分開：「鐵五彩」→ 材質「鐵」、電鍍「五彩」
+FINISHES = ['五彩', '鍍鋅', '鍍鎳', '染黑', '白皮', '電鍍']
+def split_mat(m):
+    for f in FINISHES:
+        if m.endswith(f) and m != f:
+            return m[:-len(f)], f
+    return m, ''
+
 def add(cat, name, spec, material, head, thread, length, price, disc, unit='100支'):
-    items.append(dict(cat=cat, name=name, spec=spec, material=material, head=head,
+    material, finish = split_mat(material)
+    items.append(dict(cat=cat, name=name, spec=spec, material=material, finish=finish, head=head,
                       thread=thread, length=str(length), unit=unit, price=price, disc=str(disc)))
 
 def cell_prices(v, heads):
@@ -286,9 +295,9 @@ with open(os.path.join(HERE, 'jiuyun.json'), 'w', encoding='utf-8') as f:
 catname = dict(CATS)
 with open(os.path.join(HERE, 'jiuyun.csv'), 'w', encoding='utf-8-sig', newline='') as f:
     w = csv.writer(f)
-    w.writerow(['類別', '品名', '規格', '材質', '頭型', '牙系', '長度', '單位', '牌價', '折扣', '備註'])
+    w.writerow(['類別', '品名', '規格', '材質', '電鍍', '頭型', '牙系', '長度', '單位', '牌價', '折扣', '備註'])
     for it in items:
-        w.writerow([catname[it['cat']], it['name'], it['spec'], it['material'], it['head'], it['thread'],
+        w.writerow([catname[it['cat']], it['name'], it['spec'], it['material'], it['finish'], it['head'], it['thread'],
                     it['length'], it['unit'], it['price'], it['disc'], it['note']])
 from collections import Counter
 print(len(items), 'items'); print(Counter(catname[i['cat']] for i in items))
