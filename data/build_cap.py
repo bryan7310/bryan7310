@@ -1,5 +1,5 @@
 """虹瑩（CAP）合金鋼內六角系列價目表（13 頁）轉成查價系統資料。
-表格原稿在 cap_tables.py；單價為每百支（NT$/100支）。價目表折數欄空白，折扣留空（預設原價）。
+表格原稿在 cap_tables.py；單價為每百支（NT$/100支）。折扣：有頭內六角 M3~M8 48 折、M10~M16 50 折，其他品項 57 折（類別折扣）。
 執行：python3 data/build_cap.py，再執行 python3 data/embed.py。
 """
 import csv, json, os, sys
@@ -72,8 +72,15 @@ for col, L, p in parse(T.P13):
     d, kind, t = col.split(':')
     add('cap-plug', f'管牙六角孔塞頭 {kind}', f'{d} {kind}×{L}mm', '無頭', '英制', d, f'{kind} {t}', L, p, '10.9', '2004/12/25')
 
+# 折扣（使用者提供）：有頭內六角 M3~M8 48 折、M10~M16 50 折；其他品項套類別折扣 57 折
+SHCS48 = {'M3', 'M4', 'M5', 'M6', 'M7', 'M8'}
+SHCS50 = {'M10', 'M12', 'M14', 'M16'}
+for it in items:
+    if it['cat'] == 'cap-shcs':
+        it['disc'] = '48' if it['dia'] in SHCS48 else '50' if it['dia'] in SHCS50 else ''
+
 data = {'app': 'screw-pricing', 'version': 1, 'source': '虹瑩 CAP 合金鋼內六角系列價目表',
-        'categories': [{'id': c, 'name': n, 'discount': ''} for c, n in CATS], 'items': items}
+        'categories': [{'id': c, 'name': n, 'discount': '57'} for c, n in CATS], 'items': items}
 json.dump(data, open(os.path.join(HERE, 'cap.json'), 'w', encoding='utf-8'), ensure_ascii=False, separators=(',', ':'))
 with open(os.path.join(HERE, 'cap.csv'), 'w', encoding='utf-8-sig', newline='') as f:
     w = csv.writer(f)
