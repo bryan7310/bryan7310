@@ -1,4 +1,4 @@
-"""CAP 合金鋼內六角系列價目表（13 頁）轉成查價系統資料。
+"""虹瑩（CAP）合金鋼內六角系列價目表（13 頁）轉成查價系統資料。
 表格原稿在 cap_tables.py；單價為每百支（NT$/100支）。價目表折數欄空白，折扣留空（預設原價）。
 執行：python3 data/build_cap.py，再執行 python3 data/embed.py。
 """
@@ -7,7 +7,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import cap_tables as T
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-SUP = 'CAP'
+SUP = '虹瑩'
 CATS = [('cap-shcs', '內六角螺絲（有頭）'), ('cap-set', '無頭固定螺絲'), ('cap-csk', '皿頭內六角螺絲'),
         ('cap-btn', '半圓頭內六角螺絲'), ('cap-shd', '等高套筒螺絲'), ('cap-plug', '管牙塞頭')]
 PITCH = {'M2': '0.4', 'M2.5': '0.45', 'M2.6': '0.45', 'M3': '0.5', 'M4': '0.7', 'M5': '0.8', 'M6': '1.0', 'M7': '1.0',
@@ -33,7 +33,7 @@ def add(cat, name, spec, head, system, dia, thread, length, price, grade, date, 
     p = int(price) if price == int(price) else price
     items.append(dict(id=f'cap{len(items):04d}', cat=cat, code='', name=name, spec=spec, material='合金鋼SCM435',
                       finish='', head=head, system=system, dia=dia, thread=thread, length=length, unit='100支',
-                      price=p, disc='', sup=SUP, note=f'CAP牌價 {date}' + (f'（{extra}）' if extra else ''), grade=grade))
+                      price=p, disc='', sup=SUP, note=f'虹瑩牌價 {date}' + (f'（{extra}）' if extra else ''), grade=grade))
 
 def inch(L): return L if L.endswith('"') else L + '"'
 
@@ -72,7 +72,7 @@ for col, L, p in parse(T.P13):
     d, kind, t = col.split(':')
     add('cap-plug', f'管牙六角孔塞頭 {kind}', f'{d} {kind}×{L}mm', '無頭', '英制', d, f'{kind} {t}', L, p, '10.9', '2004/12/25')
 
-data = {'app': 'screw-pricing', 'version': 1, 'source': 'CAP 合金鋼內六角系列價目表',
+data = {'app': 'screw-pricing', 'version': 1, 'source': '虹瑩 CAP 合金鋼內六角系列價目表',
         'categories': [{'id': c, 'name': n, 'discount': ''} for c, n in CATS], 'items': items}
 json.dump(data, open(os.path.join(HERE, 'cap.json'), 'w', encoding='utf-8'), ensure_ascii=False, separators=(',', ':'))
 with open(os.path.join(HERE, 'cap.csv'), 'w', encoding='utf-8-sig', newline='') as f:
