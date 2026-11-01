@@ -429,9 +429,13 @@ function parsePrice(v) {
 }
 
 /* ---------- 搜尋 ---------- */
+// 頭型同義詞：圓頭 = 丸頭（「半圓頭」不受影響）
+const HEAD_ALIAS = { '圓頭': '丸頭' };
+const HEAD_ALIAS_RE = /(?<!半)圓頭/g;
+const headName = h => String(h || '').trim().replace(HEAD_ALIAS_RE, m => HEAD_ALIAS[m]);
 function norm(s) {
   return String(s ?? '').replace(/[！-～]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0))
-    .replace(/　/g, ' ').toLowerCase().replace(/\s*[x×*]\s*/g, '×');
+    .replace(/　/g, ' ').toLowerCase().replace(/\s*[x×*]\s*/g, '×').replace(HEAD_ALIAS_RE, m => HEAD_ALIAS[m]);
 }
 function searchText(it) { return norm([it.code, it.name, it.spec, it.material, it.finish, it.head, it.thread, it.sup, noteOf(it), catById(it.cat)?.name].join(' ')); }
 
@@ -473,6 +477,7 @@ const qtyText = (q, unit) => unit && /^\d/.test(unit) ? `${q} 份（每份 ${uni
 function noteOf(it) { return (it.note || SUP_NOTE[it.sup] || '').trim(); }
 const FINISH_RE = /五彩|彩鋅|白鋅|黑鋅|藍白鋅|鍍鋅|鍍鎳|鍍鉻|鍍銅|鍍黃|染黑|發黑|黑色|電鍍|白皮|達克羅|熱浸鋅|磷酸皮膜/;
 function attr(it, key) {
+  if (key === 'head') return headName(it.head || (it.nut ? '' : HEADS.find(h => (it.name || '').includes(h)) || ''));
   if (key === 'cat') return it.cat;
   if (key === 'material' || key === 'finish') {
     // 舊資料材質欄可能寫成「鐵五彩」，自動拆成材質與電鍍
