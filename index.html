@@ -463,7 +463,9 @@ function norm(s) {
   return String(s ?? '').replace(/[！-～]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0))
     .replace(/　/g, ' ').toLowerCase().replace(/\s*[x×*]\s*/g, '×').replace(HEAD_ALIAS_RE, m => HEAD_ALIAS[m]);
 }
-function searchText(it) { return norm([it.code, it.name, it.spec, it.material, it.finish, it.head, it.thread, it.sup, noteOf(it), catById(it.cat)?.name].join(' ')); }
+// 簡寫：TP（T/P）＝鐵板牙、MS（M/S）＝機械牙
+function abbr(it) { const t = [it.name, it.thread].join(' '); return [/鐵板牙/.test(t) ? 'tp t/p' : '', /機械牙/.test(t) ? 'ms m/s' : ''].join(' '); }
+function searchText(it) { return norm([abbr(it), it.code, it.name, it.spec, it.material, it.finish, it.head, it.thread, it.sup, noteOf(it), catById(it.cat)?.name].join(' ')); }
 
 /* ---------- UI 共用 ---------- */
 let toastT;
