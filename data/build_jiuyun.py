@@ -2,7 +2,8 @@
 
 牌價單位：H = 100 支（袋帽為 100 個）。
 折扣（disc）照牌價表「備註 / 折數」欄，例如 75 = 75 折，100 = 不打折（實價）。
-執行：python3 data/build_jiuyun.py → 產生 jiuyun.json 與 jiuyun.csv
+執行：python3 data/build_jiuyun.py → 產生 jiuyun.json 與 jiuyun.csv，
+再執行 python3 data/embed.py 寫入 index.html。
 """
 import csv, json, os
 
@@ -314,12 +315,3 @@ with open(os.path.join(HERE, 'jiuyun.csv'), 'w', encoding='utf-8-sig', newline='
 from collections import Counter
 print(len(items), 'items'); print(Counter(catname[i['cat']] for i in items))
 
-# 內建到 index.html（取代 builtin-data 區塊內容）
-import re
-page = os.path.join(HERE, '..', 'index.html')
-html = open(page, encoding='utf-8').read()
-blob = json.dumps(data, ensure_ascii=False, separators=(',', ':')).replace('</', '<\\/')
-html, n = re.subn(r'/\*BUILTIN\*/.*?/\*END\*/', lambda m: '/*BUILTIN*/' + blob + '/*END*/', html, flags=re.S)
-assert n == 1, 'index.html 找不到 builtin-data 區塊'
-open(page, 'w', encoding='utf-8').write(html)
-print('已更新 index.html 內建資料')
