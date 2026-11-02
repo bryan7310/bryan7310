@@ -1,0 +1,1556 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>訂製螺絲報價系統</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=IBM+Plex+Mono:wght@500;600&display=swap">
+<style>
+/* 版面：頂部分頁（報價計算／報價單／歷史紀錄／單價設定），單欄工作區，手機自動堆疊 */
+:root {
+  --bg: #F1F2F0; --surface: #FFFFFF; --sunken: #E8EAE7; --ink: #1B2025; --muted: #5B6670; --line: #D6DAD8;
+  --steel: #34495A; --top-ink: #FFFFFF; --zinc: #E9B512; --zinc-ink: #7A5700; --zinc-soft: #FBF1CC;
+  --ok: #2E7D4F; --ok-soft: #DDF1E5; --danger: #B3261E; --danger-soft: #FBE3E1; --trace: #D0342C; --axis: #2B7BB9;
+  --font-body: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", system-ui, sans-serif;
+  --font-num: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --r: 8px; color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #121618; --surface: #1B2023; --sunken: #23292D; --ink: #E6E9EA; --muted: #9BA5AC; --line: #2F363B;
+    --steel: #2A3A46; --top-ink: #E6E9EA; --zinc-ink: #F2C94C; --zinc-soft: #3A3215; --ok: #6CC793; --ok-soft: #1F3328;
+    --danger: #F2847C; --danger-soft: #3D2120; --trace: #FF6B61; --axis: #6CB4EE; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #121618; --surface: #1B2023; --sunken: #23292D; --ink: #E6E9EA; --muted: #9BA5AC; --line: #2F363B;
+  --steel: #2A3A46; --top-ink: #E6E9EA; --zinc-ink: #F2C94C; --zinc-soft: #3A3215; --ok: #6CC793; --ok-soft: #1F3328;
+  --danger: #F2847C; --danger-soft: #3D2120; --trace: #FF6B61; --axis: #6CB4EE; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--ink); font: 15px/1.55 var(--font-body); -webkit-text-size-adjust: 100%; }
+.num, input.num { font-family: var(--font-num); font-variant-numeric: tabular-nums; }
+button, input, select, textarea { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--zinc); outline-offset: 2px; }
+
+.top { position: sticky; top: 0; z-index: 5; background: var(--steel); color: var(--top-ink); }
+.top-inner { max-width: 1100px; margin: 0 auto; padding: 10px 16px 0; }
+.brand { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.brand h1 { margin: 0; font-size: 18px; font-weight: 700; letter-spacing: .04em; }
+.brand .bolt { display: inline-block; width: 12px; height: 12px; border-radius: 2px; background: var(--zinc); transform: rotate(45deg); margin-right: 4px; }
+.brand small { opacity: .75; font-size: 12px; }
+.brand a { color: inherit; opacity: .8; font-size: 13px; margin-left: auto; }
+.tabs { display: flex; gap: 2px; margin-top: 8px; overflow-x: auto; }
+.tab { appearance: none; border: 0; background: transparent; color: inherit; opacity: .72; padding: 8px 14px 10px; cursor: pointer; border-bottom: 3px solid transparent; font-weight: 500; white-space: nowrap; }
+.tab[aria-selected="true"] { opacity: 1; border-bottom-color: var(--zinc); }
+
+main { max-width: 1100px; margin: 0 auto; padding: 16px 16px 64px; display: grid; gap: 16px; }
+section.view { display: grid; gap: 16px; min-width: 0; }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 16px; display: grid; gap: 12px; min-width: 0; }
+.panel > h2 { margin: 0; font-size: 16px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.step { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--steel); color: #fff; font: 600 12px var(--font-num); }
+.panel h3 { margin: 4px 0 0; font-size: 14px; color: var(--muted); font-weight: 500; }
+.hint { color: var(--muted); font-size: 13px; margin: 0; }
+.row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.grid { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+label.fld { display: grid; gap: 4px; font-size: 13px; color: var(--muted); min-width: 0; }
+label.fld.wide { grid-column: span 2; }
+label.chk { display: inline-flex; gap: 6px; align-items: center; font-size: 14px; cursor: pointer; }
+input[type=text], input[type=number], input[type=date], select, textarea {
+  background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 7px 9px; min-width: 0; width: 100%;
+}
+input[type=number] { font-family: var(--font-num); }
+input::placeholder { color: var(--muted); opacity: .75; }
+textarea { min-height: 70px; }
+.btn { appearance: none; border: 1px solid var(--line); background: var(--surface); padding: 7px 14px; border-radius: 6px; cursor: pointer; font-weight: 500; white-space: nowrap; }
+.btn:hover { border-color: var(--muted); }
+.btn.primary { background: var(--zinc); border-color: var(--zinc); color: #1B2025; }
+.btn.on { background: var(--steel); border-color: var(--steel); color: #fff; }
+.btn.danger { color: var(--danger); }
+.btn.sm { padding: 3px 9px; font-size: 13px; }
+.btn.ghost { border-color: transparent; background: transparent; color: var(--muted); }
+
+.drop { border: 2px dashed var(--line); border-radius: var(--r); padding: 22px 16px; text-align: center; cursor: pointer; background: var(--sunken); }
+.drop.over { border-color: var(--zinc); background: var(--zinc-soft); }
+.drop b { display: block; font-size: 15px; margin-bottom: 4px; }
+.filemeta { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 13px; color: var(--muted); }
+.filemeta b { color: var(--ink); }
+.viewer { position: relative; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; background: #fff; touch-action: none; }
+.viewer canvas { display: block; width: 100%; height: auto; cursor: crosshair; }
+.toolbar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.toolbar .sep { width: 1px; align-self: stretch; background: var(--line); margin: 0 4px; }
+.toolbar label.fld { grid-auto-flow: column; align-items: center; gap: 6px; }
+.toolbar input[type=number] { width: 90px; }
+.toolbar input[type=range] { width: 110px; }
+.result { background: var(--sunken); border-radius: 6px; padding: 10px 12px; font-size: 14px; display: flex; flex-wrap: wrap; gap: 6px 18px; }
+.result b { font-family: var(--font-num); }
+.msg { font-size: 13px; padding: 8px 10px; border-radius: 6px; background: var(--zinc-soft); color: var(--zinc-ink); }
+.msg.err { background: var(--danger-soft); color: var(--danger); }
+.msg.ok { background: var(--ok-soft); color: var(--ok); }
+
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.seg button { appearance: none; border: 0; background: var(--surface); padding: 7px 12px; cursor: pointer; font-weight: 500; }
+.seg button + button { border-left: 1px solid var(--line); }
+.seg button[aria-pressed="true"] { background: var(--steel); color: #fff; }
+
+.twrap { overflow-x: auto; }
+table.t { width: 100%; border-collapse: collapse; font-size: 13px; }
+table.t th { font-weight: 500; color: var(--muted); font-size: 12px; text-align: left; padding: 6px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+table.t td { padding: 5px 6px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+table.t td.r, table.t th.r { text-align: right; white-space: nowrap; }
+table.t input[type=number] { width: 78px; padding: 4px 6px; }
+table.t select { width: auto; padding: 4px 6px; }
+table.t input[type=text] { padding: 4px 6px; }
+table.t tr.off td { opacity: .45; }
+table.t tfoot td { font-weight: 600; border-bottom: 0; }
+
+.weight { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px; }
+.kpi { background: var(--sunken); border-radius: 6px; padding: 10px 12px; }
+.kpi span { display: block; font-size: 12px; color: var(--muted); }
+.kpi b { font: 600 20px var(--font-num); }
+.kpi small { color: var(--muted); font-size: 12px; margin-left: 4px; }
+.kpi.hl { background: var(--zinc-soft); }
+.kpi.hl b { color: var(--zinc-ink); }
+
+.flow { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.flow .node { padding: 4px 10px; border-radius: 999px; background: var(--steel); color: #fff; font-size: 13px; font-weight: 500; }
+.flow .arrow { color: var(--muted); }
+
+.proc { display: grid; gap: 0; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.prow { display: grid; grid-template-columns: 170px minmax(0, 1fr) 150px; gap: 10px 14px; padding: 12px; align-items: start; }
+.prow + .prow { border-top: 1px solid var(--line); }
+.prow.off { background: var(--sunken); }
+.prow.off .pfields, .prow.off .pcost { opacity: .45; }
+.pname { display: grid; gap: 4px; }
+.pname b { font-size: 15px; }
+.pname select { width: auto; padding: 3px 6px; font-size: 13px; }
+.pfields { display: grid; gap: 8px; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); }
+.pfields label.fld span.u { font-size: 11px; }
+.reason { grid-column: 2 / -1; font-size: 12px; color: var(--muted); margin-top: -4px; }
+.reason.need { color: var(--ok); }
+.pcost { text-align: right; display: grid; gap: 2px; }
+.pcost b { font: 600 16px var(--font-num); }
+.pcost small { color: var(--muted); font-size: 12px; }
+@media (max-width: 720px) {
+  .prow { grid-template-columns: 1fr; }
+  .reason { grid-column: 1; margin: 0; }
+  .pcost { text-align: left; }
+  label.fld.wide { grid-column: auto; }
+}
+.bar { height: 6px; border-radius: 3px; background: var(--zinc); }
+
+.sum { display: grid; gap: 12px; grid-template-columns: minmax(0, 1fr) 300px; }
+@media (max-width: 820px) { .sum { grid-template-columns: 1fr; } }
+.price { background: var(--steel); color: #fff; border-radius: var(--r); padding: 16px; display: grid; gap: 6px; align-content: start; }
+.price span { font-size: 13px; opacity: .8; }
+.price b { font: 600 32px var(--font-num); color: var(--zinc); }
+.price .sub { font-size: 13px; opacity: .9; font-family: var(--font-num); }
+.tag { display: inline-block; font-size: 11px; padding: 0 7px; border-radius: 999px; background: var(--zinc-soft); color: var(--zinc-ink); font-weight: 600; line-height: 1.8; }
+.tag.ok { background: var(--ok-soft); color: var(--ok); }
+
+#profileSvg { width: 100%; height: auto; background: var(--sunken); border-radius: 6px; }
+
+/* 報價單 */
+.sheet { background: #fff; color: #1B2025; border: 1px solid var(--line); border-radius: var(--r); padding: 28px; display: grid; gap: 14px; }
+.sheet h2 { margin: 0; text-align: center; font-size: 22px; letter-spacing: .3em; }
+.sheet table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.sheet th, .sheet td { border: 1px solid #9AA3A9; padding: 6px 8px; text-align: left; }
+.sheet th { background: #EEF0EE; font-weight: 500; white-space: nowrap; width: 1%; }
+.sheet td.r, .sheet th.r { text-align: right; }
+.sheet .meta { display: grid; grid-template-columns: 1fr 1fr; gap: 0; }
+.sheet .foot { font-size: 13px; color: #444; white-space: pre-wrap; }
+.sheet .sign { display: flex; justify-content: space-between; margin-top: 24px; font-size: 14px; }
+.sheet .imgbox img { max-width: 100%; max-height: 240px; display: block; margin: 0 auto; }
+@media (max-width: 600px) { .sheet { padding: 14px; } .sheet .meta { grid-template-columns: 1fr; } }
+@media print {
+  .top, .noprint, #view-calc, #view-history, #view-settings { display: none !important; }
+  body { background: #fff; }
+  main { padding: 0; max-width: none; }
+  .sheet { border: 0; padding: 0; }
+}
+</style>
+</head>
+<body>
+<header class="top noprint">
+  <div class="top-inner">
+    <div class="brand">
+      <h1><span class="bolt"></span>訂製螺絲報價系統</h1>
+      <small>上傳圖檔 → 計算重量 → 分析工序 → 成本報價</small>
+      <a href="index.html">← 螺絲查價系統</a>
+    </div>
+    <nav class="tabs" role="tablist">
+      <button class="tab" role="tab" data-view="calc" aria-selected="true">報價計算</button>
+      <button class="tab" role="tab" data-view="sheet" aria-selected="false">報價單</button>
+      <button class="tab" role="tab" data-view="history" aria-selected="false">歷史紀錄</button>
+      <button class="tab" role="tab" data-view="settings" aria-selected="false">單價設定</button>
+    </nav>
+  </div>
+</header>
+
+<main>
+<!-- ============ 報價計算 ============ -->
+<section class="view" id="view-calc">
+
+  <div class="panel">
+    <h2><span class="step">1</span>基本資料</h2>
+    <div class="grid">
+      <label class="fld">客戶<input type="text" data-b="info.customer"></label>
+      <label class="fld">品名<input type="text" data-b="info.part" placeholder="例：內六角特殊螺絲"></label>
+      <label class="fld">圖號<input type="text" data-b="info.drawingNo"></label>
+      <label class="fld">訂購數量（支）<input type="number" min="1" step="1" data-b="info.qty" data-n></label>
+      <label class="fld">材質<select data-b="info.material" id="selMaterial"></select></label>
+      <label class="fld">強度等級<select data-b="info.grade" id="selGrade"></select></label>
+      <label class="fld">熱處理<select data-b="info.heat" id="selHeat"></select></label>
+      <label class="fld">表面處理（電鍍）<select data-b="info.plating" id="selPlating"></select></label>
+      <label class="fld">成型工法<select data-b="route">
+        <option value="auto">自動（比較成本取低）</option>
+        <option value="cold">冷打成型（線材）</option>
+        <option value="turn">棒材全車削</option>
+      </select></label>
+    </div>
+    <div class="row">
+      <label class="chk"><input type="checkbox" data-b="info.tight">精密公差（±0.02 以內，需車修）</label>
+      <label class="chk"><input type="checkbox" data-b="info.sortOptical">光學篩選</label>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2><span class="step">2</span>上傳零件圖檔</h2>
+    <div class="drop" id="drop" tabindex="0" role="button">
+      <b>點這裡選擇檔案，或把檔案拖進來</b>
+      <span class="hint">圖片（JPG、PNG）、PDF、DXF（2D CAD）、STL（3D 模型）</span>
+      <input type="file" id="fileInput" accept=".png,.jpg,.jpeg,.gif,.bmp,.webp,.pdf,.dxf,.stl" hidden>
+    </div>
+    <div class="filemeta" id="fileMeta" hidden></div>
+    <div id="fileMsg" class="msg" hidden></div>
+
+    <!-- 圖片 / PDF -->
+    <div id="imgPanel" hidden>
+      <div class="toolbar" style="margin-bottom:8px">
+        <span class="hint">工具：</span>
+        <button class="btn sm" data-mode="rect">① 框選零件</button>
+        <button class="btn sm" data-mode="calib">比例尺（畫一條已知長度）</button>
+        <button class="btn sm" data-mode="measure">量測</button>
+        <span class="sep"></span>
+        <label class="fld">PDF 頁<select id="pdfPage" style="width:auto"></select></label>
+      </div>
+      <div class="viewer"><canvas id="imgCanvas"></canvas></div>
+      <div class="toolbar" style="margin-top:8px">
+        <label class="fld">零件總長 mm<input type="number" id="trLen" step="0.01" placeholder="依圖面"></label>
+        <label class="fld">軸向<select id="trAxis" style="width:auto"><option value="auto">自動</option><option value="h">水平</option><option value="v">垂直</option></select></label>
+        <label class="fld">深色門檻<input type="range" id="trThr" min="40" max="240" value="150"></label>
+        <label class="fld">平滑 px<input type="number" id="trSmooth" min="0" max="25" value="3"></label>
+        <button class="btn primary sm" id="btnTrace">② 描輪廓並計算體積</button>
+      </div>
+      <p class="hint">側視圖放水平或垂直皆可。框選只包住零件外形（避開尺寸線、文字、標題欄），輸入圖面上的「零件總長」或用比例尺定比例，系統會沿軸向逐點量直徑、以迴轉體積分算體積，並自動拆成下方的分段輪廓，再勾選螺紋段即可。</p>
+      <div class="result" id="imgResult" hidden></div>
+    </div>
+
+    <!-- DXF -->
+    <div id="dxfPanel" hidden>
+      <div class="viewer"><canvas id="dxfCanvas"></canvas></div>
+      <div class="toolbar" style="margin-top:8px">
+        <span class="hint">圖層：</span><span id="dxfLayers" class="row"></span>
+      </div>
+      <div class="toolbar">
+        <label class="fld">軸向<select id="dxAxis" style="width:auto"><option value="auto">自動</option><option value="h">X 軸</option><option value="v">Y 軸</option></select></label>
+        <label class="fld">外形<select id="dxMode" style="width:auto"><option value="full">完整外形（上下對稱）</option><option value="half">半剖面（軸線在最下緣）</option></select></label>
+        <label class="fld">單位<select id="dxUnit" style="width:auto"><option value="1">mm</option><option value="25.4">inch</option></select></label>
+        <button class="btn primary sm" id="btnDxf">分析輪廓並計算體積</button>
+      </div>
+      <p class="hint">只勾選零件外形所在圖層（關掉尺寸、中心線、標題欄圖層）。系統直接用 CAD 座標計算，精度取決於圖面本身。</p>
+      <div class="result" id="dxfResult" hidden></div>
+    </div>
+
+    <!-- STL -->
+    <div id="stlPanel" hidden>
+      <div class="result" id="stlResult"></div>
+      <div class="toolbar">
+        <label class="fld">單位<select id="stlUnit" style="width:auto"><option value="1">mm</option><option value="25.4">inch</option></select></label>
+        <button class="btn primary sm" id="btnStl">採用 STL 實體體積計算重量</button>
+      </div>
+      <p class="hint">STL 以三角網格的封閉實體精確計算體積。螺紋若沒有建模，請在下方分段輪廓（或模板）設定螺紋，供工序分析使用。</p>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2><span class="step">3</span>零件幾何與重量</h2>
+    <div class="row">
+      <span class="hint">重量來源：</span>
+      <div class="seg" id="geoMode">
+        <button data-v="tpl">參數模板</button>
+        <button data-v="seg">分段輪廓</button>
+        <button data-v="stl">STL 實體</button>
+      </div>
+    </div>
+
+    <div id="tplBox">
+      <div class="grid">
+        <label class="fld">頭型<select data-b="tpl.head" id="selHead"></select></label>
+        <label class="fld">螺紋徑 d (mm)<input type="number" step="0.01" data-b="tpl.d" data-n></label>
+        <label class="fld">牙距 P (mm)<input type="number" step="0.01" data-b="tpl.P" data-n></label>
+        <label class="fld"><span id="lblL">長度 L (mm)</span><input type="number" step="0.1" data-b="tpl.L" data-n></label>
+        <label class="fld">螺紋長 b (mm)<input type="number" step="0.1" data-b="tpl.b" data-n></label>
+        <label class="fld">光桿徑 ds (mm)<input type="number" step="0.01" data-b="tpl.ds" data-n placeholder="同 d"></label>
+        <label class="fld" data-h="S">六角對邊 S<input type="number" step="0.01" data-b="tpl.S" data-n></label>
+        <label class="fld" data-h="dk">頭徑 dk<input type="number" step="0.01" data-b="tpl.dk" data-n></label>
+        <label class="fld" data-h="k">頭高 k<input type="number" step="0.01" data-b="tpl.k" data-n></label>
+        <label class="fld" data-h="s">內六角對邊 s<input type="number" step="0.01" data-b="tpl.s" data-n></label>
+        <label class="fld" data-h="t">內六角深 t<input type="number" step="0.01" data-b="tpl.t" data-n></label>
+        <label class="fld" data-h="dc">法蘭徑 dc<input type="number" step="0.01" data-b="tpl.dc" data-n></label>
+        <label class="fld" data-h="c">法蘭厚 c<input type="number" step="0.01" data-b="tpl.c" data-n></label>
+      </div>
+      <div class="row" style="margin-top:10px">
+        <button class="btn sm" id="btnStd">帶入 ISO 標準頭部尺寸</button>
+        <button class="btn sm" id="btnToSeg">轉成分段輪廓（再細修）</button>
+        <span class="hint" id="tplNote"></span>
+      </div>
+    </div>
+
+    <div id="segBox">
+      <div class="twrap">
+        <table class="t" id="segTable">
+          <thead><tr>
+            <th>#</th><th>形狀</th><th>外徑/對邊 d1</th><th>末端徑 d2</th><th>長度</th><th>內孔</th><th>孔型</th><th>孔深</th><th>螺紋</th><th>牙距</th><th>需車修</th><th class="r">體積 mm³</th><th></th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <button class="btn sm" id="btnAddSeg">＋ 新增一段</button>
+        <span class="hint">由頭部往尾端依序填寫。六角填對邊；圓錐由 d1 漸變到 d2；圓頂為球冠（圓頭）。螺紋段以節徑計算體積（滾牙前後材料體積不變）。</span>
+      </div>
+    </div>
+
+    <svg id="profileSvg" viewBox="0 0 800 200" role="img" aria-label="零件輪廓預覽"></svg>
+
+    <div class="weight" id="weightKpi"></div>
+  </div>
+
+  <div class="panel">
+    <h2><span class="step">4</span>加工程序分析與工序成本</h2>
+    <div class="flow" id="flow"></div>
+    <div id="routeNote" class="hint"></div>
+    <div class="proc" id="procList"></div>
+    <h3>其他費用</h3>
+    <div class="twrap">
+      <table class="t" id="extraTable">
+        <thead><tr><th>項目</th><th>元／支</th><th>一次性費用（元）</th><th class="r">每支攤提</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <div class="row"><button class="btn sm" id="btnAddExtra">＋ 新增費用（例：鑽孔、銑扁、檢驗報告、治具）</button></div>
+  </div>
+
+  <div class="panel">
+    <h2><span class="step">5</span>成本彙總與報價</h2>
+    <div class="grid">
+      <label class="fld">不良率 %<input type="number" step="0.1" data-b="defect" data-n></label>
+      <label class="fld">管銷費用 %<input type="number" step="0.1" data-b="overhead" data-n></label>
+      <label class="fld">利潤 %<input type="number" step="0.1" data-b="profit" data-n></label>
+      <label class="fld">單價小數位<select data-b="dp"><option value="2">2 位</option><option value="3">3 位</option><option value="4">4 位</option></select></label>
+    </div>
+    <div class="sum">
+      <div class="twrap"><table class="t" id="sumTable"></table></div>
+      <div class="price" id="priceBox"></div>
+    </div>
+    <h3>數量級距報價</h3>
+    <div class="twrap"><table class="t" id="tierTable"></table></div>
+    <div class="row">
+      <button class="btn primary" id="btnMakeSheet">產生報價單</button>
+      <button class="btn" id="btnSave">存入歷史紀錄</button>
+      <button class="btn" id="btnNew">開新報價</button>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 報價單 ============ -->
+<section class="view" id="view-sheet" hidden>
+  <div class="panel noprint">
+    <div class="grid">
+      <label class="fld">報價單號<input type="text" data-b="sheet.no"></label>
+      <label class="fld">報價日期<input type="date" data-b="sheet.date"></label>
+      <label class="fld">有效期限（天）<input type="number" data-b="sheet.valid" data-n></label>
+      <label class="fld">交期<input type="text" data-b="sheet.lead" placeholder="例：確認後 25 個工作天"></label>
+      <label class="fld">報價公司<input type="text" data-b="sheet.company"></label>
+      <label class="fld">聯絡人／電話<input type="text" data-b="sheet.contact"></label>
+    </div>
+    <label class="fld">備註／條款<textarea data-b="sheet.terms"></textarea></label>
+    <div class="row">
+      <label class="chk"><input type="checkbox" data-b="sheet.showCost">顯示工序成本明細</label>
+      <label class="chk"><input type="checkbox" data-b="sheet.showTiers">顯示數量級距</label>
+      <label class="chk"><input type="checkbox" data-b="sheet.showTax">另列 5% 營業稅</label>
+      <label class="chk"><input type="checkbox" data-b="sheet.showImg">附上零件圖</label>
+    </div>
+    <div class="row">
+      <button class="btn primary" id="btnPrint">列印 / 存成 PDF</button>
+      <button class="btn" id="btnCopy">複製報價文字</button>
+      <span id="copyMsg" class="hint"></span>
+    </div>
+  </div>
+  <div class="sheet" id="sheet"></div>
+</section>
+
+<!-- ============ 歷史紀錄 ============ -->
+<section class="view" id="view-history" hidden>
+  <div class="panel">
+    <h2>歷史報價</h2>
+    <p class="hint">資料存在這台裝置的瀏覽器中。換電腦或清除瀏覽資料前，請先匯出備份。</p>
+    <div class="twrap"><table class="t" id="histTable"></table></div>
+    <div class="row">
+      <button class="btn" id="btnExportHist">匯出備份（JSON）</button>
+      <button class="btn" id="btnExportCsv">匯出 CSV</button>
+      <label class="btn">匯入備份<input type="file" id="importHist" accept=".json" hidden></label>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 單價設定 ============ -->
+<section class="view" id="view-settings" hidden>
+  <div class="panel">
+    <h2>材質（密度、材料單價）</h2>
+    <div class="twrap"><table class="t" id="setMat"></table></div>
+    <div class="row"><button class="btn sm" data-add="materials">＋ 新增材質</button></div>
+  </div>
+  <div class="panel">
+    <h2>熱處理單價</h2>
+    <div class="twrap"><table class="t" id="setHeat"></table></div>
+    <div class="row"><button class="btn sm" data-add="heats">＋ 新增熱處理</button></div>
+  </div>
+  <div class="panel">
+    <h2>電鍍／表面處理單價</h2>
+    <p class="hint">「電解」勾選者為電解電鍍，10.9 級以上會自動建議加驅氫處理。</p>
+    <div class="twrap"><table class="t" id="setPlate"></table></div>
+    <div class="row"><button class="btn sm" data-add="platings">＋ 新增表面處理</button></div>
+  </div>
+  <div class="panel">
+    <h2>冷打成型（依螺紋徑）</h2>
+    <p class="hint">加工費為一般長度（L ≤ 6d）每千支價格，超過時每多 1d 加 5%。模具費為一次性費用。</p>
+    <div class="twrap"><table class="t" id="setHeading"></table></div>
+    <div class="row"><button class="btn sm" data-add="heading">＋ 新增級距</button></div>
+  </div>
+  <div class="panel">
+    <h2>機台費率與其他參數</h2>
+    <div class="grid" id="setParams"></div>
+  </div>
+  <div class="panel">
+    <h2>備份</h2>
+    <div class="row">
+      <button class="btn" id="btnExportSet">匯出設定</button>
+      <label class="btn">匯入設定<input type="file" id="importSet" accept=".json" hidden></label>
+      <button class="btn danger" id="btnResetSet">還原預設單價</button>
+    </div>
+  </div>
+</section>
+</main>
+
+<script>
+"use strict";
+/* ================= 預設資料 ================= */
+const COARSE = {1.6:.35,2:.4,2.5:.45,3:.5,3.5:.6,4:.7,5:.8,6:1,7:1,8:1.25,10:1.5,12:1.75,14:2,16:2,18:2.5,20:2.5,22:2.5,24:3,27:3,30:3.5,33:3.5,36:4,39:4,42:4.5,48:5};
+const STD = { // ISO 頭部尺寸（近似標稱值）
+  hex:    {3:{S:5.5,k:2},4:{S:7,k:2.8},5:{S:8,k:3.5},6:{S:10,k:4},8:{S:13,k:5.3},10:{S:16,k:6.4},12:{S:18,k:7.5},14:{S:21,k:8.8},16:{S:24,k:10},20:{S:30,k:12.5},24:{S:36,k:15},30:{S:46,k:18.7}},
+  socket: {3:{dk:5.5,k:3,s:2.5,t:1.3},4:{dk:7,k:4,s:3,t:2},5:{dk:8.5,k:5,s:4,t:2.5},6:{dk:10,k:6,s:5,t:3},8:{dk:13,k:8,s:6,t:4},10:{dk:16,k:10,s:8,t:5},12:{dk:18,k:12,s:10,t:6},14:{dk:21,k:14,s:12,t:7},16:{dk:24,k:16,s:14,t:8},20:{dk:30,k:20,s:17,t:10},24:{dk:36,k:24,s:19,t:12}},
+  button: {3:{dk:5.7,k:1.65,s:2,t:1.04},4:{dk:7.6,k:2.2,s:2.5,t:1.3},5:{dk:9.5,k:2.75,s:3,t:1.56},6:{dk:10.5,k:3.3,s:4,t:2.08},8:{dk:14,k:4.4,s:5,t:2.6},10:{dk:17.5,k:5.5,s:6,t:3.12},12:{dk:21,k:6.6,s:8,t:4.16},16:{dk:28,k:8.8,s:10,t:5.2}},
+  csk:    {3:{dk:6.72,k:1.86,s:2,t:1.1},4:{dk:8.96,k:2.48,s:2.5,t:1.5},5:{dk:11.2,k:3.1,s:3,t:1.9},6:{dk:13.44,k:3.72,s:4,t:2.2},8:{dk:17.92,k:4.96,s:5,t:3},10:{dk:22.4,k:6.2,s:6,t:3.6},12:{dk:26.88,k:7.44,s:8,t:4.3},16:{dk:33.6,k:8.8,s:10,t:4.8},20:{dk:40.32,k:10.16,s:12,t:5.6}},
+  pan:    {3:{dk:5.6,k:2.4},4:{dk:8,k:3.1},5:{dk:9.5,k:3.7},6:{dk:12,k:4.6},8:{dk:16,k:6},10:{dk:20,k:7.5}},
+  flange: {5:{S:8,k:5.4,dc:11.8,c:1},6:{S:10,k:6.6,dc:14.2,c:1.1},8:{S:13,k:8.1,dc:18,c:1.2},10:{S:15,k:9.2,dc:22.3,c:1.5},12:{S:18,k:11.5,dc:26.6,c:1.8},16:{S:24,k:14.5,dc:35,c:2.4}}
+};
+const HEADS = [
+  {v:'socket', n:'內六角圓柱頭', f:['dk','k','s','t']},
+  {v:'hex',    n:'六角頭',       f:['S','k']},
+  {v:'flange', n:'六角法蘭頭',   f:['S','k','dc','c']},
+  {v:'button', n:'內六角圓頭（半圓頭）', f:['dk','k','s','t']},
+  {v:'csk',    n:'內六角沉頭（平頭 90°）', f:['dk','s','t']},
+  {v:'pan',    n:'盤頭（十字）', f:['dk','k']},
+  {v:'none',   n:'無頭（止付／雙頭牙）', f:[]}
+];
+const SHAPES = [['cyl','圓柱'],['cone','圓錐'],['hex','六角'],['sq','四角'],['dome','圓頂（球冠）'],['pan','盤頭']];
+const GRADES = ['無','4.8','5.8','8.8','10.9','12.9','A2-70','A4-70','A4-80'];
+
+const DEFAULT_SETTINGS = {
+  materials: [
+    {n:'低碳鋼 1018／1022', rho:7.85, price:32, cold:true, kind:'low'},
+    {n:'中碳硼鋼 10B21／10B33', rho:7.85, price:36, cold:true, kind:'mid'},
+    {n:'中碳鋼 1045', rho:7.85, price:36, cold:true, kind:'mid'},
+    {n:'合金鋼 SCM435', rho:7.85, price:45, cold:true, kind:'alloy'},
+    {n:'不鏽鋼 SUS304', rho:7.93, price:105, cold:true, kind:'ss'},
+    {n:'不鏽鋼 SUS316', rho:7.98, price:160, cold:true, kind:'ss'},
+    {n:'不鏽鋼 SUS410', rho:7.75, price:85, cold:true, kind:'ss-m'},
+    {n:'黃銅 C3604', rho:8.50, price:280, cold:false, kind:'cu'},
+    {n:'鋁合金 6061', rho:2.70, price:140, cold:false, kind:'al'},
+    {n:'鈦合金 TC4', rho:4.43, price:1200, cold:false, kind:'ti'}
+  ],
+  heats: [
+    {n:'淬火回火（調質）', price:10, min:1000},
+    {n:'滲碳淬火', price:14, min:1200},
+    {n:'退火（球化）', price:6, min:800},
+    {n:'固溶處理', price:12, min:1000}
+  ],
+  platings: [
+    {n:'三價白鋅', price:14, min:800, electro:true},
+    {n:'三價彩鋅', price:14, min:800, electro:true},
+    {n:'三價黑鋅', price:22, min:800, electro:true},
+    {n:'鍍鎳', price:45, min:1000, electro:true},
+    {n:'發黑（黑染）', price:8, min:600, electro:false},
+    {n:'磷酸皮膜', price:10, min:600, electro:false},
+    {n:'鋅鋁片（達克羅）', price:40, min:1500, electro:false},
+    {n:'不鏽鋼鈍化', price:18, min:800, electro:false}
+  ],
+  heading: [ // 螺紋徑上限, 每千支加工費, 模具費
+    {d:4, perK:160, mold:6000}, {d:6, perK:220, mold:8000}, {d:8, perK:300, mold:10000},
+    {d:10, perK:420, mold:14000}, {d:12, perK:560, mold:18000}, {d:16, perK:900, mold:26000},
+    {d:20, perK:1400, mold:36000}, {d:24, perK:2100, mold:48000}
+  ],
+  p: {
+    coldLoss:3, turnLoss:5, headingSetup:2000, coldMaxD:30, coldMaxL:250,
+    turnRate:600, turnSetup:1500, turnBase:15, cutoff:3, barAllow:1,
+    retouchBase:6, retouchPerFeat:6,
+    rollRate:450, rollSetup:500, rollDieSmall:3000, rollDieLarge:6000,
+    bakePrice:6, bakeMin:600, sortPerK:40, opticalPerK:120, freight:2,
+    defect:2, overhead:10, profit:15, tiers:'1000,5000,10000,30000,50000,100000'
+  }
+};
+const PARAMS = [
+  ['coldLoss','冷打材料損耗','%'],['turnLoss','棒材料尾損耗','%'],['headingSetup','冷打開機費','元/批'],
+  ['coldMaxD','冷打最大外徑','mm'],['coldMaxL','冷打最大長度','mm'],
+  ['turnRate','CNC 車床費率','元/時'],['turnSetup','車床換線費','元/批'],['turnBase','全車削基本工時','秒/支'],
+  ['cutoff','切斷刀寬＋端面','mm'],['barAllow','棒材外徑裕量','mm'],
+  ['retouchBase','車修基本工時','秒/支'],['retouchPerFeat','車修每項特徵','秒'],
+  ['rollRate','滾牙機費率','元/時'],['rollSetup','滾牙開機費','元/批'],['rollDieSmall','牙板費 ≤M8','元'],['rollDieLarge','牙板費 >M8','元'],
+  ['bakePrice','驅氫單價','元/kg'],['bakeMin','驅氫最低收費','元/批'],
+  ['sortPerK','篩選包裝','元/千支'],['opticalPerK','光學篩選','元/千支'],['freight','運費','元/kg'],
+  ['defect','預設不良率','%'],['overhead','預設管銷','%'],['profit','預設利潤','%'],['tiers','數量級距','支（逗號分隔）']
+];
+
+const DEFAULT_STATE = () => ({
+  info: {customer:'', part:'', drawingNo:'', qty:10000, material:'合金鋼 SCM435', grade:'12.9', heat:'auto', plating:'三價黑鋅', tight:false, sortOptical:false},
+  route: 'auto', geoMode: 'tpl',
+  tpl: {head:'socket', d:8, P:1.25, L:30, b:30, ds:'', S:13, dk:13, k:8, s:6, t:4, dc:18, c:1.2},
+  segs: [], stlVol: null, stlName: '',
+  proc: {}, extras: [],
+  defect: null, overhead: null, profit: null, dp: '2',
+  file: null,
+  sheet: {no:'', date:'', valid:30, lead:'', company:'', contact:'', terms:'1. 以上報價未稅，含 5% 營業稅另計。\n2. 模具、牙板費用為一次性費用，已攤提於單價中。\n3. 數量以實際出貨為準，交貨數量允許 ±5%。', showCost:false, showTiers:true, showTax:true, showImg:true}
+});
+
+/* ================= 狀態與儲存 ================= */
+const LS = {get(k, d){ try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch(e){ return d; } },
+            set(k, v){ try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch(e){ return false; } }};
+let SET = mergeSettings(LS.get('cq.settings', null));
+let S = Object.assign(DEFAULT_STATE(), LS.get('cq.draft', {}));
+S.info = Object.assign(DEFAULT_STATE().info, S.info);
+S.sheet = Object.assign(DEFAULT_STATE().sheet, S.sheet);
+S.tpl = Object.assign(DEFAULT_STATE().tpl, S.tpl);
+let thumb = null; // 圖檔縮圖（dataURL，不寫入草稿）
+
+function mergeSettings(s){
+  const d = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
+  if (!s) return d;
+  return {materials: s.materials || d.materials, heats: s.heats || d.heats, platings: s.platings || d.platings,
+          heading: s.heading || d.heading, p: Object.assign(d.p, s.p || {})};
+}
+let saveT = 0;
+function saveDraft(){ clearTimeout(saveT); saveT = setTimeout(() => { const c = Object.assign({}, S); LS.set('cq.draft', c); }, 300); }
+function saveSettings(){ LS.set('cq.settings', SET); }
+
+/* ================= 小工具 ================= */
+const $ = (s, el=document) => el.querySelector(s);
+const $$ = (s, el=document) => [...el.querySelectorAll(s)];
+const num = v => { const n = parseFloat(v); return isFinite(n) ? n : 0; };
+const blank = v => v === '' || v === null || v === undefined || (typeof v === 'number' && !isFinite(v));
+const pick = (v, auto) => blank(v) ? auto : num(v);
+function fmt(n, dp=2){ if (!isFinite(n)) return '—'; return n.toLocaleString('zh-TW', {minimumFractionDigits:dp, maximumFractionDigits:dp}); }
+function esc(s){ return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function getPath(o, p){ return p.split('.').reduce((a, k) => a == null ? a : a[k], o); }
+function setPath(o, p, v){ const ks = p.split('.'); let a = o; ks.slice(0,-1).forEach(k => { if (a[k] == null) a[k] = {}; a = a[k]; }); a[ks.at(-1)] = v; }
+function coarsePitch(d){ let best = null, bd = 1e9; for (const k in COARSE){ const dd = Math.abs(k - d); if (dd < bd){ bd = dd; best = COARSE[k]; } } return best; }
+function stdRow(table, d){ const ks = Object.keys(table).map(Number); let best = ks[0]; ks.forEach(k => { if (Math.abs(k-d) < Math.abs(best-d)) best = k; }); return table[best]; }
+const material = () => SET.materials.find(m => m.n === S.info.material) || SET.materials[0];
+
+/* ================= 幾何計算 ================= */
+const SQ3 = Math.sqrt(3);
+function envelope(sg){
+  const d1 = num(sg.d1), d2 = num(sg.d2);
+  if (sg.shape === 'hex') return d1 * 2 / SQ3;
+  if (sg.shape === 'sq') return d1 * Math.SQRT2;
+  if (sg.shape === 'cone') return Math.max(d1, d2);
+  return d1;
+}
+function segVolume(sg){
+  const d1 = num(sg.d1), L = num(sg.len);
+  let d = d1;
+  if (sg.thread && num(sg.pitch) > 0 && (sg.shape === 'cyl' || !sg.shape)) d = d1 - 0.6495 * num(sg.pitch); // 節徑
+  let v = 0;
+  switch (sg.shape){
+    case 'cone': { const d2 = num(sg.d2); v = Math.PI * L / 12 * (d1*d1 + d1*d2 + d2*d2); break; }
+    case 'hex': v = SQ3 / 2 * d1 * d1 * L; break;
+    case 'sq': v = d1 * d1 * L; break;
+    case 'dome': { const a = d1 / 2; v = Math.PI * L * (3*a*a + L*L) / 6; break; }
+    case 'pan': v = Math.PI / 4 * d1 * d1 * L * 0.88; break;
+    default: v = Math.PI / 4 * d * d * L;
+  }
+  const h = num(sg.hole);
+  if (h > 0){
+    const hd = Math.min(blank(sg.holeDepth) ? L : num(sg.holeDepth), L);
+    v -= (sg.holeType === 'hex' ? SQ3 / 2 * h * h : Math.PI / 4 * h * h) * hd;
+  }
+  return Math.max(v, 0);
+}
+function tplToSegs(t){
+  const d = num(t.d), P = num(t.P), L = num(t.L), ds = blank(t.ds) ? d : num(t.ds);
+  const segs = [];
+  const hole = (extra) => (num(t.s) > 0 ? Object.assign({hole:num(t.s), holeType:'hex', holeDepth:num(t.t)}, extra) : extra);
+  let shankL = L;
+  switch (t.head){
+    case 'hex': segs.push({shape:'hex', d1:num(t.S), len:num(t.k), role:'head'}); break;
+    case 'flange': segs.push({shape:'hex', d1:num(t.S), len:Math.max(num(t.k)-num(t.c), 0), role:'head'}, {shape:'cyl', d1:num(t.dc), len:num(t.c), role:'head'}); break;
+    case 'socket': segs.push(hole({shape:'cyl', d1:num(t.dk), len:num(t.k), role:'head'})); break;
+    case 'button': segs.push(hole({shape:'dome', d1:num(t.dk), len:num(t.k), role:'head', flip:true})); break;
+    case 'pan': segs.push({shape:'pan', d1:num(t.dk), len:num(t.k), role:'head'}); break;
+    case 'csk': { const k = Math.max((num(t.dk) - d) / 2, 0); segs.push(hole({shape:'cone', d1:num(t.dk), d2:d, len:k, role:'head'})); shankL = L - k; break; }
+  }
+  const b = Math.min(num(t.b) || shankL, shankL);
+  if (shankL - b > 0.001) segs.push({shape:'cyl', d1:ds, len:+(shankL - b).toFixed(3)});
+  if (b > 0) segs.push({shape:'cyl', d1:d, len:+b.toFixed(3), thread:true, pitch:P});
+  return segs;
+}
+function activeSegs(){
+  if (S.geoMode === 'tpl') return tplToSegs(S.tpl);
+  if (S.geoMode === 'stl') return S.segs.length ? S.segs : tplToSegs(S.tpl);
+  return S.segs;
+}
+/* 由分段輪廓萃取：頭部、螺紋、需車修的特徵 */
+function geometry(){
+  const segs = activeSegs().filter(s => num(s.len) > 0 && num(s.d1) > 0);
+  let vol = segs.reduce((a, s) => a + segVolume(s), 0);
+  const fromStl = S.geoMode === 'stl' && S.stlVol;
+  if (fromStl) vol = S.stlVol;
+  const L = segs.reduce((a, s) => a + num(s.len), 0);
+  const env = segs.map(envelope);
+  const maxD = fromStl && S.stlBox ? S.stlBox[1] : Math.max(0, ...env);
+  // 參考桿徑：最長一段
+  let refI = 0; segs.forEach((s, i) => { if (num(s.len) > num(segs[refI].len)) refI = i; });
+  const refD = segs.length ? (segs[refI].thread ? num(segs[refI].d1) : envelope(segs[refI])) : 0;
+  const isHead = i => segs[i].role === 'head' || envelope(segs[i]) >= refD * 1.25;
+  const head = new Set();
+  for (let i = 0; i < segs.length && isHead(i); i++) head.add(i);
+  if (!head.size) for (let i = segs.length - 1; i >= 0 && isHead(i); i--) head.add(i);
+  const thr = segs.filter(s => s.thread);
+  const thread = thr.length ? {d: Math.max(...thr.map(s => num(s.d1))), P: num(thr[0].pitch), len: thr.reduce((a, s) => a + num(s.len), 0), count: thr.length} : null;
+  const feats = [];
+  const shank = segs.map((s, i) => ({s, i})).filter(o => !head.has(o.i));
+  shank.forEach(({s, i}, k) => {
+    const prev = segs[i-1], next = segs[i+1];
+    const e = envelope(s);
+    if (s.turned) feats.push({i, t:'指定車修'});
+    else if (prev && next && !head.has(i) && e < envelope(prev) - 0.2 && e < envelope(next) - 0.2) feats.push({i, t:'溝槽／退刀槽'});
+    else if (s.shape === 'cone' && i !== segs.length - 1 && i !== 0) feats.push({i, t:'中段錐面'});
+    if (num(s.hole) > 0) feats.push({i, t: s.holeType === 'hex' ? '尾端六角孔' : '鑽孔'});
+  });
+  const plain = shank.filter(o => !o.s.thread && o.s.shape === 'cyl').map(o => num(o.s.d1).toFixed(2));
+  const distinct = [...new Set(plain)];
+  if (distinct.length > 1) feats.push({i:-1, t:`光桿 ${distinct.length} 段不同外徑（段差）`});
+  if (S.info.tight) feats.push({i:-1, t:'精密公差'});
+  let headVol = 0; head.forEach(i => headVol += segVolume(segs[i]));
+  const upset = refD > 0 ? headVol / (Math.PI / 4 * refD * refD) / refD : 0; // 頭部鐓粗長度／徑比
+  return {segs, vol, L: fromStl && S.stlBox ? S.stlBox[2] : L, maxD, refD, head, thread, feats, upset, fromStl};
+}
+
+/* ================= 加工分析 ================= */
+const isElectro = name => !!(SET.platings.find(p => p.n === name) || {}).electro;
+function heatAuto(){
+  const g = S.info.grade, m = material();
+  if (['8.8','10.9','12.9'].includes(g)) return {type:'淬火回火（調質）', why:`強度等級 ${g} 需淬火回火達到規定硬度`};
+  if (g === '5.8' || g === '4.8') return {type:'無', why:`${g} 級以冷作硬化即可，免熱處理`};
+  if (m.kind === 'ss-m') return {type:'淬火回火（調質）', why:'麻田散鐵系不鏽鋼（410）需淬火提高硬度'};
+  if (m.kind === 'ss') return {type:'無', why:'沃斯田鐵不鏽鋼不能淬火硬化'};
+  if (m.kind === 'alloy') return {type:'淬火回火（調質）', why:'合金鋼一般會調質以發揮強度'};
+  return {type:'無', why:'未指定強度等級'};
+}
+function analyze(G){
+  const m = material(), p = SET.p, info = S.info;
+  const A = {};
+  // 成型可行性
+  const coldOk = m.cold && G.maxD <= p.coldMaxD && G.L <= p.coldMaxL && G.upset <= 12 && !(G.fromStl && !G.segs.length);
+  let coldWhy = [];
+  if (!m.cold) coldWhy.push(`${m.n} 一般不冷打`);
+  if (G.maxD > p.coldMaxD) coldWhy.push(`外徑 ${fmt(G.maxD,1)} 超過冷打上限 ${p.coldMaxD}`);
+  if (G.L > p.coldMaxL) coldWhy.push(`長度超過冷打上限 ${p.coldMaxL}`);
+  if (G.upset > 12) coldWhy.push(`頭部鐓粗比 ${fmt(G.upset,1)} 過大`);
+  A.coldOk = coldOk; A.coldWhy = coldWhy;
+  A.stations = G.upset > 7 ? '需多工位（3 模 3 衝以上）' : G.upset > 3.5 ? '2 模 2 衝～3 模 3 衝' : G.upset > 0 ? '1 模 2 衝' : '切斷＋搓尖';
+  // 車修
+  A.turnFeats = G.feats;
+  // 滾牙
+  if (G.thread){
+    A.roll = G.thread.d <= 36;
+    A.rollWhy = A.roll ? `M${fmt(G.thread.d,1)}×${fmt(G.thread.P,2)}，螺紋長 ${fmt(G.thread.len,1)} mm` : `螺紋徑 ${fmt(G.thread.d,1)} 過大，改用車牙（含在車削工時）`;
+  } else { A.roll = false; A.rollWhy = '無螺紋段'; }
+  // 熱處理
+  const ha = heatAuto();
+  A.heatType = info.heat === 'auto' ? ha.type : info.heat;
+  A.heatWhy = info.heat === 'auto' ? ha.why : '手動指定';
+  // 電鍍
+  A.plating = info.plating;
+  A.bake = A.plating !== '無' && isElectro(A.plating) && ['10.9','12.9'].includes(info.grade);
+  A.bakeWhy = A.bake ? `${info.grade} 級高強度件電鍍後需 4 小時內驅氫，防止氫脆` : (A.plating === '無' ? '無電鍍' : '非高強度或非電解電鍍，免驅氫');
+  return A;
+}
+
+/* ================= 成本計算 ================= */
+const PROCS = [
+  {k:'material', n:'材料', fields:[['price','材料單價','元/kg'],['loss','損耗率','%']]},
+  {k:'heading',  n:'冷打成型', fields:[['perK','加工費','元/千支'],['mold','模具費','元（一次）'],['setup','開機費','元/批']]},
+  {k:'turning',  n:'車修', fields:[['sec','工時','秒/支'],['rate','機台費率','元/時'],['setup','換線費','元/批']]},
+  {k:'rolling',  n:'滾牙', fields:[['sec','工時','秒/支'],['rate','機台費率','元/時'],['die','牙板費','元（一次）'],['setup','開機費','元/批']]},
+  {k:'heat',     n:'熱處理', fields:[['price','單價','元/kg'],['min','最低收費','元/批']]},
+  {k:'plating',  n:'電鍍', fields:[['price','單價','元/kg'],['min','最低收費','元/批']]},
+  {k:'bake',     n:'驅氫', fields:[['price','單價','元/kg'],['min','最低收費','元/批']]},
+  {k:'sorting',  n:'篩選包裝', fields:[['perK','單價','元/千支']]},
+  {k:'freight',  n:'運費', fields:[['price','單價','元/kg']]}
+];
+function pv(k, f){ return (S.proc[k] || {})[f]; }
+function pstate(k){ return (S.proc[k] || {}).on || 'auto'; }
+
+function costFor(route, qty, G, A){
+  const m = material(), p = SET.p;
+  const kgPc = G.vol * m.rho / 1e6;                         // 成品重 kg/支
+  const rows = []; const auto = {};
+  const add = (k, n, on, perPc, fixed, note, extra) => rows.push(Object.assign({k, n, on, perPc: on ? perPc : 0, fixed: on ? fixed : 0, note}, extra || {}));
+  const dRef = G.thread ? G.thread.d : G.refD;
+  // 材料
+  let barD = 0, barLen = 0, blankKg;
+  if (route === 'turn'){
+    barD = Math.ceil(G.maxD + p.barAllow); barLen = G.L + p.cutoff;
+    blankKg = Math.PI / 4 * barD * barD * barLen * m.rho / 1e6;
+  } else blankKg = kgPc;
+  auto.material = {price: m.price, loss: route === 'turn' ? p.turnLoss : p.coldLoss};
+  { const price = pick(pv('material','price'), auto.material.price), loss = pick(pv('material','loss'), auto.material.loss);
+    const kg = blankKg * (1 + loss / 100);
+    add('material', '材料', true, kg * price, 0,
+      route === 'turn' ? `棒材 Ø${barD}×${fmt(barLen,1)} mm = ${fmt(blankKg*1000,2)} g ＋損耗 ${loss}%` : `線材 ${fmt(blankKg*1000,2)} g ＋損耗 ${loss}%`, {kg}); }
+  // 冷打
+  { const tb = SET.heading.slice().sort((a,b) => a.d - b.d); const r = tb.find(x => dRef <= x.d) || tb.at(-1);
+    const ratio = dRef > 0 ? G.L / dRef : 0; const lf = 1 + Math.max(0, ratio - 6) * 0.05;
+    auto.heading = {perK: Math.round(r.perK * lf), mold: r.mold, setup: p.headingSetup};
+    const st = pstate('heading'); const on = route === 'cold' && st !== 'off';
+    const perK = pick(pv('heading','perK'), auto.heading.perK), mold = pick(pv('heading','mold'), auto.heading.mold), setup = pick(pv('heading','setup'), auto.heading.setup);
+    add('heading', '冷打成型', on, perK / 1000, mold + setup, on ? `${A.stations}，L/d = ${fmt(ratio,1)}` : (route === 'turn' ? '全車削不需冷打' : '已關閉')); }
+  // 車修／全車削
+  { const nf = A.turnFeats.length;
+    const fullSec = p.turnBase + 0.12 * G.L + 4 * G.segs.length + 0.35 * barD + (G.thread && !A.roll ? 0.6 * G.thread.len : 0) + 6 * A.turnFeats.filter(f => /孔/.test(f.t)).length;
+    const reSec = p.retouchBase + p.retouchPerFeat * nf;
+    auto.turning = {sec: +(route === 'turn' ? fullSec : reSec).toFixed(1), rate: p.turnRate, setup: p.turnSetup};
+    const st = pstate('turning');
+    const need = route === 'turn' || nf > 0;
+    const on = st === 'on' || (st === 'auto' && need) || route === 'turn';
+    const sec = pick(pv('turning','sec'), auto.turning.sec), rate = pick(pv('turning','rate'), auto.turning.rate), setup = pick(pv('turning','setup'), auto.turning.setup);
+    add('turning', route === 'turn' ? '車削（全車）' : '車修', on, sec * rate / 3600, setup,
+      route === 'turn' ? `由棒材車出全部外形${G.thread && !A.roll ? '＋車牙' : ''}` : (nf ? '冷打後車修：' + A.turnFeats.map(f => f.t).join('、') : (on ? '手動啟用' : '外形可直接冷打，不需車修'))); }
+  // 滾牙
+  { const d = G.thread ? G.thread.d : 0;
+    const sec = d <= 6 ? 1.0 : d <= 12 ? 1.8 : d <= 20 ? 3 : 5;
+    const lenF = G.thread ? 1 + Math.max(0, G.thread.len / Math.max(d,1) - 4) * 0.08 : 1;
+    auto.rolling = {sec: +(sec * lenF).toFixed(2), rate: p.rollRate, die: d > 8 ? p.rollDieLarge : p.rollDieSmall, setup: p.rollSetup};
+    const st = pstate('rolling'); const on = st === 'on' || (st === 'auto' && A.roll);
+    const s2 = pick(pv('rolling','sec'), auto.rolling.sec), rate = pick(pv('rolling','rate'), auto.rolling.rate), die = pick(pv('rolling','die'), auto.rolling.die), setup = pick(pv('rolling','setup'), auto.rolling.setup);
+    add('rolling', '滾牙', on, s2 * rate / 3600, die + setup, A.rollWhy); }
+  // 熱處理
+  { const h = SET.heats.find(x => x.n === A.heatType);
+    auto.heat = {price: h ? h.price : 0, min: h ? h.min : 0};
+    const st = pstate('heat'); const on = st === 'on' || (st === 'auto' && !!h);
+    const price = pick(pv('heat','price'), auto.heat.price), min = pick(pv('heat','min'), auto.heat.min);
+    const batch = Math.max(price * kgPc * qty, min);
+    add('heat', '熱處理', on, batch / qty, 0, (h ? A.heatType + '：' : '') + A.heatWhy + (on ? `；本批 ${fmt(kgPc*qty,1)} kg，計 ${fmt(batch,0)} 元` : ''), {batch}); }
+  // 電鍍
+  { const pl = SET.platings.find(x => x.n === A.plating);
+    auto.plating = {price: pl ? pl.price : 0, min: pl ? pl.min : 0};
+    const st = pstate('plating'); const on = st === 'on' || (st === 'auto' && !!pl);
+    const price = pick(pv('plating','price'), auto.plating.price), min = pick(pv('plating','min'), auto.plating.min);
+    const batch = Math.max(price * kgPc * qty, min);
+    add('plating', '電鍍', on, batch / qty, 0, pl ? `${A.plating}${on ? `；本批 ${fmt(kgPc*qty,1)} kg，計 ${fmt(batch,0)} 元` : ''}` : '未選表面處理', {batch}); }
+  // 驅氫
+  { auto.bake = {price: p.bakePrice, min: p.bakeMin};
+    const st = pstate('bake'); const on = st === 'on' || (st === 'auto' && A.bake);
+    const price = pick(pv('bake','price'), auto.bake.price), min = pick(pv('bake','min'), auto.bake.min);
+    const batch = Math.max(price * kgPc * qty, min);
+    add('bake', '驅氫', on, batch / qty, 0, A.bakeWhy, {batch}); }
+  // 篩選包裝
+  { auto.sorting = {perK: p.sortPerK + (S.info.sortOptical ? p.opticalPerK : 0)};
+    const on = pstate('sorting') !== 'off';
+    add('sorting', '篩選包裝', on, pick(pv('sorting','perK'), auto.sorting.perK) / 1000, 0, S.info.sortOptical ? '含光學篩選' : '目視抽檢＋包裝'); }
+  // 運費
+  { auto.freight = {price: p.freight};
+    const on = pstate('freight') !== 'off';
+    add('freight', '運費', on, pick(pv('freight','price'), auto.freight.price) * kgPc, 0, `成品 ${fmt(kgPc*qty,1)} kg`); }
+  // 其他
+  S.extras.forEach((e, i) => add('x' + i, e.name || '其他', true, num(e.perPc), num(e.fixed), '自訂'));
+
+  rows.forEach(r => { r.unit = r.perPc + r.fixed / qty; });
+  const mfg = rows.reduce((a, r) => a + r.unit, 0);
+  const defect = pick(S.defect, p.defect) / 100, oh = pick(S.overhead, p.overhead) / 100, pf = pick(S.profit, p.profit) / 100;
+  const withDefect = mfg / Math.max(1 - defect, 0.01);
+  const ohAmt = withDefect * oh, pfAmt = (withDefect + ohAmt) * pf;
+  const unit = withDefect + ohAmt + pfAmt;
+  return {route, qty, rows, auto, mfg, defectAmt: withDefect - mfg, ohAmt, pfAmt, unit, kgPc, blankKg, barD};
+}
+function quote(qty, G, A){
+  if (S.route === 'cold') return costFor('cold', qty, G, A);
+  if (S.route === 'turn') return costFor('turn', qty, G, A);
+  const t = costFor('turn', qty, G, A);
+  if (!A.coldOk) return Object.assign(t, {alt:null});
+  const c = costFor('cold', qty, G, A);
+  return c.unit <= t.unit ? Object.assign(c, {alt:t}) : Object.assign(t, {alt:c});
+}
+
+/* ================= 介面：綁定 ================= */
+function fillSelect(el, opts, val){
+  el.innerHTML = opts.map(o => { const [v, n] = Array.isArray(o) ? o : [o, o]; return `<option value="${esc(v)}">${esc(n)}</option>`; }).join('');
+  el.value = val;
+}
+function renderSelects(){
+  fillSelect($('#selMaterial'), SET.materials.map(m => m.n), S.info.material);
+  if ($('#selMaterial').value !== S.info.material){ S.info.material = SET.materials[0].n; $('#selMaterial').value = S.info.material; }
+  fillSelect($('#selGrade'), GRADES, S.info.grade);
+  fillSelect($('#selHeat'), [['auto','自動判斷'],['無','無'], ...SET.heats.map(h => h.n)], S.info.heat);
+  fillSelect($('#selPlating'), ['無', ...SET.platings.map(p => p.n)], S.info.plating);
+  fillSelect($('#selHead'), HEADS.map(h => [h.v, h.n]), S.tpl.head);
+}
+function syncInputs(root=document){
+  $$('[data-b]', root).forEach(el => {
+    const v = getPath(S, el.dataset.b);
+    if (el.type === 'checkbox') el.checked = !!v;
+    else if (document.activeElement !== el) el.value = v ?? '';
+  });
+}
+document.addEventListener('input', e => {
+  const el = e.target.closest('[data-b]'); if (!el) return;
+  let v = el.type === 'checkbox' ? el.checked : el.value;
+  if ('n' in el.dataset) v = v === '' ? '' : parseFloat(v);
+  setPath(S, el.dataset.b, v);
+  if (el.dataset.b === 'tpl.head'){ applyStd(); renderTplFields(); syncInputs($('#tplBox')); }
+  if (el.dataset.b === 'tpl.d' && isFinite(v) && v > 0) { S.tpl.P = coarsePitch(v); syncInputs($('#tplBox')); }
+  saveDraft(); recalc();
+  if (el.closest('#view-sheet')) renderSheet();
+});
+
+/* 分頁 */
+$$('.tab').forEach(t => t.addEventListener('click', () => showView(t.dataset.view)));
+function showView(v){
+  $$('.tab').forEach(t => t.setAttribute('aria-selected', t.dataset.view === v));
+  $$('section.view').forEach(s => s.hidden = s.id !== 'view-' + v);
+  if (v === 'sheet') renderSheet();
+  if (v === 'history') renderHistory();
+  if (v === 'settings') renderSettings();
+  window.scrollTo(0, 0);
+}
+
+/* ================= 幾何 UI ================= */
+function renderGeoMode(){
+  $$('#geoMode button').forEach(b => b.setAttribute('aria-pressed', b.dataset.v === S.geoMode));
+  $('#tplBox').hidden = S.geoMode !== 'tpl';
+  $('#segBox').hidden = S.geoMode === 'tpl';
+  $('#geoMode button[data-v="stl"]').disabled = !S.stlVol;
+}
+$('#geoMode').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b || b.disabled) return;
+  if (b.dataset.v === 'seg' && !S.segs.length) S.segs = tplToSegs(S.tpl);
+  S.geoMode = b.dataset.v; renderGeoMode(); renderSegs(); saveDraft(); recalc();
+});
+function renderTplFields(){
+  const h = HEADS.find(x => x.v === S.tpl.head) || HEADS[0];
+  $$('#tplBox [data-h]').forEach(el => el.hidden = !h.f.includes(el.dataset.h));
+  $('#lblL').textContent = S.tpl.head === 'csk' ? '總長 L（含頭）mm' : '長度 L（頭下）mm';
+  $('#tplNote').textContent = S.tpl.head === 'pan' ? '盤頭以圓柱 ×0.88 近似；要更精準請轉成分段輪廓修正。' : '';
+}
+function applyStd(){
+  const t = STD[S.tpl.head]; const d = num(S.tpl.d) || 8;
+  if (t) Object.assign(S.tpl, stdRow(t, d));
+  if (blank(S.tpl.P)) S.tpl.P = coarsePitch(d);
+}
+$('#btnStd').addEventListener('click', () => { applyStd(); syncInputs($('#tplBox')); saveDraft(); recalc(); });
+$('#btnToSeg').addEventListener('click', () => { S.segs = tplToSegs(S.tpl); S.geoMode = 'seg'; renderGeoMode(); renderSegs(); saveDraft(); recalc(); });
+
+function renderSegs(){
+  const tb = $('#segTable tbody');
+  tb.innerHTML = S.segs.map((s, i) => `<tr data-i="${i}">
+    <td class="num">${i+1}</td>
+    <td><select data-s="shape">${SHAPES.map(([v,n]) => `<option value="${v}"${s.shape===v?' selected':''}>${n}</option>`).join('')}</select></td>
+    <td><input type="number" step="0.01" data-s="d1" value="${s.d1 ?? ''}"></td>
+    <td><input type="number" step="0.01" data-s="d2" value="${s.d2 ?? ''}" ${s.shape==='cone'?'':'disabled'}></td>
+    <td><input type="number" step="0.01" data-s="len" value="${s.len ?? ''}"></td>
+    <td><input type="number" step="0.01" data-s="hole" value="${s.hole ?? ''}" placeholder="—"></td>
+    <td><select data-s="holeType"><option value="round"${s.holeType!=='hex'?' selected':''}>圓孔</option><option value="hex"${s.holeType==='hex'?' selected':''}>六角孔</option></select></td>
+    <td><input type="number" step="0.01" data-s="holeDepth" value="${s.holeDepth ?? ''}" placeholder="全長"></td>
+    <td><input type="checkbox" data-s="thread" ${s.thread?'checked':''}></td>
+    <td><input type="number" step="0.01" data-s="pitch" value="${s.pitch ?? ''}" ${s.thread?'':'disabled'}></td>
+    <td><input type="checkbox" data-s="turned" ${s.turned?'checked':''}></td>
+    <td class="r num" data-vol></td>
+    <td class="r"><button class="btn ghost sm" data-act="up" title="上移">↑</button><button class="btn ghost sm" data-act="del" title="刪除">✕</button></td>
+  </tr>`).join('') || `<tr><td colspan="13" class="hint">尚無分段。可上傳圖檔自動描出，或由參數模板轉入。</td></tr>`;
+}
+$('#segTable').addEventListener('input', e => {
+  const el = e.target, tr = el.closest('tr[data-i]'); if (!tr || !el.dataset.s) return;
+  const s = S.segs[+tr.dataset.i], k = el.dataset.s;
+  if (el.type === 'checkbox') s[k] = el.checked;
+  else if (el.tagName === 'SELECT') s[k] = el.value;
+  else s[k] = el.value === '' ? '' : parseFloat(el.value);
+  if (k === 'thread'){ if (s.thread && blank(s.pitch)) s.pitch = coarsePitch(num(s.d1)); s.shape = 'cyl'; renderSegs(); }
+  if (k === 'shape'){ if (s.shape === 'cone' && blank(s.d2)) s.d2 = s.d1; renderSegs(); }
+  if (S.geoMode === 'tpl') S.geoMode = 'seg';
+  saveDraft(); recalc();
+});
+$('#segTable').addEventListener('click', e => {
+  const b = e.target.closest('button[data-act]'); if (!b) return;
+  const i = +b.closest('tr').dataset.i;
+  if (b.dataset.act === 'del') S.segs.splice(i, 1);
+  if (b.dataset.act === 'up' && i > 0) [S.segs[i-1], S.segs[i]] = [S.segs[i], S.segs[i-1]];
+  renderSegs(); saveDraft(); recalc();
+});
+$('#btnAddSeg').addEventListener('click', () => {
+  const last = S.segs.at(-1);
+  S.segs.push({shape:'cyl', d1: last ? last.d1 : 8, len: 10});
+  renderSegs(); saveDraft(); recalc();
+});
+
+/* 輪廓預覽（側視圖） */
+function drawProfile(G){
+  const svg = $('#profileSvg'); const segs = G.segs;
+  if (!segs.length){ svg.innerHTML = `<text x="400" y="105" text-anchor="middle" fill="currentColor" font-size="14">尚無輪廓</text>`; return; }
+  const W = 800, H = 200, pad = 20;
+  const L = segs.reduce((a, s) => a + num(s.len), 0), D = Math.max(...segs.map(envelope));
+  const sc = Math.min((W - 2*pad) / L, (H - 2*pad) / D);
+  const x0 = (W - L * sc) / 2, cy = H / 2;
+  let x = x0, out = '', dims = '';
+  const css = getComputedStyle(document.documentElement);
+  const cv = n => css.getPropertyValue(n).trim();
+  const ink = cv('--ink'), steel = cv('--muted'), zinc = cv('--zinc'), axis = cv('--axis');
+  segs.forEach((s, i) => {
+    const w = num(s.len) * sc; const d1 = envelope(s) * sc / 2;
+    let d2 = d1; if (s.shape === 'cone') d2 = num(s.d2) * sc / 2;
+    const fill = s.thread ? zinc : (G.head.has(i) ? steel : ink);
+    const op = s.thread ? .55 : .28;
+    if (s.shape === 'dome'){
+      const flip = i === 0;
+      const xa = flip ? x + w : x, xb = flip ? x : x + w;
+      out += `<path d="M${xa},${cy-d1} Q${xb},${cy-d1} ${xb},${cy} Q${xb},${cy+d1} ${xa},${cy+d1} Z" fill="${fill}" fill-opacity="${op}" stroke="${ink}" stroke-width="1.2"/>`;
+    } else {
+      out += `<path d="M${x},${cy-d1} L${x+w},${cy-d2} L${x+w},${cy+d2} L${x},${cy+d1} Z" fill="${fill}" fill-opacity="${op}" stroke="${ink}" stroke-width="1.2"/>`;
+    }
+    if (s.thread){ for (let t = x + 3; t < x + w - 2; t += Math.max(num(s.pitch) * sc, 3)) out += `<line x1="${t}" y1="${cy-d1}" x2="${t+2}" y2="${cy+d1}" stroke="${ink}" stroke-opacity=".35" stroke-width=".8"/>`; }
+    if (num(s.hole) > 0){ const hd = (blank(s.holeDepth) ? num(s.len) : Math.min(num(s.holeDepth), num(s.len))) * sc; const hr = num(s.hole) * sc / 2;
+      const hx = i === 0 ? x : x + w - hd; out += `<rect x="${hx}" y="${cy-hr}" width="${hd}" height="${hr*2}" fill="none" stroke="${ink}" stroke-dasharray="3 2" stroke-width="1"/>`; }
+    if (w > 26) dims += `<text x="${x + w/2}" y="${cy + D*sc/2 + 14}" text-anchor="middle" font-size="11" fill="${steel}" font-family="IBM Plex Mono,monospace">${fmt(num(s.len),1)}</text>`;
+    x += w;
+  });
+  out += `<line x1="${x0-10}" y1="${cy}" x2="${x+10}" y2="${cy}" stroke="${axis}" stroke-dasharray="10 3 2 3" stroke-width="1"/>`;
+  svg.innerHTML = out + dims;
+}
+
+/* ================= 工序 UI ================= */
+function renderProcs(){
+  $('#procList').innerHTML = PROCS.map(pr => `<div class="prow" data-k="${pr.k}">
+    <div class="pname"><b data-name>${pr.n}</b>
+      <select data-p="on"><option value="auto">自動判斷</option><option value="on">強制啟用</option><option value="off">不需要</option></select>
+      <span data-st class="tag"></span></div>
+    <div class="pfields">${pr.fields.map(([f, n, u]) => `<label class="fld">${n} <span class="u">${u}</span><input type="number" step="any" data-p="${f}" value="${pv(pr.k, f) ?? ''}"></label>`).join('')}</div>
+    <div class="pcost"><b data-pc>—</b><small data-fx></small></div>
+    <div class="reason" data-rs></div>
+  </div>`).join('');
+  $$('#procList .prow').forEach(r => { r.querySelector('select[data-p="on"]').value = pstate(r.dataset.k); });
+}
+$('#procList').addEventListener('input', e => {
+  const el = e.target; const k = el.closest('.prow')?.dataset.k; if (!k || !el.dataset.p) return;
+  S.proc[k] = S.proc[k] || {};
+  S.proc[k][el.dataset.p] = el.tagName === 'SELECT' ? el.value : (el.value === '' ? '' : parseFloat(el.value));
+  saveDraft(); recalc();
+});
+
+function renderExtras(){
+  $('#extraTable tbody').innerHTML = S.extras.map((x, i) => `<tr data-i="${i}">
+    <td><input type="text" data-x="name" value="${esc(x.name)}" placeholder="項目名稱"></td>
+    <td><input type="number" step="any" data-x="perPc" value="${x.perPc ?? ''}"></td>
+    <td><input type="number" step="any" data-x="fixed" value="${x.fixed ?? ''}"></td>
+    <td class="r num" data-xa></td>
+    <td class="r"><button class="btn ghost sm" data-del>✕</button></td></tr>`).join('') || `<tr><td colspan="5" class="hint">無</td></tr>`;
+}
+$('#extraTable').addEventListener('input', e => {
+  const tr = e.target.closest('tr[data-i]'); if (!tr) return; const k = e.target.dataset.x;
+  S.extras[+tr.dataset.i][k] = k === 'name' ? e.target.value : (e.target.value === '' ? '' : parseFloat(e.target.value));
+  saveDraft(); recalc();
+});
+$('#extraTable').addEventListener('click', e => { if (!e.target.closest('[data-del]')) return; S.extras.splice(+e.target.closest('tr').dataset.i, 1); renderExtras(); saveDraft(); recalc(); });
+$('#btnAddExtra').addEventListener('click', () => { S.extras.push({name:'', perPc:'', fixed:''}); renderExtras(); saveDraft(); });
+
+/* ================= 重算 ================= */
+let LAST = null;
+function tiers(){ const q = num(S.info.qty) || 1; const t = String(SET.p.tiers).split(/[,，\s]+/).map(Number).filter(n => n > 0); if (!t.includes(q)) t.push(q); return [...new Set(t)].sort((a,b) => a-b); }
+function recalc(){
+  renderGeoMode();
+  const G = geometry(), A = analyze(G), m = material();
+  const qty = Math.max(1, Math.round(num(S.info.qty) || 1));
+  const Q = quote(qty, G, A);
+  LAST = {G, A, Q, qty, m};
+  const dp = +S.dp || 2;
+  // 分段體積
+  $$('#segTable tr[data-i]').forEach(tr => { const s = S.segs[+tr.dataset.i]; tr.querySelector('[data-vol]').textContent = s ? fmt(segVolume(s), 1) : ''; });
+  drawProfile(G);
+  // 重量
+  const g = G.vol * m.rho / 1000;
+  $('#weightKpi').innerHTML = `
+    <div class="kpi"><span>體積</span><b>${fmt(G.vol,1)}</b><small>mm³</small></div>
+    <div class="kpi hl"><span>成品重量（${esc(m.n)}，ρ ${m.rho}）</span><b>${fmt(g,3)}</b><small>g／支</small></div>
+    <div class="kpi"><span>千支重</span><b>${fmt(g,2)}</b><small>kg／千支</small></div>
+    <div class="kpi"><span>本批總重（${fmt(qty,0)} 支）</span><b>${fmt(g*qty/1000,1)}</b><small>kg</small></div>
+    <div class="kpi"><span>投料重（${Q.route === 'turn' ? '棒材 Ø' + Q.barD : '線材'}）</span><b>${fmt(Q.rows[0].kg*1000,3)}</b><small>g／支</small></div>
+    <div class="kpi"><span>總長／最大外徑</span><b>${fmt(G.L,1)}／${fmt(G.maxD,1)}</b><small>mm</small></div>`;
+  // 流程
+  const on = Q.rows.filter(r => r.on && !r.k.startsWith('x') && r.k !== 'freight');
+  $('#flow').innerHTML = on.map(r => `<span class="node">${esc(r.k === 'material' ? (Q.route === 'turn' ? '棒材下料' : '線材') : r.n)}</span>`).join('<span class="arrow">→</span>');
+  let rn = `工法：<b>${Q.route === 'turn' ? '棒材全車削' : '冷打成型'}</b>`;
+  if (S.route === 'auto'){
+    if (!A.coldOk) rn += `（不適合冷打：${A.coldWhy.join('、') || '缺少幾何資料'}）`;
+    else if (Q.alt) rn += `（自動比較：${Q.route === 'turn' ? '冷打' : '全車削'} 每支 ${fmt(Q.alt.unit, dp)} 元，較高）`;
+  } else if (S.route === 'cold' && !A.coldOk) rn += `　⚠ ${A.coldWhy.join('、')}`;
+  $('#routeNote').innerHTML = rn;
+  // 工序列
+  $$('#procList .prow').forEach(row => {
+    const k = row.dataset.k, r = Q.rows.find(x => x.k === k); if (!r) return;
+    row.classList.toggle('off', !r.on);
+    row.querySelector('[data-name]').textContent = r.n;
+    const st = pstate(k);
+    const tag = row.querySelector('[data-st]');
+    tag.textContent = r.on ? (st === 'auto' ? '需要' : '啟用') : '不需要'; tag.classList.toggle('ok', r.on);
+    const au = Q.auto[k] || {};
+    row.querySelectorAll('input[data-p]').forEach(inp => { const a = au[inp.dataset.p]; inp.placeholder = a == null ? '' : '自動 ' + (+a).toLocaleString('zh-TW'); });
+    row.querySelector('[data-pc]').textContent = r.on ? fmt(r.unit, 4) + ' 元/支' : '—';
+    row.querySelector('[data-fx]').textContent = r.on ? (r.fixed ? `一次費用 ${fmt(r.fixed,0)} 元` : r.batch ? `每批 ${fmt(r.batch,0)} 元` : '') : '';
+    const rs = row.querySelector('[data-rs]'); rs.textContent = r.note || ''; rs.classList.toggle('need', r.on);
+  });
+  $$('#extraTable tr[data-i]').forEach(tr => { const r = Q.rows.find(x => x.k === 'x' + tr.dataset.i); tr.querySelector('[data-xa]').textContent = r ? fmt(r.unit, 4) : ''; });
+  // 彙總
+  const rowsOn = Q.rows.filter(r => r.on);
+  const maxU = Math.max(...rowsOn.map(r => r.unit), 1e-9);
+  $('#sumTable').innerHTML = `<thead><tr><th>項目</th><th class="r">元／支</th><th class="r">佔比</th><th style="width:30%"></th></tr></thead><tbody>` +
+    rowsOn.map(r => `<tr><td>${esc(r.n)}</td><td class="r num">${fmt(r.unit,4)}</td><td class="r num">${fmt(r.unit/Q.unit*100,1)}%</td><td><div class="bar" style="width:${r.unit/maxU*100}%"></div></td></tr>`).join('') +
+    `<tr><td>不良損耗（${pick(S.defect, SET.p.defect)}%）</td><td class="r num">${fmt(Q.defectAmt,4)}</td><td class="r num">${fmt(Q.defectAmt/Q.unit*100,1)}%</td><td></td></tr>
+     <tr><td>管銷（${pick(S.overhead, SET.p.overhead)}%）</td><td class="r num">${fmt(Q.ohAmt,4)}</td><td class="r num">${fmt(Q.ohAmt/Q.unit*100,1)}%</td><td></td></tr>
+     <tr><td>利潤（${pick(S.profit, SET.p.profit)}%）</td><td class="r num">${fmt(Q.pfAmt,4)}</td><td class="r num">${fmt(Q.pfAmt/Q.unit*100,1)}%</td><td></td></tr></tbody>
+     <tfoot><tr><td>報價單價</td><td class="r num">${fmt(Q.unit, dp)}</td><td></td><td></td></tr></tfoot>`;
+  $('#priceBox').innerHTML = `<span>報價單價（未稅）</span><b>${fmt(Q.unit, dp)}</b><span>元／支</span>
+    <div class="sub">每千支 ${fmt(Q.unit*1000, 0)} 元</div>
+    <div class="sub">總價 ${fmt(Q.unit*qty, 0)} 元（${fmt(qty,0)} 支）</div>
+    <div class="sub">製造成本 ${fmt(Q.mfg, 4)} 元／支</div>
+    <div class="sub">每公斤 ${fmt(Q.unit / Math.max(Q.kgPc, 1e-9), 1)} 元</div>`;
+  ['defect','overhead','profit'].forEach(k => { const el = $(`[data-b="${k}"]`); el.placeholder = '預設 ' + SET.p[k]; });
+  // 級距
+  const T = tiers().map(q => ({q, r: quote(q, G, A)}));
+  $('#tierTable').innerHTML = `<thead><tr><th class="r">數量</th><th>工法</th><th class="r">單價（元/支）</th><th class="r">千支價</th><th class="r">總價</th><th class="r">一次費用攤提</th></tr></thead><tbody>` +
+    T.map(({q, r}) => `<tr${q === qty ? ' style="background:var(--zinc-soft)"' : ''}><td class="r num">${fmt(q,0)}</td><td>${r.route === 'turn' ? '全車削' : '冷打'}</td><td class="r num">${fmt(r.unit, dp)}</td><td class="r num">${fmt(r.unit*1000,0)}</td><td class="r num">${fmt(r.unit*q,0)}</td><td class="r num">${fmt(r.rows.reduce((a,x)=>a+x.fixed,0)/q,4)}</td></tr>`).join('') + '</tbody>';
+  LAST.T = T;
+}
+
+/* ================= 圖檔上傳 ================= */
+const drop = $('#drop'), fileInput = $('#fileInput');
+drop.addEventListener('click', () => fileInput.click());
+drop.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fileInput.click(); } });
+['dragenter','dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('over'); }));
+['dragleave','drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('over'); }));
+drop.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) handleFile(f); });
+fileInput.addEventListener('change', () => { if (fileInput.files[0]) handleFile(fileInput.files[0]); fileInput.value = ''; });
+
+function showMsg(t, cls=''){ const m = $('#fileMsg'); m.hidden = !t; m.className = 'msg ' + cls; m.textContent = t; }
+async function handleFile(f){
+  const ext = f.name.split('.').pop().toLowerCase();
+  ['imgPanel','dxfPanel','stlPanel'].forEach(id => $('#' + id).hidden = true);
+  showMsg('');
+  $('#fileMeta').hidden = false;
+  $('#fileMeta').innerHTML = `<span>檔案：<b>${esc(f.name)}</b></span><span>${fmt(f.size/1024,1)} KB</span>`;
+  S.file = {name: f.name, type: ext};
+  try {
+    if (ext === 'stl') await loadStl(f);
+    else if (ext === 'dxf') await loadDxf(f);
+    else if (ext === 'pdf') await loadPdf(f);
+    else await loadImage(f);
+  } catch (err){ console.error(err); showMsg('讀取失敗：' + err.message, 'err'); }
+  saveDraft();
+}
+
+/* ---- 圖片 / PDF 描輪廓 ---- */
+const IV = {off: null, ctx: null, mode: 'rect', rect: null, line: null, drag: null, mmPerPx: 0, trace: null, measures: [], pdf: null};
+const imgCanvas = $('#imgCanvas');
+function loadImage(f){
+  return new Promise((res, rej) => {
+    const url = URL.createObjectURL(f); const img = new Image();
+    img.onload = () => { setImageSource(img, img.naturalWidth, img.naturalHeight); URL.revokeObjectURL(url); res(); };
+    img.onerror = () => rej(new Error('無法解讀這個圖片檔'));
+    img.src = url;
+  });
+}
+function setImageSource(src, w, h){
+  const k = Math.min(1, 2400 / Math.max(w, h));
+  const off = document.createElement('canvas'); off.width = Math.round(w * k); off.height = Math.round(h * k);
+  const c = off.getContext('2d', {willReadFrequently: true}); c.fillStyle = '#fff'; c.fillRect(0, 0, off.width, off.height); c.drawImage(src, 0, 0, off.width, off.height);
+  IV.off = off; IV.ctx = c; IV.rect = null; IV.line = null; IV.trace = null; IV.mmPerPx = 0; IV.measures = [];
+  $('#imgPanel').hidden = false; $('#imgResult').hidden = true;
+  setMode('rect');
+  try { thumb = off.toDataURL('image/jpeg', .8); if (thumb.length > 1.5e6) thumb = null; } catch(e){ thumb = null; }
+  drawImg();
+  showMsg('先用「框選零件」拖曳框住零件外形，再輸入零件總長或畫比例尺，按「描輪廓」。');
+}
+async function loadPdf(f){
+  if (!window.pdfjsLib){
+    await new Promise((res, rej) => { const s = document.createElement('script'); s.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js'; s.onload = res; s.onerror = () => rej(new Error('PDF 元件載入失敗（需要網路）')); document.head.appendChild(s); });
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  }
+  const pdf = await pdfjsLib.getDocument({data: await f.arrayBuffer()}).promise;
+  IV.pdf = pdf;
+  const sel = $('#pdfPage'); sel.innerHTML = Array.from({length: pdf.numPages}, (_, i) => `<option value="${i+1}">${i+1} / ${pdf.numPages}</option>`).join('');
+  sel.closest('label').hidden = false;
+  await renderPdfPage(1);
+}
+async function renderPdfPage(n){
+  const page = await IV.pdf.getPage(n);
+  const vp0 = page.getViewport({scale: 1}); const scale = 2400 / Math.max(vp0.width, vp0.height);
+  const vp = page.getViewport({scale});
+  const c = document.createElement('canvas'); c.width = Math.round(vp.width); c.height = Math.round(vp.height);
+  const cx = c.getContext('2d'); cx.fillStyle = '#fff'; cx.fillRect(0, 0, c.width, c.height);
+  await page.render({canvasContext: cx, viewport: vp}).promise;
+  setImageSource(c, c.width, c.height);
+  // PDF 是向量圖：每點實際尺寸 = 1/72 inch；若圖面為 1:1 比例可直接用
+  IV.pdfMmPerPx = 25.4 / 72 / scale;
+}
+$('#pdfPage').addEventListener('change', e => renderPdfPage(+e.target.value));
+function setMode(m){ IV.mode = m; $$('#imgPanel [data-mode]').forEach(b => b.classList.toggle('on', b.dataset.mode === m)); if (!IV.pdf) $('#pdfPage').closest('label').hidden = true; }
+$$('#imgPanel [data-mode]').forEach(b => b.addEventListener('click', () => setMode(b.dataset.mode)));
+
+function drawImg(){
+  if (!IV.off) return;
+  const W = IV.off.width, H = IV.off.height;
+  imgCanvas.width = W; imgCanvas.height = H;
+  const c = imgCanvas.getContext('2d'); c.drawImage(IV.off, 0, 0);
+  const lw = Math.max(2, W / 500);
+  if (IV.rect){ const r = normRect(IV.rect); c.strokeStyle = '#E9B512'; c.lineWidth = lw; c.setLineDash([lw*4, lw*2]); c.strokeRect(r.x, r.y, r.w, r.h); c.setLineDash([]); c.fillStyle = 'rgba(233,181,18,.08)'; c.fillRect(r.x, r.y, r.w, r.h); }
+  if (IV.trace){ const t = IV.trace; c.strokeStyle = '#D0342C'; c.lineWidth = lw; c.beginPath();
+    t.top.forEach((p, i) => i ? c.lineTo(p[0], p[1]) : c.moveTo(p[0], p[1])); c.stroke(); c.beginPath();
+    t.bot.forEach((p, i) => i ? c.lineTo(p[0], p[1]) : c.moveTo(p[0], p[1])); c.stroke();
+    c.strokeStyle = '#2B7BB9'; c.setLineDash([lw*6, lw*2, lw, lw*2]); c.beginPath(); c.moveTo(t.axis[0][0], t.axis[0][1]); c.lineTo(t.axis[1][0], t.axis[1][1]); c.stroke(); c.setLineDash([]); }
+  const drawLine = (l, col, label) => { c.strokeStyle = col; c.fillStyle = col; c.lineWidth = lw; c.beginPath(); c.moveTo(l.x1, l.y1); c.lineTo(l.x2, l.y2); c.stroke();
+    [[l.x1,l.y1],[l.x2,l.y2]].forEach(([x,y]) => { c.beginPath(); c.arc(x, y, lw*2, 0, 7); c.fill(); });
+    if (label){ c.font = `600 ${Math.max(14, W/70)}px IBM Plex Mono, monospace`; c.fillText(label, (l.x1+l.x2)/2 + lw*3, (l.y1+l.y2)/2 - lw*3); } };
+  IV.measures.forEach(l => drawLine(l, '#2B7BB9', lineLabel(l)));
+  if (IV.line) drawLine(IV.line, IV.mode === 'calib' ? '#2E7D4F' : '#2B7BB9', lineLabel(IV.line));
+}
+const lineLen = l => Math.hypot(l.x2 - l.x1, l.y2 - l.y1);
+const lineLabel = l => IV.mmPerPx ? fmt(lineLen(l) * IV.mmPerPx, 2) + ' mm' : fmt(lineLen(l), 0) + ' px';
+function normRect(r){ return {x: Math.min(r.x1, r.x2), y: Math.min(r.y1, r.y2), w: Math.abs(r.x2 - r.x1), h: Math.abs(r.y2 - r.y1)}; }
+function evPt(e){ const b = imgCanvas.getBoundingClientRect(); return {x: (e.clientX - b.left) * imgCanvas.width / b.width, y: (e.clientY - b.top) * imgCanvas.height / b.height}; }
+imgCanvas.addEventListener('pointerdown', e => { const p = evPt(e); IV.drag = p; imgCanvas.setPointerCapture(e.pointerId);
+  if (IV.mode === 'rect') IV.rect = {x1:p.x, y1:p.y, x2:p.x, y2:p.y}; else IV.line = {x1:p.x, y1:p.y, x2:p.x, y2:p.y}; drawImg(); });
+imgCanvas.addEventListener('pointermove', e => { if (!IV.drag) return; const p = evPt(e);
+  const o = IV.mode === 'rect' ? IV.rect : IV.line; o.x2 = p.x; o.y2 = p.y; drawImg(); });
+imgCanvas.addEventListener('pointerup', () => {
+  if (!IV.drag) return; IV.drag = null;
+  if (IV.mode === 'rect'){ const r = normRect(IV.rect); if (r.w < 5 || r.h < 5) IV.rect = null; IV.trace = null; }
+  else if (IV.line && lineLen(IV.line) > 4){
+    if (IV.mode === 'calib'){
+      const mm = parseFloat(prompt('這條線的實際長度（mm）？', ''));
+      if (mm > 0){ IV.mmPerPx = mm / lineLen(IV.line); showMsg(`比例已設定：1 px = ${fmt(IV.mmPerPx, 4)} mm`, 'ok'); }
+    } else if (IV.mode === 'measure'){ IV.measures.push(IV.line); if (IV.measures.length > 8) IV.measures.shift(); }
+  }
+  IV.line = null; drawImg();
+});
+
+/* 逐列掃描外形 → 直徑分布 */
+function traceImage(){
+  if (!IV.off) return;
+  const W = IV.off.width, H = IV.off.height;
+  const r = IV.rect ? normRect(IV.rect) : {x:0, y:0, w:W, h:H};
+  const rx = Math.max(0, Math.floor(r.x)), ry = Math.max(0, Math.floor(r.y)), rw = Math.min(W - rx, Math.ceil(r.w)), rh = Math.min(H - ry, Math.ceil(r.h));
+  const data = IV.ctx.getImageData(rx, ry, rw, rh).data;
+  const thr = +$('#trThr').value;
+  let axis = $('#trAxis').value; if (axis === 'auto') axis = rw >= rh ? 'h' : 'v';
+  const dark = (x, y) => { const i = (y * rw + x) * 4; return (data[i]*.299 + data[i+1]*.587 + data[i+2]*.114) < thr && data[i+3] > 60; };
+  const N = axis === 'h' ? rw : rh, M = axis === 'h' ? rh : rw;
+  const lo = new Array(N).fill(-1), hi = new Array(N).fill(-1);
+  for (let a = 0; a < N; a++){
+    for (let b = 0; b < M; b++){ const d = axis === 'h' ? dark(a, b) : dark(b, a); if (d){ lo[a] = b; break; } }
+    if (lo[a] >= 0) for (let b = M - 1; b >= 0; b--){ const d = axis === 'h' ? dark(a, b) : dark(b, a); if (d){ hi[a] = b; break; } }
+  }
+  let first = lo.findIndex(v => v >= 0), last = N - 1 - [...lo].reverse().findIndex(v => v >= 0);
+  if (first < 0) { showMsg('框選範圍內找不到深色外形，請調整深色門檻或框選範圍。', 'err'); return; }
+  // 去除孤立雜點：前後各 2 px 都沒有則視為空
+  let diam = lo.map((v, i) => v >= 0 ? hi[i] - v + 1 : 0);
+  const sm = Math.max(0, Math.round(+$('#trSmooth').value || 0));
+  if (sm > 0){ const src = diam.slice(); diam = src.map((_, i) => { const w = src.slice(Math.max(0, i - sm), i + sm + 1).sort((a,b) => a-b); return w[w.length >> 1]; }); }
+  while (first < last && diam[first] === 0) first++; while (last > first && diam[last] === 0) last--;
+  const lenPx = last - first + 1;
+  const Lmm = num($('#trLen').value);
+  let k = IV.mmPerPx;
+  if (Lmm > 0) k = Lmm / lenPx;
+  if (!k && IV.pdfMmPerPx) { k = IV.pdfMmPerPx; showMsg('未提供總長或比例尺，暫以 PDF 原始 1:1 尺寸計算，若圖面有縮放比例請輸入總長。'); }
+  if (!k){ showMsg('請輸入「零件總長 mm」或用比例尺工具畫一條已知長度的線。', 'err'); return; }
+  IV.mmPerPx = k;
+  const prof = diam.slice(first, last + 1).map(d => d * k);
+  const vol = prof.reduce((a, d) => a + Math.PI / 4 * d * d * k, 0);
+  // 疊圖
+  const P = (a, b) => axis === 'h' ? [rx + a, ry + b] : [rx + b, ry + a];
+  const top = [], bot = [];
+  for (let a = first; a <= last; a++) if (lo[a] >= 0){ top.push(P(a, lo[a])); bot.push(P(a, hi[a])); }
+  let mc = first; for (let a = first; a <= last; a++) if (diam[a] > diam[mc] && lo[a] >= 0) mc = a;
+  const mid = (lo[mc] + hi[mc]) / 2;
+  IV.trace = {top, bot, axis: [P(first, mid), P(last, mid)]};
+  drawImg();
+  const segs = profileToSegs(prof, k);
+  applyTrace(segs, vol, lenPx * k, Math.max(...prof), '#imgResult');
+}
+$('#btnTrace').addEventListener('click', traceImage);
+
+/* 直徑分布 → 分段（Douglas–Peucker 折線簡化） */
+function profileToSegs(prof, step){
+  const n = prof.length; if (n < 2) return [];
+  step = step * n / (n - 1); // n 個取樣點涵蓋 n 個間隔
+  const maxD = Math.max(...prof);
+  const eps = Math.max(0.05, maxD * 0.012, step * 0.8);
+  const keep = new Uint8Array(n); keep[0] = keep[n-1] = 1;
+  const stack = [[0, n - 1]];
+  while (stack.length){
+    const [a, b] = stack.pop(); let md = 0, mi = -1;
+    for (let i = a + 1; i < b; i++){ const t = (i - a) / (b - a); const dv = Math.abs(prof[i] - (prof[a] + (prof[b] - prof[a]) * t)); if (dv > md){ md = dv; mi = i; } }
+    if (md > eps && mi > 0){ keep[mi] = 1; stack.push([a, mi], [mi, b]); }
+  }
+  const idx = []; keep.forEach((v, i) => v && idx.push(i));
+  let pieces = [];
+  for (let j = 0; j < idx.length - 1; j++){
+    const a = idx[j], b = idx[j+1], len = (b - a) * step;
+    const sl = prof.slice(a, b + 1); const avg = sl.reduce((x, y) => x + y, 0) / sl.length;
+    pieces.push({a, b, len, d1: prof[a], d2: prof[b], avg});
+  }
+  // 極短的垂直段（段差）併入相鄰段
+  const minLen = Math.max(step * 2.5, 0.25);
+  const kept = []; let carry = 0;
+  pieces.forEach(p => {
+    if (p.len < minLen){ if (kept.length) kept.at(-1).len += p.len; else carry += p.len; return; }
+    p.len += carry; carry = 0; kept.push(p);
+  });
+  if (!kept.length && pieces.length) kept.push(Object.assign(pieces[0], {len: pieces.reduce((x, p) => x + p.len, 0)}));
+  const out = [];
+  kept.forEach(p => {
+    const cyl = Math.abs(p.d1 - p.d2) <= eps * 2;
+    const seg = cyl ? {shape:'cyl', d1: +p.avg.toFixed(2), len: p.len} : {shape:'cone', d1: +p.d1.toFixed(2), d2: +p.d2.toFixed(2), len: p.len};
+    const last = out.at(-1);
+    if (last && last.shape === 'cyl' && seg.shape === 'cyl' && Math.abs(last.d1 - seg.d1) <= eps * 2){
+      last.d1 = +((last.d1 * last.len + seg.d1 * seg.len) / (last.len + seg.len)).toFixed(2); last.len += seg.len;
+    } else out.push(seg);
+  });
+  out.forEach(s => s.len = +s.len.toFixed(2));
+  return out;
+}
+function applyTrace(segs, vol, L, D, box){
+  S.segs = segs; S.geoMode = 'seg';
+  renderSegs(); recalc(); saveDraft();
+  const el = $(box); el.hidden = false;
+  el.innerHTML = `<span>總長 <b>${fmt(L,2)}</b> mm</span><span>最大外徑 <b>${fmt(D,2)}</b> mm</span><span>描繪體積 <b>${fmt(vol,1)}</b> mm³</span><span>拆成 <b>${segs.length}</b> 段</span>`;
+  showMsg(`已自動產生 ${segs.length} 段輪廓。請在「分段輪廓」把螺紋段勾選「螺紋」（體積改用節徑），六角頭改成「六角」並填對邊，再確認重量。`, 'ok');
+  $('#segBox').scrollIntoView({behavior:'smooth', block:'start'});
+}
+
+/* ---- DXF ---- */
+const DX = {segs: [], layers: {}, bbox: null, prof: null, axis: 'h'};
+async function loadDxf(f){
+  const txt = await f.text();
+  const r = parseDxf(txt);
+  if (!r.segs.length) throw new Error('DXF 內找不到線段（LINE、POLYLINE、ARC…）。若圖形在圖塊（BLOCK）中，請在 CAD 先分解後再存檔。');
+  DX.segs = r.segs; DX.layers = {}; DX.prof = null;
+  r.segs.forEach(s => DX.layers[s[4]] = DX.layers[s[4]] ?? !/dim|尺寸|center|中心|text|文字|title|圖框|border|hatch|剖面線/i.test(s[4]));
+  if (r.unit === 1) $('#dxUnit').value = '25.4'; else $('#dxUnit').value = '1';
+  $('#dxfLayers').innerHTML = Object.keys(DX.layers).map(l => `<label class="chk"><input type="checkbox" data-layer="${esc(l)}" ${DX.layers[l]?'checked':''}>${esc(l)}</label>`).join('');
+  $('#dxfPanel').hidden = false; $('#dxfResult').hidden = true;
+  thumb = null; drawDxf();
+  showMsg(`讀到 ${r.segs.length} 條線段、${Object.keys(DX.layers).length} 個圖層。確認圖層後按「分析輪廓」。`);
+}
+$('#dxfLayers').addEventListener('change', e => { const l = e.target.dataset.layer; if (l != null){ DX.layers[l] = e.target.checked; DX.prof = null; drawDxf(); } });
+function parseDxf(txt){
+  const lines = txt.split(/\r?\n/); const pairs = [];
+  for (let i = 0; i + 1 < lines.length; i += 2) pairs.push([parseInt(lines[i].trim(), 10), lines[i+1].trim()]);
+  let unit = 4;
+  for (let i = 0; i < pairs.length; i++) if (pairs[i][1] === '$INSUNITS' && pairs[i+1]) { unit = parseInt(pairs[i+1][1], 10); break; }
+  let i = pairs.findIndex((p, j) => p[0] === 2 && p[1] === 'ENTITIES' && pairs[j-1] && pairs[j-1][1] === 'SECTION');
+  if (i < 0) i = 0;
+  const segs = [];
+  const pushArc = (cx, cy, r, a0, a1, layer) => { if (a1 < a0) a1 += 360; const n = Math.max(8, Math.ceil((a1 - a0) / 5)); let px, py;
+    for (let k = 0; k <= n; k++){ const a = (a0 + (a1 - a0) * k / n) * Math.PI / 180; const x = cx + r * Math.cos(a), y = cy + r * Math.sin(a); if (k) segs.push([px, py, x, y, layer]); px = x; py = y; } };
+  const bulgeSeg = (x1, y1, x2, y2, b, layer) => {
+    if (!b){ segs.push([x1, y1, x2, y2, layer]); return; }
+    const th = 4 * Math.atan(b), dx = x2 - x1, dy = y2 - y1, c = Math.hypot(dx, dy); if (!c) return;
+    const r = c / (2 * Math.sin(th / 2)); const h = r * Math.cos(th / 2);
+    const mx = (x1 + x2) / 2, my = (y1 + y2) / 2; const cx = mx - h * dy / c, cy = my + h * dx / c;
+    let a0 = Math.atan2(y1 - cy, x1 - cx) * 180 / Math.PI, a1 = Math.atan2(y2 - cy, x2 - cx) * 180 / Math.PI;
+    if (b < 0) [a0, a1] = [a1, a0];
+    pushArc(cx, cy, Math.abs(r), a0, a1, layer);
+  };
+  let cur = null, poly = null;
+  const flush = () => {
+    if (!cur) return; const e = cur, L = e.layer || '0';
+    if (e.type === 'LINE') segs.push([e[10], e[20], e[11], e[21], L]);
+    else if (e.type === 'ARC') pushArc(e[10], e[20], e[40], e[50], e[51], L);
+    else if (e.type === 'CIRCLE') pushArc(e[10], e[20], e[40], 0, 360, L);
+    else if (e.type === 'LWPOLYLINE' || e.type === 'SPLINE'){
+      const pts = e.type === 'SPLINE' && e.fit.length > 1 ? e.fit : e.pts;
+      for (let k = 0; k + 1 < pts.length; k++) bulgeSeg(pts[k][0], pts[k][1], pts[k+1][0], pts[k+1][1], e.type === 'LWPOLYLINE' ? pts[k][2] : 0, L);
+      if ((e[70] & 1) && pts.length > 2) bulgeSeg(pts.at(-1)[0], pts.at(-1)[1], pts[0][0], pts[0][1], e.type === 'LWPOLYLINE' ? pts.at(-1)[2] : 0, L);
+    }
+    else if (e.type === 'POLYLINE') poly = {layer: L, flag: e[70] || 0, pts: []};
+    else if (e.type === 'VERTEX' && poly) poly.pts.push([e[10], e[20], e[42] || 0]);
+    else if (e.type === 'SEQEND' && poly){ const pts = poly.pts;
+      for (let k = 0; k + 1 < pts.length; k++) bulgeSeg(pts[k][0], pts[k][1], pts[k+1][0], pts[k+1][1], pts[k][2], poly.layer);
+      if ((poly.flag & 1) && pts.length > 2) bulgeSeg(pts.at(-1)[0], pts.at(-1)[1], pts[0][0], pts[0][1], pts.at(-1)[2], poly.layer);
+      poly = null; }
+    cur = null;
+  };
+  for (; i < pairs.length; i++){
+    const [c, v] = pairs[i];
+    if (c === 0){ flush(); if (v === 'ENDSEC') break; cur = {type: v, pts: [], fit: []}; continue; }
+    if (!cur) continue;
+    if (c === 8) cur.layer = v;
+    else if (cur.type === 'LWPOLYLINE' && c === 10) cur.pts.push([+v, 0, 0]);
+    else if (cur.type === 'LWPOLYLINE' && c === 20) { if (cur.pts.length) cur.pts.at(-1)[1] = +v; }
+    else if (cur.type === 'LWPOLYLINE' && c === 42) { if (cur.pts.length) cur.pts.at(-1)[2] = +v; }
+    else if (cur.type === 'SPLINE' && c === 10) cur.pts.push([+v, 0]);
+    else if (cur.type === 'SPLINE' && c === 20) { if (cur.pts.length) cur.pts.at(-1)[1] = +v; }
+    else if (cur.type === 'SPLINE' && c === 11) cur.fit.push([+v, 0]);
+    else if (cur.type === 'SPLINE' && c === 21) { if (cur.fit.length) cur.fit.at(-1)[1] = +v; }
+    else if ([10,20,11,21,40,42,50,51,70].includes(c)) cur[c] = +v;
+  }
+  flush();
+  return {segs: segs.filter(s => s.slice(0,4).every(isFinite)), unit};
+}
+function dxfActive(){ return DX.segs.filter(s => DX.layers[s[4]]); }
+function drawDxf(){
+  const cv = $('#dxfCanvas'); const segs = dxfActive(); const all = DX.segs;
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  (segs.length ? segs : all).forEach(s => { x0 = Math.min(x0, s[0], s[2]); x1 = Math.max(x1, s[0], s[2]); y0 = Math.min(y0, s[1], s[3]); y1 = Math.max(y1, s[1], s[3]); });
+  const W = 1600, pad = 40, sc = Math.min((W - 2*pad) / Math.max(x1 - x0, 1e-6), 900 / Math.max(y1 - y0, 1e-6));
+  const H = Math.round((y1 - y0) * sc + 2 * pad);
+  cv.width = W; cv.height = H;
+  const c = cv.getContext('2d'); c.fillStyle = '#fff'; c.fillRect(0, 0, W, H);
+  const T = (x, y) => [pad + (x - x0) * sc, H - pad - (y - y0) * sc];
+  all.forEach(s => { const on = DX.layers[s[4]]; c.strokeStyle = on ? '#1B2025' : '#C9CED0'; c.lineWidth = on ? 2 : 1;
+    const [a, b] = T(s[0], s[1]), [d, e] = T(s[2], s[3]); c.beginPath(); c.moveTo(a, b); c.lineTo(d, e); c.stroke(); });
+  if (DX.prof){ c.strokeStyle = '#D0342C'; c.lineWidth = 3; c.beginPath();
+    DX.prof.top.forEach((p, i) => { const [a, b] = T(p[0], p[1]); i ? c.lineTo(a, b) : c.moveTo(a, b); }); c.stroke(); c.beginPath();
+    DX.prof.bot.forEach((p, i) => { const [a, b] = T(p[0], p[1]); i ? c.lineTo(a, b) : c.moveTo(a, b); }); c.stroke(); }
+  try { thumb = cv.toDataURL('image/png'); } catch(e){}
+}
+$('#btnDxf').addEventListener('click', () => {
+  const segs = dxfActive(); if (!segs.length){ showMsg('請至少勾選一個圖層。', 'err'); return; }
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  segs.forEach(s => { x0 = Math.min(x0, s[0], s[2]); x1 = Math.max(x1, s[0], s[2]); y0 = Math.min(y0, s[1], s[3]); y1 = Math.max(y1, s[1], s[3]); });
+  let axis = $('#dxAxis').value; if (axis === 'auto') axis = (x1 - x0) >= (y1 - y0) ? 'h' : 'v';
+  const u = s => axis === 'h' ? [s[0], s[1], s[2], s[3]] : [s[1], s[0], s[3], s[2]];
+  const U0 = axis === 'h' ? x0 : y0, U1 = axis === 'h' ? x1 : y1, V0 = axis === 'h' ? y0 : x0;
+  const half = $('#dxMode').value === 'half', unit = +$('#dxUnit').value;
+  const N = 1500, step = (U1 - U0) / N;
+  const prof = [], top = [], bot = [];
+  for (let k = 0; k < N; k++){
+    const uu = U0 + (k + .5) * step; let lo = Infinity, hi = -Infinity;
+    segs.forEach(s => { const [a, b, c2, d] = u(s); if ((a - uu) * (c2 - uu) > 0 || a === c2) return; const t = (uu - a) / (c2 - a); const v = b + (d - b) * t; lo = Math.min(lo, v); hi = Math.max(hi, v); });
+    const dia = hi > lo ? (half ? 2 * (hi - V0) : hi - lo) : 0;
+    prof.push(dia * unit);
+    if (hi > lo){ const tp = axis === 'h' ? [uu, hi] : [hi, uu], bt = axis === 'h' ? [uu, half ? V0 : lo] : [half ? V0 : lo, uu]; top.push(tp); bot.push(bt); }
+  }
+  let f = 0, l = prof.length - 1; while (f < l && prof[f] < 1e-6) f++; while (l > f && prof[l] < 1e-6) l--;
+  const p = prof.slice(f, l + 1), st = step * unit;
+  const vol = p.reduce((a, d) => a + Math.PI / 4 * d * d * st, 0);
+  DX.prof = {top, bot}; drawDxf();
+  applyTrace(profileToSegs(p, st), vol, p.length * st, Math.max(...p), '#dxfResult');
+});
+
+/* ---- STL ---- */
+let STLRAW = null;
+async function loadStl(f){
+  const buf = await f.arrayBuffer(); const dv = new DataView(buf);
+  const tris = [];
+  const isBin = buf.byteLength >= 84 && 84 + dv.getUint32(80, true) * 50 === buf.byteLength;
+  if (isBin){
+    const n = dv.getUint32(80, true);
+    for (let i = 0; i < n; i++){ const o = 84 + i * 50 + 12; const t = []; for (let j = 0; j < 9; j++) t.push(dv.getFloat32(o + j * 4, true)); tris.push(t); }
+  } else {
+    const txt = new TextDecoder().decode(buf); const re = /vertex\s+([-+\d.eE]+)\s+([-+\d.eE]+)\s+([-+\d.eE]+)/g; let m, t = [];
+    while ((m = re.exec(txt))){ t.push(+m[1], +m[2], +m[3]); if (t.length === 9){ tris.push(t); t = []; } }
+  }
+  if (!tris.length) throw new Error('STL 內沒有三角面');
+  let v = 0, area = 0; const mn = [Infinity, Infinity, Infinity], mx = [-Infinity, -Infinity, -Infinity];
+  tris.forEach(t => {
+    const [ax, ay, az, bx, by, bz, cx, cy, cz] = t;
+    v += (ax * (by * cz - bz * cy) - ay * (bx * cz - bz * cx) + az * (bx * cy - by * cx)) / 6;
+    const ux = bx-ax, uy = by-ay, uz = bz-az, wx = cx-ax, wy = cy-ay, wz = cz-az;
+    area += Math.hypot(uy*wz - uz*wy, uz*wx - ux*wz, ux*wy - uy*wx) / 2;
+    for (let k = 0; k < 9; k++){ mn[k%3] = Math.min(mn[k%3], t[k]); mx[k%3] = Math.max(mx[k%3], t[k]); }
+  });
+  STLRAW = {vol: Math.abs(v), area, box: [0,1,2].map(k => mx[k] - mn[k]), n: tris.length};
+  $('#stlPanel').hidden = false; thumb = null; showStl();
+  showMsg(`讀到 ${tris.length.toLocaleString()} 個三角面。確認單位後按「採用 STL 實體體積」。`);
+}
+function showStl(){
+  const u = +$('#stlUnit').value, r = STLRAW; if (!r) return;
+  const box = r.box.map(b => b * u).sort((a, b) => a - b);
+  $('#stlResult').innerHTML = `<span>體積 <b>${fmt(r.vol * u**3, 1)}</b> mm³</span><span>表面積 <b>${fmt(r.area * u*u, 1)}</b> mm²</span><span>外框 <b>${box.map(b => fmt(b, 2)).join(' × ')}</b> mm</span><span>三角面 <b>${r.n.toLocaleString()}</b></span>` +
+    `<span>預估重量 <b>${fmt(r.vol * u**3 * material().rho / 1000, 3)}</b> g（${esc(material().n)}）</span>`;
+}
+$('#stlUnit').addEventListener('change', showStl);
+$('#btnStl').addEventListener('click', () => {
+  const u = +$('#stlUnit').value; S.stlVol = STLRAW.vol * u**3; S.stlBox = STLRAW.box.map(b => b * u).sort((a, b) => a - b);
+  S.stlName = S.file?.name || ''; S.geoMode = 'stl'; saveDraft(); recalc();
+  showMsg('重量已改用 STL 實體體積。總長、外徑取自模型外框；螺紋與車修特徵請在參數模板或分段輪廓設定。', 'ok');
+});
+
+/* ================= 報價單 ================= */
+function ensureSheetMeta(){
+  const d = new Date(); const ds = d.toISOString().slice(0, 10);
+  if (!S.sheet.date) S.sheet.date = ds;
+  if (!S.sheet.no){ const H = LS.get('cq.history', []); const pre = 'Q' + ds.replace(/-/g, ''); const n = H.filter(h => (h.no || '').startsWith(pre)).length + 1; S.sheet.no = pre + '-' + String(n).padStart(2, '0'); }
+}
+function routeText(Q){ return Q.route === 'turn' ? '棒材全車削' : '冷打成型'; }
+function renderSheet(){
+  ensureSheetMeta(); syncInputs($('#view-sheet'));
+  if (!LAST) recalc();
+  const {G, Q, qty, m, T} = LAST, sh = S.sheet, info = S.info, dp = +S.dp || 2;
+  const unit = Q.unit, total = unit * qty;
+  const exp = sh.date ? new Date(new Date(sh.date).getTime() + num(sh.valid) * 864e5).toISOString().slice(0, 10) : '';
+  const procs = Q.rows.filter(r => r.on && r.k !== 'material' && r.k !== 'freight' && !r.k.startsWith('x')).map(r => r.n).join('、');
+  const spec = specText(G);
+  $('#sheet').innerHTML = `
+    <h2>報 價 單</h2>
+    <div class="meta">
+      <table><tr><th>客戶</th><td>${esc(info.customer)}</td></tr><tr><th>報價單號</th><td>${esc(sh.no)}</td></tr><tr><th>報價日期</th><td>${esc(sh.date)}</td></tr></table>
+      <table><tr><th>報價公司</th><td>${esc(sh.company)}</td></tr><tr><th>聯絡</th><td>${esc(sh.contact)}</td></tr><tr><th>有效期限</th><td>${esc(exp)}</td></tr></table>
+    </div>
+    <table>
+      <tr><th>品名</th><td>${esc(info.part)}</td><th>圖號</th><td>${esc(info.drawingNo)}</td></tr>
+      <tr><th>規格</th><td>${esc(spec)}</td><th>材質</th><td>${esc(m.n)}</td></tr>
+      <tr><th>強度等級</th><td>${esc(info.grade)}</td><th>表面處理</th><td>${esc(info.plating)}</td></tr>
+      <tr><th>熱處理</th><td>${esc(LAST.A.heatType)}</td><th>單支重量</th><td>${fmt(Q.kgPc*1000, 3)} g（千支 ${fmt(Q.kgPc*1000, 2)} kg）</td></tr>
+      <tr><th>加工方式</th><td colspan="3">${esc(routeText(Q))}：${esc(procs)}</td></tr>
+      ${sh.lead ? `<tr><th>交期</th><td colspan="3">${esc(sh.lead)}</td></tr>` : ''}
+    </table>
+    ${sh.showImg && thumb ? `<div class="imgbox"><img src="${thumb}" alt="零件圖"></div>` : ''}
+    <table>
+      <tr><th>數量（支）</th><th class="r">單價（元/支）</th><th class="r">金額（元）</th></tr>
+      <tr><td class="num">${fmt(qty,0)}</td><td class="r num">${fmt(unit, dp)}</td><td class="r num">${fmt(total, 0)}</td></tr>
+      ${sh.showTax ? `<tr><td colspan="2" class="r">營業稅 5%</td><td class="r num">${fmt(total*.05,0)}</td></tr><tr><td colspan="2" class="r"><b>含稅總計</b></td><td class="r num"><b>${fmt(total*1.05,0)}</b></td></tr>` : ''}
+    </table>
+    ${sh.showTiers ? `<table><tr><th>數量級距</th>${T.map(t => `<th class="r">${fmt(t.q,0)}</th>`).join('')}</tr><tr><th>單價</th>${T.map(t => `<td class="r num">${fmt(t.r.unit, dp)}</td>`).join('')}</tr></table>` : ''}
+    ${sh.showCost ? `<table><tr><th>工序</th><th>說明</th><th class="r">元/支</th></tr>${Q.rows.filter(r => r.on).map(r => `<tr><td>${esc(r.n)}</td><td>${esc(r.note || '')}</td><td class="r num">${fmt(r.unit,4)}</td></tr>`).join('')}
+      <tr><td>不良損耗／管銷／利潤</td><td></td><td class="r num">${fmt(Q.defectAmt + Q.ohAmt + Q.pfAmt, 4)}</td></tr></table>` : ''}
+    <div class="foot">${esc(sh.terms)}</div>
+    <div class="sign"><span>報價人：</span><span>客戶確認簽章：</span></div>`;
+}
+function specText(G){
+  const t = G.thread; let s = '';
+  if (t) s = `M${+t.d.toFixed(2)}${Math.abs(t.P - coarsePitch(t.d)) > 1e-6 ? '×' + t.P : ''}×${fmt(S.geoMode === 'tpl' ? num(S.tpl.L) : G.L - [...G.head].reduce((a, i) => a + num(G.segs[i].len), 0), 1).replace(/\.0$/, '')}`;
+  else s = `Ø${fmt(G.maxD,1)}×${fmt(G.L,1)}`;
+  if (S.geoMode === 'tpl') s += ' ' + (HEADS.find(h => h.v === S.tpl.head) || {}).n;
+  return s;
+}
+function quoteText(){
+  const {G, Q, qty, m, T} = LAST, info = S.info, sh = S.sheet, dp = +S.dp || 2;
+  const lines = [`【報價】${sh.no}　${sh.date}`, info.customer ? `客戶：${info.customer}` : '', `品名：${info.part || '訂製螺絲'}${info.drawingNo ? '（圖號 ' + info.drawingNo + '）' : ''}`,
+    `規格：${specText(G)}`, `材質：${m.n}　等級：${info.grade}　熱處理：${LAST.A.heatType}　表面：${info.plating}`,
+    `單重：${fmt(Q.kgPc*1000,3)} g`, `工序：${routeText(Q)}／${Q.rows.filter(r => r.on && r.k !== 'material' && r.k !== 'freight').map(r => r.n).join('→')}`,
+    `數量 ${fmt(qty,0)} 支，單價 ${fmt(Q.unit, dp)} 元，合計 ${fmt(Q.unit*qty,0)} 元（未稅）`];
+  if (sh.showTiers) lines.push('級距：' + T.map(t => `${fmt(t.q,0)} 支 ${fmt(t.r.unit, dp)}`).join('／'));
+  if (sh.lead) lines.push('交期：' + sh.lead);
+  return lines.filter(Boolean).join('\n');
+}
+$('#btnPrint').addEventListener('click', () => window.print());
+$('#btnCopy').addEventListener('click', async () => { const t = quoteText(); try { await navigator.clipboard.writeText(t); $('#copyMsg').textContent = '已複製'; } catch(e){ prompt('複製以下文字', t); } setTimeout(() => $('#copyMsg').textContent = '', 2000); });
+$('#btnMakeSheet').addEventListener('click', () => showView('sheet'));
+
+/* ================= 歷史紀錄 ================= */
+function snapshot(){ ensureSheetMeta(); const {Q, qty, G} = LAST; return {id: Date.now(), no: S.sheet.no, date: S.sheet.date, customer: S.info.customer, part: S.info.part, spec: specText(G), qty, unit: Q.unit, weight: Q.kgPc*1000, route: Q.route, state: JSON.parse(JSON.stringify(S))}; }
+$('#btnSave').addEventListener('click', () => {
+  recalc(); const H = LS.get('cq.history', []); const snap = snapshot();
+  const i = H.findIndex(h => h.no === snap.no); if (i >= 0) H[i] = snap; else H.unshift(snap);
+  LS.set('cq.history', H) ? alert(`已存入：${snap.no}`) : alert('儲存失敗（瀏覽器空間不足或被封鎖）');
+});
+$('#btnNew').addEventListener('click', () => {
+  if (!confirm('開新報價？目前未存的內容會清除（單價設定保留）。')) return;
+  S = DEFAULT_STATE(); thumb = null; initUI(); showMsg(''); ['imgPanel','dxfPanel','stlPanel'].forEach(id => $('#' + id).hidden = true); $('#fileMeta').hidden = true;
+});
+function renderHistory(){
+  const H = LS.get('cq.history', []); const dp = +S.dp || 2;
+  $('#histTable').innerHTML = `<thead><tr><th>單號</th><th>日期</th><th>客戶</th><th>品名／規格</th><th class="r">數量</th><th class="r">單重 g</th><th class="r">單價</th><th></th></tr></thead><tbody>` +
+    (H.map((h, i) => `<tr><td class="num">${esc(h.no)}</td><td>${esc(h.date)}</td><td>${esc(h.customer)}</td><td>${esc(h.part)}<br><span class="hint">${esc(h.spec)}</span></td><td class="r num">${fmt(h.qty,0)}</td><td class="r num">${fmt(h.weight,2)}</td><td class="r num">${fmt(h.unit, dp)}</td>
+      <td class="r"><button class="btn sm" data-load="${i}">載入</button> <button class="btn sm" data-copy="${i}">複製為新報價</button> <button class="btn ghost sm" data-del="${i}">✕</button></td></tr>`).join('') || `<tr><td colspan="8" class="hint">尚無紀錄</td></tr>`) + '</tbody>';
+}
+$('#histTable').addEventListener('click', e => {
+  const H = LS.get('cq.history', []); const b = e.target.closest('button'); if (!b) return;
+  if (b.dataset.del != null){ if (confirm('刪除這筆紀錄？')){ H.splice(+b.dataset.del, 1); LS.set('cq.history', H); renderHistory(); } return; }
+  const h = H[+(b.dataset.load ?? b.dataset.copy)]; if (!h) return;
+  S = Object.assign(DEFAULT_STATE(), JSON.parse(JSON.stringify(h.state)));
+  if (b.dataset.copy != null){ S.sheet.no = ''; S.sheet.date = ''; }
+  thumb = null; initUI(); showView('calc');
+});
+function download(name, text, type='application/json'){ const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], {type})); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000); }
+$('#btnExportHist').addEventListener('click', () => download('訂製螺絲報價紀錄.json', JSON.stringify(LS.get('cq.history', []), null, 1)));
+$('#btnExportCsv').addEventListener('click', () => {
+  const H = LS.get('cq.history', []); const rows = [['單號','日期','客戶','品名','規格','數量','單重g','單價','工法']].concat(H.map(h => [h.no, h.date, h.customer, h.part, h.spec, h.qty, h.weight.toFixed(3), h.unit.toFixed(4), h.route === 'turn' ? '全車削' : '冷打']));
+  download('訂製螺絲報價紀錄.csv', '﻿' + rows.map(r => r.map(c => `"${String(c ?? '').replace(/"/g, '""')}"`).join(',')).join('\n'), 'text/csv');
+});
+$('#importHist').addEventListener('change', async e => { const f = e.target.files[0]; if (!f) return; try { const d = JSON.parse(await f.text()); if (!Array.isArray(d)) throw 0;
+  const H = LS.get('cq.history', []); const ids = new Set(H.map(h => h.no)); d.forEach(h => { if (!ids.has(h.no)) H.push(h); }); LS.set('cq.history', H); renderHistory(); } catch(err){ alert('檔案格式不正確'); } e.target.value = ''; });
+
+/* ================= 單價設定 ================= */
+const SETCOLS = {
+  materials: [['n','材質名稱','text'],['rho','密度 g/cm³','number'],['price','材料單價 元/kg','number'],['cold','可冷打','check']],
+  heats: [['n','熱處理名稱','text'],['price','單價 元/kg','number'],['min','最低收費 元/批','number']],
+  platings: [['n','表面處理名稱','text'],['price','單價 元/kg','number'],['min','最低收費 元/批','number'],['electro','電解','check']],
+  heading: [['d','螺紋徑上限 mm','number'],['perK','加工費 元/千支','number'],['mold','模具費 元','number']]
+};
+const SETTBL = {materials:'#setMat', heats:'#setHeat', platings:'#setPlate', heading:'#setHeading'};
+function renderSettings(){
+  Object.entries(SETTBL).forEach(([key, sel]) => {
+    const cols = SETCOLS[key];
+    $(sel).innerHTML = `<thead><tr>${cols.map(c => `<th>${c[1]}</th>`).join('')}<th></th></tr></thead><tbody>` +
+      SET[key].map((r, i) => `<tr data-i="${i}">${cols.map(([f,, t]) => `<td>${t === 'check' ? `<input type="checkbox" data-f="${f}" ${r[f]?'checked':''}>` : `<input type="${t}" step="any" data-f="${f}" value="${esc(r[f])}">`}</td>`).join('')}<td class="r"><button class="btn ghost sm" data-del>✕</button></td></tr>`).join('') + '</tbody>';
+    $(sel).dataset.key = key;
+  });
+  $('#setParams').innerHTML = PARAMS.map(([k, n, u]) => `<label class="fld">${n}（${u}）<input type="${k === 'tiers' ? 'text' : 'number'}" step="any" data-sp="${k}" value="${esc(SET.p[k])}"></label>`).join('');
+}
+document.querySelector('#view-settings').addEventListener('input', e => {
+  const el = e.target;
+  if (el.dataset.sp){ SET.p[el.dataset.sp] = el.type === 'number' ? num(el.value) : el.value; }
+  else if (el.dataset.f){ const tbl = el.closest('table'), key = tbl.dataset.key, i = +el.closest('tr').dataset.i, col = SETCOLS[key].find(c => c[0] === el.dataset.f);
+    const old = SET[key][i][el.dataset.f];
+    SET[key][i][el.dataset.f] = col[2] === 'check' ? el.checked : col[2] === 'number' ? num(el.value) : el.value;
+    if (col[0] === 'n'){ // 改名時同步目前選擇
+      if (key === 'materials' && S.info.material === old) S.info.material = el.value;
+      if (key === 'heats' && S.info.heat === old) S.info.heat = el.value;
+      if (key === 'platings' && S.info.plating === old) S.info.plating = el.value;
+    }
+  } else return;
+  saveSettings(); renderSelects(); recalc();
+});
+document.querySelector('#view-settings').addEventListener('click', e => {
+  const add = e.target.closest('[data-add]'), del = e.target.closest('[data-del]');
+  if (add){ const k = add.dataset.add; const blankRow = Object.fromEntries(SETCOLS[k].map(([f,, t]) => [f, t === 'number' ? 0 : t === 'check' ? (f === 'cold') : '新項目'])); if (k === 'materials') blankRow.rho = 7.85; SET[k].push(blankRow); }
+  else if (del){ const tbl = del.closest('table'), key = tbl.dataset.key; if (SET[key].length <= 1) return; SET[key].splice(+del.closest('tr').dataset.i, 1); }
+  else return;
+  saveSettings(); renderSettings(); renderSelects(); recalc();
+});
+$('#btnExportSet').addEventListener('click', () => download('訂製螺絲單價設定.json', JSON.stringify(SET, null, 1)));
+$('#importSet').addEventListener('change', async e => { const f = e.target.files[0]; if (!f) return; try { SET = mergeSettings(JSON.parse(await f.text())); saveSettings(); renderSettings(); renderSelects(); recalc(); } catch(err){ alert('檔案格式不正確'); } e.target.value = ''; });
+$('#btnResetSet').addEventListener('click', () => { if (!confirm('還原所有單價為預設值？')) return; SET = mergeSettings(null); saveSettings(); renderSettings(); renderSelects(); recalc(); });
+
+/* ================= 啟動 ================= */
+function initUI(){ renderSelects(); syncInputs(); renderTplFields(); renderGeoMode(); renderSegs(); renderProcs(); renderExtras(); recalc(); saveDraft(); }
+initUI();
+if (window.matchMedia) matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', () => recalc());
+</script>
+</body>
+</html>
