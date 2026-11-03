@@ -16,6 +16,16 @@ for r in build().to_dict('records'):
     rows.append({'id': r['編號'], 'sup': r['廠商'], 'date': r['日期'], 'name': r['品名'], 'spec': r['規格'],
                  'mg': r['材質群'], 'fin': r['表面'], 'qty': int(r['數量']), 'price': r['單價'],
                  'mold': clean(r['模具費']), 'w': clean(r['估計重量g'])})
+# 第二批：澤發詢價（analysis/zefa_quotes.py 估重）
+from zefa_quotes import load as load_zefa  # noqa: E402
+MG = {'不鏽鋼': 'SUS', '鐵／低碳鋼': '鐵', '合金鋼': '合金鋼', '中碳鋼': '中碳鋼', '彈簧鋼': '彈簧鋼'}
+for r in load_zefa().to_dict('records'):
+    if r['單價n'] != r['單價n']:
+        continue
+    num = lambda v: None if v != v else v
+    rows.append({'id': r['file'], 'sup': r['廠商'], 'date': r['日期'], 'name': r['品名'], 'spec': r['規格'],
+                 'mg': MG.get(r['材質群'], r['材質群']), 'fin': r['表面'], 'qty': int(r['數量n']) if r['數量n'] == r['數量n'] else 0,
+                 'price': r['單價n'], 'mold': num(r['模具n']), 'w': num(r['估重g'])})
 path = os.path.join(root, 'index.html')
 s = open(path, encoding='utf-8').read()
 s, n = re.subn(r'/\*CUSTOM\*/.*?/\*ENDCUSTOM\*/', lambda m: '/*CUSTOM*/' + json.dumps(rows, ensure_ascii=False) + '/*ENDCUSTOM*/', s, count=1, flags=re.S)
