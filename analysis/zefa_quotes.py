@@ -15,6 +15,7 @@ import pandas as pd
 
 HERE = Path(__file__).resolve().parent
 SRC = HERE / '澤發詢價明細.tsv'
+SRC2 = HERE / '久允詢價明細_113-115.tsv'
 OUT = HERE / 'output'
 INCH = 25.4
 
@@ -124,7 +125,7 @@ def roc_year(s):
 
 
 def load():
-    d = pd.read_csv(SRC, sep='\t', dtype=str).fillna('')
+    d = pd.concat([pd.read_csv(f, sep='\t', dtype=str) for f in (SRC, SRC2) if f.exists()], ignore_index=True).fillna('')
     d['材質群'] = d['材質'].map(mat_group)
     d['年'] = d['日期'].map(roc_year)
     d['數量n'] = pd.to_numeric(d['數量'].str.replace(',', ''), errors='coerce')
