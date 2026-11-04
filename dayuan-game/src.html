@@ -81,7 +81,10 @@ body.touch #prompt{bottom:170px}
 #tbtns button{width:64px!important;height:64px!important;font-size:15px!important}
 #bThrow{background:rgba(232,84,47,.8)}#bJump{background:rgba(47,168,79,.75)}#bPlace{background:rgba(160,110,60,.8)}#bBag,#bView{background:rgba(60,60,80,.75)}
 body.touch #hotbar{bottom:auto;top:auto;bottom:178px}
-body.touch #hotbar .slot{width:36px;height:40px}body.touch #hotbar .sw{width:20px;height:20px;font-size:15px}body.touch #hotbar .slot>span:not(.cnt):not(.num){display:none}
+body.touch #hotbar .slot{width:36px;height:40px}body.touch #hotbar .sw{width:20px;height:20px;font-size:15px}body.touch #hotbar .slot>span:not(.cnt):not(.num):not(.sw){display:none}
+#hudToggle{display:none}
+@media (max-height:820px),(max-width:900px){#hud{padding:6px 10px;font-size:12px;width:min(230px,calc(100vw - 210px))}#hpbar{height:10px}#quests{font-size:11px;line-height:1.4}#hudToggle{display:block;pointer-events:auto;position:absolute;right:6px;bottom:4px;font-size:11px;background:none;border:0;color:#9fe3ae;cursor:pointer}#hud.min #quests,#hud.min #buffs{display:none}#mini{width:140px;height:114px}#toolbar{top:132px}}
+@media (max-height:620px){#mini{width:110px;height:90px}#toolbar{top:108px}#tbtns button{width:54px!important;height:54px!important;font-size:13px!important}#joy{width:110px;height:110px}#knob{left:30px;top:30px}}
 body.touch #prompt{bottom:236px}
 #miniOv{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(8,16,10,.94);z-index:20;padding:10px}
 #miniBox{width:min(980px,100%);max-height:100%;overflow:auto;display:flex;flex-direction:column;gap:10px;align-items:center}
@@ -207,6 +210,7 @@ body.touch .ts-press{display:none}
   <div class="row"><span id="modeChip"></span><span id="where"></span></div>
   <div id="buffs"></div>
   <ul id="quests"></ul>
+  <button id="hudToggle" aria-label="收合任務">▲ 收合</button>
 </div>
 <canvas id="mini" width="360" height="292"></canvas>
 <div id="cross"></div><div id="digRing"></div><div id="hotbar"></div>
@@ -1596,9 +1600,12 @@ function applySettings(){
   camDist=SET.camDist;$('mini').style.visibility=SET.minimap?'visible':'hidden';$('quests').style.display=SET.quests?'':'none';$('fps').style.display=SET.fps?'block':'none';
   applyAudio();syncToolbar();}
 function syncToolbar(){$('tbMute').textContent=SET.mute?'🔇':'🔊';}
-$('tbSet').onclick=()=>toggleSettings(true);$('tbBag').onclick=()=>toggleBag(!bagOpen);$('tbView').onclick=()=>toggleView();
+$('tbSet').onclick=()=>toggleSettings(true);
+$('hudToggle').onclick=e=>{e.stopPropagation();const m=$('hud').classList.toggle('min');$('hudToggle').textContent=m?'▼ 任務':'▲ 收合';};$('tbBag').onclick=()=>toggleBag(!bagOpen);$('tbView').onclick=()=>toggleView();
 $('tbMute').onclick=()=>{SET.mute=!SET.mute;saveSet();applySettings();};
-$('tbFull').onclick=()=>{try{if(document.fullscreenElement)document.exitFullscreen();else document.documentElement.requestFullscreen().catch(()=>banner('這個瀏覽器不支援全螢幕',1.5));}catch(e){banner('這個瀏覽器不支援全螢幕',1.5);}};
+$('tbFull').onclick=()=>{const de=document.documentElement,fe=document.fullscreenElement||document.webkitFullscreenElement;
+  try{if(fe){(document.exitFullscreen||document.webkitExitFullscreen).call(document);return;}const rq=de.requestFullscreen||de.webkitRequestFullscreen;if(!rq)throw 0;const r=rq.call(de);if(r&&r.catch)r.catch(()=>fullHint());}catch(e){fullHint();}};
+function fullHint(){say([['小提示','這個視窗不能切換全螢幕。iPad 想要滿版玩：點視窗上方的「分享」→ 用 Safari 開啟，再點這顆 ⛶ 按鈕；或在 Safari 選「加入主畫面」，從主畫面打開就是全螢幕。']]);}
 ['tbSet','tbBag','tbView','tbMute','tbFull'].forEach(id=>$(id).addEventListener('pointerdown',e=>e.stopPropagation()));
 let fpsN=0,fpsT=0;
 applySettings();
