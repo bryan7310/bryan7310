@@ -333,7 +333,7 @@ const BUILDINGS=[
   {id:'admin',c:[225,68],l:150,w:48,a:25,floors:4,sign:true,towers:[-1,1],stone:true,enter:true,cs:1,core:true,chests:[{f:1,k:1,loot:{stone:6,log:3}},{roof:true,loot:{gem:3,iron:2}}],special:{'1-3':{label:'跑酷教室 3',type:'parkour',lv:2,color:'#8e44ad'}}},
   {id:'west',c:[95,78],l:150,w:35,a:-43.7,floors:4,towers:[1]},
   {id:'kitchen',c:[358,85],l:62,w:56,a:20,floors:2,label:'午餐廚房'},
-  {id:'main',c:[140,208],l:227,w:42,a:28,floors:4,towers:[-1,0,1],stair:[1,1],enter:true,cs:-1,core:true,chests:[{f:0,k:2,loot:{log:6,plank:4}},{f:2,k:5,loot:{iron:4,log:2}},{f:3,k:7,loot:{gem:2,plank:4}}],special:{'0-4':{label:'美術教室',type:'art',color:'#c0392b'},'1-2':{label:'音樂教室',type:'music',color:'#2f6fd0'},'0-6':{label:'跑酷教室 1',type:'parkour',lv:0,color:'#8e44ad'},'2-1':{label:'跑酷教室 2',type:'parkour',lv:1,color:'#8e44ad'}}},
+  {id:'main',c:[140,208],l:227,w:42,a:28,floors:4,towers:[-1,0,1],stair:[1,1],enter:true,cs:-1,core:true,chests:[{f:0,k:2,loot:{log:6,plank:4}},{f:2,k:5,loot:{iron:4,log:2}},{f:3,k:7,loot:{gem:2,plank:4}}],special:{'0-4':{label:'美術教室',type:'art',color:'#c0392b'},'1-2':{label:'音樂教室',type:'music',color:'#2f6fd0'},'0-6':{label:'跑酷教室 1',type:'parkour',lv:0,color:'#8e44ad'},'2-1':{label:'跑酷教室 2',type:'parkour',lv:1,color:'#8e44ad'},'1-5':{label:'迷因大賽',type:'meme',color:'#e67e22'},'2-3':{label:'無盡合成',type:'craft',color:'#16a085'},'3-2':{label:'益智教室',type:'puzzle',color:'#2980b9'}}},
   {id:'red',c:[262,215],l:52,w:44,a:26,floors:2,redRoof:true},
   {id:'gym',c:[256,422],l:95,w:100,a:10,gym:true},
 ];
@@ -1602,7 +1602,7 @@ function closeMini(){if(miniCleanup){const f=miniCleanup;miniCleanup=null;f();}m
 addEventListener('keydown',e=>{if(miniOpen&&miniKey){miniKey(e,true);}});
 addEventListener('keyup',e=>{if(miniOpen&&miniKey){miniKey(e,false);}});
 function reward(loot,why){const got=Object.entries(loot).map(([k,v])=>{addItem(k,v);return ITEM_N[k]+'×'+v;}).join('、');banner(why+'　獲得 '+got,3.2);sfx('power');}
-function enterRoom(r){const t=r.special.type;if(t==='art')startArt(r);else if(t==='music')startMusic(r);else if(t==='parkour')startParkour(r);else if(t==='dodge')startDodge(r);else if(t==='fish')startFish();else if(t==='hoops')startHoops();else if(t==='fps')startFPS();}
+function enterRoom(r){const t=r.special.type;if(t==='art')startArt(r);else if(t==='music')startMusic(r);else if(t==='parkour')startParkour(r);else if(t==='dodge')startDodge(r);else if(t==='fish')startFish();else if(t==='hoops')startHoops();else if(t==='fps')startFPS();else if(t==='meme')startMeme();else if(t==='craft')startCraft();else if(t==='puzzle')startPuzzle();}
 
 // ---- art room: 1-minute drawing ----
 const THEMES=[['太陽',['#f2c230','#f08a24','#3a8ee8']],['大樹',['#2fa84f','#7a5230']],['我的家',['#e23a2c','#7a5230','#3a8ee8']],['彩虹',['#e23a2c','#f08a24','#f2c230','#2fa84f','#3a8ee8','#8e44ad']],
@@ -2174,6 +2174,135 @@ function fpsEnd(){const F=FP;if(document.pointerLockElement)document.exitPointer
     <div class="mrow"><button class="gbtn" id="fpsAgain">再玩一次</button><button class="gbtn ghost" id="fpsOut">離開射擊場</button></div>`;
   $('fpsAgain').onclick=()=>{closeMini();startFPS();};$('fpsOut').onclick=closeMini;
   if(F.score>=500){const loot={iron:2};if(F.score>=1500)loot.gem=1;if(F.win)loot.gem=(loot.gem||0)+2;reward(loot,`射擊場 ${F.score} 分！`);}}
+
+// ---- meme contest: judge the meme ----
+const MEME_Q=[['地球繞著太陽轉',1],['太陽從西邊升起',0],['水在 0°C 會結冰',1],['蜘蛛是昆蟲，有六隻腳',0],['7 × 8 = 56',1],['台灣最高的山是玉山',1],['企鵝住在北極',0],['鯨魚是哺乳類',1],['1 公尺 = 100 公分',1],['月亮自己會發光',0],
+  ['植物會行光合作用',1],['台中市是台灣的首都',0],['三角形的內角和是 180 度',1],['蝙蝠是鳥類',0],['一年有 365 或 366 天',1],['聲音在真空中傳得最快',0],['彩虹有七種顏色',1],['恐龍和人類同一個時代生活',0],['冰比水重，會沉下去',0],['大象是陸地上最大的動物',1],
+  ['12 ÷ 4 = 3',1],['電池的正極是負號',0],['熊貓主要吃竹子',1],['番茄在植物學上是水果',1],['手機可以邊充電邊泡水',0],['過馬路要看紅綠燈',1],['洗手只要洗 2 秒就夠',0],['人體最大的器官是皮膚',1],['蚊子會傳染登革熱',1],['海水是甜的',0]];
+const MEME_T=[{n:'大元蛙二選一',draw:(g,q)=>{g.fillStyle='#fff';g.fillRect(0,0,480,360);g.fillStyle='#f6c838';g.fillRect(0,0,200,180);g.fillStyle='#bfe0ff';g.fillRect(0,180,200,180);
+    for(const [y,ok] of [[90,0],[270,1]]){g.save();g.translate(100,y);g.fillStyle='#6cc24a';g.beginPath();g.ellipse(0,10,52,44,0,0,7);g.fill();for(const sx of[-22,22]){g.fillStyle='#fff';g.beginPath();g.arc(sx,-28,15,0,7);g.fill();g.fillStyle='#111';g.beginPath();g.arc(sx+(ok?4:-6),-28,6,0,7);g.fill();}
+      g.strokeStyle='#7a2a2a';g.lineWidth=4;g.beginPath();ok?g.arc(0,16,18,0.2,Math.PI-0.2):g.arc(0,34,16,Math.PI+0.3,-0.3);g.stroke();
+      g.fillStyle='#6cc24a';g.save();g.translate(ok?40:-44,ok?6:0);g.rotate(ok?-0.6:0.4);g.fillRect(-8,-30,16,40);g.restore();if(!ok){g.fillStyle='#6cc24a';g.fillRect(-60,-20,20,14);}g.restore();}
+    g.fillStyle='#111';g.font='900 22px "Noto Sans TC",sans-serif';g.textAlign='center';wrapTxt(g,'不相信',340,95,250);wrapTxt(g,'「'+q+'」',340,262,250);}},
+  {n:'震驚的同學',draw:(g,q)=>{g.fillStyle='#ffe6c8';g.fillRect(0,0,480,360);g.save();g.translate(240,200);g.fillStyle='#f0c8a0';g.beginPath();g.arc(0,0,90,0,7);g.fill();g.fillStyle='#9a9a9a';g.beginPath();g.arc(0,-20,94,Math.PI,0);g.fill();
+    for(const sx of[-35,35]){g.fillStyle='#fff';g.beginPath();g.arc(sx,0,24,0,7);g.fill();g.fillStyle='#111';g.beginPath();g.arc(sx,2,7,0,7);g.fill();}g.fillStyle='#5a1a1a';g.beginPath();g.ellipse(0,52,20,28,0,0,7);g.fill();
+    g.fillStyle='#3fb7f0';g.beginPath();g.ellipse(-80,-30,8,16,0,0,7);g.fill();g.restore();g.fillStyle='#111';g.font='900 24px "Noto Sans TC",sans-serif';g.textAlign='center';g.fillText('同學剛剛聽到：',240,40);wrapTxt(g,'「'+q+'」',240,78,440);}},
+  {n:'大腦升級',draw:(g,q)=>{const rows=[['普通大腦','#ddd'],['聰明大腦','#bfe0ff'],['宇宙大腦','#ffe36a']];rows.forEach(([t,c],i)=>{const y=i*120;g.fillStyle=i===2?'#1a0f3a':'#fff';g.fillRect(0,y,480,120);g.fillStyle=c;g.beginPath();g.ellipse(390,y+60,40+i*12,30+i*8,0,0,7);g.fill();
+      if(i===2){g.strokeStyle='#ffe36a';g.lineWidth=3;for(let k=0;k<10;k++){g.beginPath();g.moveTo(390,y+60);g.lineTo(390+Math.cos(k*0.63)*80,y+60+Math.sin(k*0.63)*55);g.stroke();}}
+      g.fillStyle=i===2?'#fff':'#111';g.font='900 19px "Noto Sans TC",sans-serif';g.textAlign='left';g.fillText(i===2?'相信：':t,20,y+40);});
+    g.fillStyle='#fff';g.font='900 20px "Noto Sans TC",sans-serif';wrapTxt(g,'「'+q+'」',170,288,290);g.fillStyle='#111';g.font='700 17px "Noto Sans TC",sans-serif';g.textAlign='left';g.fillText('上課有在聽',20,80);g.fillText('有讀課本',20,200);}},
+  {n:'淡定的校長',draw:(g,q)=>{g.fillStyle='#ff7a3a';g.fillRect(0,0,480,360);for(let i=0;i<14;i++){g.fillStyle=i%2?'#ffd23a':'#e23a2c';g.beginPath();g.moveTo(i*36,360);g.quadraticCurveTo(i*36+18,220-Math.random()*80,i*36+36,360);g.fill();}
+    g.fillStyle='#7a4a2a';g.fillRect(140,250,200,20);g.save();g.translate(240,200);g.fillStyle='#5a5c62';g.fillRect(-40,0,80,60);g.fillStyle='#f0c8a0';g.beginPath();g.arc(0,-24,30,0,7);g.fill();g.fillStyle='#141414';g.beginPath();g.arc(0,-30,32,Math.PI,0);g.fill();
+    g.strokeStyle='#222';g.lineWidth=3;for(const sx of[-12,12]){g.beginPath();g.arc(sx,-24,7,0,7);g.stroke();}g.beginPath();g.arc(0,-8,8,0.2,Math.PI-0.2);g.stroke();g.fillStyle='#fff';g.fillRect(40,20,18,22);g.restore();
+    g.fillStyle='#fff';g.font='900 22px "Noto Sans TC",sans-serif';g.textAlign='center';g.lineWidth=5;g.strokeStyle='#000';g.strokeText('校長聽完覺得：沒問題～',240,40);g.fillText('校長聽完覺得：沒問題～',240,40);g.font='900 20px "Noto Sans TC",sans-serif';g.strokeText('「'+q+'」',240,80);g.fillText('「'+q+'」',240,80);}}];
+function wrapTxt(g,t,x,y,w){let line='',ly=y;for(const ch of t){if(g.measureText(line+ch).width>w){g.fillText(line,x,ly);line=ch;ly+=28;}else line+=ch;}g.fillText(line,x,ly);}
+function startMeme(){const qs=MEME_Q.slice().sort(()=>Math.random()-0.5).slice(0,10);let i=0,score=0,streak=0,tl=8,locked=false;
+  openMini(`<div class="mhead"><div class="mtitle">😂 迷因大賽：這張梗圖說的對不對？</div><div>第 <b id="mmN">1</b>/10 題・分數 <b id="mmS">0</b></div></div>
+    <div style="display:flex;gap:10px;align-items:center;width:100%;max-width:620px"><div style="flex:1;height:10px;border-radius:5px;background:#334"><div id="mmBar" style="height:100%;width:100%;border-radius:5px;background:#f2c230"></div></div><b id="mmT" style="font-variant-numeric:tabular-nums">8</b></div>
+    <canvas id="mmCv" width="480" height="360" style="width:min(560px,100%);height:auto;border-radius:12px;border:4px solid #fff;background:#fff"></canvas>
+    <div id="mmTpl" style="font-size:12px;color:var(--muted)"></div>
+    <div class="mrow"><button class="gbtn" id="mmY" style="min-width:150px">⭕ 對</button><button class="gbtn alt" id="mmN2" style="min-width:150px;background:linear-gradient(#ff6b5b,#d0331f);color:#fff">❌ 錯</button></div>
+    <div id="mmFb" style="min-height:26px;font-weight:900;font-size:18px"></div><div style="color:var(--muted);font-size:12px">鍵盤：O / ← 選對，X / → 選錯・答得越快分數越高</div>`);
+  const g=$('mmCv').getContext('2d');
+  function show(){locked=false;tl=8;const [q]=qs[i],tp=MEME_T[Math.floor(Math.random()*MEME_T.length)];g.clearRect(0,0,480,360);g.textAlign='center';tp.draw(g,q);$('mmTpl').textContent='梗圖範本：'+tp.n;$('mmN').textContent=i+1;$('mmFb').textContent='';}
+  function answer(v){if(locked)return;locked=true;const ok=v===qs[i][1];if(ok){streak++;const pts=100+Math.round(tl*25)+(streak>=3?50:0);score+=pts;$('mmFb').innerHTML=`<span style="color:#7dffb0">答對！+${pts}${streak>=3?` 🔥${streak} 連對`:''}</span>`;sfx('power');}
+    else{streak=0;$('mmFb').innerHTML=`<span style="color:#ff8a7a">${v===-1?'時間到！':'答錯了！'}正確答案是「${qs[i][1]?'對':'錯'}」</span>`;sfx('hurt');}
+    $('mmS').textContent=score;setTimeout(()=>{if(!miniOpen||!$('mmCv'))return;i++;if(i>=qs.length)done();else show();},1300);}
+  function done(){miniFrame=null;miniKey=null;$('miniBox').innerHTML=`<div class="mtitle">😂 迷因大賽結束</div><div class="score">${score} 分</div><div>${score>=1500?'迷因之王！':score>=900?'很會判斷！':'多看課本、少看假消息！'}</div><div class="mrow"><button class="mbtn go" id="mmA">再玩一次</button><button class="mbtn" id="mmB">回到教室</button></div>`;
+    $('mmA').onclick=startMeme;$('mmB').onclick=closeMini;if(score>=900){const l={log:3,plank:3};if(score>=1500)l.gem=1;reward(l,`迷因大賽 ${score} 分！`);}}
+  $('mmY').onclick=()=>answer(1);$('mmN2').onclick=()=>answer(0);
+  miniKey=(e,d)=>{if(!d||e.repeat)return;if(e.code==='KeyO'||e.code==='ArrowLeft')answer(1);if(e.code==='KeyX'||e.code==='ArrowRight')answer(0);};
+  miniFrame=dt=>{if(locked)return;tl-=dt;$('mmT').textContent=Math.max(0,Math.ceil(tl));$('mmBar').style.width=Math.max(0,tl/8*100)+'%';if(tl<=0)answer(-1);};show();}
+
+// ---- infinite craft: combine elements ----
+const CR_E={'水':'💧','火':'🔥','土':'🪨','風':'🌬️','蒸氣':'♨️','泥巴':'🟫','岩漿':'🌋','雨':'🌧️','波浪':'🌊','沙塵暴':'🌪️','煙':'💨','能量':'⚡','植物':'🌱','石頭':'🪨','雲':'☁️','海':'🌊','湖':'🏞️','沙子':'⏳','玻璃':'🪟','磚塊':'🧱','房子':'🏠','學校':'🏫','老師':'👩‍🏫','學生':'🧑‍🎓','校長':'👔','作業':'📄','考試':'📝','考卷大魔王':'👹','火山':'🌋','島':'🏝️','樹':'🌳','森林':'🌲','花':'🌸','蜜蜂':'🐝','蜂蜜':'🍯','生命':'🧬','人類':'🧑','恐龍':'🦖','化石':'🦴','青蛙':'🐸','大元蛙':'🐸','魚':'🐟','錦鯉':'🎏','彩虹':'🌈','太陽':'☀️','星星':'⭐','宇宙':'🌌','月亮':'🌙','時間':'⏰','電':'⚡','電腦':'💻','網路':'🌐','迷因':'😂','手機':'📱','機器人':'🤖','人工智慧':'🧠','遊戲':'🎮','音樂':'🎵','鋼琴':'🎹','畫':'🎨','籃球':'🏀','躲避球':'🔴','冰':'🧊','雪':'❄️','雪人':'⛄','颱風':'🌀','閃電':'🌩️','金屬':'🔩','劍':'🗡️','工具':'🔧','車':'🚗','飛機':'✈️','火箭':'🚀','外星人':'👽','珍珠奶茶':'🧋','茶':'🍵','麵包':'🍞','小麥':'🌾','雞蛋':'🥚','雞':'🐔','西瓜':'🍉','水果':'🍎','龍':'🐉','磁磚龍':'🐲','黃金':'🪙','寶石':'💎','友情':'🤝','快樂':'😄','冒險':'🗺️','英雄':'🦸','大元國小':'🏫','台中':'🏙️','高鐵':'🚄','書':'📖','知識':'💡','科學':'🔬','小星星':'✨','雲霄飛車':'🎢','夜市':'🏮','煙火':'🎆','溫泉':'♨️','山':'⛰️','玉山':'🏔️','咖啡':'☕','睡覺':'😴','夢':'💭','鬼':'👻','搗蛋鬼':'😈','蚊子':'🦟','怪獸':'👾'};
+const CR_R={};const addR=(a,b,c)=>{CR_R[[a,b].sort().join('+')]=c;};
+[['水','火','蒸氣'],['水','土','泥巴'],['火','土','岩漿'],['水','風','波浪'],['土','風','沙塵暴'],['火','風','煙'],['火','火','能量'],['水','水','海'],['土','土','山'],['風','風','颱風'],['泥巴','火','磚塊'],['磚塊','磚塊','房子'],['房子','知識','學校'],['學校','人類','學生'],
+ ['學生','知識','老師'],['老師','學校','校長'],['學生','紙','作業'],['作業','時間','考試'],['考試','怪獸','考卷大魔王'],['考試','火','考卷大魔王'],['岩漿','山','火山'],['火山','海','島'],['蒸氣','風','雲'],['雲','水','雨'],['雨','太陽','彩虹'],['土','雨','植物'],['植物','土','樹'],['樹','樹','森林'],
+ ['植物','太陽','花'],['花','風','蜜蜂'],['蜜蜂','花','蜂蜜'],['海','能量','生命'],['生命','土','人類'],['生命','時間','恐龍'],['恐龍','石頭','化石'],['生命','湖','青蛙'],['青蛙','學校','大元蛙'],['生命','海','魚'],['魚','花','錦鯉'],['能量','能量','太陽'],['太陽','太陽','星星'],['星星','星星','宇宙'],
+ ['土','宇宙','月亮'],['沙子','玻璃','時間'],['能量','金屬','電'],['電','知識','電腦'],['電腦','電腦','網路'],['網路','快樂','迷因'],['電腦','電話','手機'],['網路','手機','手機'],['電腦','人類','機器人'],['機器人','知識','人工智慧'],['電腦','快樂','遊戲'],['風','快樂','音樂'],['音樂','木頭','鋼琴'],['鋼琴','星星','小星星'],
+ ['植物','水','顏料'],['顏料','紙','畫'],['土','火','金屬'],['金屬','火','劍'],['金屬','木頭','工具'],['工具','金屬','車'],['車','風','飛機'],['飛機','宇宙','火箭'],['火箭','月亮','外星人'],['生命','宇宙','外星人'],['風','沙子','沙塵暴'],['土','水','泥巴'],['石頭','風','沙子'],['沙子','火','玻璃'],['土','能量','石頭'],
+ ['水','冰','冰'],['水','風','冰'],['冰','雲','雪'],['雪','人類','雪人'],['雲','能量','閃電'],['植物','水','茶'],['茶','牛奶','珍珠奶茶'],['茶','黃金','珍珠奶茶'],['植物','風','小麥'],['小麥','火','麵包'],['生命','鳥','雞'],['雞','雞','雞蛋'],['雞蛋','時間','雞'],['植物','太陽','水果'],['水果','水','西瓜'],
+ ['恐龍','火','龍'],['龍','磚塊','磁磚龍'],['金屬','太陽','黃金'],['石頭','能量','寶石'],['人類','人類','友情'],['友情','遊戲','快樂'],['學生','冒險','英雄'],['人類','山','冒險'],['學校','英雄','大元國小'],['大元國小','房子','台中'],['台中','車','高鐵'],['樹','知識','書'],['書','人類','知識'],['紙','知識','書'],
+ ['知識','能量','科學'],['車','快樂','雲霄飛車'],['台中','夜晚','夜市'],['火','星星','煙火'],['山','蒸氣','溫泉'],['山','台中','玉山'],['山','山','玉山'],['植物','能量','咖啡'],['人類','時間','睡覺'],['睡覺','雲','夢'],['人類','夢','鬼'],['鬼','學校','搗蛋鬼'],['生命','雨','蚊子'],['蚊子','能量','怪獸'],
+ ['樹','能量','紙'],['樹','工具','木頭'],['月亮','時間','夜晚'],['雞','雲','鳥'],['動物','雲','鳥'],['生命','植物','動物'],['動物','水','牛奶'],['動物','草','牛奶'],['手機','聲音','電話'],['風','能量','聲音']].forEach(r=>addR(...r));
+Object.assign(CR_E,{'紙':'📃','木頭':'🪵','顏料':'🖌️','牛奶':'🥛','夜晚':'🌃','鳥':'🐦','動物':'🐶','電話':'☎️','聲音':'🔊','草':'🌿'});
+let CR_FOUND=['水','火','土','風'];
+function startCraft(){
+  openMini(`<div class="mhead"><div class="mtitle">♾️ 無盡合成</div><div>已發現 <b id="crN">${CR_FOUND.length}</b>/${Object.keys(CR_E).length}</div></div>
+    <div style="display:flex;gap:10px;width:100%;max-width:1000px;flex-wrap:wrap">
+      <div id="crBoard" style="flex:1 1 520px;min-width:0;height:min(60vh,520px);position:relative;border-radius:14px;background:radial-gradient(circle,#1d2a44,#0d1424);overflow:hidden;touch-action:none"><div style="position:absolute;inset:auto 0 10px 0;text-align:center;color:rgba(255,255,255,.35);font-size:13px;pointer-events:none">把右邊的元素拖到這裡，再把兩個疊在一起合成！（雙擊元素可以複製）</div></div>
+      <div id="crList" style="flex:0 1 330px;min-width:0;height:min(60vh,520px);overflow:auto;display:flex;flex-wrap:wrap;gap:6px;align-content:flex-start;padding:8px;border-radius:14px;background:rgba(255,255,255,.06)"></div></div>
+    <div id="crMsg" style="min-height:24px;font-weight:900"></div><div class="mrow"><button class="mbtn" id="crClear">清空桌面</button><button class="mbtn" id="crQuit">離開</button></div>`);
+  const board=$('crBoard');const chip=(n)=>`<span style="font-size:18px">${CR_E[n]||'✨'}</span> ${n}`;const css='position:absolute;padding:6px 12px;border-radius:10px;background:#fff;color:#222;font:800 15px "Noto Sans TC",sans-serif;box-shadow:0 3px 0 #9ab;cursor:grab;user-select:none;touch-action:none;white-space:nowrap';
+  function list(){$('crList').innerHTML=CR_FOUND.map(n=>`<div class="crI" data-n="${n}" style="padding:6px 10px;border-radius:10px;background:#fff;color:#222;font:800 14px 'Noto Sans TC',sans-serif;cursor:grab;touch-action:none;user-select:none">${chip(n)}</div>`).join('');$('crN').textContent=CR_FOUND.length;
+    $('crList').querySelectorAll('.crI').forEach(el=>el.onpointerdown=e=>{e.preventDefault();const r=board.getBoundingClientRect();const it=place(el.dataset.n,e.clientX-r.left-40,e.clientY-r.top-16);drag(it,e);});}
+  function place(n,x,y){const d=document.createElement('div');d.style.cssText=css;d.innerHTML=chip(n);d.dataset.n=n;d.style.left=x+'px';d.style.top=y+'px';board.appendChild(d);
+    d.onpointerdown=e=>{e.preventDefault();drag(d,e);};d.ondblclick=()=>place(n,d.offsetLeft+20,d.offsetTop+20);return d;}
+  function drag(d,e){const r=board.getBoundingClientRect();let ox=e.clientX-r.left-d.offsetLeft,oy=e.clientY-r.top-d.offsetTop;d.style.zIndex=10;d.style.cursor='grabbing';
+    const mv=ev=>{d.style.left=(ev.clientX-r.left-ox)+'px';d.style.top=(ev.clientY-r.top-oy)+'px';};
+    const up=ev=>{removeEventListener('pointermove',mv);removeEventListener('pointerup',up);d.style.zIndex='';d.style.cursor='grab';const rr=board.getBoundingClientRect();
+      if(ev.clientX<rr.left||ev.clientX>rr.right||ev.clientY<rr.top||ev.clientY>rr.bottom){d.remove();return;}
+      const a=d.getBoundingClientRect();for(const o of board.querySelectorAll('div[data-n]')){if(o===d)continue;const b=o.getBoundingClientRect();if(a.left<b.right&&a.right>b.left&&a.top<b.bottom&&a.bottom>b.top){combine(d,o);return;}}};
+    addEventListener('pointermove',mv);addEventListener('pointerup',up);}
+  function combine(d,o){const res=CR_R[[d.dataset.n,o.dataset.n].sort().join('+')];if(!res){$('crMsg').innerHTML=`<span style="color:#ff8a7a">${d.dataset.n} + ${o.dataset.n}：沒有反應…試試別的組合！</span>`;d.style.left=(d.offsetLeft+30)+'px';sfx('hit');return;}
+    const x=o.offsetLeft,y=o.offsetTop;d.remove();o.remove();const it=place(res,x,y);it.animate([{transform:'scale(1.5)'},{transform:'scale(1)'}],{duration:300});
+    if(!CR_FOUND.includes(res)){CR_FOUND.push(res);list();$('crMsg').innerHTML=`<span style="color:#ffe36a">✨ 新發現：${CR_E[res]||''} ${res}！</span>`;tone(880,0.12);setTimeout(()=>tone(1320,0.2),110);
+      if(res==='宇宙'||res==='大元國小'||res==='人工智慧')reward({gem:1},`合成出「${res}」！`);if(CR_FOUND.length%15===0)reward({iron:2},`發現 ${CR_FOUND.length} 種元素！`);}
+    else{$('crMsg').textContent=`${CR_E[res]||''} ${res}`;sfx('talk');}}
+  [['水',60,60],['火',180,60],['土',60,150],['風',180,150]].forEach(a=>place(...a));list();
+  $('crClear').onclick=()=>board.querySelectorAll('div[data-n]').forEach(e=>e.remove());$('crQuit').onclick=closeMini;}
+
+// ---- puzzle room: 2048 + fruit merge ----
+function startPuzzle(){openMini(`<div class="mtitle">🧩 益智教室</div><div class="mrow"><button class="gbtn" id="pz1" style="min-width:220px">🔢 2048<small>滑動方塊，相同數字合起來</small></button><button class="gbtn alt" id="pz2" style="min-width:220px">🍉 合成大西瓜<small>丟水果，一樣的會合成更大的</small></button></div><div class="mrow"><button class="mbtn" id="pzQ">離開</button></div>`);
+  $('pz1').onclick=start2048;$('pz2').onclick=startSuika;$('pzQ').onclick=closeMini;}
+let BEST2048=0;
+function start2048(){let B=Array(16).fill(0),score=0,over=false;const add=()=>{const e=B.map((v,i)=>v?-1:i).filter(i=>i>=0);if(e.length)B[pick(e)]=Math.random()<0.9?2:4;};add();add();
+  const COL={2:'#eee4da',4:'#ede0c8',8:'#f2b179',16:'#f59563',32:'#f67c5f',64:'#f65e3b',128:'#edcf72',256:'#edcc61',512:'#edc850',1024:'#edc53f',2048:'#edc22e'};
+  openMini(`<div class="mhead"><div class="mtitle">🔢 2048</div><div>分數 <b id="g2S">0</b>・最高 <b>${BEST2048}</b></div></div><div id="g2B" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;padding:10px;width:min(420px,92vw);aspect-ratio:1;background:#bbada0;border-radius:12px;touch-action:none"></div>
+    <div id="g2M" style="font-weight:900;min-height:24px"></div><div class="mrow"><button class="mbtn" id="g2R">重新開始</button><button class="mbtn" id="g2Q">回到益智教室</button></div><div style="color:var(--muted);font-size:12px">方向鍵 / WASD 或在棋盤上滑動</div>`);
+  const draw=()=>{$('g2B').innerHTML=B.map(v=>`<div style="border-radius:8px;display:flex;align-items:center;justify-content:center;font:900 ${v>=1024?26:v>=128?32:38}px sans-serif;background:${v?(COL[v]||'#3c3a32'):'#cdc1b4'};color:${v>4?'#fff':'#776e65'}">${v||''}</div>`).join('');$('g2S').textContent=score;};
+  const move=dir=>{if(over)return;let moved=false;for(let a=0;a<4;a++){const idx=[0,1,2,3].map(b=>dir==='L'?a*4+b:dir==='R'?a*4+3-b:dir==='U'?b*4+a:(3-b)*4+a);
+      let row=idx.map(i=>B[i]).filter(v=>v);for(let k=0;k<row.length-1;k++)if(row[k]===row[k+1]){row[k]*=2;score+=row[k];if(row[k]===2048)$('g2M').textContent='🎉 合成 2048！';row.splice(k+1,1);}
+      while(row.length<4)row.push(0);idx.forEach((i,k)=>{if(B[i]!==row[k])moved=true;B[i]=row[k];});}
+    if(moved){add();sfx('talk');}draw();const can=B.some(v=>!v)||B.some((v,i)=>(i%4<3&&v===B[i+1])||(i<12&&v===B[i+4]));
+    if(!can){over=true;BEST2048=Math.max(BEST2048,score);$('g2M').textContent=`遊戲結束！分數 ${score}`;if(score>=1000){const l={stone:3,log:2};if(score>=4000)l.iron=2;if(score>=10000)l.gem=1;reward(l,`2048 拿到 ${score} 分！`);}}};
+  miniKey=(e,d)=>{if(!d)return;const m={ArrowLeft:'L',KeyA:'L',ArrowRight:'R',KeyD:'R',ArrowUp:'U',KeyW:'U',ArrowDown:'D',KeyS:'D'}[e.code];if(m){e.preventDefault();move(m);}};
+  let sw=null;$('g2B').onpointerdown=e=>{sw=[e.clientX,e.clientY];};$('g2B').onpointerup=e=>{if(!sw)return;const dx=e.clientX-sw[0],dy=e.clientY-sw[1];sw=null;if(Math.max(Math.abs(dx),Math.abs(dy))<25)return;move(Math.abs(dx)>Math.abs(dy)?(dx>0?'R':'L'):(dy>0?'D':'U'));};
+  $('g2R').onclick=start2048;$('g2Q').onclick=startPuzzle;draw();}
+const FRUITS=[['櫻桃','#d0233a',14],['草莓','#ff4a5a',19],['葡萄','#8e44ad',25],['橘子','#f39c12',31],['柿子','#ff7a1a',38],['蘋果','#e23a2c',46],['水梨','#e8e070',54],['桃子','#ffb3a8',63],['鳳梨','#f2c230',73],['哈密瓜','#a8d86a',84],['西瓜','#2fa84f',96]];
+let BESTSUIKA=0;
+function startSuika(){const W=400,H=560,TOP=90;
+  openMini(`<div class="mhead"><div class="mtitle">🍉 合成大西瓜</div><div>分數 <b id="skS">0</b>・最高 <b>${BESTSUIKA}</b></div></div><canvas id="skCv" width="${W}" height="${H}" style="width:min(380px,90vw);height:auto;border-radius:14px;touch-action:none;cursor:pointer"></canvas>
+    <div class="mrow"><button class="mbtn" id="skR">重新開始</button><button class="mbtn" id="skQ">回到益智教室</button></div><div style="color:var(--muted);font-size:12px">移動滑鼠（或拖曳）選位置，點一下放水果・← → 移動、空白鍵放下</div>`);
+  const g=$('skCv').getContext('2d'),S={b:[],aim:W/2,cur:Math.floor(Math.random()*4),next:Math.floor(Math.random()*4),cd:0,score:0,over:false,danger:0,pops:[]};
+  const cvs=$('skCv');const px=e=>{const r=cvs.getBoundingClientRect();return (e.clientX-r.left)*W/r.width;};
+  cvs.onpointermove=e=>{S.aim=px(e);};cvs.onpointerdown=e=>{S.aim=px(e);};cvs.onpointerup=()=>drop();
+  miniKey=(e,d)=>{if(e.code==='ArrowLeft'||e.code==='KeyA')S.l=d;if(e.code==='ArrowRight'||e.code==='KeyD')S.r=d;if(d&&!e.repeat&&(e.code==='Space'||e.code==='Enter')){e.preventDefault();drop();}};
+  function drop(){if(S.over||S.cd>0)return;const r=FRUITS[S.cur][2];S.b.push({x:clamp(S.aim,r+12,W-r-12)+rand(-1.5,1.5),y:TOP-20,vx:rand(-6,6),vy:0,k:S.cur,r,t:0});S.cur=S.next;S.next=Math.floor(Math.random()*5);S.cd=0.55;sfx('throw');}
+  $('skR').onclick=startSuika;$('skQ').onclick=startPuzzle;
+  miniFrame=dt=>{dt=Math.min(dt,0.033);if(S.l)S.aim-=320*dt;if(S.r)S.aim+=320*dt;S.cd-=dt;
+    if(!S.over)for(let it=0;it<4;it++){const h=dt/4;for(const b of S.b){b.vy+=900*h;b.x+=b.vx*h;b.y+=b.vy*h;b.t+=h;
+        if(b.x<b.r+12){b.x=b.r+12;b.vx*=-0.3;}if(b.x>W-b.r-12){b.x=W-b.r-12;b.vx*=-0.3;}if(b.y>H-12-b.r){b.y=H-12-b.r;b.vy*=-0.2;b.vx*=0.96;}}
+      for(let i=0;i<S.b.length;i++)for(let j=i+1;j<S.b.length;j++){const a=S.b[i],c=S.b[j];if(!a||!c)continue;const dx=c.x-a.x,dy=c.y-a.y,d=Math.hypot(dx,dy)||0.01,ov=a.r+c.r-d;if(ov<=0)continue;
+        if(a.k===c.k&&a.k<FRUITS.length-1&&!a.dead&&!c.dead){a.dead=c.dead=true;const k=a.k+1;S.b.push({x:(a.x+c.x)/2,y:(a.y+c.y)/2,vx:0,vy:-60,k,r:FRUITS[k][2],t:0});S.score+=(k+1)*(k+2)/2*2;S.pops.push({x:(a.x+c.x)/2,y:(a.y+c.y)/2,t:0,c:FRUITS[k][1]});tone(400+k*80,0.12);if(k===FRUITS.length-1){reward({gem:2},'合成大西瓜！');}continue;}
+        const nx=dx/d,ny=dy/d,ma=a.r*a.r,mc=c.r*c.r,tot=ma+mc;a.x-=nx*ov*mc/tot;a.y-=ny*ov*mc/tot;c.x+=nx*ov*ma/tot;c.y+=ny*ov*ma/tot;
+        if(Math.abs(nx)<0.08){const j=(Math.random()<.5?-1:1)*12*h;a.vx-=j;c.vx+=j;}const rv=(c.vx-a.vx)*nx+(c.vy-a.vy)*ny;if(rv<0){const im=-1.2*rv/tot;a.vx-=im*mc*nx;a.vy-=im*mc*ny;c.vx+=im*ma*nx;c.vy+=im*ma*ny;}}
+      S.b=S.b.filter(b=>!b.dead);}
+    const high=S.b.some(b=>b.t>1.5&&b.y-b.r<TOP+10&&Math.abs(b.vy)<40);S.danger=high?S.danger+dt:0;
+    if(S.danger>2&&!S.over){S.over=true;BESTSUIKA=Math.max(BESTSUIKA,S.score);sfx('hurt');if(S.score>=200){const l={log:3};if(S.score>=600)l.iron=2;reward(l,`合成大西瓜 ${S.score} 分！`);}}
+    $('skS').textContent=S.score;
+    g.fillStyle='#ffe9b8';g.fillRect(0,0,W,H);g.fillStyle='#f6d58c';g.fillRect(0,H-12,W,12);g.fillRect(0,0,12,H);g.fillRect(W-12,0,12,H);
+    g.strokeStyle=S.danger>0?'#e23a2c':'rgba(200,120,60,.5)';g.setLineDash([8,6]);g.lineWidth=2;g.beginPath();g.moveTo(12,TOP+10);g.lineTo(W-12,TOP+10);g.stroke();g.setLineDash([]);
+    const fruit=(x,y,k,r,a)=>{const [n,c]=FRUITS[k];g.globalAlpha=a||1;const gr=g.createRadialGradient(x-r*0.35,y-r*0.35,r*0.1,x,y,r);gr.addColorStop(0,'#fff8');gr.addColorStop(0.25,c);gr.addColorStop(1,shade(c,0.7));g.fillStyle=gr;g.beginPath();g.arc(x,y,r,0,7);g.fill();
+      if(k===10){g.strokeStyle='#1d6f33';g.lineWidth=4;for(let q=-2;q<=2;q++){g.beginPath();g.ellipse(x+q*r*0.3,y,r*0.12,r*0.95,0,0,7);g.stroke();}}
+      g.fillStyle='#3a2a1a';g.beginPath();g.arc(x-r*0.28,y-r*0.05,Math.max(2,r*0.08),0,7);g.arc(x+r*0.28,y-r*0.05,Math.max(2,r*0.08),0,7);g.fill();g.strokeStyle='#3a2a1a';g.lineWidth=2;g.beginPath();g.arc(x,y+r*0.12,r*0.18,0.2,Math.PI-0.2);g.stroke();
+      if(r>30){g.fillStyle='#fff';g.font=`900 ${Math.round(r*0.32)}px "Noto Sans TC",sans-serif`;g.textAlign='center';g.fillText(n,x,y+r*0.62);}g.globalAlpha=1;};
+    for(const b of S.b)fruit(b.x,b.y,b.k,b.r);
+    if(!S.over){const r=FRUITS[S.cur][2],x=clamp(S.aim,r+12,W-r-12);g.strokeStyle='rgba(0,0,0,.15)';g.beginPath();g.moveTo(x,TOP);g.lineTo(x,H);g.stroke();fruit(x,TOP-26,S.cur,r,S.cd>0?0.4:1);}
+    g.fillStyle='#7a5a2a';g.font='900 13px "Noto Sans TC",sans-serif';g.textAlign='left';g.fillText('下一個',W-80,24);fruit(W-40,50,S.next,Math.min(18,FRUITS[S.next][2]));
+    for(const q of S.pops){q.t+=dt;g.strokeStyle=q.c;g.globalAlpha=Math.max(0,1-q.t*2);g.lineWidth=4;g.beginPath();g.arc(q.x,q.y,20+q.t*80,0,7);g.stroke();g.globalAlpha=1;}S.pops=S.pops.filter(q=>q.t<0.5);
+    if(S.over){g.fillStyle='rgba(0,0,0,.55)';g.fillRect(0,0,W,H);g.fillStyle='#fff';g.font='900 34px "Noto Sans TC",sans-serif';g.textAlign='center';g.fillText('遊戲結束',W/2,H/2-10);g.font='700 18px "Noto Sans TC",sans-serif';g.fillText(`分數 ${S.score}・按「重新開始」再玩`,W/2,H/2+24);}};}
 
 // ---- boss duel: 2D side-view fight ----
 let DU=null;
