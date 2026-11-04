@@ -2,7 +2,13 @@
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="大元冒險">
+<meta name="theme-color" content="#0f1a12">
+<link rel="apple-touch-icon" href="logo.png">
 <title>大元國小大冒險</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@700;900&family=Press+Start+2P&display=swap">
@@ -12,7 +18,9 @@
 :root[data-theme="dark"]{--bg:#0f1a12}
 *{box-sizing:border-box}
 html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);color:var(--ink);font-family:"PingFang TC","Microsoft JhengHei","Noto Sans TC",system-ui,sans-serif;touch-action:none;user-select:none;-webkit-user-select:none}
-#game{display:block;width:100vw;height:100vh}
+#game{display:block;position:fixed;inset:0;width:100%;height:100%}
+html,body{height:100%;height:100dvh}
+#hud{margin-top:env(safe-area-inset-top,0px);margin-left:env(safe-area-inset-left,0px)}#mini,#toolbar{margin-top:env(safe-area-inset-top,0px);margin-right:env(safe-area-inset-right,0px)}#joy,#tbtns{margin-bottom:env(safe-area-inset-bottom,0px)}
 .panel{background:var(--panel);border:1px solid rgba(255,255,255,.12);border-radius:12px;backdrop-filter:blur(4px)}
 #hud{position:fixed;left:12px;top:12px;width:min(270px,calc(100vw - 210px));padding:10px 12px;font-size:14px;pointer-events:none}
 #hpbar{height:14px;border-radius:7px;background:#3a2a2a;overflow:hidden;margin:4px 0 6px}
@@ -1260,7 +1268,8 @@ $('reviveBtn').onclick=()=>{G.overlay=false;$('deadOv').style.display='none';G.h
   for(const f of friendsOf()){f.x=player.x+rand(-2,2);f.z=player.z+rand(-2,2);f.y=0;}};
 $('bagClose').onclick=()=>toggleBag(false);$('modeBtn').onclick=()=>toggleCreative();
 $('againBtn').onclick=()=>location.reload();
-function startGame(creative){if(G.started)return;$('startOv').style.display='none';document.body.classList.remove('title');G.started=true;refreshGear();audioInit();
+function goFull(){const de=document.documentElement;if(document.fullscreenElement||document.webkitFullscreenElement)return;const rq=de.requestFullscreen||de.webkitRequestFullscreen;try{const r=rq&&rq.call(de);if(r&&r.catch)r.catch(()=>{});}catch(e){}}
+function startGame(creative){if(G.started)return;if(isTouch)goFull();$('startOv').style.display='none';document.body.classList.remove('title');G.started=true;refreshGear();audioInit();
   if(creative){G.creative=true;invDirty=true;banner('創造模式：方塊無限、不會受傷、按住空白鍵飛行',3);}else banner('先到中庭找校長報到！');}
 $('startBtn').onclick=()=>startGame(false);$('startCreative').onclick=()=>startGame(true);
 $('helpBtn').onclick=()=>$('tsHelp').classList.toggle('open');
