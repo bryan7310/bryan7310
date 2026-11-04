@@ -111,7 +111,40 @@ body.touch #prompt{bottom:236px}
 body.touch .dpad{display:flex}
 .dpad button{width:58px;height:58px;border-radius:50%;border:2px solid rgba(255,255,255,.4);background:rgba(255,255,255,.15);color:#fff;font-weight:900;font-size:16px;touch-action:none}
 #pkHud{position:fixed;top:12px;left:50%;transform:translateX(-50%);display:none;padding:6px 14px;font-weight:800;align-items:center;gap:12px;z-index:5}
+/* ---------- toolbar & settings ---------- */
+#toolbar{position:fixed;right:12px;top:166px;display:flex;gap:6px;z-index:6}
+#toolbar button{width:34px;height:34px;border-radius:9px;border:1px solid rgba(255,255,255,.22);background:rgba(14,26,18,.82);color:#fff;font-size:17px;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0}
+#toolbar button:hover,#toolbar button:focus-visible{background:rgba(242,194,48,.85);color:#222;outline:none}
+body.title #toolbar,body.title #fps{display:none!important}
+#fps{position:fixed;left:12px;bottom:10px;font:700 12px ui-monospace,monospace;color:#9fe3ae;background:rgba(0,0,0,.5);padding:2px 6px;border-radius:6px;display:none;z-index:6}
+#setOv{z-index:45}
+.setp{max-width:560px;width:100%;text-align:left;background:rgba(8,14,30,.95);border:3px solid #ffd84a;border-radius:18px;padding:18px 20px}
+.setp h2{margin:0 0 12px;font:900 24px "Noto Sans TC",sans-serif;color:#ffd84a;text-align:center;letter-spacing:.1em}
+.stabs{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:12px}
+.stabs button{appearance:none;border:0;border-radius:10px;padding:9px 4px;font:800 14px "Noto Sans TC",sans-serif;color:#cfe;background:rgba(255,255,255,.08);cursor:pointer}
+.stabs button.on{background:#4a6cc8;color:#fff;box-shadow:inset 0 -3px 0 #ffd84a}
+.spage{display:none;flex-direction:column;gap:12px;min-height:220px}.spage.on{display:flex}
+.srow{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 10px;border-radius:10px;background:rgba(255,255,255,.05)}
+.srow>span{font:700 15px "Noto Sans TC",sans-serif}
+.srow .ctl{display:flex;align-items:center;gap:8px}
+.srow input[type=range]{width:min(200px,40vw);accent-color:#ffd84a}
+.srow output{min-width:38px;text-align:right;font:700 13px ui-monospace,monospace;color:#ffd84a}
+.seg{display:flex;border-radius:9px;overflow:hidden;border:1px solid rgba(255,255,255,.2)}
+.seg button{appearance:none;border:0;padding:7px 11px;font:800 13px "Noto Sans TC",sans-serif;color:#cde;background:transparent;cursor:pointer}
+.seg button.on{background:#ffd84a;color:#222}
+.tog{appearance:none;width:50px;height:28px;border-radius:14px;background:#445;position:relative;cursor:pointer;border:0;transition:background .2s}
+.tog:after{content:"";position:absolute;left:3px;top:3px;width:22px;height:22px;border-radius:50%;background:#fff;transition:left .2s}
+.tog.on{background:#2fa84f}.tog.on:after{left:25px}
+.sbtns{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin-top:14px}
+.sbtns .gbtn{padding:10px 16px;font-size:16px}
+.snote{font-size:12px;color:var(--muted);text-align:center;margin-top:8px}
+@media (max-width:560px){#toolbar{top:126px}#toolbar button{width:30px;height:30px;font-size:15px}}
 /* ---------- title screen ---------- */
+.ts-gender{display:grid;grid-template-columns:auto 1fr 1fr;gap:8px;align-items:center;padding:8px;border-radius:14px;background:rgba(8,14,30,.75);border:2px solid rgba(255,255,255,.2)}
+.ts-gender span{font:900 14px "Noto Sans TC",sans-serif;color:#ffd84a;padding:0 4px}
+.ts-gender button{appearance:none;border:2px solid transparent;border-radius:10px;padding:6px 8px;font:900 16px "Noto Sans TC",sans-serif;color:#fff;background:rgba(255,255,255,.1);cursor:pointer}
+.ts-gender button small{display:block;font:700 11px "Noto Sans TC",sans-serif;opacity:.8}
+.ts-gender button[data-g=boy].on{background:#2e8b3e;border-color:#ffd84a}.ts-gender button[data-g=girl].on{background:#f08a24;border-color:#ffd84a}
 body.title #hud,body.title #mini,body.title #touch,body.title #hotbar,body.title #cross{display:none!important}
 #startOv{background:radial-gradient(ellipse at 50% 40%,rgba(10,20,40,0) 30%,rgba(6,10,24,.55) 75%,rgba(4,6,16,.85) 100%);flex-direction:column;justify-content:space-between;padding:max(18px,env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) max(18px,env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));overflow:hidden;z-index:40}
 #startOv:before{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(255,170,60,.18),transparent 30%,transparent 70%,rgba(20,40,120,.35));pointer-events:none}
@@ -196,9 +229,11 @@ body.touch .ts-press{display:none}
   </div>
   <div class="ts-mid">
     <div class="ts-menu">
+      <div class="ts-gender"><span>選擇角色</span><button data-g="boy">🟩 男生<small>綠色制服</small></button><button data-g="girl">🟧 女生<small>橘色制服</small></button></div>
       <button class="gbtn" id="startBtn">▶ 開始冒險<small>和同學一起保衛大元國小</small></button>
       <button class="gbtn alt" id="startCreative">⛏ 創造模式<small>方塊無限・自由蓋校園</small></button>
       <button class="gbtn ghost" id="helpBtn">🎮 操作說明</button>
+      <button class="gbtn ghost" id="titleSet">⚙ 遊戲設定</button>
     </div>
     <div class="ts-press">PRESS ENTER TO START</div>
   </div>
@@ -231,6 +266,15 @@ body.touch .ts-press{display:none}
     <button class="btn" id="reviveBtn">回到中庭</button>
   </div>
 </div>
+<div id="toolbar"><button id="tbSet" title="設定 (Esc)" aria-label="設定">⚙️</button><button id="tbBag" title="背包 (C)" aria-label="背包">🎒</button><button id="tbView" title="切換視角 (V)" aria-label="切換視角">👁️</button><button id="tbMute" title="靜音 (M)" aria-label="靜音">🔊</button><button id="tbFull" title="全螢幕" aria-label="全螢幕">⛶</button></div>
+<div id="fps"></div>
+<div id="setOv" class="overlay" style="display:none"><div class="setp">
+  <h2>⚙ 遊戲設定</h2>
+  <div class="stabs"><button data-t="snd" class="on">🔊 聲音</button><button data-t="gfx">🖥 畫面</button><button data-t="ctl">🎮 操作</button><button data-t="game">🏫 遊戲</button></div>
+  <div id="setPages"></div>
+  <div class="sbtns"><button class="gbtn" id="setResume">▶ 繼續遊戲</button><button class="gbtn ghost" id="setReset">重設預設值</button><button class="gbtn alt" id="setTitle">回到標題畫面</button></div>
+  <div class="snote">Esc 或 P 開關設定・設定會自動記住</div>
+</div></div>
 <div id="pkHud" class="panel"><span id="pkTxt"></span><button class="mbtn" id="pkExit">離開關卡</button></div>
 <div id="miniOv"><div id="miniBox"></div></div>
 <div id="bagOv" class="overlay" style="display:none">
@@ -869,6 +913,7 @@ function makePerson(o){
   const eyeM=lam(o.eyes||0x111111);for(const sx of[-0.07,0.07]){const e=sph(0.03,eyeM,6,6);e.position.set(sx,0.02,0.185);head.add(e);}
   const mo=box(0.07,0.018,0.02,lam(0xb5524a));mo.position.set(0,-0.08,0.19);head.add(mo);
   if(o.glasses){const gm=lam(0x222222);for(const sx of[-0.07,0.07]){const r=new THREE.Mesh(new THREE.TorusGeometry(0.048,0.008,4,12),gm);r.position.set(sx,0.02,0.205);head.add(r);}const br=box(0.05,0.01,0.01,gm);br.position.set(0,0.03,0.205);head.add(br);}
+  if(o.cap&&(o.pony||o.bob||o.longHair)){const hm=lam(o.hair||0x1d1a18);if(o.pony){const pt=sph(0.1,hm);pt.position.set(0,-0.02,-0.24);head.add(pt);}else{const bk=box(0.4,o.longHair?0.34:0.24,0.16,hm);bk.position.set(0,o.longHair?-0.1:-0.06,-0.12);head.add(bk);}}
   if(o.mask){const mk=box(0.36,0.08,0.02,lam(0x111111));mk.position.set(0,0.02,0.19);head.add(mk);for(const sx of[-0.07,0.07]){const e=sph(0.028,new THREE.MeshBasicMaterial({color:0xff2a2a}),6,6);e.position.set(sx,0.02,0.205);head.add(e);}}
   if(o.whistle){const w=box(0.05,0.04,0.06,lam(0xdddddd));w.position.set(0,H+0.32,0.15);body.add(w);}
   root.traverse(m=>{if(m.isMesh)m.castShadow=true;});
@@ -899,16 +944,27 @@ function animPerson(p,speed,dt){p.phase+=dt*speed*2.2;const amp=Math.min(1,speed
 
 // ================= audio =================
 let actx=null;
-function sfx(kind){if(!actx)return;const t=actx.currentTime,o=actx.createOscillator(),g=actx.createGain();o.connect(g);g.connect(actx.destination);
+let sfxBus=null,bgmBus=null;
+function audioInit(){if(actx)return;try{actx=new (window.AudioContext||window.webkitAudioContext)();sfxBus=actx.createGain();bgmBus=actx.createGain();sfxBus.connect(actx.destination);bgmBus.connect(actx.destination);applyAudio();setInterval(bgmTick,60);}catch(e){actx=null;}}
+function applyAudio(){if(!actx)return;const m=SET.mute?0:1;sfxBus.gain.value=m*SET.sfxVol/100;bgmBus.gain.value=m*(SET.bgm?SET.bgmVol/100:0)*0.5;}
+const BGM_M=[0,4,7,4,9,7,4,2,0,2,4,7,4,2,0,null,5,9,12,9,7,4,2,4,0,4,7,9,7,4,2,0,7,7,9,7,4,4,2,null,5,4,2,4,7,null,0,null],BGM_B=[0,0,5,5,7,7,0,0,9,9,5,5,7,7,0,0];let bgmStep=0,bgmNext=0;
+function bgmNote(f,t,len,type,vol){const o=actx.createOscillator(),g=actx.createGain();o.type=type;o.frequency.value=f;o.connect(g);g.connect(bgmBus);g.gain.setValueAtTime(0.0001,t);g.gain.exponentialRampToValueAtTime(vol,t+0.01);g.gain.exponentialRampToValueAtTime(0.0001,t+len);o.start(t);o.stop(t+len+0.02);}
+function bgmTick(){if(!actx||!SET.bgm||SET.mute||(miniOpen&&$('mKeys')))return;if(bgmNext<actx.currentTime)bgmNext=actx.currentTime+0.05;
+  while(bgmNext<actx.currentTime+0.25){const st=0.19,m=BGM_M[bgmStep%BGM_M.length];if(m!==null)bgmNote(523.25*Math.pow(2,m/12),bgmNext,st*0.9,'square',0.05);
+    if(bgmStep%3===0)bgmNote(130.81*Math.pow(2,BGM_B[Math.floor(bgmStep/3)%BGM_B.length]/12),bgmNext,st*2.6,'triangle',0.12);bgmNext+=st;bgmStep++;}}
+function sfx(kind){if(!actx)return;const t=actx.currentTime,o=actx.createOscillator(),g=actx.createGain();o.connect(g);g.connect(sfxBus);
   const P={throw:['triangle',520,300,.08,.12],hit:['square',220,90,.07,.1],kill:['triangle',660,1100,.1,.18],hurt:['sawtooth',160,70,.12,.22],talk:['sine',740,880,.06,.1],power:['triangle',440,1320,.1,.4],boss:['sawtooth',110,55,.15,.8]}[kind];
   if(!P)return;o.type=P[0];o.frequency.setValueAtTime(P[1],t);o.frequency.exponentialRampToValueAtTime(P[2],t+P[4]);g.gain.setValueAtTime(P[3],t);g.gain.exponentialRampToValueAtTime(0.001,t+P[4]);o.start(t);o.stop(t+P[4]+0.02);}
 
 // ================= game state =================
 const G={started:false,overlay:false,hp:100,maxHp:100,score:0,kills:0,killGoal:15,friendGoal:3,dmg:1,rapid:false,shield:false,met:false,bossSpawned:false,bossDead:false,won:false,time:0};
 const SPAWN=[205,185];
-const player={x:wx(SPAWN[0]),y:0,vy:0,z:wz(SPAWN[1]),facing:Math.PI,cd:0,inv:0,speed:0,p:makePerson({tex:TEX.uniform,shirt:0xffffff,sleeve:0xf08a24,pants:0x2e8b3e,cap:true,shoe:0x1e7a3c})};
+const START_GENDER=(()=>{try{return JSON.parse(localStorage.getItem('dayuan-settings')||'{}').gender;}catch(e){}})()||'boy';
+function playerOpts(gd){const girl=gd==='girl';return {tex:TEX.uniform,shirt:0xffffff,sleeve:girl?0xf08a24:0x2e8b3e,pants:girl?0xf08a24:0x2e8b3e,cap:true,pony:girl,shoe:girl?0xe86d8a:0x1e7a3c};}
+const player={x:wx(SPAWN[0]),y:0,vy:0,z:wz(SPAWN[1]),facing:Math.PI,cd:0,inv:0,speed:0,p:makePerson(playerOpts(START_GENDER))};
+function addPlayerRing(){const ring=new THREE.Mesh(new THREE.RingGeometry(0.42,0.52,24),new THREE.MeshBasicMaterial({color:0xf2c230,transparent:true,opacity:.8}));ring.rotation.x=-Math.PI/2;ring.position.y=0.03;player.p.root.add(ring);}
 scene.add(player.p.root);
-{const ring=new THREE.Mesh(new THREE.RingGeometry(0.42,0.52,24),new THREE.MeshBasicMaterial({color:0xf2c230,transparent:true,opacity:.8}));ring.rotation.x=-Math.PI/2;ring.position.y=0.03;player.p.root.add(ring);}
+addPlayerRing();
 
 // ================= inventory, crafting, gear =================
 const INV={grass:0,dirt:0,stone:0,log:0,plank:0,leaf:0,glass:0,tile:0,iron:0,gem:0};
@@ -985,12 +1041,12 @@ addNPC('frog','大元蛙',[522,66],{make:makeFrog});
 addNPC('homeroom','王老師',[190,110],{scale:1.25,shirt:0xe8538f,sleeve:0xe8538f,pants:0x2b3550,longPants:true,hair:0x1b1310,bob:true,glasses:true});
 addNPC('homeroom','陳老師',[120,150],{scale:1.3,shirt:0x1f2f4f,sleeve:0x1f2f4f,pants:0x4a6a8f,longPants:true,hair:0x111111,skin:0xd9a77f});
 const FRIENDS=[
-  ['小明',[235,180],{sleeve:0xf08a24,pants:0x2e8b3e},'好啊！我躲避球超準的，一起去打怪獸！'],
-  ['小美',[165,170],{sleeve:0x2e8b3e,pants:0xf08a24,pony:true},'我也要保護大元國小！算我一份！'],
-  ['阿傑',[452,82],{sleeve:0xf08a24,pants:0x2e8b3e},'剛好網球練完了，換打怪獸！'],
+  ['小明',[235,180],{sleeve:0x2e8b3e,pants:0x2e8b3e},'好啊！我躲避球超準的，一起去打怪獸！'],
+  ['小美',[165,170],{sleeve:0xf08a24,pants:0xf08a24,pony:true},'我也要保護大元國小！算我一份！'],
+  ['阿傑',[452,82],{sleeve:0x2e8b3e,pants:0x2e8b3e},'剛好網球練完了，換打怪獸！'],
   ['小芳',[425,248],{sleeve:0xf08a24,pants:0xf08a24,longHair:true},'作業怪最討厭了！我們一起把牠們趕走！'],
   ['志豪',[325,170],{sleeve:0x2e8b3e,pants:0x2e8b3e},'搗蛋鬼又在亂搞？交給我們吧！'],
-  ['雅婷',[225,340],{sleeve:0x2e8b3e,pants:0xf08a24,bob:true},'我跟你走！大家一起就不怕了！'],
+  ['雅婷',[225,340],{sleeve:0xf08a24,pants:0xf08a24,bob:true},'我跟你走！大家一起就不怕了！'],
 ];
 for(const [name,pos,o,line] of FRIENDS){const n=addNPC('friend',name,pos,Object.assign({tex:TEX.uniform,shirt:0xffffff,cap:true,shoe:pick([0x1e7a3c,0x222222,0xe86d8a,0x2f6fd0])},o));n.joinLine=line;}
 {const d=addNPC('friend','恐龍',[515,150],{make:makeDino});d.joinLine='吼——！恐龍也來幫忙！我的躲避球特別大顆！';d.power=2;}
@@ -1095,7 +1151,7 @@ $('reviveBtn').onclick=()=>{G.overlay=false;$('deadOv').style.display='none';G.h
   for(const f of friendsOf()){f.x=player.x+rand(-2,2);f.z=player.z+rand(-2,2);f.y=0;}};
 $('bagClose').onclick=()=>toggleBag(false);$('modeBtn').onclick=()=>toggleCreative();
 $('againBtn').onclick=()=>location.reload();
-function startGame(creative){if(G.started)return;$('startOv').style.display='none';document.body.classList.remove('title');G.started=true;refreshGear();try{actx=new (window.AudioContext||window.webkitAudioContext)();}catch(e){}
+function startGame(creative){if(G.started)return;$('startOv').style.display='none';document.body.classList.remove('title');G.started=true;refreshGear();audioInit();
   if(creative){G.creative=true;invDirty=true;banner('創造模式：方塊無限、不會受傷、按住空白鍵飛行',3);}else banner('先到中庭找校長報到！');}
 $('startBtn').onclick=()=>startGame(false);$('startCreative').onclick=()=>startGame(true);
 $('helpBtn').onclick=()=>$('tsHelp').classList.toggle('open');
@@ -1106,8 +1162,12 @@ $('dlg').addEventListener('pointerdown',e=>{e.stopPropagation();advance();});
 
 // ================= input =================
 const keys={};let wantShot=false,yaw=Math.PI*0.15,pitch=0.32,camDist=7.5,firstPerson=false,leftDown=false,leftT=0,placeReq=false,jumpHeld=false,locked=false,bagOpen=false,camUsed=7.5,miniOpen=false;
-const isPaused=()=>!G.started||!!dlg||G.overlay||bagOpen||miniOpen;
-addEventListener('keydown',e=>{keys[e.code]=true;if(!G.started||miniOpen)return;
+const isPaused=()=>!G.started||!!dlg||G.overlay||bagOpen||miniOpen||setOpen;
+addEventListener('keydown',e=>{keys[e.code]=true;
+  if(setOpen){if(e.code==='Escape'||e.code==='KeyP')toggleSettings(false);return;}
+  if(!G.started||miniOpen)return;
+  if((e.code==='Escape'||e.code==='KeyP')&&!bagOpen&&!dlg){toggleSettings(true);return;}
+  if(e.code==='KeyM'){SET.mute=!SET.mute;saveSet();applyAudio();syncToolbar();banner(SET.mute?'已靜音':'聲音開啟',1);}
   if(e.code==='Space')e.preventDefault();
   if(bagOpen){if(['KeyC','KeyI','Escape'].includes(e.code))toggleBag(false);return;}
   if(e.code==='KeyE'||e.code==='Enter'){if(dlg)advance();else if(nearNPC)interact(nearNPC);return;}
@@ -1124,7 +1184,7 @@ addEventListener('wheel',e=>{if(isPaused())return;selectSlot((G.slot+(e.deltaY>0
 const isTouch=matchMedia('(pointer:coarse)').matches||'ontouchstart' in window;if(isTouch)document.body.classList.add('touch');
 let camPtr=null;
 document.addEventListener('pointerlockchange',()=>{locked=document.pointerLockElement===canvas;});
-canvas.addEventListener('pointerdown',e=>{if(!G.started||G.overlay||bagOpen||miniOpen)return;
+canvas.addEventListener('pointerdown',e=>{if(!G.started||G.overlay||bagOpen||miniOpen||setOpen)return;
   if(dlg){advance();return;}
   if(e.pointerType==='mouse'){if(e.button===2){placeReq=true;return;}if(e.button!==0)return;
     if(locked){leftDown=true;leftT=0.2;return;}
@@ -1132,9 +1192,9 @@ canvas.addEventListener('pointerdown',e=>{if(!G.started||G.overlay||bagOpen||min
   if(camPtr)return;camPtr={id:e.pointerId,x:e.clientX,y:e.clientY,moved:0,type:e.pointerType};
   if(e.pointerType==='mouse'){leftDown=true;leftT=0;}});
 addEventListener('pointermove',e=>{
-  if(locked){yaw-=e.movementX*0.0025;pitch=clamp(pitch+e.movementY*0.0025,-1.45,1.45);return;}
+  if(locked){const k=SET.sens/100;yaw-=e.movementX*0.0025*k;pitch=clamp(pitch+e.movementY*0.0025*k*(SET.invertY?-1:1),-1.45,1.45);return;}
   if(camPtr&&e.pointerId===camPtr.id){const dx=e.clientX-camPtr.x,dy=e.clientY-camPtr.y;camPtr.moved+=Math.abs(dx)+Math.abs(dy);camPtr.x=e.clientX;camPtr.y=e.clientY;
-    if(camPtr.moved>6){if(camPtr.type==='mouse')leftDown=false;yaw-=dx*0.006;pitch=clamp(pitch+dy*0.004,firstPerson?-1.45:-0.25,firstPerson?1.45:1.25);}}});
+    if(camPtr.moved>6){if(camPtr.type==='mouse')leftDown=false;const k=SET.sens/100;yaw-=dx*0.006*k;pitch=clamp(pitch+dy*0.004*k*(SET.invertY?-1:1),firstPerson?-1.45:-0.25,firstPerson?1.45:1.25);}}});
 addEventListener('pointerup',e=>{
   if(e.pointerType==='mouse'&&e.button===0){if(!locked&&camPtr&&camPtr.moved<=6&&leftT<0.18&&!(target&&(target.kind==='vox'||target.kind==='tree')))wantShot=true;leftDown=false;}
   if(camPtr&&e.pointerId===camPtr.id)camPtr=null;});
@@ -1265,7 +1325,7 @@ function killEnemy(e,silent){if(e.dead)return;e.dead=true;scene.remove(e.g);enem
   if(e.type==='boss'){G.bossDead=true;$('bossbar').style.display='none';for(const o of enemies.slice())killEnemy(o,true);banner('打倒考卷大魔王了！回中庭找校長領獎！',4);}
 }
 function hitEnemy(e,dmg){if(e.type==='boss'&&typeof startDuel==='function'&&!G.duelDone){startDuel(e);return;}e.hp-=dmg;e.flash=0.12;sfx('hit');burst(e.x,e.y+e.hitY,e.z,0xe8542f,4);if(e.hp<=0)killEnemy(e);}
-function damagePlayer(n,fromX,fromZ){if(player.inv>0||G.overlay||G.creative||miniOpen)return;if(G.shield)n=n/2;n=Math.max(1,Math.round(n*armorFactor()));G.hp=Math.max(0,G.hp-n);player.inv=0.7;sfx('hurt');hurtFlash();popText('-'+n,player.x,player.y+2,player.z,'#ff6b5b');
+function damagePlayer(n,fromX,fromZ){if(player.inv>0||G.overlay||G.creative||miniOpen)return;if(G.shield)n=n/2;n=Math.max(1,Math.round(n*armorFactor()*DIFF[SET.diff].dmg));G.hp=Math.max(0,G.hp-n);player.inv=0.7;sfx('hurt');hurtFlash();popText('-'+n,player.x,player.y+2,player.z,'#ff6b5b');
   const dx=player.x-fromX,dz=player.z-fromZ,d=Math.hypot(dx,dz)||1;moveEntity(player,dx/d*1.2,dz/d*1.2,0.33);if(G.hp<=0)die();}
 function updateEnemies(dt){
   for(const e of enemies.slice()){
@@ -1309,7 +1369,7 @@ function spawner(dt){
   if(!G.bossSpawned&&G.kills>=G.killGoal&&f>=G.friendGoal){G.bossSpawned=true;const [px,py]=trackLocalToPx(0,0);spawnAt('boss',wx(px),wz(py),0);$('bossbar').style.display='block';sfx('boss');
     banner('考卷大魔王出現在操場了！靠近它就會進入決鬥！',3.5);say([['考卷大魔王','哇哈哈哈！我是考卷大魔王！有本事就來操場跟我單挑！'],['小隊','我們才不怕！上吧！']]);}
   spawnT-=dt;if(spawnT>0)return;spawnT=rand(1.4,2.6);
-  const alive=enemies.filter(e=>e.type!=='boss').length,cap=G.bossSpawned?5:Math.min(14,6+f*2);if(alive>=cap)return;
+  const alive=enemies.filter(e=>e.type!=='boss').length,cap=Math.round((G.bossSpawned?5:Math.min(14,6+f*2))*DIFF[SET.diff].cap);if(alive>=cap)return;
   const p=spawnPoint(20,38);if(!p)return;const r=Math.random();spawnAt(r<0.4?'homework':r<0.68?'mosquito':r<0.86||G.kills<4?'trouble':'dragon',p[0],p[2],p[1]);
 }
 function updateParticles(dt){
@@ -1371,6 +1431,7 @@ function waveFlag(){const pa=flagGeo.attributes.position;for(let i=0;i<pa.count;
 function loop(){
   requestAnimationFrame(loop);
   const dt=Math.min(0.05,clock.getDelta());T+=dt;
+  if(SET.fps){fpsN++;fpsT+=dt;if(fpsT>=0.5){$('fps').textContent=Math.round(fpsN/fpsT)+' FPS';fpsN=0;fpsT=0;}}
   const paused=isPaused();
   if(!paused){G.time+=dt;updatePlayer(dt);updatePK(dt);updateBuild(dt);updateEnemies(dt);updateShots(dt);spawner(dt);}
   else{player.p.root.position.set(player.x,player.y,player.z);animPerson(player.p,0,dt);}
@@ -1379,6 +1440,52 @@ function loop(){
   updateNPCs(paused?0:dt);updateParticles(dt);updateCars(dt);waveFlag();updateCamera(dt);updateHUD();drawMini();
   if(!miniOpen)renderer.render(scene,camera);
 }
+// ================= settings =================
+const DIFF={easy:{dmg:0.5,cap:0.7},normal:{dmg:1,cap:1},hard:{dmg:1.5,cap:1.3}};
+const SET_DEF={sfxVol:70,bgm:true,bgmVol:45,mute:false,quality:isTouch?'mid':'high',fov:60,fps:false,sens:100,invertY:false,camDist:8,diff:'normal',minimap:true,quests:true,gender:START_GENDER};
+const SET=Object.assign({},SET_DEF);try{Object.assign(SET,JSON.parse(localStorage.getItem('dayuan-settings')||'{}'));}catch(e){}
+function saveSet(){try{localStorage.setItem('dayuan-settings',JSON.stringify(SET));}catch(e){}}
+let setOpen=false,setTab='snd';
+const SCHEMA=[['snd','sfxVol','音效音量','range',0,100,'%'],['snd','bgm','背景音樂','toggle'],['snd','bgmVol','音樂音量','range',0,100,'%'],['snd','mute','全部靜音','toggle'],
+  ['gfx','quality','畫質','seg',[['low','流暢'],['mid','標準'],['high','精美']]],['gfx','fov','視野寬度','range',50,90,'°'],['gfx','fps','顯示 FPS','toggle'],
+  ['ctl','sens','視角靈敏度','range',30,200,'%'],['ctl','invertY','上下反轉','toggle'],['ctl','camDist','鏡頭距離','range',4,14,'m'],['ctl','fp','第一人稱視角','toggle'],
+  ['game','gender','角色','seg',[['boy','🟩 男生'],['girl','🟧 女生']]],['game','diff','難度','seg',[['easy','簡單'],['normal','普通'],['hard','困難']]],['game','creative','創造模式','toggle'],['game','minimap','顯示小地圖','toggle'],['game','quests','顯示任務欄','toggle']];
+const getS=k=>k==='fp'?firstPerson:k==='creative'?G.creative:SET[k];
+function setPlayerLook(){scene.remove(player.p.root);player.p=makePerson(playerOpts(SET.gender));scene.add(player.p.root);addPlayerRing();gearMeshes=[];refreshGear();player.p.root.position.set(player.x,player.y,player.z);syncGenderUI();}
+function syncGenderUI(){document.querySelectorAll('.ts-gender button').forEach(b=>b.classList.toggle('on',b.dataset.g===SET.gender));}
+function setS(k,v){if(k==='gender'){SET.gender=v;saveSet();setPlayerLook();applySettings();return;}if(k==='fp'){if(firstPerson!==v)toggleView();}else if(k==='creative'){if(G.creative!==v)toggleCreative();}else{SET[k]=v;saveSet();}applySettings();}
+function renderSettings(){$('setPages').innerHTML=['snd','gfx','ctl','game'].map(t=>`<div class="spage${t===setTab?' on':''}">${SCHEMA.filter(r=>r[0]===t).map(([,k,label,type,a,b,u])=>{const v=getS(k);
+  const ctl=type==='range'?`<input type="range" id="s_${k}" min="${a}" max="${b}" value="${v}"><output id="o_${k}">${v}${u}</output>`:type==='toggle'?`<button class="tog${v?' on':''}" data-k="${k}" aria-pressed="${!!v}" aria-label="${label}"></button>`:`<div class="seg">${a.map(([val,l])=>`<button data-k="${k}" data-v="${val}" class="${v===val?'on':''}">${l}</button>`).join('')}</div>`;
+  return `<div class="srow"><span>${label}</span><div class="ctl">${ctl}</div></div>`;}).join('')}</div>`).join('');
+  $('setPages').querySelectorAll('input[type=range]').forEach(el=>{const k=el.id.slice(2),u=SCHEMA.find(r=>r[1]===k)[6];el.oninput=()=>{$('o_'+k).textContent=el.value+u;setS(k,+el.value);};});
+  $('setPages').querySelectorAll('.tog').forEach(el=>el.onclick=()=>{setS(el.dataset.k,!getS(el.dataset.k));renderSettings();});
+  $('setPages').querySelectorAll('.seg button').forEach(el=>el.onclick=()=>{setS(el.dataset.k,el.dataset.v);renderSettings();});
+  document.querySelectorAll('.stabs button').forEach(b=>b.classList.toggle('on',b.dataset.t===setTab));
+  $('setResume').textContent=G.started?'▶ 繼續遊戲':'◀ 返回';$('setTitle').style.display=G.started?'':'none';}
+document.querySelectorAll('.stabs button').forEach(b=>b.onclick=()=>{setTab=b.dataset.t;renderSettings();});
+function toggleSettings(open){setOpen=open;$('setOv').style.display=open?'flex':'none';leftDown=false;for(const k in keys)keys[k]=false;if(open){renderSettings();if(document.pointerLockElement)document.exitPointerLock();}else clock.getDelta();}
+$('setResume').onclick=()=>toggleSettings(false);
+$('setReset').onclick=()=>{Object.assign(SET,SET_DEF);saveSet();applySettings();renderSettings();};
+$('setTitle').onclick=()=>location.reload();
+$('titleSet').onclick=()=>toggleSettings(true);
+document.querySelectorAll('.ts-gender button').forEach(b=>b.onclick=()=>setS('gender',b.dataset.g));syncGenderUI();
+let curQ=null;
+function applySettings(){
+  if(curQ!==SET.quality){curQ=SET.quality;const q=SET.quality,sh=q!=='low';renderer.setPixelRatio(q==='low'?1:Math.min(devicePixelRatio,q==='mid'?1.5:2));
+    if(renderer.shadowMap.enabled!==sh){renderer.shadowMap.enabled=sh;scene.traverse(o=>{if(o.material)(Array.isArray(o.material)?o.material:[o.material]).forEach(m=>m.needsUpdate=true);});}
+    sun.castShadow=sh;const ms=q==='high'?2048:1024;if(sun.shadow.mapSize.x!==ms){sun.shadow.mapSize.set(ms,ms);if(sun.shadow.map){sun.shadow.map.dispose();sun.shadow.map=null;}}
+    scene.fog.far=q==='low'?170:240;renderer.setSize(innerWidth,innerHeight);}
+  if(camera.fov!==SET.fov){camera.fov=SET.fov;camera.updateProjectionMatrix();}
+  camDist=SET.camDist;$('mini').style.visibility=SET.minimap?'visible':'hidden';$('quests').style.display=SET.quests?'':'none';$('fps').style.display=SET.fps?'block':'none';
+  applyAudio();syncToolbar();}
+function syncToolbar(){$('tbMute').textContent=SET.mute?'🔇':'🔊';}
+$('tbSet').onclick=()=>toggleSettings(true);$('tbBag').onclick=()=>toggleBag(!bagOpen);$('tbView').onclick=()=>toggleView();
+$('tbMute').onclick=()=>{SET.mute=!SET.mute;saveSet();applySettings();};
+$('tbFull').onclick=()=>{try{if(document.fullscreenElement)document.exitFullscreen();else document.documentElement.requestFullscreen().catch(()=>banner('這個瀏覽器不支援全螢幕',1.5));}catch(e){banner('這個瀏覽器不支援全螢幕',1.5);}};
+['tbSet','tbBag','tbView','tbMute','tbFull'].forEach(id=>$(id).addEventListener('pointerdown',e=>e.stopPropagation()));
+let fpsN=0,fpsT=0;
+applySettings();
+
 // ================= mini-games =================
 let miniFrame=null,miniKey=null;
 function openMini(html){miniOpen=true;leftDown=false;for(const k in keys)keys[k]=false;if(document.pointerLockElement)document.exitPointerLock();$('miniBox').innerHTML=html;$('miniOv').style.display='flex';}
@@ -1430,7 +1537,7 @@ const NOTES=[['Do',261.63],['Re',293.66],['Mi',329.63],['Fa',349.23],['So',392.0
 const SONG=[[1,1,5,5,6,6,5],[4,4,3,3,2,2,1],[5,5,4,4,3,3,2],[5,5,4,4,3,3,2],[1,1,5,5,6,6,5],[4,4,3,3,2,2,1]];
 const LYR=['一閃一閃亮晶晶','滿天都是小星星','掛在天上放光明','好像許多小眼睛','一閃一閃亮晶晶','滿天都是小星星'];
 function tone(f,dur=0.55){if(!actx)return;const t=actx.currentTime,o=actx.createOscillator(),o2=actx.createOscillator(),g=actx.createGain(),g2=actx.createGain();
-  o.type='triangle';o2.type='sine';o.frequency.value=f;o2.frequency.value=f*2;g2.gain.value=0.25;o.connect(g);o2.connect(g2);g2.connect(g);g.connect(actx.destination);
+  o.type='triangle';o2.type='sine';o.frequency.value=f;o2.frequency.value=f*2;g2.gain.value=0.25;o.connect(g);o2.connect(g2);g2.connect(g);g.connect(sfxBus);
   g.gain.setValueAtTime(0.0001,t);g.gain.exponentialRampToValueAtTime(0.35,t+0.012);g.gain.exponentialRampToValueAtTime(0.001,t+dur);o.start(t);o2.start(t);o.stop(t+dur+0.02);o2.stop(t+dur+0.02);}
 function startMusic(r){let ph=0,ni=0,miss=0,done=false,demo=false;
   openMini(`<div class="mhead"><div class="mtitle">🎹 音樂教室：彈出〈小星星〉</div><div>錯誤 <b id="mMiss">0</b></div></div>
@@ -1634,7 +1741,7 @@ function drawKid(g,p){const a=p.act,x=p.x,y=GY-p.y,f=p.face;g.save();g.translate
   const blk=DU.in.D&&p.y===0&&!a;const ext=a&&(a.k==='P'||a.k==='K')?Math.min(1,a.t/a.a0)*(a.t>a.a1?Math.max(0,1-(a.t-a.a1)/0.12):1):0;
   g.lineCap='round';g.strokeStyle='#f0c8a0';g.lineWidth=12;
   const kick=a&&a.k==='K';g.beginPath();g.moveTo(-8,-46);g.lineTo(-12,0);g.stroke();g.beginPath();g.moveTo(8,-46);if(kick)g.lineTo(8+70*ext,-50-10*ext);else g.lineTo(12,0);g.stroke();
-  g.fillStyle='#2e8b3e';g.fillRect(-20,-62,40,22);g.fillStyle='#fff';g.fillRect(-21,-108,42,48);g.fillStyle='#f08a24';g.fillRect(-21,-90,42,8);g.fillStyle='#2e8b3e';g.fillRect(-21,-82,42,5);
+  const uc=SET.gender==='girl'?'#f08a24':'#2e8b3e';g.fillStyle=uc;g.fillRect(-20,-62,40,22);g.fillStyle='#fff';g.fillRect(-21,-108,42,48);g.fillStyle='#f08a24';g.fillRect(-21,-90,42,8);g.fillStyle='#2e8b3e';g.fillRect(-21,-82,42,5);g.fillStyle=uc;g.fillRect(-27,-108,8,14);g.fillRect(19,-108,8,14);
   g.strokeStyle='#f0c8a0';g.lineWidth=10;g.beginPath();g.moveTo(-14,-100);g.lineTo(blk?18:-22,blk?-110:-70);g.stroke();
   g.beginPath();g.moveTo(14,-100);if(a&&a.k==='P')g.lineTo(14+64*ext,-100);else if(a&&(a.k==='B'||a.k==='S'))g.lineTo(55,-112);else if(blk)g.lineTo(26,-92);else g.lineTo(22,-70);g.stroke();
   g.fillStyle='#f0c8a0';g.beginPath();g.arc(0,-126,20,0,7);g.fill();g.fillStyle='#ddd';g.beginPath();g.arc(0,-130,21,Math.PI,0);g.fill();g.fillRect(4,-133,26,5);
