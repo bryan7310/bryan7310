@@ -82,8 +82,12 @@ body.touch #prompt{bottom:170px}
 #bThrow{background:rgba(232,84,47,.8)}#bJump{background:rgba(47,168,79,.75)}#bPlace{background:rgba(160,110,60,.8)}#bBag,#bView{background:rgba(60,60,80,.75)}
 body.touch #hotbar{bottom:auto;top:auto;bottom:178px}
 body.touch #hotbar .slot{width:36px;height:40px}body.touch #hotbar .sw{width:20px;height:20px;font-size:15px}body.touch #hotbar .slot>span:not(.cnt):not(.num):not(.sw){display:none}
-#hudToggle{display:none}
-@media (max-height:820px),(max-width:900px){#hud{padding:6px 10px;font-size:12px;width:min(230px,calc(100vw - 210px))}#hpbar{height:10px}#quests{font-size:11px;line-height:1.4}#hudToggle{display:block;pointer-events:auto;position:absolute;right:6px;bottom:4px;font-size:11px;background:none;border:0;color:#9fe3ae;cursor:pointer}#hud.min #quests,#hud.min #buffs{display:none}#mini{width:140px;height:114px}#toolbar{top:132px}}
+#hud{background:rgba(14,26,18,.55);pointer-events:auto;cursor:pointer}
+#hud.min{width:min(220px,46vw);padding:6px 10px}
+#hud.min #quests li{display:none}#hud.min #quests li.cur{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}#hud.min #quests{margin-top:4px}
+#hud.min #buffs{display:none}
+#hudToggle{display:block;position:absolute;right:8px;bottom:4px;font-size:11px;background:none;border:0;color:#9fe3ae;cursor:pointer;padding:0}
+@media (max-height:820px),(max-width:900px){#hud{padding:6px 10px;font-size:12px;width:min(230px,calc(100vw - 210px))}#hpbar{height:10px}#quests{font-size:11px;line-height:1.4}#hudToggle{display:block;pointer-events:auto;position:absolute;right:6px;bottom:4px;font-size:11px;background:none;border:0;color:#9fe3ae;cursor:pointer}#mini{width:140px;height:114px}#toolbar{top:132px}}
 @media (max-height:620px){#mini{width:110px;height:90px}#toolbar{top:108px}#tbtns button{width:54px!important;height:54px!important;font-size:13px!important}#joy{width:110px;height:110px}#knob{left:30px;top:30px}}
 body.touch #prompt{bottom:236px}
 #miniOv{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(8,16,10,.94);z-index:20;padding:10px}
@@ -203,14 +207,14 @@ body.touch .ts-press{display:none}
 <body class="title">
 <canvas id="game"></canvas>
 <div id="hurt"></div>
-<div id="hud" class="panel">
+<div id="hud" class="panel min">
   <div class="row"><b>體力</b><span id="hptxt">100/100</span></div>
   <div id="hpbar"><div id="hpfill"></div></div>
   <div class="row"><span>分數 <b id="score">0</b></span><span>同學 <b id="fcount">0</b></span></div>
   <div class="row"><span id="modeChip"></span><span id="where"></span></div>
   <div id="buffs"></div>
   <ul id="quests"></ul>
-  <button id="hudToggle" aria-label="收合任務">▲ 收合</button>
+  <button id="hudToggle" aria-label="展開任務">▼ 全部任務</button>
 </div>
 <canvas id="mini" width="360" height="292"></canvas>
 <div id="cross"></div><div id="digRing"></div><div id="hotbar"></div>
@@ -1601,7 +1605,7 @@ function applySettings(){
   applyAudio();syncToolbar();}
 function syncToolbar(){$('tbMute').textContent=SET.mute?'🔇':'🔊';}
 $('tbSet').onclick=()=>toggleSettings(true);
-$('hudToggle').onclick=e=>{e.stopPropagation();const m=$('hud').classList.toggle('min');$('hudToggle').textContent=m?'▼ 任務':'▲ 收合';};$('tbBag').onclick=()=>toggleBag(!bagOpen);$('tbView').onclick=()=>toggleView();
+$('hud').addEventListener('pointerdown',e=>{e.stopPropagation();const m=$('hud').classList.toggle('min');$('hudToggle').textContent=m?'▼ 全部任務':'▲ 收合';});$('tbBag').onclick=()=>toggleBag(!bagOpen);$('tbView').onclick=()=>toggleView();
 $('tbMute').onclick=()=>{SET.mute=!SET.mute;saveSet();applySettings();};
 $('tbFull').onclick=()=>{const de=document.documentElement,fe=document.fullscreenElement||document.webkitFullscreenElement;
   try{if(fe){(document.exitFullscreen||document.webkitExitFullscreen).call(document);return;}const rq=de.requestFullscreen||de.webkitRequestFullscreen;if(!rq)throw 0;const r=rq.call(de);if(r&&r.catch)r.catch(()=>fullHint());}catch(e){fullHint();}};
