@@ -878,6 +878,7 @@ function shirtTex(kind){const [c,g]=cv(128,128);
   else if(kind==='hoodie'){g.fillStyle='#4b2a6b';g.fillRect(0,0,128,128);g.fillStyle='#f2c230';g.beginPath();g.moveTo(70,24);g.lineTo(48,68);g.lineTo(66,68);g.lineTo(56,104);g.lineTo(84,56);g.lineTo(66,56);g.closePath();g.fill();}
   return tex(c);}
 const TEX={uniform:shirtTex('uniform'),principal:shirtTex('principal'),pe:shirtTex('pe'),lab:shirtTex('lab'),nurse:shirtTex('nurse'),hoodie:shirtTex('hoodie')};
+const capTexRed=(()=>{const [c,g]=cv(64,64);for(let y=0;y<8;y++)for(let x=0;x<8;x++){g.fillStyle=(x+y)%2?'#d6282b':'#f6f0ee';g.fillRect(x*8,y*8,8,8);}const t=tex(c,true);t.repeat.set(3,1);return t;})();
 const capTex=(()=>{const [c,g]=cv(64,64);for(let y=0;y<8;y++)for(let x=0;x<8;x++){g.fillStyle=(x+y)%2?'#9a9a9a':'#f0f0f0';g.fillRect(x*8,y*8,8,8);}const t=tex(c,true);t.repeat.set(3,1);return t;})();
 function makeLabel(text,bg,fg){const [c,g]=cv(256,64);g.font='bold 34px "PingFang TC","Microsoft JhengHei",sans-serif';const w=Math.min(250,g.measureText(text).width+28);
   g.fillStyle=bg;g.beginPath();if(g.roundRect)g.roundRect(128-w/2,8,w,48,14);else g.rect(128-w/2,8,w,48);g.fill();g.fillStyle=fg;g.textAlign='center';g.textBaseline='middle';g.fillText(text,128,33);
@@ -904,8 +905,8 @@ function makePerson(o){
   const head=new THREE.Group();head.position.y=H+0.48+0.21;body.add(head);
   head.add(sph(0.2,skin,16,12));
   const hairM=lam(o.hair||0x1d1a18);
-  if(o.cap){const cap=new THREE.Mesh(new THREE.SphereGeometry(0.215,16,8,0,Math.PI*2,0,Math.PI*0.5),lam(0xffffff,{map:capTex}));cap.position.y=0.03;head.add(cap);
-    const brim=box(0.32,0.025,0.16,lam(o.capColor||0xffffff,{map:o.capColor?null:capTex}));brim.position.set(0,0.05,0.2);head.add(brim);}
+  if(o.cap){const ct=o.capRed?capTexRed:capTex;const cap=new THREE.Mesh(new THREE.SphereGeometry(0.215,16,8,0,Math.PI*2,0,Math.PI*0.5),lam(0xffffff,{map:ct}));cap.position.y=0.03;head.add(cap);
+    const brim=box(0.32,0.025,0.16,lam(o.capColor||0xffffff,{map:o.capColor?null:ct}));brim.position.set(0,0.05,0.2);head.add(brim);}
   else if(o.hood){const hd=new THREE.Mesh(new THREE.SphereGeometry(0.235,16,10,0,Math.PI*2,0,Math.PI*0.62),lam(o.shirt));hd.rotation.x=-0.35;head.add(hd);}
   else{const hr=new THREE.Mesh(new THREE.SphereGeometry(0.215,16,10,0,Math.PI*2,0,Math.PI*(o.longHair?0.62:0.5)),hairM);hr.rotation.x=-0.3;head.add(hr);
     if(o.bob){const bk=box(0.42,0.26,0.18,hairM);bk.position.set(0,-0.03,-0.1);head.add(bk);}
@@ -960,7 +961,7 @@ function sfx(kind){if(!actx)return;const t=actx.currentTime,o=actx.createOscilla
 const G={started:false,overlay:false,hp:100,maxHp:100,score:0,kills:0,killGoal:15,friendGoal:3,dmg:1,rapid:false,shield:false,met:false,bossSpawned:false,bossDead:false,won:false,time:0};
 const SPAWN=[205,185];
 const START_GENDER=(()=>{try{return JSON.parse(localStorage.getItem('dayuan-settings')||'{}').gender;}catch(e){}})()||'boy';
-function playerOpts(gd){const girl=gd==='girl';return {tex:TEX.uniform,shirt:0xffffff,sleeve:girl?0xf08a24:0x2e8b3e,pants:girl?0xf08a24:0x2e8b3e,cap:true,pony:girl,shoe:girl?0xe86d8a:0x1e7a3c};}
+function playerOpts(gd){const girl=gd==='girl';return {tex:TEX.uniform,shirt:0xffffff,sleeve:girl?0xf08a24:0x2e8b3e,pants:girl?0xf08a24:0x2e8b3e,cap:true,capRed:girl,pony:girl,shoe:girl?0xe86d8a:0x1e7a3c};}
 const player={x:wx(SPAWN[0]),y:0,vy:0,z:wz(SPAWN[1]),facing:Math.PI,cd:0,inv:0,speed:0,p:makePerson(playerOpts(START_GENDER))};
 function addPlayerRing(){const ring=new THREE.Mesh(new THREE.RingGeometry(0.42,0.52,24),new THREE.MeshBasicMaterial({color:0xf2c230,transparent:true,opacity:.8}));ring.rotation.x=-Math.PI/2;ring.position.y=0.03;player.p.root.add(ring);}
 scene.add(player.p.root);
@@ -1048,7 +1049,7 @@ const FRIENDS=[
   ['志豪',[325,170],{sleeve:0x2e8b3e,pants:0x2e8b3e},'搗蛋鬼又在亂搞？交給我們吧！'],
   ['雅婷',[225,340],{sleeve:0xf08a24,pants:0xf08a24,bob:true},'我跟你走！大家一起就不怕了！'],
 ];
-for(const [name,pos,o,line] of FRIENDS){const n=addNPC('friend',name,pos,Object.assign({tex:TEX.uniform,shirt:0xffffff,cap:true,shoe:pick([0x1e7a3c,0x222222,0xe86d8a,0x2f6fd0])},o));n.joinLine=line;}
+for(const [name,pos,o,line] of FRIENDS){if(o.pants===0xf08a24)o.capRed=true;const n=addNPC('friend',name,pos,Object.assign({tex:TEX.uniform,shirt:0xffffff,cap:true,shoe:pick([0x1e7a3c,0x222222,0xe86d8a,0x2f6fd0])},o));n.joinLine=line;}
 {const d=addNPC('friend','恐龍',[515,150],{make:makeDino});d.joinLine='吼——！恐龍也來幫忙！我的躲避球特別大顆！';d.power=2;}
 const friendsOf=()=>npcs.filter(n=>n.recruited);
 
@@ -1317,6 +1318,8 @@ function updateNPCs(dt){
   }
   for(const c of CHESTS){c.mk.position.y=1.3+Math.sin(T*4)*0.1;const d=Math.hypot(player.x-c.x,player.z-c.z);if(d<Math.min(bd,2.4)&&Math.abs(player.y-c.y)<1.3){bd=d;nearNPC=c;}}
   if(!nearNPC){const r=roomAt(player.x,player.y,player.z);if(r)nearNPC={kind:'room',name:r.special.label,room:r};}
+  if(!nearNPC&&Math.abs(player.y)<1&&Math.hypot(player.x-wx(POND.c[0]),player.z-wz(POND.c[1]))<POND.rx*S+2.6)nearNPC={kind:'room',name:'生態池釣魚',room:FISH_ROOM};
+  if(!nearNPC&&Math.abs(player.y)<1){const [bx2,bz2]=trackLocalToPx(-30,0);for(const [cx2,cz2] of [[wx(TENNIS.c[0]),wz(TENNIS.c[1])],[wx(bx2),wz(bz2)]])if(Math.hypot(player.x-cx2,player.z-cz2)<9){nearNPC={kind:'room',name:'籃球場投籃',room:HOOP_ROOM};break;}}
 }
 function killEnemy(e,silent){if(e.dead)return;e.dead=true;scene.remove(e.g);enemies.splice(enemies.indexOf(e),1);
   if(silent){burst(e.x,e.y+1,e.z,0xffffff,6);return;}
@@ -1396,7 +1399,7 @@ const miniBase=(()=>{const [c,g]=cv(mini.width,mini.height);const sx=c.width/(MM
   g.fillStyle='#7a5230';g.fillRect(DIG.x0/S+CX,DIG.z0/S+CY,(DIG.x1-DIG.x0)/S,(DIG.z1-DIG.z0)/S);
   g.fillStyle='#2f6b30';for(const t of trees){g.beginPath();g.arc(t.px,t.py,4,0,7);g.fill();}
   g.font='bold 15px sans-serif';g.textAlign='center';g.fillStyle='#fff';g.strokeStyle='#000';g.lineWidth=3;
-  for(const [t,x,y] of [['操場',422,252],['中庭',200,128],['新元館',256,425],['球場',450,78],['司令台',292,190],['生態池',312,116],['午餐廚房',358,90],['挖寶區',357,430]]){g.strokeText(t,x,y);g.fillText(t,x,y);}
+  for(const [t,x,y] of [['操場',422,252],['中庭',200,128],['新元館',256,425],['球場🏀',450,78],['司令台',292,190],['生態池🎣',312,116],['午餐廚房',358,90],['挖寶區',357,430]]){g.strokeText(t,x,y);g.fillText(t,x,y);}
   return c;})();
 function drawMini(){const W=mini.width,H=mini.height,sx=W/(MM.x1-MM.x0),sy=H/(MM.y1-MM.y0);
   mg.setTransform(1,0,0,1,0,0);mg.drawImage(miniBase,0,0);
@@ -1488,12 +1491,12 @@ applySettings();
 
 // ================= mini-games =================
 let miniFrame=null,miniKey=null;
-function openMini(html){miniOpen=true;leftDown=false;for(const k in keys)keys[k]=false;if(document.pointerLockElement)document.exitPointerLock();$('miniBox').innerHTML=html;$('miniOv').style.display='flex';}
+function openMini(html){miniOpen=true;bannerT=0;$('banner').style.opacity=0;leftDown=false;for(const k in keys)keys[k]=false;if(document.pointerLockElement)document.exitPointerLock();$('miniBox').innerHTML=html;$('miniOv').style.display='flex';}
 function closeMini(){miniOpen=false;miniFrame=null;miniKey=null;$('miniOv').style.display='none';$('miniBox').innerHTML='';clock.getDelta();}
 addEventListener('keydown',e=>{if(miniOpen&&miniKey){miniKey(e,true);}});
 addEventListener('keyup',e=>{if(miniOpen&&miniKey){miniKey(e,false);}});
 function reward(loot,why){const got=Object.entries(loot).map(([k,v])=>{addItem(k,v);return ITEM_N[k]+'×'+v;}).join('、');banner(why+'　獲得 '+got,3.2);sfx('power');}
-function enterRoom(r){const t=r.special.type;if(t==='art')startArt(r);else if(t==='music')startMusic(r);else if(t==='parkour')startParkour(r);else if(t==='dodge')startDodge(r);}
+function enterRoom(r){const t=r.special.type;if(t==='art')startArt(r);else if(t==='music')startMusic(r);else if(t==='parkour')startParkour(r);else if(t==='dodge')startDodge(r);else if(t==='fish')startFish();else if(t==='hoops')startHoops();}
 
 // ---- art room: 1-minute drawing ----
 const THEMES=[['太陽',['#f2c230','#f08a24','#3a8ee8']],['大樹',['#2fa84f','#7a5230']],['我的家',['#e23a2c','#7a5230','#3a8ee8']],['彩虹',['#e23a2c','#f08a24','#f2c230','#2fa84f','#3a8ee8','#8e44ad']],
@@ -1659,6 +1662,126 @@ function drawDodge(){const D=DB,g=D.g;g.fillStyle='#3a2a1e';g.fillRect(0,0,960,5
   if(D.msg&&D.msg.time>0){D.msg.time-=1/60;g.font='bold 40px "PingFang TC","Microsoft JhengHei",sans-serif';g.lineWidth=7;g.strokeStyle='#000';g.strokeText(D.msg.t,480,290);g.fillStyle='#ffd23a';g.fillText(D.msg.t,480,290);}
   if(D.P[0].hold&&!D.end){g.fillStyle='#fff';g.font='15px sans-serif';g.fillText('你拿到球了！按 J 丟球',480,515);}}
 
+// ---- fishing at the ecology pond ----
+const FISH_ROOM={special:{label:'生態池釣魚',type:'fish'}};
+const FISH=[{n:'大肚魚',r:'常見',p:30,cm:[3,6],sp:0.8,col:'#9aa7a0',pts:5},{n:'吳郭魚',r:'常見',p:24,cm:[12,30],sp:1.1,col:'#6f7f86',pts:10},{n:'泥鰍',r:'常見',p:16,cm:[8,18],sp:1.5,col:'#8a6a44',pts:12},
+  {n:'溪蝦',r:'少見',p:10,cm:[3,8],sp:1.8,col:'#c9b38a',pts:15},{n:'小金魚',r:'少見',p:8,cm:[5,12],sp:1.3,col:'#f08a24',pts:20},{n:'紅白錦鯉',r:'稀有',p:5,cm:[25,55],sp:2.0,col:'#e23a2c',pts:40,loot:{iron:2}},
+  {n:'斑龜',r:'稀有',p:3,cm:[10,22],sp:0.9,col:'#4f7a3a',pts:35,loot:{stone:4}},{n:'黃金錦鯉',r:'傳說',p:1,cm:[40,70],sp:2.6,col:'#f2c230',pts:100,loot:{gem:2}},
+  {n:'被丟掉的考卷',r:'垃圾',p:3,cm:[0,0],sp:0.5,col:'#f4f4ee',pts:1,junk:true}];
+const FISH_LOG={};
+function rollFish(){let t=FISH.reduce((a,f)=>a+f.p,0)*Math.random();for(const f of FISH){t-=f.p;if(t<=0)return f;}return FISH[0];}
+let FS=null;
+function startFish(){
+  openMini(`<div class="mhead"><div class="mtitle">🎣 生態池釣魚</div><div>分數 <b id="fScore">0</b>・釣到 <b id="fCnt">0</b> 隻</div></div>
+    <canvas id="fishCv" width="960" height="540" style="width:100%;height:auto;max-height:70vh;border-radius:10px;touch-action:none"></canvas>
+    <div class="mrow"><button class="mbtn go" id="fBtn" style="min-width:180px;padding:14px 22px;font-size:18px">拋竿</button><button class="mbtn" id="fBook">圖鑑</button><button class="mbtn" id="fQuit">離開</button></div>
+    <div id="fInfo" style="color:var(--muted);font-size:13px;text-align:center">空白鍵／點按鈕：拋竿 → 浮標往下沉、出現「！」時馬上按 → 按住讓綠色框跟住魚，把進度條拉滿就釣到了</div>`);
+  FS={st:'idle',pow:0,pd:1,dist:0,t:0,bite:0,fish:null,zone:0.5,zv:0,fy:0.5,ft:0.5,fw:0,prog:0.3,hold:false,score:0,cnt:0,msg:null,g:$('fishCv').getContext('2d'),waves:0};
+  const down=()=>{FS.hold=true;press();},up=()=>{FS.hold=false;};
+  $('fBtn').onpointerdown=e=>{e.preventDefault();down();};$('fBtn').onpointerup=$('fBtn').onpointerleave=$('fBtn').onpointercancel=up;
+  $('fishCv').onpointerdown=e=>{e.preventDefault();down();};$('fishCv').onpointerup=$('fishCv').onpointercancel=up;
+  miniKey=(e,d)=>{if(e.code!=='Space'&&e.code!=='Enter'&&e.code!=='KeyJ')return;e.preventDefault();if(d&&!e.repeat)down();if(!d)up();};
+  $('fQuit').onclick=()=>{FS=null;closeMini();};
+  $('fBook').onclick=()=>{const rows=FISH.map(f=>{const L=FISH_LOG[f.n];return `<span class="chip" style="${L?'':'opacity:.45'}">${L?f.n:'？？？'}（${f.r}）${L&&!f.junk?` 最大 ${L.max} 公分 ×${L.n}`:L?` ×${L.n}`:''}</span>`;}).join('');
+    $('fInfo').innerHTML=`<div class="mats" style="justify-content:center">${rows}</div>`;};
+  miniFrame=fishFrame;}
+function press(){const F=FS;if(!F)return;
+  if(F.st==='idle'||F.st==='result'){F.st='power';F.pow=0;F.pd=1;F.msg=null;$('fBtn').textContent='放開？再按一次決定力道';return;}
+  if(F.st==='power'){F.st='cast';F.dist=0.25+F.pow*0.7;F.t=0;sfx('throw');$('fBtn').textContent='等魚上鉤…';return;}
+  if(F.st==='wait'){F.st='idle';F.msg={t:'太早拉竿，魚被嚇跑了！',c:'#ff8a7a'};$('fBtn').textContent='拋竿';return;}
+  if(F.st==='bite'){F.st='reel';F.fish=rollFish();F.zone=0.5;F.zv=0;F.fy=0.5;F.ft=Math.random();F.fw=0;F.prog=0.3;sfx('hit');$('fBtn').textContent='按住收線！';return;}}
+function fishFrame(dt){const F=FS;if(!F)return;dt=Math.min(dt,0.04);F.t+=dt;F.waves+=dt;
+  if(F.st==='power'){F.pow+=F.pd*dt*1.3;if(F.pow>1){F.pow=1;F.pd=-1;}if(F.pow<0){F.pow=0;F.pd=1;}}
+  else if(F.st==='cast'&&F.t>0.7){F.st='wait';F.t=0;F.bite=rand(1.4,4.5);}
+  else if(F.st==='wait'&&F.t>F.bite){F.st='bite';F.t=0;sfx('talk');}
+  else if(F.st==='bite'&&F.t>0.85){F.st='idle';F.msg={t:'魚溜走了…下次快一點！',c:'#ff8a7a'};$('fBtn').textContent='拋竿';}
+  else if(F.st==='reel'){const f=F.fish;F.zv+=(F.hold?2.4:-2.0)*dt;F.zv*=Math.pow(0.25,dt);F.zone=clamp(F.zone+F.zv*dt,0.1,0.9);if(F.zone===0.1||F.zone===0.9)F.zv=0;
+    F.fw-=dt;if(F.fw<=0){F.ft=clamp(F.fy+rand(-0.5,0.5)*f.sp*0.6,0.05,0.95);F.fw=rand(0.3,1.2)/f.sp;}F.fy+=(F.ft-F.fy)*Math.min(1,dt*2.5*f.sp);
+    const inZone=Math.abs(F.fy-F.zone)<0.11;F.prog+=(inZone?0.28:-0.2)*dt;
+    if(F.prog>=1){F.st='result';const cm=f.junk?0:Math.round(rand(f.cm[0],f.cm[1]));const L=FISH_LOG[f.n]||(FISH_LOG[f.n]={n:0,max:0});L.n++;L.max=Math.max(L.max,cm);
+      F.score+=f.pts+Math.round(cm/3);F.cnt++;$('fScore').textContent=F.score;$('fCnt').textContent=F.cnt;F.msg={t:f.junk?`釣到「${f.n}」…丟進資源回收！`:`釣到 ${f.n}！${cm} 公分（${f.r}）`,c:f.r==='傳說'?'#ffd23a':f.r==='稀有'?'#ff9ec4':'#9fe3ae',f};
+      sfx(f.r==='傳說'||f.r==='稀有'?'power':'kill');if(f.loot)reward(f.loot,`釣到${f.r}的${f.n}！`);$('fBtn').textContent='再拋一次';}
+    else if(F.prog<=0){F.st='idle';F.msg={t:'線斷了，魚跑掉了！',c:'#ff8a7a'};$('fBtn').textContent='拋竿';}}
+  drawFish();}
+function drawFish(){const F=FS,g=F.g,W=960,H=540,WY=250;
+  const sky=g.createLinearGradient(0,0,0,WY);sky.addColorStop(0,'#8fcaf0');sky.addColorStop(1,'#dff1f8');g.fillStyle=sky;g.fillRect(0,0,W,WY);
+  g.fillStyle='#eba792';g.fillRect(380,70,580,150);g.fillStyle='#efe3c9';for(let y=70;y<220;y+=38)g.fillRect(380,y+30,580,6);g.fillStyle='#7aa69f';for(let y=78;y<210;y+=38)for(let x=400;x<960;x+=46)g.fillRect(x,y,26,18);
+  g.fillStyle='#3e7a3a';for(let x=0;x<400;x+=50){g.beginPath();g.arc(x+20,200,48,0,7);g.fill();}
+  g.fillStyle='#8d8577';g.fillRect(0,WY-14,W,18);
+  const wg=g.createLinearGradient(0,WY,0,H);wg.addColorStop(0,'#3fb7c9');wg.addColorStop(1,'#1f6f7a');g.fillStyle=wg;g.fillRect(0,WY,W,H-WY);
+  g.strokeStyle='rgba(255,255,255,.25)';g.lineWidth=2;for(let i=0;i<9;i++){const y=WY+20+i*30;g.beginPath();for(let x=0;x<=W;x+=20)g.lineTo(x,y+Math.sin(x*0.03+F.waves*2+i)*3);g.stroke();}
+  g.fillStyle='rgba(20,60,60,.35)';for(let i=0;i<5;i++){const x=(i*211+F.waves*30*(i%2?1:-1))%(W+100)-50;g.beginPath();g.ellipse(x<0?x+W:x,WY+120+i*40,26,8,0,0,7);g.fill();}
+  for(const [x,y,r] of [[700,WY+8,38],[820,WY+18,30],[560,WY+12,26]]){g.fillStyle='#4f9a3c';g.beginPath();g.ellipse(x,y,r,r*0.35,0,0.3,6.0);g.fill();}
+  g.fillStyle='#fffbea';g.beginPath();g.arc(710,WY,8,0,7);g.fill();
+  for(const [x,h] of [[880,150],[630,120]]){g.strokeStyle='#7cc46a';g.lineWidth=5;g.beginPath();g.moveTo(x,WY+10);g.quadraticCurveTo(x+20,WY-h/2,x,WY-h);g.stroke();g.fillStyle='#3fa59a';g.beginPath();g.ellipse(x,WY-h,40,10,0.15,0,7);g.fill();}
+  g.fillStyle='#9a948a';g.beginPath();g.ellipse(70,WY+30,110,40,0,0,7);g.fill();
+  const kid=SET.gender==='girl'?'#f08a24':'#2e8b3e';g.fillStyle=kid;g.fillRect(60,WY-60,26,22);g.fillStyle='#fff';g.fillRect(58,WY-100,30,42);g.fillStyle='#f0c8a0';g.beginPath();g.arc(73,WY-116,15,0,7);g.fill();g.fillStyle=SET.gender==='girl'?'#d6282b':'#bbb';g.beginPath();g.arc(73,WY-120,16,Math.PI,0);g.fill();
+  const tipX=230,tipY=WY-170;g.strokeStyle='#5b3a1e';g.lineWidth=5;g.beginPath();g.moveTo(85,WY-80);g.lineTo(tipX,tipY);g.stroke();
+  if(F.st!=='idle'&&F.st!=='power'&&!(F.st==='result')){const cast=F.st==='cast'?Math.min(1,F.t/0.7):1,bx=tipX+(F.dist*700)*cast,by0=WY+(F.st==='bite'?10+Math.sin(F.t*40)*4:Math.sin(F.waves*3)*2);
+    const by=F.st==='cast'?tipY+(by0-tipY)*cast-Math.sin(cast*Math.PI)*120:by0;g.strokeStyle='rgba(255,255,255,.8)';g.lineWidth=1.5;g.beginPath();g.moveTo(tipX,tipY);g.quadraticCurveTo((tipX+bx)/2,Math.max(tipY,by)-20,bx,by);g.stroke();
+    g.fillStyle='#e23a2c';g.beginPath();g.arc(bx,by,8,Math.PI,0);g.fill();g.fillStyle='#fff';g.beginPath();g.arc(bx,by,8,0,Math.PI);g.fill();
+    if(F.st==='bite'){g.font='bold 54px sans-serif';g.textAlign='center';g.fillStyle='#ffd23a';g.strokeStyle='#000';g.lineWidth=6;g.strokeText('！',bx,by-30);g.fillText('！',bx,by-30);}}
+  if(F.st==='power'){g.fillStyle='rgba(0,0,0,.5)';g.fillRect(40,40,300,26);const gr=g.createLinearGradient(42,0,338,0);gr.addColorStop(0,'#2fa84f');gr.addColorStop(1,'#e23a2c');g.fillStyle=gr;g.fillRect(43,43,294*F.pow,20);g.fillStyle='#fff';g.font='bold 16px "PingFang TC","Microsoft JhengHei",sans-serif';g.textAlign='left';g.fillText('力道：再按一次拋出去',44,88);}
+  if(F.st==='reel'){const x=840,y=40,h=400,f=F.fish;g.fillStyle='rgba(0,0,0,.55)';g.fillRect(x-10,y-10,90,h+20);g.fillStyle='#1f4f5a';g.fillRect(x,y,40,h);
+    const zy=y+(1-F.zone)*h;g.fillStyle='rgba(80,220,120,.75)';g.fillRect(x,zy-0.11*h,40,0.22*h);
+    const fy=y+(1-F.fy)*h;g.fillStyle=f.col;g.beginPath();g.ellipse(x+20,fy,14,8,0,0,7);g.fill();g.beginPath();g.moveTo(x+6,fy);g.lineTo(x-2,fy-7);g.lineTo(x-2,fy+7);g.fill();
+    g.fillStyle='#432';g.fillRect(x+50,y,14,h);g.fillStyle=F.prog>0.7?'#2fa84f':F.prog>0.35?'#f2c230':'#e23a2c';g.fillRect(x+50,y+h*(1-F.prog),14,h*F.prog);
+    g.fillStyle='#fff';g.font='bold 18px "PingFang TC","Microsoft JhengHei",sans-serif';g.textAlign='center';g.fillText('按住往上・放開往下',x-140,y+20);}
+  if(F.msg){g.font='bold 34px "PingFang TC","Microsoft JhengHei",sans-serif';g.textAlign='center';g.lineWidth=7;g.strokeStyle='#000';g.strokeText(F.msg.t,480,150);g.fillStyle=F.msg.c;g.fillText(F.msg.t,480,150);
+    if(F.msg.f&&F.st==='result'){const f=F.msg.f;g.fillStyle=f.col;g.beginPath();g.ellipse(480,200,f.junk?30:46,f.junk?36:22,0,0,7);g.fill();if(!f.junk){g.beginPath();g.moveTo(436,200);g.lineTo(408,182);g.lineTo(408,218);g.fill();g.fillStyle='#111';g.beginPath();g.arc(510,195,4,0,7);g.fill();}}}}
+
+// ---- basketball shooting ----
+const HOOP_ROOM={special:{label:'籃球場投籃',type:'hoops'}};let HS=null,HOOP_BEST=0;
+const RIM={x0:772,x1:838,y:215},BOARD={x:852,y0:110,y1:235},GRV=1500,ANG=54*D2R;
+function hoopsNewSpot(){const H=HS;H.px=rand(170,520);H.py=400;H.three=H.px<330;
+  const d=(RIM.x0+RIM.x1)/2-(H.px+20),h=H.py-50-RIM.y,c=Math.cos(ANG),t=Math.tan(ANG);H.vStar=Math.sqrt(GRV*d*d/(2*c*c*(d*t-h)));H.best=(1-0.6)/0.75+0.035;}
+function startHoops(){
+  openMini(`<div class="mhead"><div class="mtitle">🏀 籃球場投籃：60 秒挑戰</div><div class="timer" id="hT">60</div></div>
+    <canvas id="hoopCv" width="960" height="540" style="width:100%;height:auto;max-height:70vh;border-radius:10px;touch-action:none"></canvas>
+    <div class="mrow"><button class="mbtn go" id="hBtn" style="min-width:200px;padding:14px 22px;font-size:18px">按住蓄力・放開投籃</button><button class="mbtn" id="hQuit">離開</button></div>
+    <div style="color:var(--muted);font-size:13px;text-align:center">按住空白鍵（或按鈕、畫面）蓄力，力道條到「金色區」放開最準。三分線外進球 3 分，空心球再加 1 分，連進有加成！</div>`);
+  HS={t:60,score:0,made:0,shots:0,streak:0,pow:0,charging:false,ball:null,msg:null,g:$('hoopCv').getContext('2d'),over:false,net:0};hoopsNewSpot();
+  const dn=()=>{if(HS&&!HS.ball&&!HS.over){HS.charging=true;HS.pow=0;}},up=()=>{if(HS&&HS.charging)hoopsShoot();};
+  $('hBtn').onpointerdown=e=>{e.preventDefault();dn();};$('hBtn').onpointerup=$('hBtn').onpointerleave=$('hBtn').onpointercancel=up;
+  $('hoopCv').onpointerdown=e=>{e.preventDefault();dn();};$('hoopCv').onpointerup=$('hoopCv').onpointercancel=up;
+  miniKey=(e,d)=>{if(e.code!=='Space'&&e.code!=='KeyJ')return;e.preventDefault();if(d&&!e.repeat)dn();if(!d)up();};
+  $('hQuit').onclick=()=>{HS=null;closeMini();};miniFrame=hoopsFrame;}
+function hoopsShoot(){const H=HS;H.charging=false;const v=H.vStar*(0.6+H.pow*0.75);
+  H.ball={x:H.px+20,y:H.py-50,vx:v*Math.cos(ANG),vy:-v*Math.sin(ANG),t:0,touched:false,scored:false,prevY:H.py-50};H.shots++;sfx('throw');}
+function hoopsFrame(dt){const H=HS;if(!H)return;dt=Math.min(dt,0.03);
+  if(!H.over){H.t-=dt;$('hT').textContent=Math.max(0,Math.ceil(H.t));if(H.t<=10)$('hT').style.color='#ff6b5b';if(H.t<=0&&!H.ball){H.over=true;hoopsEnd();}}
+  if(H.charging){H.pow=Math.min(1,H.pow+dt/1.3);}
+  const b=H.ball;if(b){for(let k=0;k<3;k++){const st=dt/3;b.t+=st;b.vy+=GRV*st;b.x+=b.vx*st;b.y+=b.vy*st;
+      for(const rx of[RIM.x0,RIM.x1]){const dx=b.x-rx,dy=b.y-RIM.y,d=Math.hypot(dx,dy);if(d<20&&d>0.01){const nx=dx/d,ny=dy/d,vn=b.vx*nx+b.vy*ny;if(vn<0){b.vx-=1.6*vn*nx;b.vy-=1.6*vn*ny;}b.x=rx+nx*20;b.y=RIM.y+ny*20;b.touched=true;sfx('hit');}}
+      if(b.x+16>BOARD.x&&b.x<BOARD.x+10&&b.y>BOARD.y0&&b.y<BOARD.y1&&b.vx>0){b.vx*=-0.55;b.x=BOARD.x-16;b.touched=true;sfx('hit');}
+      if(!b.scored&&b.prevY<RIM.y&&b.y>=RIM.y&&b.x>RIM.x0+6&&b.x<RIM.x1-6&&b.vy>0){b.scored=true;H.net=0.4;H.made++;H.streak++;
+        let pts=(H.three?3:2)+(b.touched?0:1);if(H.streak>=3)pts+=1;H.score+=pts;H.msg={t:(b.touched?'進球！':'空心球！')+` +${pts}`+(H.streak>=3?` 🔥${H.streak} 連進`:''),time:1.2,c:'#ffd23a'};sfx('power');}
+      b.prevY=b.y;}
+    if(b.y>600||b.x>1000||b.x<-40||b.t>3.5){if(!b.scored){H.streak=0;H.msg={t:'沒進…再試一次！',time:0.9,c:'#ff8a7a'};}H.ball=null;if(b.scored)hoopsNewSpot();if(H.t<=0){H.over=true;hoopsEnd();}}}
+  H.net=Math.max(0,H.net-dt);drawHoops();}
+function hoopsEnd(){const H=HS;const first=H.score>HOOP_BEST;HOOP_BEST=Math.max(HOOP_BEST,H.score);
+  setTimeout(()=>{if(!HS)return;$('miniBox').innerHTML=`<div class="mtitle">🏀 投籃挑戰結束</div><div class="score">${H.score} 分</div><div>投進 ${H.made}／${H.shots} 球（命中率 ${H.shots?Math.round(H.made/H.shots*100):0}%）・最佳紀錄 ${HOOP_BEST} 分${first&&H.score>0?' 🎉 新紀錄！':''}</div>
+    <div class="mrow"><button class="mbtn go" id="hAgain">再挑戰一次</button><button class="mbtn" id="hBack">回到球場</button></div>`;miniFrame=null;miniKey=null;
+    $('hAgain').onclick=startHoops;$('hBack').onclick=()=>{HS=null;closeMini();};
+    if(H.score>=10){const loot={log:3,stone:3};if(H.score>=20)loot.iron=2;if(H.score>=35)loot.gem=1;reward(loot,`投籃 ${H.score} 分！`);}},700);}
+function drawHoops(){const H=HS,g=H.g;const sky=g.createLinearGradient(0,0,0,300);sky.addColorStop(0,'#8fcaf0');sky.addColorStop(1,'#e2f2f8');g.fillStyle=sky;g.fillRect(0,0,960,540);
+  g.fillStyle='#eba792';g.fillRect(0,120,520,190);g.fillStyle='#efe3c9';for(let y=120;y<310;y+=47)g.fillRect(0,y+38,520,8);g.fillStyle='#7aa69f';for(let y=130;y<300;y+=47)for(let x=20;x<520;x+=48)g.fillRect(x,y,30,24);
+  g.fillStyle='#3e7a3a';for(let x=520;x<960;x+=60){g.beginPath();g.arc(x,300,50,0,7);g.fill();}
+  g.fillStyle='#3a9a5e';g.fillRect(0,400,960,140);g.strokeStyle='#fff';g.lineWidth=4;g.beginPath();g.moveTo(330,400);g.lineTo(300,540);g.stroke();g.fillStyle='rgba(255,255,255,.8)';g.font='bold 14px sans-serif';g.textAlign='center';g.fillText('三分線',322,425);
+  g.fillStyle='#2a5a9a';g.fillRect(872,120,14,280);g.fillRect(852,150,30,10);g.fillStyle='#fff';g.fillRect(BOARD.x,BOARD.y0,10,BOARD.y1-BOARD.y0);g.strokeStyle='#d33';g.lineWidth=3;g.strokeRect(BOARD.x+1,175,8,40);
+  const sw=H.net>0?Math.sin(H.net*40)*4:0;g.strokeStyle='rgba(255,255,255,.9)';g.lineWidth=2;for(let i=0;i<=6;i++){const x=RIM.x0+i*(RIM.x1-RIM.x0)/6;g.beginPath();g.moveTo(x,RIM.y);g.lineTo(RIM.x0+18+i*5+sw,RIM.y+55);g.stroke();}
+  g.beginPath();g.moveTo(RIM.x0+8,RIM.y+20);g.lineTo(RIM.x1-8,RIM.y+20);g.moveTo(RIM.x0+14,RIM.y+40);g.lineTo(RIM.x1-14,RIM.y+40);g.stroke();
+  g.strokeStyle='#ff6a00';g.lineWidth=6;g.beginPath();g.moveTo(RIM.x0,RIM.y);g.lineTo(RIM.x1,RIM.y);g.stroke();
+  const kid=SET.gender==='girl'?'#f08a24':'#2e8b3e',x=H.px,y=H.py;g.fillStyle='rgba(0,0,0,.25)';g.beginPath();g.ellipse(x,y+2,26,7,0,0,7);g.fill();
+  g.strokeStyle='#f0c8a0';g.lineWidth=9;g.beginPath();g.moveTo(x-8,y-40);g.lineTo(x-10,y);g.moveTo(x+8,y-40);g.lineTo(x+10,y);g.stroke();g.fillStyle=kid;g.fillRect(x-17,y-52,34,18);g.fillStyle='#fff';g.fillRect(x-18,y-92,36,42);
+  g.strokeStyle='#f0c8a0';g.lineWidth=8;g.beginPath();g.moveTo(x+10,y-84);g.lineTo(x+22,H.ball?y-118:y-60);g.stroke();g.fillStyle='#f0c8a0';g.beginPath();g.arc(x,y-108,16,0,7);g.fill();g.fillStyle=SET.gender==='girl'?'#d6282b':'#bbb';g.beginPath();g.arc(x,y-112,17,Math.PI,0);g.fill();
+  const bx=H.ball?H.ball.x:x+20,by=H.ball?H.ball.y:y-50;g.fillStyle='#e8762f';g.beginPath();g.arc(bx,by,16,0,7);g.fill();g.strokeStyle='#5a2a0a';g.lineWidth=2;g.beginPath();g.arc(bx,by,16,0,7);g.moveTo(bx-16,by);g.lineTo(bx+16,by);g.moveTo(bx,by-16);g.lineTo(bx,by+16);g.stroke();
+  if(H.charging||(!H.ball&&!H.over)){const mx=x-70,my=y-190,mh=150;g.fillStyle='rgba(0,0,0,.55)';g.fillRect(mx-4,my-4,24,mh+8);const bz=my+mh*(1-H.best);g.fillStyle='rgba(242,194,48,.85)';g.fillRect(mx,bz-mh*0.045,16,mh*0.09);
+    g.fillStyle=H.pow>H.best+0.045?'#e23a2c':'#2fa84f';g.fillRect(mx,my+mh*(1-H.pow),16,mh*H.pow);g.strokeStyle='#fff';g.lineWidth=1;g.strokeRect(mx,my,16,mh);}
+  g.fillStyle='rgba(0,0,0,.5)';g.fillRect(20,16,250,74);g.fillStyle='#fff';g.font='bold 22px "PingFang TC","Microsoft JhengHei",sans-serif';g.textAlign='left';g.fillText(`得分 ${H.score}`,34,46);g.font='15px "PingFang TC","Microsoft JhengHei",sans-serif';g.fillText(`進球 ${H.made}／${H.shots}　${H.three?'三分球位置':'兩分球位置'}`,34,74);
+  if(H.msg&&H.msg.time>0){H.msg.time-=1/60;g.font='bold 40px "PingFang TC","Microsoft JhengHei",sans-serif';g.textAlign='center';g.lineWidth=7;g.strokeStyle='#000';g.strokeText(H.msg.t,560,90);g.fillStyle=H.msg.c;g.fillText(H.msg.t,560,90);}
+  if(H.over){g.font='bold 56px "PingFang TC","Microsoft JhengHei",sans-serif';g.textAlign='center';g.lineWidth=8;g.strokeStyle='#000';g.strokeText('時間到！',480,280);g.fillStyle='#ffd23a';g.fillText('時間到！',480,280);}}
+
 // ---- boss duel: 2D side-view fight ----
 let DU=null;
 function startDuel(boss){if(DU||G.duelDone||miniOpen||Date.now()<(G.duelCool||0))return;
@@ -1744,7 +1867,7 @@ function drawKid(g,p){const a=p.act,x=p.x,y=GY-p.y,f=p.face;g.save();g.translate
   const uc=SET.gender==='girl'?'#f08a24':'#2e8b3e';g.fillStyle=uc;g.fillRect(-20,-62,40,22);g.fillStyle='#fff';g.fillRect(-21,-108,42,48);g.fillStyle='#f08a24';g.fillRect(-21,-90,42,8);g.fillStyle='#2e8b3e';g.fillRect(-21,-82,42,5);g.fillStyle=uc;g.fillRect(-27,-108,8,14);g.fillRect(19,-108,8,14);
   g.strokeStyle='#f0c8a0';g.lineWidth=10;g.beginPath();g.moveTo(-14,-100);g.lineTo(blk?18:-22,blk?-110:-70);g.stroke();
   g.beginPath();g.moveTo(14,-100);if(a&&a.k==='P')g.lineTo(14+64*ext,-100);else if(a&&(a.k==='B'||a.k==='S'))g.lineTo(55,-112);else if(blk)g.lineTo(26,-92);else g.lineTo(22,-70);g.stroke();
-  g.fillStyle='#f0c8a0';g.beginPath();g.arc(0,-126,20,0,7);g.fill();g.fillStyle='#ddd';g.beginPath();g.arc(0,-130,21,Math.PI,0);g.fill();g.fillRect(4,-133,26,5);
+  g.fillStyle='#f0c8a0';g.beginPath();g.arc(0,-126,20,0,7);g.fill();const girlCap=SET.gender==='girl';g.save();g.beginPath();g.arc(0,-130,21,Math.PI,0);g.rect(4,-133,26,5);g.clip();for(let yy=-152;yy<-126;yy+=6)for(let xx=-22;xx<32;xx+=6){g.fillStyle=((xx+yy)/6&1)?(girlCap?'#d6282b':'#9a9a9a'):'#f4f0ee';g.fillRect(xx,yy,6,6);}g.restore();
   g.fillStyle='#111';g.beginPath();g.arc(8,-125,2.8,0,7);g.fill();g.restore();}
 function drawBoss(g,b){const x=b.x,y=GY-b.y,a=b.act;g.save();g.translate(x,y);g.scale(b.face,1);if(b.hurt>0)g.globalAlpha=0.6;
   const wind=a&&a.t<a.w;if(wind){g.shadowColor='#ff3030';g.shadowBlur=30;}
