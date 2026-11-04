@@ -1213,7 +1213,7 @@ let bannerT=0;function banner(t,dur=2.6){$('banner').textContent=t;$('banner').s
 function hurtFlash(){$('hurt').style.boxShadow='inset 0 0 120px 40px rgba(220,30,30,.55)';setTimeout(()=>$('hurt').style.boxShadow='inset 0 0 120px 30px rgba(220,30,30,0)',160);}
 
 function hint(){const f=friendsOf().length;
-  if(G.bossSpawned&&!G.bossDead)return '考卷大魔王在操場！和同學一起丟躲避球打敗它！';
+  if(G.bossSpawned&&!G.bossDead)return '考卷大魔王在司令台上！走上司令台就能跟它決鬥！';
   if(f<G.friendGoal)return `校長幫你補滿體力了！再去找 ${G.friendGoal-f} 位同學一起組隊吧！`;
   if(G.kills<G.killGoal)return `體力補滿了！再打倒 ${G.killGoal-G.kills} 隻怪獸，大魔王就會出現！`;
   return '體力補滿了，加油！';}
@@ -1419,13 +1419,15 @@ function updateNPCs(dt){
   if(!nearNPC&&Math.abs(player.y)<1&&Math.hypot(player.x-wx(POND.c[0]),player.z-wz(POND.c[1]))<POND.rx*S+2.6)nearNPC={kind:'room',name:'生態池釣魚',room:FISH_ROOM};
   if(!nearNPC&&Math.abs(player.y)<1){const [bx2,bz2]=trackLocalToPx(-30,0);for(const [cx2,cz2] of [[wx(TENNIS.c[0]),wz(TENNIS.c[1])],[wx(bx2),wz(bz2)]])if(Math.hypot(player.x-cx2,player.z-cz2)<9){nearNPC={kind:'room',name:'籃球場投籃',room:HOOP_ROOM};break;}}
 }
+function stageCheck(){if(!G.met||G.duelDone||miniOpen||dlg||DU||Date.now()<(G.duelCool||0))return;const sx=wx(STAGE.c[0]),sz=wz(STAGE.c[1]),a=STAGE.a*D2R,dx=player.x-sx,dz=player.z-sz,lx=dx*Math.cos(a)+dz*Math.sin(a),lz=-dx*Math.sin(a)+dz*Math.cos(a);
+  if(Math.abs(lx)<STAGE.l*S/2+0.7&&Math.abs(lz)<STAGE.w*S/2+0.5&&player.y<4)startDuel(enemies.find(e=>e.type==='boss')||null);}
 function killEnemy(e,silent){if(e.dead)return;e.dead=true;scene.remove(e.g);enemies.splice(enemies.indexOf(e),1);
   if(silent){burst(e.x,e.y+1,e.z,0xffffff,6);return;}
   G.kills++;G.score+=e.score;burst(e.x,e.y+e.hitY,e.z,e.type==='boss'?0xf2c230:0xffffff,e.type==='boss'?60:14);popText('+'+e.score,e.x,e.y+e.hitY+1,e.z);sfx('kill');
   if(Math.random()<0.35&&e.type!=='boss'){const k=pick(['log','stone','iron','plank']);addItem(k,1);popText('+1 '+ITEM_N[k],e.x,e.y+e.hitY+1.6,e.z,'#9fe3ae');}
   if(e.type==='boss'){G.bossDead=true;$('bossbar').style.display='none';for(const o of enemies.slice())killEnemy(o,true);banner('打倒考卷大魔王了！回中庭找校長領獎！',4);}
 }
-function hitEnemy(e,dmg){if(e.type==='boss'&&typeof startDuel==='function'&&!G.duelDone){startDuel(e);return;}e.hp-=dmg;e.flash=0.12;sfx('hit');burst(e.x,e.y+e.hitY,e.z,0xe8542f,4);if(e.hp<=0)killEnemy(e);}
+function hitEnemy(e,dmg){if(e.type==='boss'){if(T-(G.bossPop||-9)>1.5){G.bossPop=T;popText('走上司令台決鬥！',e.x,e.y+5,e.z,'#ffd23a');}return;}e.hp-=dmg;e.flash=0.12;sfx('hit');burst(e.x,e.y+e.hitY,e.z,0xe8542f,4);if(e.hp<=0)killEnemy(e);}
 function damagePlayer(n,fromX,fromZ){if(player.inv>0||G.overlay||G.creative||miniOpen)return;if(G.shield)n=n/2;n=Math.max(1,Math.round(n*armorFactor()*DIFF[SET.diff].dmg));G.hp=Math.max(0,G.hp-n);player.inv=0.7;sfx('hurt');hurtFlash();popText('-'+n,player.x,player.y+2,player.z,'#ff6b5b');
   const dx=player.x-fromX,dz=player.z-fromZ,d=Math.hypot(dx,dz)||1;moveEntity(player,dx/d*1.2,dz/d*1.2,0.33);if(G.hp<=0)die();}
 function updateEnemies(dt){
@@ -1449,7 +1451,7 @@ function updateEnemies(dt){
       e.shootT-=dt;if(e.shootT<=0){e.shootT=e.hp<e.maxHp/2?1.6:2.4;const n=e.hp<e.maxHp/2?14:10,off=Math.random();for(let i=0;i<n;i++){const a=(i+off)/n*Math.PI*2;fire('enemy',e.x,e.y+1.2,e.z,Math.sin(a),0,Math.cos(a),8.5,10);}sfx('boss');}
       e.summonT-=dt;if(e.summonT<=0){e.summonT=7;for(let i=0;i<3;i++)spawnAt('mosquito',e.x+rand(-3,3),e.z+rand(-3,3),e.y);}
       $('bossfill').style.width=(e.hp/e.maxHp*100)+'%';
-      if(d<9&&typeof startDuel==='function'&&!G.duelDone&&!miniOpen)startDuel(e);}
+      }
     const sc=e.flash>0?1.15:1;e.flash-=dt;e.g.scale.setScalar(sc);
     if(d<e.r+0.4&&Math.abs(player.y-e.y)<1.6&&e.hitCd<=0){e.hitCd=1;damagePlayer(e.dmg,e.x,e.z);}
   }
@@ -1467,8 +1469,8 @@ function spawnPoint(minD,maxD){for(let t=0;t<40;t++){const a=Math.random()*Math.
 function spawner(dt){
   if(!G.met||G.bossDead||player.y>60)return;
   const f=friendsOf().length;
-  if(!G.bossSpawned&&G.kills>=G.killGoal&&f>=G.friendGoal){G.bossSpawned=true;const [px,py]=trackLocalToPx(0,0);spawnAt('boss',wx(px),wz(py),0);$('bossbar').style.display='block';sfx('boss');
-    banner('考卷大魔王出現在操場了！靠近它就會進入決鬥！',3.5);say([['考卷大魔王','哇哈哈哈！我是考卷大魔王！有本事就來操場跟我單挑！'],['小隊','我們才不怕！上吧！']]);}
+  if(!G.bossSpawned&&G.kills>=G.killGoal&&f>=G.friendGoal){G.bossSpawned=true;const bs=spawnAt('boss',wx(STAGE.c[0]),wz(STAGE.c[1]),1.2);bs.speed=0;$('bossbar').style.display='block';sfx('boss');
+    banner('考卷大魔王站上司令台了！走上司令台跟它決鬥！',3.5);say([['考卷大魔王','哇哈哈哈！我是考卷大魔王！有本事就上司令台跟我單挑！'],['小隊','我們才不怕！上吧！']]);}
   spawnT-=dt;if(spawnT>0)return;spawnT=rand(1.4,2.6);
   const alive=enemies.filter(e=>e.type!=='boss').length,cap=Math.round((G.bossSpawned?5:Math.min(14,6+f*2))*DIFF[SET.diff].cap);if(alive>=cap)return;
   const p=spawnPoint(20,38);if(!p)return;const r=Math.random();spawnAt(r<0.4?'homework':r<0.68?'mosquito':r<0.86||G.kills<4?'trouble':'dragon',p[0],p[2],p[1]);
@@ -1520,7 +1522,7 @@ function objective(){if(!G.met||G.bossDead)return principal;const f=friendsOf().
 let hudCache='';
 function updateHUD(){
   $('hpfill').style.width=(G.hp/G.maxHp*100)+'%';$('hptxt').textContent=`${Math.ceil(G.hp)}/${G.maxHp}`;$('score').textContent=G.score;const f=friendsOf().length;$('fcount').textContent=f;
-  const qs=[[G.met,'到中庭向校長報到'],[f>=G.friendGoal,`找同學組隊 (${Math.min(f,G.friendGoal)}/${G.friendGoal})`],[G.kills>=G.killGoal,`打倒怪獸 (${Math.min(G.kills,G.killGoal)}/${G.killGoal})`],[G.bossDead,G.bossSpawned?'在操場打倒考卷大魔王':'？？？（完成上面任務後出現）'],[G.won,'回中庭找校長領獎']];
+  const qs=[[G.met,'到中庭向校長報到'],[f>=G.friendGoal,`找同學組隊 (${Math.min(f,G.friendGoal)}/${G.friendGoal})`],[G.kills>=G.killGoal,`打倒怪獸 (${Math.min(G.kills,G.killGoal)}/${G.killGoal})`],[G.bossDead,G.bossSpawned?'在司令台打倒考卷大魔王':'？？？（完成上面任務後出現）'],[G.won,'回中庭找校長領獎']];
   const isCur=i=>!qs[i][0]&&(i===0||(i<3?G.met:qs.slice(0,i).every(q=>q[0])));
   const html=qs.map(([d,t],i)=>`<li class="${d?'done':isCur(i)?'cur':''}">${d?'☑':'☐'} ${t}</li>`).join('');
   const buffs=(G.dmg>1?'<span>💪 攻擊加倍</span>':'')+(G.rapid?'<span>⚡ 躲避球連發</span>':'')+(G.shield?'<span>🫧 泡泡護盾</span>':'')+(G.fast?'<span>👟 跳跳鞋</span>':'');
@@ -1539,7 +1541,7 @@ function loop(){
   const dt=Math.min(0.05,clock.getDelta());T+=dt;
   if(SET.fps){fpsN++;fpsT+=dt;if(fpsT>=0.5){$('fps').textContent=Math.round(fpsN/fpsT)+' FPS';fpsN=0;fpsT=0;}}
   const paused=isPaused();
-  if(!paused){G.time+=dt;updatePlayer(dt);updatePK(dt);updateBuild(dt);updateEnemies(dt);updateShots(dt);spawner(dt);}
+  if(!paused){G.time+=dt;updatePlayer(dt);stageCheck();updatePK(dt);updateBuild(dt);updateEnemies(dt);updateShots(dt);spawner(dt);}
   else{player.p.root.position.set(player.x,player.y,player.z);animPerson(player.p,0,dt);}
   updateChunks();
   if(miniOpen&&typeof miniFrame==='function')miniFrame(dt);
@@ -2175,14 +2177,14 @@ function fpsEnd(){const F=FP;if(document.pointerLockElement)document.exitPointer
 
 // ---- boss duel: 2D side-view fight ----
 let DU=null;
-function startDuel(boss){if(DU||G.duelDone||miniOpen||Date.now()<(G.duelCool||0))return;
+function startDuel(boss){if(DU||G.duelDone||miniOpen||Date.now()<(G.duelCool||0))return;const practice=!boss;
   const wb=Math.floor(Math.max(0,...G.weapons.map(k=>WEAP[k].ranged?0:WEAP[k].dmg))/2);
-  openMini(`<div class="mhead"><div class="mtitle">⚔ 決鬥：考卷大魔王</div><div style="font-size:13px;color:var(--muted)">A/D 移動・W 跳・S 防禦・J 拳・K 踢・L 躲避球波（能量 25）・U 全班合力（能量滿）</div></div>
-    <canvas id="duelCv" width="960" height="540"></canvas>
+  openMini(`<div class="mhead"><div class="mtitle">⚔ 司令台決鬥：考卷大魔王${practice?'（練習賽）':''}</div><div style="font-size:13px;color:var(--muted)">A/D 移動・W 跳・S 防禦・J 拳・K 踢・L 躲避球波（能量 25）・U 全班合力（能量滿）</div></div>
+    <canvas id="duelCv" width="960" height="540" style="image-rendering:pixelated"></canvas>
     <div class="dpad"><div class="mrow"><button data-k="L">←</button><button data-k="R">→</button><button data-k="U">跳</button><button data-k="D">防</button></div><div class="mrow"><button data-k="P">拳</button><button data-k="K">踢</button><button data-k="B">波</button><button data-k="S">必殺</button></div></div>`);
-  DU={boss,wb,g:$('duelCv').getContext('2d'),t:99,phase:'intro',pt:1.6,end:null,in:{},press:{},shots:[],fx:[],shake:0,
+  DU={boss,practice,wb,g:$('duelCv').getContext('2d'),t:99,phase:'intro',pt:2.2,crowd:Array.from({length:22},(_,i)=>({x:i<11?20+i*19+rand(-4,4):745+(i-11)*19+rand(-4,4),row:i%2,girl:Math.random()<.5,ph:rand(0,6)})),end:null,in:{},press:{},shots:[],fx:[],shake:0,
     p:{x:240,y:0,vy:0,hp:100,max:100,face:1,act:null,at:0,cd:0,meter:20,hurt:0},
-    b:{x:720,y:0,vy:0,hp:220,max:220,face:-1,act:null,at:0,cd:1.4,hurt:0,hit:false}};
+    b:{x:720,y:0,vy:0,hp:practice?160:220,max:practice?160:220,face:-1,act:null,at:0,cd:1.4,hurt:0,hit:false}};
   const map={KeyA:'L',ArrowLeft:'L',KeyD:'R',ArrowRight:'R',KeyW:'U',ArrowUp:'U',Space:'U',KeyS:'D',ArrowDown:'D',KeyJ:'P',KeyK:'K',KeyL:'B',KeyU:'S'};
   miniKey=(e,down)=>{const k=map[e.code];if(!k)return;e.preventDefault();if(down&&!DU.in[k])DU.press[k]=true;DU.in[k]=down;};
   $('miniBox').querySelectorAll('.dpad button').forEach(b=>{const k=b.dataset.k;b.onpointerdown=e=>{e.preventDefault();DU.in[k]=true;DU.press[k]=true;};b.onpointerup=b.onpointerleave=b.onpointercancel=()=>{DU.in[k]=false;};});
@@ -2226,31 +2228,63 @@ function duelFrame(dt){const D=DU;if(!D)return;dt=Math.min(dt,0.04);const p=D.p,
   function hitBoss(dmg,kb){b.hp=Math.max(0,b.hp-dmg);b.hurt=0.12;b.x+=p.face*kb*0.4;D.fx.push({x:b.x-p.face*40,y:GY-130-b.y,t:0.18,txt:'-'+Math.round(dmg)});sfx('hit');if(b.hp<=0)endDuel(true);}
   function hitPlayer(dmg,fd){const bl=D.in.D&&p.y===0&&!p.act&&Math.sign(b.x-p.x)===p.face;let n=dmg*armorFactor()*(G.shield?0.6:1);if(bl)n*=0.2;n=Math.max(1,Math.round(n));p.hp=Math.max(0,p.hp-n);p.hurt=bl?0.1:0.3;p.x+=fd*(bl?12:40);p.act=null;D.fx.push({x:p.x,y:GY-140-p.y,t:0.3,txt:(bl?'防禦 ':'')+'-'+n,red:true});sfx(bl?'hit':'hurt');if(p.hp<=0)endDuel(false);}
   drawDuel();}
-function endDuel(win){if(DU.phase==='end')return;DU.phase='end';DU.pt=2.6;DU.end=win;DU.msg={t:win?'你贏了！':'輸了…再試一次！',time:9};sfx(win?'power':'hurt');}
+function endDuel(win){if(DU.phase==='end')return;DU.phase='end';DU.pt=3;DU.end=win;DU.msg={t:'K.O.',time:9};sfx(win?'power':'hurt');}
 function finishDuel(){const D=DU;DU=null;closeMini();
+  G.duelCool=Date.now()+6000;const a=STAGE.a*D2R;player.x=wx(STAGE.c[0])+Math.cos(a)*7;player.z=wz(STAGE.c[1])+Math.sin(a)*7;player.y=0;player.vy=0;
+  if(D.practice){if(D.end)reward({iron:1,log:2},'練習賽獲勝！');banner(G.bossSpawned?'真正的大魔王已經在司令台等你了！':'這是練習賽！完成任務後，真正的考卷大魔王會站上司令台',3.4);return;}
   if(D.end){G.duelDone=true;D.boss.hp=0;killEnemy(D.boss);reward({gem:3,iron:3},'決鬥勝利！');}
-  else{G.duelCool=Date.now()+5000;G.hp=Math.max(G.hp,Math.round(G.maxHp*0.5));const dx=player.x-D.boss.x,dz=player.z-D.boss.z,d=Math.hypot(dx,dz)||1;player.x=D.boss.x+dx/d*16;player.z=D.boss.z+dz/d*16;banner('休息一下，準備好再靠近大魔王重新決鬥！',3);}}
-function drawDuel(){const D=DU,g=D.g,p=D.p,b=D.b;g.save();if(D.shake>0)g.translate(rand(-6,6),rand(-4,4));
-  const sky=g.createLinearGradient(0,0,0,GY);sky.addColorStop(0,'#7fbfee');sky.addColorStop(1,'#d7ecf7');g.fillStyle=sky;g.fillRect(-10,-10,980,560);
-  g.fillStyle='#7c9eab';g.beginPath();g.moveTo(0,300);for(let x=0;x<=960;x+=60)g.lineTo(x,250+Math.sin(x*0.013)*30+Math.cos(x*0.031)*18);g.lineTo(960,330);g.lineTo(0,330);g.fill();
-  g.fillStyle='#eba792';g.fillRect(60,170,560,190);g.fillStyle='#efe3c9';for(let y=170;y<360;y+=47)g.fillRect(60,y+38,560,8);
-  g.fillStyle='#7aa69f';for(let y=180;y<350;y+=47)for(let x=80;x<600;x+=48)g.fillRect(x,y,30,24);
-  g.fillStyle='#a8503f';g.beginPath();g.moveTo(90,170);g.lineTo(130,135);g.lineTo(170,170);g.fill();g.beginPath();g.moveTo(510,170);g.lineTo(550,135);g.lineTo(590,170);g.fill();
-  g.fillStyle='#3e7a3a';for(let x=640;x<960;x+=55){g.beginPath();g.arc(x,330,40,0,7);g.fill();}
-  g.fillStyle='#b44a3e';g.fillRect(-10,GY-40,980,120);g.strokeStyle='rgba(255,255,255,.8)';g.lineWidth=3;for(const y of[GY-20,GY+10,GY+40]){g.beginPath();g.moveTo(-10,y);g.lineTo(980,y);g.stroke();}
-  g.fillStyle='rgba(0,0,0,.25)';for(const f of[p,b]){g.beginPath();g.ellipse(f.x,GY+4,f===b?90:34,10,0,0,7);g.fill();}
+  else{G.hp=Math.max(G.hp,Math.round(G.maxHp*0.5));banner('休息一下，準備好再走上司令台重新決鬥！',3);}}
+function drawStageBG(g,D){const T3=performance.now()/1000;
+  const sky=g.createLinearGradient(0,0,0,330);sky.addColorStop(0,'#5aa8e8');sky.addColorStop(1,'#cfe9f7');g.fillStyle=sky;g.fillRect(-10,-10,980,560);
+  g.fillStyle='#fff';for(const [x,y,r] of [[120,60,26],[160,52,34],[200,64,24],[700,80,30],[745,70,38],[790,84,26]]){g.beginPath();g.arc(x,y,r,0,7);g.fill();}
+  g.fillStyle='#86a9b6';g.beginPath();g.moveTo(0,250);for(let x=0;x<=960;x+=40)g.lineTo(x,210+Math.sin(x*0.012)*26+Math.cos(x*0.035)*12);g.lineTo(960,300);g.lineTo(0,300);g.fill();
+  g.fillStyle='#eba792';g.fillRect(0,150,960,190);g.fillStyle='#efe3c9';for(let y=150;y<340;y+=46)g.fillRect(0,y+38,960,8);
+  g.fillStyle='#6f9a94';for(let y=158;y<330;y+=46)for(let x=14;x<960;x+=50)g.fillRect(x,y,32,26);
+  for(const tx of[120,840]){g.fillStyle='#eba792';g.fillRect(tx-30,104,60,46);g.fillStyle='#a8503f';g.beginPath();g.moveTo(tx-44,108);g.lineTo(tx,70);g.lineTo(tx+44,108);g.fill();}
+  // the stage (司令台)
+  g.fillStyle='#e7a18e';g.fillRect(250,215,460,185);g.fillStyle='rgba(255,255,255,.18)';for(let x=250;x<710;x+=12)g.fillRect(x,215,1,185);for(let y=215;y<400;y+=12)g.fillRect(250,y,460,1);
+  g.fillStyle='#9e9a92';g.fillRect(262,205,34,195);g.fillRect(664,205,34,195);
+  g.fillStyle='#b5b0a6';g.beginPath();g.moveTo(205,170);g.lineTo(755,170);g.lineTo(740,212);g.lineTo(220,212);g.closePath();g.fill();g.fillStyle='#8f8a80';g.fillRect(220,206,520,8);
+  g.fillStyle='#4a3f35';g.font='900 26px "Noto Sans TC","PingFang TC",sans-serif';g.textAlign='center';g.fillText('司　令　台',480,200);
+  for(const sx of[235,725]){g.fillStyle='#ddd';g.beginPath();g.moveTo(sx,214);g.lineTo(sx-12,232);g.lineTo(sx+12,232);g.fill();}
+  g.fillStyle='#7a4a2a';g.fillRect(445,300,70,60);g.fillStyle='#5a3418';g.fillRect(440,296,80,8);
+  g.fillStyle='#ddd';g.fillRect(168,70,6,330);const fw=Math.sin(T3*4);g.fillStyle='#fff';g.beginPath();g.moveTo(174,76);g.quadraticCurveTo(205,70+fw*4,236,80);g.lineTo(236,118);g.quadraticCurveTo(205,110+fw*4,174,114);g.fill();
+  if(logoImg.complete&&logoImg.naturalWidth)g.drawImage(logoImg,190,80,28,34);
+  // cheering students
+  for(const c of D.crowd){const bob=Math.abs(Math.sin(T3*6+c.ph))*6,x=c.x,y=372+c.row*20-bob;g.fillStyle=c.girl?'#f08a24':'#2e8b3e';g.fillRect(x-7,y+14,14,10);g.fillStyle='#fff';g.fillRect(x-8,y,16,15);g.fillStyle='#f0c8a0';g.beginPath();g.arc(x,y-7,8,0,7);g.fill();
+    g.fillStyle=c.girl?'#d6282b':'#a0a0a0';if(c.girl){g.fillRect(x-12,y-11,24,3);}g.beginPath();g.arc(x,y-9,8,Math.PI,0);g.fill();if(Math.sin(T3*6+c.ph)>0.3){g.strokeStyle='#f0c8a0';g.lineWidth=3;g.beginPath();g.moveTo(x-7,y+2);g.lineTo(x-11,y-12);g.moveTo(x+7,y+2);g.lineTo(x+11,y-12);g.stroke();}}
+  g.fillStyle='#fff';g.fillRect(28,330,120,26);g.fillRect(800,330,128,26);g.fillStyle='#e23a2c';g.font='900 18px "Noto Sans TC",sans-serif';g.fillText('加油！大元！',88,350);g.fillText('打倒大魔王！',864,350);
+  // stage floor (fighting floor)
+  const fg=g.createLinearGradient(0,GY-50,0,540);fg.addColorStop(0,'#c9c2b4');fg.addColorStop(1,'#a59d8e');g.fillStyle=fg;g.fillRect(-10,GY-48,980,140);
+  g.strokeStyle='rgba(90,80,70,.35)';g.lineWidth=2;for(let i=-12;i<=12;i++){g.beginPath();g.moveTo(480+i*40,GY-48);g.lineTo(480+i*95,560);g.stroke();}for(const y of[GY-30,GY-6,GY+26,GY+66]){g.beginPath();g.moveTo(-10,y);g.lineTo(980,y);g.stroke();}
+  g.fillStyle='#e7a18e';g.fillRect(-10,GY+80,980,30);}
+function drawDuel(){const D=DU,p=D.p,b=D.b;if(!D.low){D.low=document.createElement('canvas');D.low.width=384;D.low.height=216;D.lg=D.low.getContext('2d');}
+  const g=D.lg;g.setTransform(0.4,0,0,0.4,0,0);g.save();if(D.shake>0)g.translate(rand(-8,8),rand(-5,5));
+  drawStageBG(g,D);
+  g.fillStyle='rgba(0,0,0,.28)';for(const f of[p,b]){g.beginPath();g.ellipse(f.x,GY+4,f===b?90:34,10,0,0,7);g.fill();}
   drawBoss(g,b);drawKid(g,p);
-  for(const s2 of D.shots){if(s2.own==='p'){g.fillStyle='#e8542f';g.beginPath();g.arc(s2.x,GY-s2.y,s2.r,0,7);g.fill();g.strokeStyle='#fff';g.lineWidth=2;g.beginPath();g.arc(s2.x,GY-s2.y,s2.r*0.6,0.5,2.2);g.stroke();}
-    else if(s2.wave){g.fillStyle='rgba(220,40,40,.8)';g.beginPath();g.moveTo(s2.x-24,GY);g.quadraticCurveTo(s2.x,GY-60,s2.x+24,GY);g.fill();}
-    else{g.fillStyle='#f6f6ef';g.beginPath();g.arc(s2.x,GY-s2.y,s2.r,0,7);g.fill();g.strokeStyle='#999';g.lineWidth=1.5;g.stroke();}}
-  g.font='bold 26px "PingFang TC","Microsoft JhengHei",sans-serif';g.textAlign='center';for(const f of D.fx){g.fillStyle=f.red?'#ff6b5b':'#ffd23a';g.fillText(f.txt,f.x,f.y-(0.3-f.t)*80);}
+  for(const s2 of D.shots){if(s2.own==='p'){g.fillStyle='#e8542f';g.beginPath();g.arc(s2.x,GY-s2.y,s2.r,0,7);g.fill();g.strokeStyle='#fff';g.lineWidth=3;g.beginPath();g.arc(s2.x,GY-s2.y,s2.r*0.6,0.5,2.2);g.stroke();}
+    else if(s2.wave){g.fillStyle='rgba(220,40,40,.85)';g.beginPath();g.moveTo(s2.x-24,GY);g.quadraticCurveTo(s2.x,GY-60,s2.x+24,GY);g.fill();}
+    else{g.fillStyle='#f6f6ef';g.beginPath();g.arc(s2.x,GY-s2.y,s2.r,0,7);g.fill();g.strokeStyle='#999';g.lineWidth=2;g.stroke();}}
+  for(const f of D.fx){g.fillStyle=f.red?'#ff6b5b':'#ffe23a';g.font='900 34px sans-serif';g.textAlign='center';g.fillText(f.txt,f.x,f.y-(0.3-f.t)*80);}
   g.restore();
-  const bar=(x,w,v,col,name,right)=>{g.fillStyle='rgba(0,0,0,.55)';g.fillRect(x-4,18,w+8,34);g.fillStyle='#432';g.fillRect(x,24,w,22);g.fillStyle=col;const ww=w*v;g.fillRect(right?x+w-ww:x,24,ww,22);g.fillStyle='#fff';g.font='bold 16px "PingFang TC","Microsoft JhengHei",sans-serif';g.textAlign=right?'right':'left';g.fillText(name,right?x+w:x,72);};
-  bar(30,380,p.hp/p.max,'#2fa84f','你（大元國小）',false);bar(550,380,b.hp/b.max,'#e23a2c','考卷大魔王',true);
-  g.fillStyle='#fff';g.font='bold 40px sans-serif';g.textAlign='center';g.fillText(Math.ceil(Math.max(0,D.t)),480,52);
-  g.fillStyle='rgba(0,0,0,.5)';g.fillRect(30,82,204,14);g.fillStyle=p.meter>=100?'#f2c230':'#3fb7f0';g.fillRect(32,84,200*p.meter/100,10);g.fillStyle='#fff';g.font='12px sans-serif';g.textAlign='left';g.fillText(p.meter>=100?'能量滿！按 U 全班合力':'能量',240,94);
-  let msg=D.phase==='intro'?'決鬥開始！':D.msg&&D.msg.time>0?D.msg.t:null;if(D.msg&&D.msg.time>0)D.msg.time-=1/60;
-  if(msg){g.font='bold 64px "PingFang TC","Microsoft JhengHei",sans-serif';g.textAlign='center';g.lineWidth=8;g.strokeStyle='#000';g.strokeText(msg,480,260);g.fillStyle='#ffd23a';g.fillText(msg,480,260);}}
+  const G2=D.g;G2.imageSmoothingEnabled=false;G2.drawImage(D.low,0,0,960,540);
+  // arcade HUD
+  G2.font='14px "Press Start 2P",monospace';G2.textAlign='left';G2.fillStyle='#4ad0ff';G2.fillText('1P',40,26);G2.fillStyle='#fff';G2.fillText(String(Math.round((1-b.hp/b.max)*30000)).padStart(6,'0'),80,26);
+  G2.textAlign='center';G2.fillStyle='#ff4a4a';G2.fillText('HI',440,26);G2.fillStyle='#fff';G2.fillText('050000',520,26);
+  const bar=(x,w,v,left)=>{G2.fillStyle='#fff';G2.fillRect(x-3,37,w+6,26);G2.fillStyle='#c81e1e';G2.fillRect(x,40,w,20);G2.fillStyle='#f8d838';const ww=w*Math.max(0,v);G2.fillRect(left?x+w-ww:x,40,ww,20);G2.fillStyle='rgba(255,255,255,.35)';G2.fillRect(left?x+w-ww:x,40,ww,5);};
+  bar(60,380,p.hp/p.max,true);bar(520,380,b.hp/b.max,false);
+  G2.fillStyle='#d01818';G2.fillRect(445,33,70,34);G2.strokeStyle='#fff';G2.lineWidth=3;G2.strokeRect(445,33,70,34);G2.fillStyle='#fff';G2.font='20px "Press Start 2P",monospace';G2.fillText('KO',480,61);
+  G2.font='38px "Press Start 2P",monospace';G2.lineWidth=6;G2.strokeStyle='#000';const tt=String(Math.ceil(Math.max(0,D.t))).padStart(2,'0');G2.strokeText(tt,480,116);G2.fillStyle='#ffe23a';G2.fillText(tt,480,116);
+  G2.font='900 20px "Noto Sans TC","PingFang TC",sans-serif';G2.lineWidth=4;G2.textAlign='left';const pn=SET.gender==='girl'?'心心':'仲仲';G2.strokeText(pn,62,86);G2.fillStyle='#fff';G2.fillText(pn,62,86);
+  G2.textAlign='right';G2.strokeText('考卷大魔王',898,86);G2.fillText('考卷大魔王',898,86);
+  G2.fillStyle='rgba(0,0,0,.6)';G2.fillRect(60,96,204,12);G2.fillStyle=p.meter>=100?'#f8d838':'#4ad0ff';G2.fillRect(62,98,200*p.meter/100,8);G2.textAlign='left';G2.font='10px "Press Start 2P",monospace';G2.fillStyle='#fff';G2.fillText(p.meter>=100?'SUPER! [U]':'POWER',272,107);
+  let msg=null,col='#ffe23a';
+  if(D.phase==='intro'){msg=D.pt>0.9?'ROUND 1':'FIGHT!';col=D.pt>0.9?'#ffe23a':'#ff4a4a';}
+  else if(D.phase==='end'){msg=D.pt>1.6?'K.O.':D.end?'YOU WIN':'YOU LOSE';col=D.pt>1.6?'#ff4a4a':D.end?'#ffe23a':'#9ab';}
+  else if(D.msg&&D.msg.time>0){D.msg.time-=1/60;msg=D.msg.t;}
+  if(msg){const latin=/^[A-Z .!0-9]+$/.test(msg);G2.font=latin?'56px "Press Start 2P",monospace':'900 56px "Noto Sans TC",sans-serif';G2.textAlign='center';G2.lineWidth=10;G2.strokeStyle='#000';G2.strokeText(msg,480,280);G2.fillStyle=col;G2.fillText(msg,480,280);
+    if(D.phase==='intro'&&D.practice){G2.font='900 22px "Noto Sans TC",sans-serif';G2.lineWidth=5;G2.strokeText('練習賽',480,320);G2.fillStyle='#fff';G2.fillText('練習賽',480,320);}}}
 function drawKid(g,p){const a=p.act,x=p.x,y=GY-p.y,f=p.face;g.save();g.translate(x,y);g.scale(f,1);if(p.hurt>0&&Math.floor(p.hurt*30)%2)g.globalAlpha=0.5;
   const blk=DU.in.D&&p.y===0&&!a;const ext=a&&(a.k==='P'||a.k==='K')?Math.min(1,a.t/a.a0)*(a.t>a.a1?Math.max(0,1-(a.t-a.a1)/0.12):1):0;
   g.lineCap='round';g.strokeStyle='#f0c8a0';g.lineWidth=12;
