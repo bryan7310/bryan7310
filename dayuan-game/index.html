@@ -844,7 +844,7 @@ for(const [px,py] of [[196,146],[232,164]]){
     if(i%2===0){const fl=new THREE.Mesh(new THREE.ConeGeometry(0.18,0.25,7),lam(0xfffbea,{flatShading:true}));fl.rotation.x=Math.PI;fl.position.set(x+lx,0.22,z+lz);scene.add(fl);const c2=sph(0.06,lam(0xf2c230),6,6);c2.position.set(x+lx,0.25,z+lz);scene.add(c2);}}
 }
 { // yellow-green pedestrian bridge over 德芳南路 (from street-view photos)
-  const ux=-0.016,uy=1,cx=wx(330),cz=wz(-22),g=new THREE.Group();g.position.set(cx,0,cz);g.rotation.y=-Math.atan2(uy,ux);scene.add(g);
+  const ux=-0.016,uy=1,cx=wx(118),cz=wz(-20),g=new THREE.Group();g.position.set(cx,0,cz);g.rotation.y=-Math.atan2(uy,ux);scene.add(g);
   const yg=lam(0xc9d66a),wh=lam(0xf3f3ef),gr=lam(0x5aa86a),yl=lam(0xf2d12e);
   const railT=textTex(512,64,(c2,w,h)=>{c2.fillStyle='#f3f3ef';c2.fillRect(0,0,w,h);c2.strokeStyle='#c9a24a';c2.lineWidth=4;for(let x=0;x<w;x+=64){c2.beginPath();c2.arc(x+32,h,28,Math.PI,0);c2.stroke();c2.beginPath();c2.arc(x+32,h*0.55,9,0,7);c2.stroke();}});railT.wrapS=THREE.RepeatWrapping;railT.repeat.set(6,1);
   const deck=box(44,0.8,3.6,yg);deck.position.y=6.3;g.add(deck);
