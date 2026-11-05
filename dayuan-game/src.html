@@ -3540,25 +3540,36 @@ function startKart(){
   const IB=[];for(let r=0;r<8;r++){const i=Math.floor((r+0.5)/8*N);for(const o of[-8,-2.7,2.7,8]){const q=P[i].clone().addScaledVector(NRM[i],o),m=new THREE.Mesh(new THREE.BoxGeometry(1.6,1.6,1.6),boxMat);m.position.set(q.x,1.3,q.z);sc.add(m);IB.push({m,t:0});}}
   // karts
   const CAST=[['你',null],['家亨',0x2e8b3e],['昀蔚',0xf08a24],['佑俊',0x2f6fd0],['搗蛋鬼',0x4b2a6b],['大元蛙',0x6cc24a]];
-  function mkKart(i){const [name,col]=CAST[i],me=i===0,c=me?(SET.gender==='girl'?0xff7a1a:0x22c45a):col,g=new THREE.Group(),body=new THREE.Group();g.add(body);
-    const paint=new THREE.MeshPhongMaterial({color:c,shininess:90,specular:0x888888}),dark=toonM(0x2a2a34),chrome=new THREE.MeshPhongMaterial({color:0xe8e8f0,shininess:140,specular:0xffffff}),white=toonM(0xffffff);
-    const pan=box(1.9,0.16,3.3,dark);pan.position.y=0.32;body.add(pan);
-    const tub=sph(1,paint,20,14);tub.scale.set(1.0,0.36,1.55);tub.position.set(0,0.66,0.1);body.add(tub);
-    const nose=sph(1,paint,16,12);nose.scale.set(0.72,0.3,0.75);nose.position.set(0,0.58,1.55);body.add(nose);
-    const stripe=box(0.34,0.05,2.6,white);stripe.position.set(0,0.99,0.4);body.add(stripe);
-    const bump=box(2.1,0.26,0.32,white);bump.position.set(0,0.42,2.15);body.add(bump);
-    const eng=box(1.2,0.55,0.7,dark);eng.position.set(0,0.82,-1.35);body.add(eng);
-    for(const sx of[-0.36,0.36]){const ex=new THREE.Mesh(new THREE.CylinderGeometry(0.13,0.1,0.6,10),chrome);ex.rotation.x=Math.PI/2;ex.position.set(sx,0.92,-1.85);body.add(ex);}
-    const sp=box(2.2,0.1,0.5,paint);sp.position.set(0,1.18,-2.0);body.add(sp);for(const sx of[-0.85,0.85]){const st2=box(0.1,0.4,0.12,dark);st2.position.set(sx,0.98,-1.95);body.add(st2);const fin=box(0.08,0.4,0.6,paint);fin.position.set(sx*1.25,1.14,-2.0);body.add(fin);}
-    const sw=new THREE.Mesh(new THREE.TorusGeometry(0.26,0.05,8,16),dark);sw.position.set(0,1.18,0.55);sw.rotation.x=-0.9;body.add(sw);
-    const [nc,ng]=cv(64,64);ng.fillStyle='#fff';ng.beginPath();ng.arc(32,32,30,0,7);ng.fill();ng.fillStyle='#'+new THREE.Color(c).getHexString();ng.font='900 40px sans-serif';ng.textAlign='center';ng.textBaseline='middle';ng.fillText(String(i+1),32,35);
-    const num=new THREE.Mesh(new THREE.CircleGeometry(0.32,20),new THREE.MeshBasicMaterial({map:tex(nc)}));num.position.set(0,0.62,2.32);body.add(num);
-    const wheels=[];for(const [x,z,r] of [[-1.02,1.25,0.42],[1.02,1.25,0.42],[-1.08,-1.15,0.52],[1.08,-1.15,0.52]]){const w=new THREE.Mesh(new THREE.CylinderGeometry(r,r,0.5,16),dark);w.rotation.z=Math.PI/2;w.position.set(x,r,z);
-      const hub=new THREE.Mesh(new THREE.CylinderGeometry(r*0.55,r*0.55,0.52,12),toonM(0xffd23a));w.add(hub);const cap=new THREE.Mesh(new THREE.CylinderGeometry(r*0.2,r*0.2,0.54,8),chrome);w.add(cap);body.add(w);wheels.push(w);}
+  function mkKart(i){const [name,col]=CAST[i],me=i===0,g=new THREE.Group(),body=new THREE.Group();g.add(body);
+    // body style per racer: crossover (Y-like), fastback sedan (3-like), angular stainless pickup
+    const STY=[['suv',0xf4f4f6],['truck',0xb8bcc2],['sedan',0xd8202a],['sedan',0x1a1c22],['suv',0x2a62d8],['sedan',0x3ab84a]][i],type=STY[0],c=STY[1];
+    const paint=type==='truck'?new THREE.MeshPhongMaterial({color:c,shininess:140,specular:0xffffff,flatShading:true}):new THREE.MeshPhongMaterial({color:c,shininess:110,specular:0xaaaaaa}),
+      glass=new THREE.MeshPhongMaterial({color:0x1a2836,shininess:160,specular:0xffffff,transparent:true,opacity:0.62}),dark=toonM(0x1c1c22),trim=new THREE.MeshPhongMaterial({color:0x111114,shininess:60});
+    const W=2.0,ext=(pts,depth,mat,bev,x0,y0)=>{const sh=new THREE.Shape();sh.moveTo(pts[0][0],pts[0][1]);for(let k=1;k<pts.length;k++){const q=pts[k];if(q.length===4)sh.quadraticCurveTo(q[0],q[1],q[2],q[3]);else sh.lineTo(q[0],q[1]);}
+      const geo=new THREE.ExtrudeGeometry(sh,{depth,bevelEnabled:bev>0,bevelSize:bev,bevelThickness:bev,bevelSegments:3,curveSegments:10});const m=new THREE.Mesh(geo,mat);m.rotation.y=-Math.PI/2;m.position.set(depth/2+(x0||0),y0||0,0);body.add(m);return m;};
+    let roofY;
+    if(type==='sedan'){ext([[2.0,0.32],[2.08,0.5,2.02,0.62],[1.6,0.78,1.0,0.8],[-1.6,0.88],[-2.0,0.86,-2.02,0.7],[-2.02,0.32]],W-0.3,paint,0.15);
+      ext([[0.95,0.8],[0.15,1.3,-0.3,1.33],[-1.1,1.25,-1.65,0.9]],W-0.62,glass,0.08);roofY=1.33;}
+    else if(type==='suv'){ext([[2.0,0.34],[2.1,0.55,2.02,0.68],[1.55,0.86,0.95,0.88],[-1.75,0.98],[-2.08,0.95,-2.08,0.72],[-2.06,0.34]],W-0.28,paint,0.16);
+      ext([[0.9,0.88],[0.25,1.48,-0.4,1.52],[-1.45,1.48,-1.85,1.0]],W-0.6,glass,0.08);roofY=1.52;}
+    else{ext([[2.15,0.36],[2.18,0.78],[0.05,1.62],[-2.2,1.0],[-2.2,0.36]],W-0.2,paint,0.04);
+      ext([[1.1,1.26],[0.05,1.66],[-1.2,1.36],[-1.2,1.18],[0.05,1.44],[1.0,1.08]],W-0.12,glass,0.02);roofY=1.62;
+      const arch=box(W+0.12,0.12,4.4,trim);arch.position.set(0,0.42,0);body.add(arch);}
+    const sill=box(W-0.1,0.16,3.7,trim);sill.position.set(0,0.3,0);body.add(sill);
+    // lights: slim LED headlights + full-width red tail bar
+    const ledM=new THREE.MeshBasicMaterial({color:0xf4fbff}),redM=new THREE.MeshBasicMaterial({color:0xff2a3a});
+    if(type==='truck'){const hb=box(W-0.1,0.06,0.04,ledM);hb.position.set(0,0.8,2.25);body.add(hb);const tb=box(W-0.1,0.08,0.04,redM);tb.position.set(0,0.98,-2.27);body.add(tb);}
+    else{const fz=type==='suv'?2.2:2.17,rz=type==='suv'?-2.24:-2.19;for(const sx of[-1,1]){const hl=box(0.46,0.07,0.05,ledM);hl.position.set(sx*0.6,0.64,fz-Math.abs(sx)*0.06);hl.rotation.y=sx*0.3;body.add(hl);}const tb=box(W-0.3,0.08,0.05,redM);tb.position.set(0,0.8,rz);body.add(tb);}
+    for(const sx of[-1,1]){const mir=box(0.22,0.1,0.14,type==='truck'?trim:paint);mir.position.set(sx*(W/2+0.06),type==='truck'?1.15:1.02,0.85);body.add(mir);}
+    // aero wheels
+    const wheels=[];for(const [x,z] of [[-0.84,1.3],[0.84,1.3],[-0.84,-1.3],[0.84,-1.3]]){const r=type==='truck'?0.5:0.44,w=new THREE.Mesh(new THREE.CylinderGeometry(r,r,0.36,18),dark);w.rotation.z=Math.PI/2;w.position.set(x,r,z);
+      const disc=new THREE.Mesh(new THREE.CylinderGeometry(r*0.72,r*0.72,0.38,18),new THREE.MeshPhongMaterial({color:0x3a3c42,shininess:80}));w.add(disc);for(let k=0;k<5;k++){const sp=box(0.06,0.4,r*1.25,trim);sp.rotation.y=k*Math.PI/5;sp.position.y=0;w.add(sp);}
+      body.add(w);wheels.push(w);}
+    // driver behind the glass
     let drv;if(name==='大元蛙')drv=makeFrog();else if(me)drv=makePerson(playerOpts(SET.gender));else if(name==='搗蛋鬼'){drv=makePerson({shirt:0x7a34b8,sleeve:0x7a34b8,pants:0x2a1a3a,hair:0x2a1a12});for(const sx of[-1,1]){const hn=new THREE.Mesh(new THREE.ConeGeometry(0.07,0.2,8),toonM(0xff3a3a));hn.position.set(sx*0.12,0.3,0);hn.rotation.z=-sx*0.3;drv.head.add(hn);}}else drv=makePerson(dbOpts(name));
-    drv.root.scale.setScalar(name==='大元蛙'?0.9:0.92);drv.root.position.set(0,0.7,-0.4);body.add(drv.root);if(drv.legL){drv.legL.rotation.x=drv.legR.rotation.x=-1.45;drv.armL.rotation.set(-1.15,0,0.2);drv.armR.rotation.set(-1.15,0,-0.2);}
-    const lbl=makeLabel(name,me?'rgba(255,210,58,.95)':'rgba(0,0,0,.55)',me?'#222':'#fff');lbl.position.y=3.3;lbl.scale.set(2.4,0.6,1);g.add(lbl);
-    const shell=new THREE.Mesh(new THREE.SphereGeometry(2.4,16,12),new THREE.MeshPhongMaterial({color:0x7ad8ff,transparent:true,opacity:0.3,shininess:120,emissive:0x2a8ac8,emissiveIntensity:0.3}));shell.position.y=1;shell.visible=false;g.add(shell);
+    drv.root.scale.setScalar(name==='大元蛙'?0.5:0.72);drv.root.position.set(-0.42,0.3,0.1);body.add(drv.root);if(drv.legL){drv.legL.rotation.x=drv.legR.rotation.x=-1.45;drv.armL.rotation.set(-1.15,0,0.2);drv.armR.rotation.set(-1.15,0,-0.2);}
+    const lbl=makeLabel(name,me?'rgba(255,210,58,.95)':'rgba(0,0,0,.55)',me?'#222':'#fff');lbl.position.y=roofY+1.5;lbl.scale.set(2.4,0.6,1);g.add(lbl);
+    const shell=new THREE.Mesh(new THREE.SphereGeometry(2.7,16,12),new THREE.MeshPhongMaterial({color:0x7ad8ff,transparent:true,opacity:0.3,shininess:120,emissive:0x2a8ac8,emissiveIntensity:0.3}));shell.position.y=1;shell.visible=false;g.add(shell);
     g.traverse(o=>{if(o.isMesh)o.castShadow=true;});sc.add(g);
     const lane=[-6,6,-2,2,-9,9][i],q=P[N-6-Math.floor(i/2)*6].clone().addScaledVector(NRM[N-6],lane);
     return {i,name,me,g,body,wheels,shell,x:q.x,z:q.z,h:Math.atan2(TAN[0].x,TAN[0].z),v:0,idx:N-6-Math.floor(i/2)*6,lap:-1,prog:0,item:null,roll:0,spin:0,boost:0,shield:0,drift:0,dchg:0,ai:{off:rand(-6,6),skill:me?1:rand(0.86,0.98),useT:rand(1,4)},done:false,fin:0};}
