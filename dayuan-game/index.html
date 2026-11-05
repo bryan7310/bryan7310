@@ -1237,6 +1237,8 @@ function makePerson(o){
   if(o.chubby){torso.scale.set(1.45,1.05,1.6);hip.scale.set(1.45,1,1.6);for(const q of[legL,legR,armL,armR])q.position.x*=1.45;for(const q of[legL,legR])q.scale.set(1.3,1,1.3);head.scale.set(1.12,1.04,1.1);}
   if(o.cool){const br=box(0.36,0.035,0.02,lam(0x111111));br.position.set(0,0.085,0.19);br.rotation.z=0.06;head.add(br);const sm=box(0.06,0.018,0.02,lam(0x7a2a2a));sm.position.set(0.04,-0.07,0.195);sm.rotation.z=0.3;head.add(sm);
     const tuft=box(0.12,0.06,0.12,lam(o.hair||0x111111));tuft.position.set(0.05,0.23,0.1);tuft.rotation.z=-0.3;head.add(tuft);}
+  if(o.ball){const bt=(()=>{const [c,g]=cv(128,64);g.fillStyle='#e8762f';g.fillRect(0,0,128,64);g.strokeStyle='#3a1a08';g.lineWidth=3;g.beginPath();g.moveTo(0,32);g.lineTo(128,32);for(const x of[32,96]){g.moveTo(x,0);g.lineTo(x,64);}g.stroke();return tex(c);})();
+    const bl=new THREE.Mesh(new THREE.SphereGeometry(0.16,16,12),lam(0xffffff,{map:bt}));bl.position.set(-0.06,-0.52,0.08);bl.castShadow=true;armL.add(bl);}
   if(o.bag){const bg=box(0.32,0.26,0.1,lam(0x1b1b1b));bg.position.set(0,-0.62,0);armR.add(bg);const hd=new THREE.Mesh(new THREE.TorusGeometry(0.07,0.015,5,10,Math.PI),lam(0x1b1b1b));hd.position.set(0,-0.48,0);armR.add(hd);}
   if(o.mole){const ml=sph(0.026,lam(0x1b1b1b),6,6);ml.position.set(-0.08,-0.075,0.18);head.add(ml);}
   if(o.flag){const pole=new THREE.Mesh(new THREE.CylinderGeometry(0.012,0.012,0.95,6),lam(0x8a6a3a));pole.position.set(0,-0.03,0.06);armL.add(pole);
@@ -1383,7 +1385,7 @@ const FRIENDS=[
   ['昀蔚',[165,170],{sleeve:0xf08a24,pants:0xf08a24,pony:true,scale:0.82},'我雖然個子小，可是跑得很快喔！算我一份！'],
   ['妤墨',[425,248],{sleeve:0xf08a24,pants:0xf08a24,longHair:true,mole:true},'作業怪最討厭了！我們一起把牠們趕走！'],
   ['品岑',[225,340],{sleeve:0xf08a24,pants:0xf08a24,bob:true},'我跟你走！大家一起就不怕了！'],
-  ['宇德',[350,330],{sleeve:0x2e8b3e,pants:0x2e8b3e,skin:0xa8754e,cool:true,hair:0x0d0b0a},'嘿！打怪獸這種事，交給我就對了！'],
+  ['宇德',[350,330],{sleeve:0x2e8b3e,pants:0x2e8b3e,skin:0xa8754e,cool:true,ball:true,hair:0x0d0b0a},'嘿！打怪獸這種事，交給我就對了！'],
   ['品昊',[275,110],{sleeve:0x2e8b3e,pants:0x2e8b3e,glasses:true,bag:true},'等我一下，我把作業放進袋子裡……好了，出發！'],
   ['千綺',[300,300],{sleeve:0xf08a24,pants:0xf08a24,longHair:true},'我會接球！有我在，大家就不會被打中！'],
 ];
