@@ -699,6 +699,19 @@ function buildMainGate(gx,gz,ux,uz,gw){let nx=-uz,nz=ux;if(pip(gx+nx*3,gz+nz*3,B
     else segs.push([i,a,b]);}
   for(const [i,a,b] of segs){const dx=b[0]-a[0],dz=b[1]-a[1],L=Math.hypot(dx,dz),mx=(a[0]+b[0])/2,mz=(a[1]+b[1])/2,ry=-Math.atan2(dz,dx);
     addSolid(mx,mz,L/2,0.18,Math.atan2(dz,dx),0,2.4);
+    if(i>=7){let nx2=-dz/L,nz2=dx/L;if(!pip(mx+nx2*2,mz+nz2*2,BOUNDW)){nx2=-nx2;nz2=-nz2;}
+      const bw=box(L,0.7,0.35,lam(0xa8553f));bw.position.set(mx,0.35,mz);bw.rotation.y=ry;scene.add(bw);
+      const cap=box(L,0.08,0.45,lam(0xd8cfc0));cap.position.set(mx,0.74,mz);cap.rotation.y=ry;scene.add(cap);
+      for(const y of[1.0,1.75]){const rl=box(L,0.05,0.05,lam(0x1b1b1b));rl.position.set(mx,y,mz);rl.rotation.y=ry;scene.add(rl);}
+      const nb=Math.floor(L/0.25),bars=new THREE.InstancedMesh(new THREE.BoxGeometry(0.03,1.05,0.03),lam(0x1b1b1b),nb),M2=new THREE.Matrix4();
+      for(let k=0;k<nb;k++){const t=(k+0.5)/nb-0.5;M2.makeTranslation(mx+dx*t,1.3,mz+dz*t);bars.setMatrixAt(k,M2);}scene.add(bars);
+      for(let t=0;t<=L;t+=3){const pl=box(0.4,1.9,0.4,lam(0xa8553f));pl.position.set(a[0]+dx/L*t,0.95,a[1]+dz/L*t);scene.add(pl);}
+      if(i===8){const fol=[lam(0x7a9a3a,{flatShading:true}),lam(0xc9785a,{flatShading:true}),lam(0x9aa84a,{flatShading:true})];
+        for(let t=3;t<L-2;t+=6){const tx2=a[0]+dx/L*t+nx2*2.6,tz2=a[1]+dz/L*t+nz2*2.6;if(inBuildingPx(tx2/S+CX,tz2/S+CY,1))continue;
+          const tr=new THREE.Mesh(new THREE.CylinderGeometry(0.22,0.32,4,7),lam(0x5a4030));tr.position.set(tx2,2,tz2);tr.castShadow=true;scene.add(tr);
+          for(let q=0;q<4;q++){const c=new THREE.Mesh(new THREE.IcosahedronGeometry(rand(1.3,1.9),0),fol[q===3?1:q%3===1?2:0]);c.position.set(tx2+rand(-1.2,1.2),rand(4.3,5.6),tz2+rand(-1.2,1.2));c.castShadow=true;scene.add(c);}
+          CIRCLES.push({x:tx2,z:tz2,r:0.35,tree:true,h:6});}}
+      continue;}
     if(i>5){const m=new THREE.Mesh(uvBox(L,1.4,0.06,1.4,1.4),fm);m.position.set(mx,0.7,mz);m.rotation.y=ry;scene.add(m);continue;}
     const sh=new THREE.Shape(),P=6.5,n=Math.max(1,Math.round(L/P)),pw=L/n;sh.moveTo(-L/2,0);
     for(let k=0;k<=n*12;k++)sh.lineTo(-L/2+k*pw/12,1.4+1.1*Math.sin(Math.PI*(k%12)/12));
@@ -925,7 +938,7 @@ const RIVER=(()=>{const R=ROADW[0].pts,dx=R[1][0]-R[0][0],dz=R[1][1]-R[0][1],l=M
       let ok=true;for(let x=x0-1;x<=x1+1&&ok;x++)for(let z=z0-1;z<=z1+1;z++)if(!colOK(x,z)){ok=false;break;}
       if(ok){const id=HOUSES.length;let fl=(r.name!=='巷道'&&rng()<0.16)?7+Math.floor(rng()*6):2+Math.floor(rng()*rng()*4),mat=BID[WALLS[Math.floor(rng()*WALLS.length)]],extra={};
         if(r.name==='現岱路'&&fl<7){fl=4+Math.floor(rng()*2);mat=rng()<0.6?BID.tile:BID.wcream;extra={awning:true};}
-        else if(r.name==='內元路'&&fl<7){fl=3+Math.floor(rng()*3);mat=rng()<0.55?BID.wgrey:BID.wwhite;extra={shutter:true,garden:rng()<0.6};}
+        else if(r.name==='內元路'&&fl<7){const old=rng()<0.45;fl=old?2:2+Math.floor(rng()*2);mat=old?BID.wwhite:[BID.wgrey,BID.wcream,BID.wwhite,BID.shutter][Math.floor(rng()*4)];extra={shutter:rng()<0.5,garden:!old&&rng()<0.3,oldRoof:old};}
         else if(fl>=7&&r.name!=='巷道')mat=rng()<0.5?BID.wbeige:BID.wcream;
         HOUSES.push(Object.assign({x0,z0,x1,z1,fl,mat,door:alongX?(nz>0?'N':'S'):(nx>0?'W':'E'),sign:rng()<0.4?BID[SIGNS[Math.floor(rng()*SIGNS.length)]]:0,road:r.name},extra));
         for(let x=x0;x<=x1;x++)for(let z=z0;z<=z1;z++){const i=(x+WX)*WD+(z+WZ);HOUSE[i]=id;KIND[i]=K_HOUSE;}}
@@ -1007,7 +1020,8 @@ function ledTick(){if(!LED.g||Math.floor(T*12)===LED.f)return;LED.f=Math.floor(T
     for(const ar of[-1,1]){const arm=box(2.2,0.1,0.1,pm);arm.position.set(ar*1.0,8.7,0);arm.rotation.z=ar*0.25;gp.add(arm);const lp=box(0.6,0.15,0.3,lm);lp.position.set(ar*2.1,8.95,0);gp.add(lp);}}}
 // ---- street details from photos: green awnings on 現岱路, roof gardens on 內元路, corner breakfast shop ----
 {const aw=[],gd=[];for(const H of HOUSES){const fx=H.door==='N'?[H.x0,H.x1+1,H.z0,'z',-1]:H.door==='S'?[H.x0,H.x1+1,H.z1+1,'z',1]:H.door==='W'?[H.z0,H.z1+1,H.x0,'x',-1]:[H.z0,H.z1+1,H.x1+1,'x',1];
-    if(H.awning)aw.push(fx);if(H.garden)gd.push(H);}
+    if(H.awning)aw.push(fx);if(H.garden)gd.push(H);
+    if(H.oldRoof){const w=H.x1-H.x0+1,d=H.z1-H.z0+1,cg=new THREE.ConeGeometry(Math.SQRT1_2,1,4,1);cg.rotateY(Math.PI/4);const r=new THREE.Mesh(cg,lam(0x4a4f55,{flatShading:true}));r.scale.set(w+1.2,2.6,d+1.2);r.position.set(H.x0+w/2,H.fl*4+1.3+0.9,H.z0+d/2);r.castShadow=true;scene.add(r);}}
   const am=new THREE.InstancedMesh(new THREE.BoxGeometry(1,0.18,1),lam(0x2f8a5a),aw.length*2+1),M=new THREE.Matrix4(),Q=new THREE.Quaternion(),V=new THREE.Vector3();let n=0;
   for(const [a0,a1,f,ax,sg] of aw){const len=a1-a0,mid=(a0+a1)/2;for(const [y,dep] of [[3.2,1.4],[7.2,0.6]]){const pos=ax==='z'?V.set(mid,y,f+sg*dep/2):V.set(f+sg*dep/2,y,mid);M.compose(pos,Q,ax==='z'?new THREE.Vector3(len,1,dep):new THREE.Vector3(dep,1,len));am.setMatrixAt(n++,M);}}
   am.count=n;am.castShadow=true;scene.add(am);
