@@ -1467,7 +1467,7 @@ addNPC('frog','大元蛙',[105,22],{make:makeFrog});
 addNPC('homeroom','王老師',[190,110],{scale:1.25,shirt:0xe8538f,sleeve:0xe8538f,pants:0x2b3550,longPants:true,hair:0x1b1310,bob:true,glasses:true});
 addNPC('homeroom','陳老師',[120,150],{scale:1.3,shirt:0x1f2f4f,sleeve:0x1f2f4f,pants:0x4a6a8f,longPants:true,hair:0x111111,skin:0xd9a77f});
 const FRIENDS=[
-  ['家亨',[235,180],{sleeve:0x2e8b3e,pants:0x2e8b3e,chubby:true},'好啊！我力氣最大，躲避球丟超遠，一起去打怪獸！'],
+  ['嘉亨',[235,180],{sleeve:0x2e8b3e,pants:0x2e8b3e,chubby:true},'好啊！我力氣最大，躲避球丟超遠，一起去打怪獸！'],
   ['凱翔',[325,170],{sleeve:0x2e8b3e,pants:0x2e8b3e},'搗蛋鬼又在亂搞？交給我們吧！'],
   ['昀蔚',[165,170],{sleeve:0xf08a24,pants:0xf08a24,pony:true,scale:0.82},'我雖然個子小，可是跑得很快喔！算我一份！'],
   ['妤墨',[425,248],{sleeve:0xf08a24,pants:0xf08a24,longHair:true,mole:true},'作業怪最討厭了！我們一起把牠們趕走！'],
@@ -1586,7 +1586,7 @@ function interact(n){
   if(n.kind==='pe'){if(!n.done)say([['體育老師','嗶——！同學，打怪獸也要有好體力！'],['體育老師','老師教你「躲避球連發」：丟球更快，一次丟三顆！']],()=>{n.done=true;G.rapid=true;G.hp=G.maxHp;sfx('power');banner('學會：躲避球連發！');});else{G.hp=G.maxHp;say([['體育老師','很好！體力幫你補滿了！想比賽跑步的話，去起跑線找宇德！']]);}return;}
   if(n.kind==='sci'){if(!n.done)say([['自然老師','我在生態池觀察青蛙的時候，發現了一種神奇的泡泡！'],['自然老師','這個「泡泡護盾」可以讓你受到的傷害減半，拿去用吧！']],()=>{n.done=true;G.shield=true;G.hp=G.maxHp;sfx('power');banner('獲得：泡泡護盾！');});else say([['自然老師','科學的力量就是觀察和勇氣！加油！']]);return;}
   if(n.kind==='guard'){const me=SET.gender==='girl'?'心心':'仲仲';say([['保全叔叔',pick([`${me}回來啦！今天在學校好玩嗎？`,`${me}早！上學路上小心車子喔！`,'有你的包裹，我先幫你收著～','電梯在後面，回家記得先洗手喔！'])],['保全叔叔','累的話走進大廳就可以回家休息，體力會補滿！']]);return;}
-  if(n.kind==='runner'){say([['宇德','嘿！聽說你跑很快？'],['宇德','來比一場 200 公尺跨欄！體育老師當裁判，家亨和昀蔚也要一起跑！'],['宇德','輸的人要請喝養樂多喔～預備！']],()=>startRun());return;}
+  if(n.kind==='runner'){say([['宇德','嘿！聽說你跑很快？'],['宇德','來比一場 200 公尺跨欄！體育老師當裁判，嘉亨和昀蔚也要一起跑！'],['宇德','輸的人要請喝養樂多喔～預備！']],()=>startRun());return;}
   if(n.kind==='dodge'){say([['佑俊','안녕！我是佑俊！要不要一起玩躲避球？大元隊對搗蛋鬼隊！'],['佑俊','準備好了嗎？開始！']],()=>startDodge({special:n.dodgeSp||(n.dodgeSp={label:'操場躲避球',type:'dodge'})}));return;}
   if(n.kind==='band'){say([[n.name,pick(['我們正在練木琴合奏！','你也來敲敲看！','跟著落下的音符敲琴鍵喔！'])],[n.name,'來，這兩支琴槌給你！']],()=>startMarimba());return;}
   if(n.kind==='frog'){if(!n.done)say([['大元蛙','呱呱！歡迎來到大元國小！我是站在大門口迎接大家的大元蛙！'],['大元蛙','送你一雙「跳跳鞋」，走路跑步都會變快喔！呱！']],()=>{n.done=true;G.fast=true;sfx('power');banner('獲得：跳跳鞋！');});else say([['大元蛙','呱呱！加油加油！']]);return;}
@@ -2088,7 +2088,7 @@ function dbOpts(name){const f=FRIENDS.find(q=>q[0]===name);if(name==='佑俊')re
   const o=Object.assign({tex:TEX.uniform,shirt:0xffffff,cap:true,shoe:0x1e7a3c},f?f[2]:{sleeve:0x2e8b3e,pants:0x2e8b3e});if(o.pants===0xf08a24)o.capRed=true;delete o.ball;return o;}
 function dbBallTex(){const [c,g]=cv(128,64);g.fillStyle='#e8402a';g.fillRect(0,0,128,64);g.fillStyle='#fff';g.fillRect(0,28,128,8);g.fillStyle='rgba(255,255,255,.25)';for(let i=0;i<40;i++){g.beginPath();g.arc(Math.random()*128,Math.random()*64,1.2,0,7);g.fill();}g.fillStyle='#ffd23a';g.font='900 18px sans-serif';g.textAlign='center';g.fillText('大元',32,22);g.fillText('大元',96,58);return tex(c);}
 function startDodge(r){
-  const pool=friendsOf().map(f=>f.name).filter(n=>n!=='佑俊');for(const n of['家亨','凱翔','千綺','品岑','妤墨','昀蔚'])if(pool.length<2&&!pool.includes(n))pool.push(n);
+  const pool=friendsOf().map(f=>f.name).filter(n=>n!=='佑俊');for(const n of['嘉亨','凱翔','千綺','品岑','妤墨','昀蔚'])if(pool.length<2&&!pool.includes(n))pool.push(n);
   const mates=['佑俊',...pool.slice(0,2)],foes=['搗蛋鬼','皮皮','鬧鬧','亂亂'];
   openMini(`<div id="dbWrap" style="position:fixed;inset:0;z-index:25;overflow:hidden;background:#7fd0ff;user-select:none;font-family:'Noto Sans TC',sans-serif">
     <canvas id="dbCv" style="width:100%;height:100%;display:block;touch-action:none"></canvas>
@@ -3283,7 +3283,7 @@ function csFrame(rdt){const K=CST;if(!K)return;rdt=Math.min(rdt,0.05);const D=K.
 let BB=null,BB_LAST='me';
 const BB_CH=[
   {id:'me',n:()=>SET.gender==='girl'?'心心':'仲仲',ic:'⭐',role:'全能',desc:'三發散射，什麼都會一點',tough:1,spd:1,dmg:12,shots:[-0.14,0,0.14],ss:16,life:0.5,kick:1,look:()=>playerOpts(SET.gender)},
-  {id:'家亨',n:()=>'家亨',ic:'🛡️',role:'坦克',desc:'血超厚，近距離五連霰彈',tough:1.5,spd:0.88,dmg:9,shots:[-0.3,-0.15,0,0.15,0.3],ss:15,life:0.3,kick:1.05,look:()=>dbOpts('家亨')},
+  {id:'嘉亨',n:()=>'嘉亨',ic:'🛡️',role:'坦克',desc:'血超厚，近距離五連霰彈',tough:1.5,spd:0.88,dmg:9,shots:[-0.3,-0.15,0,0.15,0.3],ss:15,life:0.3,kick:1.05,look:()=>dbOpts('嘉亨')},
   {id:'昀蔚',n:()=>'昀蔚',ic:'💨',role:'飛毛腿',desc:'跑最快，帶球突破',tough:0.8,spd:1.2,dmg:10,shots:[-0.05,0.05],ss:17,life:0.5,kick:1,look:()=>dbOpts('昀蔚')},
   {id:'千綺',n:()=>'千綺',ic:'🎯',role:'狙擊手',desc:'單發長射程，一發超痛',tough:0.85,spd:0.95,dmg:30,shots:[0],ss:22,life:0.85,kick:0.95,look:()=>dbOpts('千綺')},
   {id:'宇德',n:()=>'宇德',ic:'⚽',role:'前鋒',desc:'射門最大力，遠射也進得了',tough:1.1,spd:1.05,dmg:11,shots:[-0.1,0,0.1],ss:16,life:0.5,kick:1.4,look:()=>Object.assign(dbOpts('宇德'),{ball:false})},
@@ -3641,7 +3641,7 @@ function startRun(){
   for(let i=0;i<14;i++){const cl=new THREE.Group();for(let k=0;k<4;k++){const b=new THREE.Mesh(new THREE.SphereGeometry(3+Math.random()*2,10,8),new THREE.MeshBasicMaterial({color:0xffffff}));b.position.set(k*3.5,Math.random()*1.5,0);cl.add(b);}cl.position.set(rand(-90,90),rand(28,45),rand(40,320));sc.add(cl);}
   const hurdles=[];for(let z=30;z<LEN-10;z+=34){for(let l=0;l<NL;l++){const g=new THREE.Group(),x=(l-NL/2+0.5)*LW;g.position.set(x,0,z);const bar=box(LW*0.8,0.12,0.08,lam(0xffffff));bar.position.y=0.75;g.add(bar);const bar2=box(LW*0.8,0.1,0.06,lam(0xe23a2c));bar2.position.y=0.6;g.add(bar2);for(const sx of[-1,1]){const lg=box(0.06,0.75,0.06,lam(0x333333));lg.position.set(sx*LW*0.38,0.375,0);g.add(lg);}sc.add(g);}hurdles.push(z);}
   const bottles=[];for(let z=18;z<LEN-8;z+=22){const l=Math.floor(Math.random()*NL),m=new THREE.Mesh(new THREE.CylinderGeometry(0.16,0.16,0.5,10),lam(0x3fb7f0,{emissive:0x103050}));m.position.set((l-NL/2+0.5)*LW,0.9,z);sc.add(m);bottles.push({m,z,l,got:{}});}
-  const pe=npcs.find(n=>n.kind==='pe');const rivals=[['你',null,2],['宇德','yu',3],['體育老師','pe',1],['家亨','f',4],['昀蔚','f2',0]];
+  const pe=npcs.find(n=>n.kind==='pe');const rivals=[['你',null,2],['宇德','yu',3],['體育老師','pe',1],['嘉亨','f',4],['昀蔚','f2',0]];
   const mk=([name,who,lane])=>{let per;if(who===null)per=makePerson(playerOpts(SET.gender));else if(who==='pe')per=makePerson({scale:1.25,shirt:0x2a5db0,sleeve:0x2a5db0,longSleeve:true,pants:0x2a5db0,longPants:true,cap:true,capColor:0x2a5db0,skin:0xd9a77f,tex:TEX.pe});
     else if(who==='yu')per=makePerson({tex:TEX.uniform,shirt:0xffffff,cap:true,sleeve:0x2e8b3e,pants:0x2e8b3e,skin:0xa8754e,cool:true,hair:0x0d0b0a,shoe:0x222222});else if(who==='f')per=makePerson({tex:TEX.uniform,shirt:0xffffff,cap:true,sleeve:0x2e8b3e,pants:0x2e8b3e,chubby:true});else per=makePerson({tex:TEX.uniform,shirt:0xffffff,cap:true,capRed:true,sleeve:0xf08a24,pants:0xf08a24,pony:true,scale:0.82});
     sc.add(per.root);const lb=makeLabel(name,who===null?'rgba(242,194,48,.95)':'rgba(0,0,0,.6)',who===null?'#222':'#fff');lb.position.y=per.top+0.35;per.root.add(lb);
@@ -3748,7 +3748,7 @@ function startKart(){
   const boxMat=new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:0.85,map:(()=>{const [c,g]=cv(64,64);const gg=g.createLinearGradient(0,0,64,64);gg.addColorStop(0,'#ff3cb4');gg.addColorStop(0.5,'#ffe23a');gg.addColorStop(1,'#3fc8ff');g.fillStyle=gg;g.fillRect(0,0,64,64);g.fillStyle='rgba(255,255,255,.35)';g.fillRect(0,0,64,8);g.fillRect(0,0,8,64);g.font='bold 40px sans-serif';g.textAlign='center';g.fillText('⭐',32,46);return tex(c);})()});
   const IB=[];for(let r=0;r<8;r++){const i=Math.floor((r+0.5)/8*N);for(const o of[-8,-2.7,2.7,8]){const q=P[i].clone().addScaledVector(NRM[i],o),m=new THREE.Mesh(new THREE.BoxGeometry(1.6,1.6,1.6),boxMat);m.position.set(q.x,1.3,q.z);sc.add(m);IB.push({m,t:0});}}
   // karts
-  const CAST=[['你',null],['家亨',0x2e8b3e],['昀蔚',0xf08a24],['佑俊',0x2f6fd0],['搗蛋鬼',0x4b2a6b],['大元蛙',0x6cc24a]];
+  const CAST=[['你',null],['嘉亨',0x2e8b3e],['昀蔚',0xf08a24],['佑俊',0x2f6fd0],['搗蛋鬼',0x4b2a6b],['大元蛙',0x6cc24a]];
   function mkKart(i){const [name,col]=CAST[i],me=i===0,g=new THREE.Group(),body=new THREE.Group();g.add(body);
     // body style per racer: crossover (Y-like), fastback sedan (3-like), angular stainless pickup
     const STY=[['suv',0xf4f4f6],['truck',0xb8bcc2],['sedan',0xd8202a],['sedan',0x1a1c22],['suv',0x2a62d8],['sedan',0x3ab84a]][i],type=STY[0],c=STY[1];
