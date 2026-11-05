@@ -380,6 +380,7 @@ const ROADS=[
   {pts:[[-104,222],[-40,295],[24,343]],w:12,name:'光榮巷'},
   {pts:[[-68,443],[71,345],[163,343]],w:12,name:'中元東路10巷'},
   {pts:[[300,-200],[600,-200]],w:12,name:'巷道'},
+  {pts:[[-362,-420],[-362,822]],w:34,name:'中興路二段'},
 ];
 const PARK={px:-255,py:620,r:22};
 const BUILDINGS=[
@@ -682,7 +683,7 @@ for(const b of BUILDINGS){
       const sg=signPlane('穿堂 → 校園',3.4,0.6,'#1f5e34','#fff');for(const sd of[1,-1]){const s3=sg.clone();s3.position.set(lxp,3.0,sd*(W/2+0.05));if(sd<0)s3.rotation.y=Math.PI;grp.add(s3);}}
     else{const m=new THREE.Mesh(uvBox(L,H,W,4,3.3),[wallMat,wallMat,roofMat,roofMat,wallMat,wallMat]);m.position.y=H/2;m.castShadow=m.receiveShadow=true;grp.add(m);BUILD_MESHES.push(m);}
     if(b.roundEnd){const H=b.leftH||H,r=W/2,ct=schoolWallTex.clone();ct.needsUpdate=true;ct.repeat.set(Math.PI*r/4,H/3.3);
-      const cy=new THREE.Mesh(new THREE.CylinderGeometry(r,r,H,28,1,false,Math.PI,Math.PI),[b.leftMat||new THREE.MeshLambertMaterial({map:ct})]);cy.position.set(-L/2,H/2,0);cy.castShadow=cy.receiveShadow=true;grp.add(cy);BUILD_MESHES.push(cy);
+      const cy=new THREE.Mesh(new THREE.CylinderGeometry(r,r,H,28,1,false,Math.PI,Math.PI),b.leftMat||new THREE.MeshLambertMaterial({map:ct}));cy.position.set(-L/2,H/2,0);cy.castShadow=cy.receiveShadow=true;grp.add(cy);BUILD_MESHES.push(cy);
       const cap=new THREE.Mesh(new THREE.CircleGeometry(r,28,Math.PI/2,Math.PI),roofMat);cap.rotation.x=-Math.PI/2;cap.position.set(-L/2,H+0.02,0);grp.add(cap);
       const rim=new THREE.Mesh(new THREE.CylinderGeometry(r+0.15,r+0.15,0.8,28,1,true,Math.PI,Math.PI),lam(0xefe3c9,{side:THREE.DoubleSide}));rim.position.set(-L/2,H+0.4,0);grp.add(rim);
       for(const f of[0.55,0.85]){const [qx,qz]=B.toW(-L/2-r*f*0.5,0);addSolid(qx,qz,r*f*0.5,r*Math.sqrt(1-f*f*0.25),a,0,H);}}
@@ -951,6 +952,7 @@ const BLK=[null,
   {k:'sand',n:'沙子',hard:.5,tier:0,drop:'sand',col:0xe2cf96},{k:'water',n:'水',hard:Infinity,tier:9,drop:null,col:0x3f8fc8},{k:'slab',n:'水泥',hard:1.4,tier:1,drop:'stone',col:0x9a9a96},
   {k:'wcream',n:'米色牆',hard:1.3,tier:1,drop:'stone',col:0xe6dcc4},{k:'wgrey',n:'灰色牆',hard:1.3,tier:1,drop:'stone',col:0xb7bcbf},{k:'wwhite',n:'白色牆',hard:1.3,tier:1,drop:'stone',col:0xf2f0ea},
   {k:'wbrick',n:'紅磚牆',hard:1.3,tier:1,drop:'stone',col:0xa8553f},{k:'wmint',n:'淺綠牆',hard:1.3,tier:1,drop:'stone',col:0xbfe0cf},{k:'shutter',n:'鐵捲門',hard:1.2,tier:1,drop:'stone',col:0xb0b4b6},{k:'wbeige',n:'米色磚牆',hard:1.3,tier:1,drop:'stone',col:0xcbb89a},
+  {k:'wtaupe',n:'奶茶色磁磚',hard:1.3,tier:1,drop:'stone',col:0x9e8a7a},{k:'wgranite',n:'黑色石材',hard:1.5,tier:1,drop:'stone',col:0x3c3d40},
 ];
 const BID={};BLK.forEach((b,i)=>{if(b)BID[b.k]=i;});
 function pix(fn){const [c,g]=cv(16,16);for(let y=0;y<16;y++)for(let x=0;x<16;x++){g.fillStyle=fn(x,y);g.fillRect(x,y,1,1);}const t=new THREE.CanvasTexture(c);t.magFilter=THREE.NearestFilter;t.minFilter=THREE.NearestFilter;return t;}
@@ -968,7 +970,7 @@ const plastic=hex=>pix((x,y)=>{const e=x===0||y===0;const e2=x===15||y===15;retu
 Object.assign(TX,{asphalt:pix(()=>shade('#55575b',0.85+Math.random()*0.3)),roadline:pix((x,y)=>y>5&&y<10?'#e8c33a':shade('#55575b',0.85+Math.random()*0.3)),
   swalk:pix((x,y)=>(x%8===0||y%8===0)?'#9a958a':shade('#c9c3b5',0.94+Math.random()*0.1)),sand:pix(()=>shade('#e2cf96',0.9+Math.random()*0.2)),water:pix((x,y)=>((x+y*3)%11===0)?'#9fd6f0':shade('#3f8fc8',0.95+Math.random()*0.1)),
   slab:pix(()=>shade('#9a9a96',0.9+Math.random()*0.15)),wbrick:pix((x,y)=>(y%4===3||((y>>2)&1?x%8===4:x%8===0))?'#d8c8b0':shade('#a8553f',0.9+Math.random()*0.2))});
-TX.shutter=pix((x,y)=>y%3===2?'#8d9194':shade('#b8bcbf',0.95+Math.random()*0.06));TX.wbeige=pix((x,y)=>(y%4===3||((y>>2)&1?x%8===4:x%8===0))?'#a8987c':shade('#cbb89a',0.94+Math.random()*0.1));
+TX.shutter=pix((x,y)=>y%3===2?'#8d9194':shade('#b8bcbf',0.95+Math.random()*0.06));TX.wtaupe=pix((x,y)=>(y%4===3||x%8===7)?'#86735f':shade('#a08c7c',0.93+Math.random()*0.1));TX.wgranite=pix((x,y)=>(y%8===7||x%8===7)?'#2a2b2d':shade('#3c3d40',0.88+Math.random()*0.18));TX.wbeige=pix((x,y)=>(y%4===3||((y>>2)&1?x%8===4:x%8===0))?'#a8987c':shade('#cbb89a',0.94+Math.random()*0.1));
 for(const [k,c] of [['wcream','#e6dcc4'],['wgrey','#b7bcbf'],['wwhite','#f2f0ea'],['wmint','#bfe0cf']])TX[k]=pix((x,y)=>(y===0||y===15)?shade(c,0.85):shade(c,0.95+Math.random()*0.08));
 const ICON={grass:TX.grassSide,dirt:TX.dirt,stone:TX.stone,log:TX.logSide,plank:TX.plank,leaf:TX.leaf,glass:TX.glass,tile:TX.tile};
 // ---- texture atlas ----
@@ -981,7 +983,7 @@ const BTILE=BLK.map(b=>{if(!b)return null;let sd,tp,bt;
 const atlasT=new THREE.CanvasTexture(atlasC);atlasT.magFilter=atlasT.minFilter=THREE.NearestFilter;atlasT.generateMipmaps=false;
 const chunkMat=new THREE.MeshLambertMaterial({map:atlasT}),transMat=new THREE.MeshLambertMaterial({map:atlasT,transparent:true,opacity:0.62,depthWrite:false});
 
-let EASTOF=null;
+let EASTOF=null;const HOME_LOT={};
 // ================= big world: generated terrain around the school =================
 const __wt0=performance.now();
 const WX=240,WZ=200,WW=480,WD=400;
@@ -1014,6 +1016,10 @@ const RIVER=(()=>{const R=ROADW[0].pts,dx=R[1][0]-R[0][0],dz=R[1][1]-R[0][1],l=M
       tw(wx(150),wz(720),14,BID.wwhite,16,9);tw(wx(150),wz(680),5,BID.wbrick,10,9);
       for(const [z,o,fl] of [[-175,34,24],[-160,58,22],[-185,-40,20],[170,40,25],[180,70,23],[160,-45,21]])tw(at(z)+o,z,fl,o>0?BID.wbeige:BID.wcream,18,11);}
     for(const [dx,dz] of cand){const x0=jx+dx-13,z0=jz+dz-13;if(putHouse({x0,z0,x1:x0+13,z1:z0+13,fl:12,mat:BID.wbeige,door:'S',sign:BID.cgreen,road:'現岱路',tower:true,arcade:true}))break;}}
+  // 主角的家: taupe tower with a dark granite base at 現岱路 × 中興路二段, convenience store on the corner
+  {const fit=(tx,tz,w,d,H)=>{for(let r2=0;r2<14;r2++)for(let k=0;k<24;k++){const a=k/24*6.283,x0=Math.round(tx+Math.cos(a)*r2-w/2),z0=Math.round(tz+Math.sin(a)*r2-d/2);if(putHouse(Object.assign({x0,z0,x1:x0+w-1,z1:z0+d-1},H)))return HOUSES[HOUSES.length-1];}return null;};
+    const cx=wx(-362)+6+6,cz=wz(181)-4.2-3.5-5;HOME_LOT.store=fit(cx,cz,11,10,{fl:1,mat:BID.wwhite,door:'S',sign:BID.cgreen,road:'現岱路',store:true});
+    HOME_LOT.H=fit(cx+20,cz-6,17,14,{fl:14,mat:BID.wtaupe,door:'S',sign:0,road:'現岱路',tower:true,home:true});}
   for(const r of ROADW)for(let si=0;si<r.pts.length-1;si++){const a=r.pts[si],b=r.pts[si+1],dx=b[0]-a[0],dz=b[1]-a[1],L=Math.hypot(dx,dz),ux=dx/L,uz=dz/L,alongX=Math.abs(ux)>Math.abs(uz);
     for(const side of[-1,1]){let s2=3;while(s2<L-4){const wAl=7+Math.floor(rng()*5),dep=9+Math.floor(rng()*6),nx=-uz*side,nz=ux*side,sx2=alongX?wAl:dep,sz2=alongX?dep:wAl;let x0,z0,x1,z1,ok=false;
       for(const extra of[0,2,4,6,8]){const off=r.hw+3.6+dep/2+extra,cx=a[0]+ux*(s2+wAl/2)+nx*off,cz=a[1]+uz*(s2+wAl/2)+nz*off;x0=Math.round(cx-sx2/2);z0=Math.round(cz-sz2/2);x1=x0+sx2-1;z1=z0+sz2-1;
@@ -1034,6 +1040,8 @@ const RIVER=(()=>{const R=ROADW[0].pts,dx=R[1][0]-R[0][0],dz=R[1][1]-R[0][1],l=M
 window.__worldGenMs=performance.now()-__wt0;
 function stoneOre(x,y,z){const r=hash3(x,y,z);if(y<-14&&r<0.03)return BID.gemore;if(y<-4&&r<0.09)return BID.ironore;return BID.stone;}
 function houseBlock(H,x,y,z){const top=H.fl*4;if(y>top||y<0)return 0;const r=y&3,edge=x===H.x0||x===H.x1||z===H.z0||z===H.z1;
+  if(H.home&&edge){const b=houseBlock0(H,x,y,z,top,r);return b===H.mat&&y<12?BID.wgranite:b;}return houseBlock0(H,x,y,z,top,r,edge);}
+function houseBlock0(H,x,y,z,top,r,edge){edge=x===H.x0||x===H.x1||z===H.z0||z===H.z1;
   if(edge){if(y===top)return BID.slab;const ns=z===H.z0||z===H.z1,along=ns?x-H.x0:z-H.z0,len=ns?H.x1-H.x0:H.z1-H.z0,corner=(x===H.x0||x===H.x1)&&ns;
     const onDoor=(H.door==='N'&&z===H.z0)||(H.door==='S'&&z===H.z1)||(H.door==='W'&&x===H.x0)||(H.door==='E'&&x===H.x1),mid=len>>1;
     if(onDoor&&!corner&&y<3&&(along===mid||along===mid-1))return 0;
@@ -1134,7 +1142,9 @@ const SHOPS=[];
 {const [gx,gz]=GATE_PT;const cands=HOUSES.filter(H=>!(H.fl>6||H.tower)&&!pip((H.x0+H.x1)/2/S+CX,(H.z0+H.z1)/2/S+CY,BOUNDARY)).map(H=>({H,d:Math.hypot((H.x0+H.x1)/2-gx,(H.z0+H.z1)/2-gz),out:((H.x0+H.x1)/2-gx)+((H.z0+H.z1)/2-gz)<=0})).filter(c=>c.out).sort((p,q)=>p.d-q.d);
   const front=(H,off)=>H.door==='S'?[(H.x0+H.x1+1)/2,H.z1+1+off]:H.door==='N'?[(H.x0+H.x1+1)/2,H.z0-off]:H.door==='E'?[H.x1+1+off,(H.z0+H.z1+1)/2]:[H.x0-off,(H.z0+H.z1+1)/2];
   // kindergarten right across from the gate
-  const CJ=[wx(131),wz(-71)],ccx=CJ[0]-17,ccz=CJ[1]+3;const kg=(cands.slice().sort((p2,q2)=>Math.hypot((p2.H.x0+p2.H.x1)/2-ccx,(p2.H.z0+p2.H.z1)/2-ccz)-Math.hypot((q2.H.x0+q2.H.x1)/2-ccx,(q2.H.z0+q2.H.z1)/2-ccz))[0]||{}).H;
+  // 麥米倫 sits on the corner lot of 中興路二段182巷 × 現岱路, across from the gate
+  const J=[wx(-69),wz(194)],dNE=[0.609,-0.793],d182=[-0.9,-0.437],inWedge=c=>{const px2=(c.H.x0+c.H.x1)/2-J[0],pz2=(c.H.z0+c.H.z1)/2-J[1];return dNE[0]*pz2-dNE[1]*px2<0&&d182[0]*pz2-d182[1]*px2>0&&Math.hypot(px2,pz2)<55;};
+  const dJ=c=>Math.hypot((c.H.x0+c.H.x1)/2-J[0],(c.H.z0+c.H.z1)/2-J[1]);const kg=(cands.filter(inWedge).sort((p2,q2)=>dJ(p2)-dJ(q2))[0]||cands[0]||{}).H;
   if(kg){kg.mat=BID.cyellow;kg.sign=BID.cpink;kg.fl=2;kg.shutter=false;kg.kinder=true;SHOPS.push({x:(kg.x0+kg.x1+1)/2,z:(kg.z0+kg.z1+1)/2,H:kg,type:'kinder',label:'麥米倫幼兒園'});const cx=(kg.x0+kg.x1+1)/2,cz=(kg.z0+kg.z1+1)/2,[fx,fz]=front(kg,0.3);
     const lbl=makeLabel('🧸 麥米倫幼兒園','rgba(255,126,182,.95)','#fff');lbl.position.set(fx,13.4,fz);lbl.scale.set(6,1.5,1);scene.add(lbl);
     const st=textTex(512,128,(c2,w,h)=>{const cols=['#e23a2c','#f2c230','#2fa84f','#2f6fd0','#8e44ad'];c2.fillStyle='#fff';c2.fillRect(0,0,w,h);c2.font='bold 76px "PingFang TC","Microsoft JhengHei",sans-serif';c2.textAlign='center';c2.textBaseline='middle';c2.font='bold 64px "PingFang TC","Microsoft JhengHei",sans-serif';[...'麥米倫幼兒園'].forEach((ch,k)=>{c2.fillStyle=cols[k%5];c2.fillText(ch,48+k*83,68);});});
@@ -1144,6 +1154,16 @@ const SHOPS=[];
     const sl=box(0.9,0.1,3,lam(0xe23a2c));sl.position.set(-2.5,0.8,1.9);sl.rotation.x=0.5;pg.add(sl);
     const sw=box(2.4,0.12,0.12,lam(0x2fa84f));sw.position.set(1.8,2,0);pg.add(sw);for(const sx of[0.7,2.9]){const l=box(0.1,2,0.1,lam(0x2fa84f));l.position.set(sx,1,0);pg.add(l);}const seat=box(0.5,0.06,0.3,lam(0xff7eb6));seat.position.set(1.8,0.6,0);pg.add(seat);
     const fc=['#e23a2c','#f2c230','#2fa84f','#2f6fd0'];for(let k=-6;k<=6;k++){const pk=box(0.25,1,0.08,lam(new THREE.Color(fc[(k+6)%4])));pk.position.set(k*0.6,0.5,2.6);pg.add(pk);}}
+  // 主角的家
+  {const H=HOME_LOT.H,st=HOME_LOT.store;
+   if(st){const [fx,fz]=front(st,0.05);for(const [y,c] of[[3.3,0x2fbf5a],[3.75,0xffffff],[4.05,0x2f6fd0]]){const band=box(st.x1-st.x0+1.2,y===3.75?0.25:0.4,0.3,lam(c));band.position.set((st.x0+st.x1+1)/2,y,fz+0.2);scene.add(band);}
+     const sg=signPlane('便利商店 24H',5,0.8,'#ffffff','#2a8a4a');sg.position.set((st.x0+st.x1+1)/2,2.75,fz+0.42);scene.add(sg);}
+   if(H){const cx=(H.x0+H.x1+1)/2,[fx,fz]=front(H,0);const gm=new THREE.MeshPhongMaterial({color:0x9fe8d8,transparent:true,opacity:0.45,shininess:90});
+     const can=new THREE.Mesh(new THREE.BoxGeometry(6,0.12,3),gm);can.position.set(cx-3.5,3.4,fz+1.5);scene.add(can);for(const dx of[-2,0,2]){const r2=box(0.08,0.08,3,lam(0x666a70));r2.position.set(cx-3.5+dx,3.32,fz+1.5);scene.add(r2);}
+     const pine=new THREE.Group();for(let k=0;k<3;k++){const c2=new THREE.Mesh(new THREE.ConeGeometry(0.9-k*0.22,1.4,8),lam(0x2f7a3a));c2.position.y=1+k*0.75;pine.add(c2);}pine.position.set(cx+0.2,0,fz+0.8);scene.add(pine);
+     const lbl=makeLabel('🏠 主角的家','rgba(255,170,60,.95)','#fff');lbl.position.set(cx,H.fl*4+4,fz-6);lbl.scale.set(6,1.5,1);scene.add(lbl);HOME_LOT.lbl=lbl;
+     const ent=signPlane('大廳 LOBBY',2.6,0.5,'#d8c49a','#3a2a1a');ent.position.set(cx,3.05,fz+0.06);scene.add(ent);
+     const [hx,hz]=front(H,2.5);SHOPS.push({x:hx,z:hz,H,type:'home',label:'主角的家'});}}
   // laser-tag shop moved further down the street
   const ls=cands.find(c=>c.d>40&&c.H!==kg);
   if(ls){const best=ls.H;best.shop='fps';best.sign=BID.cpink;best.mat=BID.wgrey;const cx=(best.x0+best.x1+1)/2,cz=(best.z0+best.z1+1)/2;SHOPS.push({x:cx,z:cz,H:best,type:'fps',label:'雷射射擊場'});
@@ -1302,11 +1322,46 @@ let actx=null;
 let sfxBus=null,bgmBus=null;
 function audioInit(){if(actx)return;try{actx=new (window.AudioContext||window.webkitAudioContext)();sfxBus=actx.createGain();bgmBus=actx.createGain();sfxBus.connect(actx.destination);bgmBus.connect(actx.destination);applyAudio();setInterval(bgmTick,60);}catch(e){actx=null;}}
 function applyAudio(){if(!actx)return;const m=SET.mute?0:1;sfxBus.gain.value=m*SET.sfxVol/100;bgmBus.gain.value=m*(SET.bgm?SET.bgmVol/100:0)*0.5;}
-const BGM_M=[0,4,7,4,9,7,4,2,0,2,4,7,4,2,0,null,5,9,12,9,7,4,2,4,0,4,7,9,7,4,2,0,7,7,9,7,4,4,2,null,5,4,2,4,7,null,0,null],BGM_B=[0,0,5,5,7,7,0,0,9,9,5,5,7,7,0,0];let bgmStep=0,bgmNext=0;
-function bgmNote(f,t,len,type,vol){const o=actx.createOscillator(),g=actx.createGain();o.type=type;o.frequency.value=f;o.connect(g);g.connect(bgmBus);g.gain.setValueAtTime(0.0001,t);g.gain.exponentialRampToValueAtTime(vol,t+0.01);g.gain.exponentialRampToValueAtTime(0.0001,t+len);o.start(t);o.stop(t+len+0.02);}
-function bgmTick(){if(!actx||!SET.bgm||SET.mute||(miniOpen&&$('mKeys')))return;if(bgmNext<actx.currentTime)bgmNext=actx.currentTime+0.05;
-  while(bgmNext<actx.currentTime+0.25){const st=0.19,m=BGM_M[bgmStep%BGM_M.length];if(m!==null)bgmNote(523.25*Math.pow(2,m/12),bgmNext,st*0.9,'square',0.05);
-    if(bgmStep%3===0)bgmNote(130.81*Math.pow(2,BGM_B[Math.floor(bgmStep/3)%BGM_B.length]/12),bgmNext,st*2.6,'triangle',0.12);bgmNext+=st;bgmStep++;}}
+// ---- cozy island-style background music (original tune: swing e-piano, kalimba / ocarina melody, soft bass, shaker) ----
+const BGM_BPM=92,BGM_CH={F:[[60,64,65,69],41],Dm:[[60,62,65,69],38],Gm:[[62,65,67,70],43],C7:[[58,60,64,67],36],Am:[[60,64,67,69],45],Bb:[[62,65,69,70],46]};
+const BGM_ORD=['F','Dm','Gm','C7','Am','Dm','Gm','C7','Bb','Am','Gm','C7','Bb','Am','Gm','C7'];
+const BGM_MEL=[[72,'-',76,'~',77,76,72,'-'],[74,'~','-',69,72,'~',74,'-'],[70,'~',74,'~',77,'~',74,72],[70,'~','~','-',67,69,70,72],
+  [76,'~',72,'~',69,72,76,79],[77,'~','~',76,74,'~',72,'-'],[70,72,74,'~',77,'~',76,74],[72,'~','~','~','-','-',72,74],
+  [77,'~',74,'~',70,'~',74,77],[76,'~',72,'~',69,'~','-',72],[74,'~',70,72,74,77,79,'~'],[76,'~','~',72,'~','-',70,72],
+  [74,77,81,'~',79,77,74,'~'],[76,'~',79,'~',76,72,69,'~'],[70,'~',74,'~',72,'~',70,67],[69,'~','~','~','-','-','-','-']];
+let bgmStep=0,bgmNext=0,BGMFX=null,BGM_NOISE=null;
+const mtof=m=>440*Math.pow(2,(m-69)/12),bgmBeat=()=>60/BGM_BPM,bgmDur=s=>bgmBeat()*(s%2===0?0.6:0.4);
+function bgmOut(){if(BGMFX)return BGMFX;const inp=actx.createGain(),lp=actx.createBiquadFilter();lp.type='lowpass';lp.frequency.value=5200;inp.connect(lp);lp.connect(bgmBus);
+  const dl=actx.createDelay(1),fb=actx.createGain(),wet=actx.createGain();dl.delayTime.value=bgmBeat()*0.75;fb.gain.value=0.22;wet.gain.value=0.18;lp.connect(dl);dl.connect(fb);fb.connect(dl);dl.connect(wet);wet.connect(bgmBus);
+  const n=Math.floor(actx.sampleRate*0.3);BGM_NOISE=actx.createBuffer(1,n,actx.sampleRate);const d=BGM_NOISE.getChannelData(0);for(let i=0;i<n;i++)d[i]=Math.random()*2-1;return BGMFX=inp;}
+function bgmOsc(type,f,t,a,peak,dec,end,out,detune){const o=actx.createOscillator(),g=actx.createGain();o.type=type;o.frequency.value=f;if(detune)o.detune.value=detune;o.connect(g);g.connect(out);g.gain.setValueAtTime(0.0001,t);g.gain.exponentialRampToValueAtTime(peak,t+a);g.gain.exponentialRampToValueAtTime(Math.max(0.0002,peak*dec),end);g.gain.exponentialRampToValueAtTime(0.0001,end+0.12);o.start(t);o.stop(end+0.15);return o;}
+function bgmEP(m,t,d,v){const o=bgmOut();bgmOsc('sine',mtof(m),t,0.015,v,0.35,t+d,o);bgmOsc('sine',mtof(m+12),t,0.01,v*0.18,0.1,t+Math.min(d,0.4),o,4);bgmOsc('triangle',mtof(m),t,0.01,v*0.25,0.2,t+d*0.6,o,-5);}
+function bgmKal(m,t,d,v){const o=bgmOut(),e=t+Math.min(Math.max(d,0.35),1.4);bgmOsc('sine',mtof(m),t,0.006,v,0.05,e,o);bgmOsc('sine',mtof(m)*4.02,t,0.003,v*0.22,0.01,t+0.18,o);bgmOsc('triangle',mtof(m+12),t,0.004,v*0.12,0.05,t+0.3,o);}
+function bgmOca(m,t,d,v){const o=bgmOut(),osc=bgmOsc('sine',mtof(m),t,0.06,v,0.7,t+Math.max(d,0.2),o);const lfo=actx.createOscillator(),lg=actx.createGain();lfo.frequency.value=5.2;lg.gain.setValueAtTime(0,t);lg.gain.linearRampToValueAtTime(7,t+0.25);lfo.connect(lg);lg.connect(osc.detune);lfo.start(t);lfo.stop(t+d+0.3);
+  bgmOsc('triangle',mtof(m+12),t,0.08,v*0.08,0.6,t+Math.max(d,0.2),o);}
+function bgmBass(m,t,d,v){const o=bgmOut();bgmOsc('triangle',mtof(m),t,0.01,v,0.4,t+d,o);bgmOsc('sine',mtof(m),t,0.01,v*0.8,0.3,t+d,o);}
+function bgmNoise(t,v,hp,len){const o=bgmOut(),s=actx.createBufferSource(),f=actx.createBiquadFilter(),g=actx.createGain();s.buffer=BGM_NOISE;f.type='highpass';f.frequency.value=hp;s.connect(f);f.connect(g);g.connect(o);g.gain.setValueAtTime(v,t);g.gain.exponentialRampToValueAtTime(0.0001,t+len);s.start(t,Math.random()*0.2,len+0.02);}
+function bgmKick(t,v){const o=bgmOut(),k=actx.createOscillator(),g=actx.createGain();k.frequency.setValueAtTime(110,t);k.frequency.exponentialRampToValueAtTime(48,t+0.12);k.connect(g);g.connect(o);g.gain.setValueAtTime(v,t);g.gain.exponentialRampToValueAtTime(0.0001,t+0.18);k.start(t);k.stop(t+0.2);}
+function bgmStepAt(s,t){const bar=Math.floor(s/8)%16,i=s%8,loop=Math.floor(s/128),beat=bgmBeat(),[voi,root]=BGM_CH[BGM_ORD[bar]];
+  if(i===0){for(const m of voi)bgmEP(m,t,beat*1.7,0.035);bgmBass(root,t,beat*0.9,0.13);bgmKick(t,0.07);}
+  if(i===3)for(const m of voi)bgmEP(m,t,beat*0.45,0.022);
+  if(i===4){bgmBass(root+7,t,beat*0.9,0.11);bgmKick(t,0.04);}
+  if(i===6&&bar%2===1)for(const m of voi)bgmEP(m+12,t,beat*0.3,0.012);
+  if(i===7)bgmBass(root+(bar%4===3?11:12),t,beat*0.35,0.07);
+  bgmNoise(t,i%2?0.016:0.009,7000,0.05);if(i===2||i===6)bgmNoise(t,0.022,2500,0.03);
+  const tok=BGM_MEL[bar][i];if(typeof tok==='number'){let n=1;while(i+n<8&&BGM_MEL[bar][i+n]==='~')n++;let d=0;for(let k=0;k<n;k++)d+=bgmDur(s+k);
+    if(loop%3===1)bgmOca(tok,t,d*0.95,0.06);else bgmKal(tok+(loop%3===2?12:0),t,d,loop%3===2?0.05:0.075);}}
+function bgmTick(){bellTick();if(!actx||!SET.bgm||SET.mute||(miniOpen&&$('mKeys')))return;if(bgmNext<actx.currentTime)bgmNext=actx.currentTime+0.05;
+  while(bgmNext<actx.currentTime+0.3){bgmStepAt(bgmStep,bgmNext);bgmNext+=bgmDur(bgmStep);bgmStep++;}}
+// ---- school bell (Westminster chime) every 5 minutes of play ----
+const BELL={t0:0,n:0};
+function bellTick(){if(typeof G==='undefined'||!G.started)return;const now=performance.now();if(!BELL.t0)BELL.t0=now;if(now-BELL.t0>=300000*(BELL.n+1)){BELL.n++;schoolBell();}}
+function schoolBell(){if(!actx||SET.mute||SET.bell===false)return;const seq=[64,60,62,55,55,62,64,60,64,62,60,55,55,62,64,60];let t=actx.currentTime+0.1;
+  const duck=bgmBus.gain.value;bgmBus.gain.cancelScheduledValues(actx.currentTime);bgmBus.gain.setValueAtTime(duck,actx.currentTime);bgmBus.gain.linearRampToValueAtTime(duck*0.2,actx.currentTime+0.4);
+  seq.forEach((m,k)=>{const f=mtof(m+12);for(const [r,v,dec] of[[0.5,0.10,3.2],[1,0.16,2.4],[1.19,0.06,1.6],[1.5,0.05,1.4],[2,0.06,1.1],[2.51,0.03,0.7],[3.01,0.02,0.5]]){const o=actx.createOscillator(),g=actx.createGain();o.type='sine';o.frequency.value=f*r;o.connect(g);g.connect(sfxBus);g.gain.setValueAtTime(0.0001,t);g.gain.exponentialRampToValueAtTime(v*0.9,t+0.008);g.gain.exponentialRampToValueAtTime(0.0001,t+dec);o.start(t);o.stop(t+dec+0.05);}
+    t+=k%4===3?1.25:0.72;});
+  const back=t+1.5-actx.currentTime;setTimeout(()=>{if(!actx)return;bgmBus.gain.cancelScheduledValues(actx.currentTime);bgmBus.gain.setValueAtTime(bgmBus.gain.value,actx.currentTime);applyAudio();},back*1000);
+  if(typeof banner==='function')banner('🔔 噹～噹～噹～噹～ 上課鐘響了！',4);}
 function sfx(kind){if(!actx)return;const t=actx.currentTime,o=actx.createOscillator(),g=actx.createGain();o.connect(g);g.connect(sfxBus);
   const P={throw:['triangle',520,300,.08,.12],hit:['square',220,90,.07,.1],kill:['triangle',660,1100,.1,.18],hurt:['sawtooth',160,70,.12,.22],talk:['sine',740,880,.06,.1],power:['triangle',440,1320,.1,.4],boss:['sawtooth',110,55,.15,.8]}[kind];
   if(!P)return;o.type=P[0];o.frequency.setValueAtTime(P[1],t);o.frequency.exponentialRampToValueAtTime(P[2],t+P[4]);g.gain.setValueAtTime(P[3],t);g.gain.exponentialRampToValueAtTime(0.001,t+P[4]);o.start(t);o.stop(t+P[4]+0.02);}
@@ -1416,6 +1471,10 @@ const FRIENDS=[
 for(const [name,pos,o,line] of FRIENDS){if(o.pants===0xf08a24)o.capRed=true;const n=addNPC('friend',name,pos,Object.assign({tex:TEX.uniform,shirt:0xffffff,cap:true,shoe:pick([0x1e7a3c,0x222222,0xe86d8a,0x2f6fd0])},o));n.joinLine=line;}
 {const u=Object.assign({tex:TEX.uniform,shirt:0xffffff,cap:true,shoe:0x1e7a3c},{sleeve:0x2e8b3e,pants:0x2e8b3e,flag:true,skin:0xf3d3b5});addNPC('dodge','佑俊',[440,250],u);}
 addNPC('runner','宇德',trackLocalToPx(-14,79),{tex:TEX.uniform,shirt:0xffffff,cap:true,shoe:0x222222,sleeve:0x2e8b3e,pants:0x2e8b3e,skin:0xa8754e,cool:true,ball:true,hair:0x0d0b0a});
+// security guard sitting at the desk in the home lobby
+if(HOME_LOT.H){const H=HOME_LOT.H,gx=H.x0+3.2,gz=H.z1-3.4;const n=addNPC('guard','保全叔叔',[gx/S+CX,gz/S+CY],{shirt:0xffffff,sleeve:0xffffff,longSleeve:true,pants:0x2a2f3a,longPants:true,thin:true,glasses:true,scale:1.32,hair:0x1b1b1b,skin:0xe8c09a,shoe:0x111111});n.sit=true;n.p.root.rotation.y=Math.PI*0.5;
+  const desk=box(1.8,1.0,0.7,lam(0x6a4a32));desk.position.set(gx+1.1,0.5,gz);desk.rotation.y=Math.PI/2;scene.add(desk);const top=box(1.9,0.06,0.8,lam(0xd8c49a));top.position.set(gx+1.1,1.03,gz);top.rotation.y=Math.PI/2;scene.add(top);
+  const mon=box(0.5,0.35,0.05,lam(0x222222));mon.position.set(gx+1.1,1.3,gz-0.3);mon.rotation.y=-Math.PI/2;scene.add(mon);const chair=box(0.55,0.5,0.55,lam(0x333333));chair.position.set(gx-0.05,0.25,gz);scene.add(chair);addSolid(gx+1.1,gz,0.4,0.95,0,0,1.1);}
 // marimba band in 新元館
 const BAND=[];
 {const gx=wx(250),gz=wz(418),g=new THREE.Group();g.position.set(gx,0,gz);scene.add(g);const blk=lam(0x1b1b1b),wood=lam(0x8a3a24),tube=lam(0xc9a45a);
@@ -1428,7 +1487,7 @@ const BAND=[];
   const lbl=makeLabel('🎵 木琴合奏','rgba(139,58,36,.95)','#fff');lbl.position.set(gx,3.4,gz);lbl.scale.set(2.6,0.65,1);scene.add(lbl);
   const base={tex:TEX.uniform,shirt:0xffffff,cap:true,shoe:0x222222};
   for(const [name,pos,o] of [['阿輝',[242,410],{sleeve:0x2e8b3e,pants:0x2e8b3e,scale:1.15,cool:true}],['家樂',[248,409],{sleeve:0x2e8b3e,pants:0x2e8b3e}],['品昊',[254,409],{sleeve:0x2e8b3e,pants:0x2e8b3e,glasses:true,bag:true}],
-      ['彥筠',[259,410],{sleeve:0xf08a24,pants:0xf08a24,capRed:true,longHair:true,scale:1.1,thin:true}],['柏豪',[263,412],{sleeve:0x2e8b3e,pants:0x2e8b3e,thin:true}]]){
+      ['硯筠',[259,410],{sleeve:0xf08a24,pants:0xf08a24,capRed:true,longHair:true,scale:1.1,thin:true}],['柏豪',[263,412],{sleeve:0x2e8b3e,pants:0x2e8b3e,thin:true}]]){
     const n=addNPC('band',name,pos,Object.assign({},base,o));n.p.root.rotation.y=Math.atan2(gx-n.x,gz-n.z);BAND.push(n);}}
 {const d=addNPC('friend','恐龍',[515,150],{make:makeDino});d.joinLine='吼——！恐龍也來幫忙！我的躲避球特別大顆！';d.power=2;}
 const friendsOf=()=>npcs.filter(n=>n.recruited);
@@ -1514,12 +1573,13 @@ function interact(n){
     else if(G.bossDead){say([['校長','太棒了！你和同學們同心協力，打倒了考卷大魔王！'],['校長','大元國小的校園恢復和平了。校長要頒給你們「校園英雄獎」！'],['校長','記得：遇到困難不要怕，和朋友一起努力，就一定做得到！']],win);}
     else{G.hp=G.maxHp;say([['校長',hint()]]);}
     return;}
-  if(!G.met&&n.kind!=='dodge'&&n.kind!=='band'&&n.kind!=='runner'){say([[n.name,n.kind==='friend'?'聽說校長在校門口找人，好像出了大事，你快去看看！':'同學早安！先去校門口找校長報到喔。']]);return;}
+  if(!G.met&&n.kind!=='dodge'&&n.kind!=='band'&&n.kind!=='runner'&&n.kind!=='guard'){say([[n.name,n.kind==='friend'?'聽說校長在校門口找人，好像出了大事，你快去看看！':'同學早安！先去校門口找校長報到喔。']]);return;}
   if(n.kind==='friend'){
     if(n.recruited){say([[n.name,pick(['我會一直跟著你的！','怪獸在哪裡？衝啊！','我們是最強小隊！'])]]);return;}
     say([[n.name,n.joinLine]],()=>{n.recruited=true;n.marker.visible=false;n.col.r=0;n.slot=friendsOf().length-1;sfx('power');banner(`${n.name} 加入小隊！`);});return;}
   if(n.kind==='pe'){if(!n.done)say([['體育老師','嗶——！同學，打怪獸也要有好體力！'],['體育老師','老師教你「躲避球連發」：丟球更快，一次丟三顆！']],()=>{n.done=true;G.rapid=true;G.hp=G.maxHp;sfx('power');banner('學會：躲避球連發！');});else{G.hp=G.maxHp;say([['體育老師','很好！體力幫你補滿了！想比賽跑步的話，去起跑線找宇德！']]);}return;}
   if(n.kind==='sci'){if(!n.done)say([['自然老師','我在生態池觀察青蛙的時候，發現了一種神奇的泡泡！'],['自然老師','這個「泡泡護盾」可以讓你受到的傷害減半，拿去用吧！']],()=>{n.done=true;G.shield=true;G.hp=G.maxHp;sfx('power');banner('獲得：泡泡護盾！');});else say([['自然老師','科學的力量就是觀察和勇氣！加油！']]);return;}
+  if(n.kind==='guard'){const me=SET.gender==='girl'?'心心':'仲仲';say([['保全叔叔',pick([`${me}回來啦！今天在學校好玩嗎？`,`${me}早！上學路上小心車子喔！`,'有你的包裹，我先幫你收著～','電梯在後面，回家記得先洗手喔！'])],['保全叔叔','累的話走進大廳就可以回家休息，體力會補滿！']]);return;}
   if(n.kind==='runner'){say([['宇德','嘿！聽說你跑很快？'],['宇德','來比一場 200 公尺跨欄！體育老師當裁判，家亨和昀蔚也要一起跑！'],['宇德','輸的人要請喝養樂多喔～預備！']],()=>startRun());return;}
   if(n.kind==='dodge'){say([['佑俊','안녕！我是佑俊！要不要一起玩躲避球？大元隊對搗蛋鬼隊！'],['佑俊','準備好了嗎？開始！']],()=>startDodge({special:n.dodgeSp||(n.dodgeSp={label:'操場躲避球',type:'dodge'})}));return;}
   if(n.kind==='band'){say([[n.name,pick(['我們正在練木琴合奏！','你也來敲敲看！','跟著落下的音符敲琴鍵喔！'])],[n.name,'來，這兩支琴槌給你！']],()=>startMarimba());return;}
@@ -1684,6 +1744,7 @@ function updateNPCs(dt){
     else if(n.kind==='principal')n.marker.visible=!G.met||G.bossDead;
     else if(n.kind==='nurse')n.marker.visible=G.met&&G.hp<G.maxHp*0.6;
     else if(n.kind==='dodge'||n.kind==='band'||n.kind==='runner')n.marker.visible=true;
+    else if(n.kind==='guard')n.marker.visible=false;
     else n.marker.visible=G.met&&!n.done;
     let speed=0;
     if(n.recruited&&PKS){n.p.root.visible=false;continue;}
@@ -1703,7 +1764,7 @@ function updateNPCs(dt){
       if(dp<6&&dy<2){const tgt=Math.atan2(player.x-n.x,player.z-n.z);let d=((tgt-n.p.root.rotation.y+Math.PI*3)%(Math.PI*2))-Math.PI;n.p.root.rotation.y+=d*Math.min(1,dt*5);}
       if(dp<bd&&dy<1.5){bd=dp;nearNPC=n;}
     }
-    n.p.root.position.set(n.x,n.y,n.z);animPerson(n.p,speed,dt);
+    n.p.root.position.set(n.x,n.y,n.z);animPerson(n.p,speed,dt);if(n.sit){n.p.legL.rotation.x=n.p.legR.rotation.x=-1.45;n.p.body.position.y=-0.3;n.p.armL.rotation.x=n.p.armR.rotation.x=-0.9;}
     if(!n.recruited)n.p.body.position.y=Math.abs(Math.sin(T*2+n.p.phase))*0.02;
   }
   for(const c of CHESTS){c.mk.position.y=1.3+Math.sin(T*4)*0.1;const d=Math.hypot(player.x-c.x,player.z-c.z);if(d<Math.min(bd,2.4)&&Math.abs(player.y-c.y)<1.3){bd=d;nearNPC=c;}}
@@ -1822,7 +1883,7 @@ function updateHUD(){
   const html=qs.map(([d,t],i)=>`<li class="${d?'done':isCur(i)?'cur':''}">${d?'☑':'☐'} ${t}</li>`).join('');
   const buffs=(G.dmg>1?'<span>💪 攻擊加倍</span>':'')+(G.rapid?'<span>⚡ 躲避球連發</span>':'')+(G.shield?'<span>🫧 泡泡護盾</span>':'')+(G.fast?'<span>👟 跳跳鞋</span>':'');
   const key=html+buffs;if(key!==hudCache){hudCache=key;$('quests').innerHTML=html;$('buffs').innerHTML=buffs;}
-  const pr=$('prompt');if(nearNPC&&!isPaused()){pr.style.display='block';const verb=nearNPC.kind==='chest'?'打開寶箱':nearNPC.kind==='room'?`進入「${nearNPC.name}」挑戰`:`和 ${nearNPC.name} 說話`;pr.textContent=(isTouch?'點「對話」':'按 E ')+verb;$('bTalk').classList.add('hot');}else{pr.style.display='none';$('bTalk').classList.remove('hot');}
+  const pr=$('prompt');if(nearNPC&&!isPaused()){pr.style.display='block';const verb=nearNPC.kind==='chest'?'打開寶箱':nearNPC.kind==='room'?(nearNPC.room.special.type==='home'?'回家休息':`進入「${nearNPC.name}」挑戰`):`和 ${nearNPC.name} 說話`;pr.textContent=(isTouch?'點「對話」':'按 E ')+verb;$('bTalk').classList.add('hot');}else{pr.style.display='none';$('bTalk').classList.remove('hot');}
   $('modeChip').textContent=G.creative?'🛠 創造模式':'⚔ 冒險模式';
   $('where').textContent=player.y>60?'跑酷關卡':colKind(player.x,player.z)!==K_SCHOOL&&colKind(player.x,player.z)!==K_DIG&&player.y>-0.5&&player.y<1.5?'校外':player.y<-0.5?`地下 ${Math.ceil(-player.y)} 公尺`:player.y>12.6?'屋頂':player.y>1.5?`${Math.floor((player.y+0.5)/3.3)+1}F`:'';
   if(invDirty)renderHotbar();
@@ -1845,11 +1906,11 @@ function loop(){
 }
 // ================= settings =================
 const DIFF={easy:{dmg:0.5,cap:0.7},normal:{dmg:1,cap:1},hard:{dmg:1.5,cap:1.3}};
-const SET_DEF={sfxVol:70,bgm:true,bgmVol:45,mute:false,quality:isTouch?'mid':'high',fov:60,fps:false,sens:100,invertY:false,camDist:8,diff:'normal',minimap:true,quests:true,gender:START_GENDER};
+const SET_DEF={sfxVol:70,bgm:true,bgmVol:45,bell:true,mute:false,quality:isTouch?'mid':'high',fov:60,fps:false,sens:100,invertY:false,camDist:8,diff:'normal',minimap:true,quests:true,gender:START_GENDER};
 const SET=Object.assign({},SET_DEF);try{Object.assign(SET,JSON.parse(localStorage.getItem('dayuan-settings')||'{}'));}catch(e){}
 function saveSet(){try{localStorage.setItem('dayuan-settings',JSON.stringify(SET));}catch(e){}}
 let setOpen=false,setTab='snd';
-const SCHEMA=[['snd','sfxVol','音效音量','range',0,100,'%'],['snd','bgm','背景音樂','toggle'],['snd','bgmVol','音樂音量','range',0,100,'%'],['snd','mute','全部靜音','toggle'],
+const SCHEMA=[['snd','sfxVol','音效音量','range',0,100,'%'],['snd','bgm','背景音樂','toggle'],['snd','bgmVol','音樂音量','range',0,100,'%'],['snd','bell','上課鐘聲（每 5 分鐘）','toggle'],['snd','mute','全部靜音','toggle'],
   ['gfx','quality','畫質','seg',[['low','流暢'],['mid','標準'],['high','精美']]],['gfx','fov','視野寬度','range',50,90,'°'],['gfx','fps','顯示 FPS','toggle'],
   ['ctl','sens','視角靈敏度','range',30,200,'%'],['ctl','invertY','上下反轉','toggle'],['ctl','camDist','鏡頭距離','range',4,14,'m'],['ctl','fp','第一人稱視角','toggle'],
   ['game','gender','角色','seg',[['boy','🟩 男生'],['girl','🟧 女生']]],['game','diff','難度','seg',[['easy','簡單'],['normal','普通'],['hard','困難']]],['game','creative','創造模式','toggle'],['game','minimap','顯示小地圖','toggle'],['game','quests','顯示任務欄','toggle']];
@@ -1900,7 +1961,7 @@ function closeMini(){if(miniCleanup){const f=miniCleanup;miniCleanup=null;f();}m
 addEventListener('keydown',e=>{if(miniOpen&&miniKey){miniKey(e,true);}});
 addEventListener('keyup',e=>{if(miniOpen&&miniKey){miniKey(e,false);}});
 function reward(loot,why){const got=Object.entries(loot).map(([k,v])=>{addItem(k,v);return ITEM_N[k]+'×'+v;}).join('、');banner(why+'　獲得 '+got,3.2);sfx('power');}
-function enterRoom(r){const t=r.special.type;if(t==='art')startArt(r);else if(t==='music')startMusic(r);else if(t==='parkour')startParkour(r);else if(t==='dodge')startDodge(r);else if(t==='fish')startFish();else if(t==='hoops')startHoops();else if(t==='fps')startFPS();else if(t==='meme')startMeme();else if(t==='craft')startCraft();else if(t==='puzzle')startPuzzle();else if(t==='kart')startKart();else if(t==='run')startRun();else if(t==='kinder')startKinder();}
+function enterRoom(r){const t=r.special.type;if(t==='home'){G.hp=G.maxHp;say([[SET.gender==='girl'?'心心':'仲仲','我回來了！'],['媽媽','回來啦～先吃點水果，休息一下再出門！'],['媽媽','記得不要太晚回家喔！']],()=>{G.hp=G.maxHp;sfx('power');banner('回到家休息，體力全滿！');});return;}if(t==='art')startArt(r);else if(t==='music')startMusic(r);else if(t==='parkour')startParkour(r);else if(t==='dodge')startDodge(r);else if(t==='fish')startFish();else if(t==='hoops')startHoops();else if(t==='fps')startFPS();else if(t==='meme')startMeme();else if(t==='craft')startCraft();else if(t==='puzzle')startPuzzle();else if(t==='kart')startKart();else if(t==='run')startRun();else if(t==='kinder')startKinder();}
 
 // ---- art room: 1-minute drawing ----
 const THEMES=[['太陽',['#f2c230','#f08a24','#3a8ee8']],['大樹',['#2fa84f','#7a5230']],['我的家',['#e23a2c','#7a5230','#3a8ee8']],['彩虹',['#e23a2c','#f08a24','#f2c230','#2fa84f','#3a8ee8','#8e44ad']],
@@ -2949,7 +3010,7 @@ function startMarimba(si){
   miniFrame=mbFrame;}
 function mbMenu(){const M=MB;M.state='menu';const el=$('mbMenu');el.style.display='flex';
   el.innerHTML=`<div style="font:900 clamp(26px,4.6vw,44px) 'Noto Sans TC',sans-serif;background:linear-gradient(#fff3c0,#ffb84a);-webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 3px 0 #6a2a10)">🎵 新元館木琴音樂會</div>
-    <div style="font:700 14px 'Noto Sans TC',sans-serif;color:#e8d0f0">選一首歌，跟阿輝、家樂、品昊、彥筠、柏豪一起合奏！</div>
+    <div style="font:700 14px 'Noto Sans TC',sans-serif;color:#e8d0f0">選一首歌，跟阿輝、家樂、品昊、硯筠、柏豪一起合奏！</div>
     <div style="display:flex;gap:14px;flex-wrap:wrap;justify-content:center">${MSONGS.map((s,i)=>`<button data-s="${i}" style="appearance:none;cursor:pointer;width:190px;padding:16px 12px;border-radius:18px;border:2px solid rgba(255,214,120,.55);background:linear-gradient(160deg,rgba(120,50,30,.95),rgba(60,20,40,.95));color:#fff;box-shadow:0 8px 20px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.25);font-family:'Noto Sans TC',sans-serif">
       <div style="font-size:42px">${s.ic}</div><div style="font-weight:900;font-size:22px;margin:4px 0">${s.n}</div><div style="color:#ffd23a;letter-spacing:2px">${'★'.repeat(s.lv)}<span style="opacity:.3">${'★'.repeat(3-s.lv)}</span></div>
       <div style="font-size:12px;opacity:.8;margin-top:4px">BPM ${s.bpm}・${s.notes.split(' ').filter(x=>x!=='-').length} 個音符</div><div style="font-size:12px;color:#9fe8ff;margin-top:4px">${MB_BEST[s.n]?'最佳 '+MB_BEST[s.n].score+' 分・'+MB_BEST[s.n].rank:'尚未挑戰'}</div></button>`).join('')}</div>
@@ -3027,7 +3088,7 @@ function mbResult(){const M=MB;M.state='result';const tot=M.seq.length,acc=Math.
         <div style="font-size:24px;letter-spacing:4px">${'⭐'.repeat(stars)}<span style="opacity:.25">${'⭐'.repeat(3-stars)}</span></div>
         <div><span style="color:#ffe066">PERFECT</span> ${M.hits.p}・<span style="color:#7dffb0">GOOD</span> ${M.hits.g}・<span style="color:#ff8a7a">MISS</span> ${M.hits.m}</div>
         <div>最高連擊 ${M.max}・正確率 ${acc}%</div></div></div>
-    <div style="font:700 15px 'Noto Sans TC',sans-serif;color:#f2e0f0">${acc>=95?'阿輝：「太神了！你可以當樂團隊長！」':acc>=80?'彥筠：「好好聽！我們合奏得超整齊！」':acc>=60?'家樂：「不錯喔！再練習一次會更棒！」':'品昊：「沒關係，看著音符慢慢來！」'}</div>
+    <div style="font:700 15px 'Noto Sans TC',sans-serif;color:#f2e0f0">${acc>=95?'阿輝：「太神了！你可以當樂團隊長！」':acc>=80?'硯筠：「好好聽！我們合奏得超整齊！」':acc>=60?'家樂：「不錯喔！再練習一次會更棒！」':'品昊：「沒關係，看著音符慢慢來！」'}</div>
     <div class="mrow"><button class="gbtn" id="mbAgain">再演奏一次</button><button class="gbtn alt" id="mbSel">換一首歌</button><button class="gbtn ghost" id="mbOut">離開</button></div>`;
   $('mbAgain').onclick=()=>mbBegin(M.si);$('mbSel').onclick=mbMenu;$('mbOut').onclick=closeMini;
   if(loot)reward(loot,`木琴合奏正確率 ${acc}%！`);}
