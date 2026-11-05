@@ -338,7 +338,7 @@ function distPoly(x,y,poly,closed=true){let m=1e9;const n=poly.length;for(let i=
 // ================= map data (pixels of the 606x492 satellite image) =================
 const BOUNDARY=[[0,135],[130,5],[310,5],[530,30],[560,95],[495,392],[455,490],[195,490],[188,325],[15,210]];
 const BOUNDW=BOUNDARY.map(p=>[wx(p[0]),wz(p[1])]);
-const GATE_SEG=0,GATE_T=0.62,GATE_PT=(()=>{const a=BOUNDW[GATE_SEG],b=BOUNDW[GATE_SEG+1];return [a[0]+(b[0]-a[0])*GATE_T,a[1]+(b[1]-a[1])*GATE_T];})();
+const GATE_SEG=0,GATE_T=0.2,GATE_PT=(()=>{const a=BOUNDW[GATE_SEG],b=BOUNDW[GATE_SEG+1];return [a[0]+(b[0]-a[0])*GATE_T,a[1]+(b[1]-a[1])*GATE_T];})();
 const ROADS=[
   {pts:[[690,-330],[480,822]],w:70,main:true,name:'環中東路'},
   {pts:[[-390,-32],[990,-10]],w:36,name:'德芳南路'},
@@ -664,6 +664,9 @@ function buildMainGate(gx,gz,ux,uz,gw){let nx=-uz,nz=ux;if(pip(gx+nx*3,gz+nz*3,B
   const sm=lam(0x8a7f72),pillarM=[sm,sm,sm,sm,new THREE.MeshLambertMaterial({map:st}),new THREE.MeshLambertMaterial({map:st})];
   const pil=new THREE.Mesh(new THREE.BoxGeometry(1.5,7.5,1.1),pillarM);pil.castShadow=true;const [px,pz]=lx(gw/2+1,0.6);pil.position.set(gw/2+1,3.75,0.6);g.add(pil);addSolid(px,pz,0.75,0.75,0,0,7.5);
   const plate=signPlane('60',0.8,0.4,'#1d4f9a','#fff');plate.position.set(gw/2+1,1.4,0.04);plate.rotation.y=Math.PI;g.add(plate);
+  // yellow cross-hatched no-stopping box on 現岱路 in front of the gate
+  {const ht=textTex(256,160,(c2,w,h)=>{c2.strokeStyle='#f2c230';c2.lineWidth=7;c2.strokeRect(4,4,w-8,h-8);for(let k=-h;k<w;k+=26){c2.beginPath();c2.moveTo(k,0);c2.lineTo(k+h,h);c2.stroke();c2.beginPath();c2.moveTo(k+h,0);c2.lineTo(k,h);c2.stroke();}});
+    const hb=new THREE.Mesh(new THREE.PlaneGeometry(gw+4,6),new THREE.MeshLambertMaterial({map:ht,transparent:true}));hb.rotation.x=-Math.PI/2;hb.position.set(0,0.05,-9.5);g.add(hb);}
   // orange arch over the gate
   const arch=new THREE.Mesh(new THREE.TorusGeometry(gw/2+0.4,0.22,8,24,Math.PI),lam(0xf08a24));arch.position.set(0,3.2,-0.5);g.add(arch);
   const arch2=new THREE.Mesh(new THREE.TorusGeometry(gw/2+0.4,0.12,6,24,Math.PI),lam(0x2fa84f));arch2.position.set(0,3.2,-1.1);g.add(arch2);
