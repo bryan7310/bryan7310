@@ -173,6 +173,16 @@ body.title #toolbar,body.title #fps{display:none!important}
   body.touch #hotbar .slot{width:30px;height:34px}body.touch #hotbar .sw{width:16px;height:16px}body.touch #hotbar .num{display:none}
   body.touch #tbtns{grid-template-columns:repeat(4,50px)!important}body.touch #tbtns button{width:50px!important;height:50px!important;font-size:13px!important}
 }
+/* ---------- mini-game joystick ---------- */
+.vstick{width:120px;height:120px;border-radius:50%;background:rgba(255,255,255,.12);border:2px solid rgba(255,255,255,.3);position:relative;touch-action:none;flex:none;pointer-events:auto}
+.vknob{position:absolute;left:35px;top:35px;width:50px;height:50px;border-radius:50%;background:rgba(255,255,255,.55);pointer-events:none}
+.dpad{align-items:flex-end}
+body.touch .dpad{position:fixed;left:max(14px,env(safe-area-inset-left,0px));right:max(14px,env(safe-area-inset-right,0px));bottom:max(12px,env(safe-area-inset-bottom,0px));z-index:30;justify-content:space-between;pointer-events:none;padding:0}
+body.touch .dpad>*{pointer-events:auto}
+body.touch #krMap{bottom:auto!important;top:56px}body.touch #krSpd{bottom:96px!important}body.touch #krHelp{display:none}body.touch #krFeed{top:200px!important}
+body.touch .dpad button{background:rgba(0,0,0,.45);width:54px;height:54px;font-size:14px}
+body.touch .dpad .mrow{flex-wrap:nowrap;gap:6px;justify-content:flex-end}
+body.touch .vstick{width:110px;height:110px}body.touch .vknob{left:30px;top:30px}
 /* ---------- title screen ---------- */
 .ts-gender{display:grid;grid-template-columns:auto 1fr 1fr;gap:8px;align-items:center;padding:8px;border-radius:14px;background:rgba(8,14,30,.75);border:2px solid rgba(255,255,255,.2)}
 .ts-gender span{font:900 14px "Noto Sans TC",sans-serif;color:#ffd84a;padding:0 4px}
@@ -1921,12 +1931,18 @@ function updatePK(dt){if(!PKS)return;PKS.t+=dt;
   if(player.y<PKS.oy-10){sfx('hurt');pkRespawn();}
   $('pkTxt').textContent=`${PKS.room.special.label}　第 ${PKS.stage+1}/${PKS.cps.length} 關　⏱ ${PKS.t.toFixed(1)} 秒`;}
 
+// ---- shared virtual joystick for touch mini-games ----
+function vStick(el,cb){if(!el)return;const kn=el.querySelector('.vknob');let id=null;
+  const mv=e=>{const r=el.getBoundingClientRect();let dx=e.clientX-r.left-r.width/2,dy=e.clientY-r.top-r.height/2;const m=r.width*0.4,l=Math.hypot(dx,dy);if(l>m){dx*=m/l;dy*=m/l;}kn.style.transform=`translate(${dx}px,${dy}px)`;cb(dx/m,-dy/m);};
+  el.onpointerdown=e=>{e.preventDefault();e.stopPropagation();id=e.pointerId;el.setPointerCapture(id);mv(e);};
+  el.onpointermove=e=>{if(e.pointerId===id)mv(e);};
+  el.onpointerup=el.onpointercancel=e=>{if(e.pointerId!==id)return;id=null;kn.style.transform='';cb(0,0);};}
 // ---- dodgeball in 新元館 ----
 let DB=null;
 function startDodge(r){const fr=friendsOf().map(f=>f.name);while(fr.length<3)fr.push(['阿傑','小芳','志豪','雅婷','小明'].find(n=>!fr.includes(n))||'同學');
   openMini(`<div class="mhead"><div class="mtitle">🔴 新元館躲避球：大元隊 vs 搗蛋鬼隊</div><div style="font-size:13px;color:var(--muted)">WASD 移動・J 或點畫面 丟球（瞄準最近的對手）・K 接球（球快打到時按）・撿到自己場上的球才能丟</div></div>
     <canvas id="dbCv" width="960" height="540" style="width:100%;height:auto;max-height:74vh;border-radius:10px;touch-action:none"></canvas>
-    <div class="dpad"><div class="mrow"><button data-k="L">←</button><button data-k="U">↑</button><button data-k="D">↓</button><button data-k="R">→</button></div><div class="mrow"><button data-k="T">丟</button><button data-k="C">接</button></div></div>
+    <div class="dpad"><div class="vstick"><div class="vknob"></div></div><div class="mrow"><button data-k="T">丟</button><button data-k="C">接</button></div></div>
     <div class="mrow"><button class="mbtn" id="dbQuit">離開</button></div>`);
   const mk=(x,y,team,name,me)=>({x,y,team,name,me:!!me,out:false,hold:null,cd:rand(0.5,1.2),catchT:0,tx:x,ty:y,wt:0});
   const P=[mk(260,270,0,'你',true)];fr.slice(0,4).forEach((n,i)=>P.push(mk(150+(i%2)*170,150+i*80,0,n)));
@@ -1936,6 +1952,7 @@ function startDodge(r){const fr=friendsOf().map(f=>f.name);while(fr.length<3)fr.
   miniKey=(e,down)=>{const k=map[e.code];if(!k)return;e.preventDefault();if(down&&!DB.in[k])DB.press[k]=true;DB.in[k]=down;};
   $('dbCv').onpointerdown=()=>{DB.press.T=true;};
   $('miniBox').querySelectorAll('.dpad button').forEach(b=>{const k=b.dataset.k;b.onpointerdown=e=>{e.preventDefault();DB.in[k]=true;DB.press[k]=true;};b.onpointerup=b.onpointerleave=b.onpointercancel=()=>{DB.in[k]=false;};});
+  DB.joy={x:0,y:0};vStick($('miniBox').querySelector('.vstick'),(x,y)=>{if(DB){DB.joy.x=x;DB.joy.y=y;}});
   $('dbQuit').onclick=()=>{DB=null;closeMini();};miniFrame=dodgeFrame;}
 const CT={x0:80,x1:880,y0:70,y1:470,mid:480};
 function dodgeFrame(dt){const D=DB;if(!D)return;dt=Math.min(dt,0.04);const alive=t=>D.P.filter(q=>q.team===t&&!q.out);
@@ -1944,7 +1961,7 @@ function dodgeFrame(dt){const D=DB;if(!D)return;dt=Math.min(dt,0.04);const alive
   const throwAt=(q,tgt)=>{const b=q.hold;q.hold=null;const lead=0.25,tx=tgt.x+(tgt.vx||0)*lead,ty=tgt.y+(tgt.vy||0)*lead,dx=tx-q.x,dy=ty-q.y,d=Math.hypot(dx,dy)||1,sp=q.me?600:rand(430,540);
     Object.assign(b,{st:'fly',team:q.team,from:q,x:q.x+dx/d*20,y:q.y+dy/d*20,vx:dx/d*sp,vy:dy/d*sp});q.cd=rand(0.9,1.6);sfx('throw');};
   for(const q of D.P){if(q.out)continue;q.catchT-=dt;q.cd-=dt;const [hx0,hx1]=half(q),ox=q.x,oy=q.y;
-    if(q.me){let mx=(D.in.R?1:0)-(D.in.L?1:0),my=(D.in.D?1:0)-(D.in.U?1:0);const l=Math.hypot(mx,my)||1;q.x+=mx/l*240*dt;q.y+=my/l*240*dt;
+    if(q.me){let mx=(D.in.R?1:0)-(D.in.L?1:0)+(D.joy?D.joy.x:0),my=(D.in.D?1:0)-(D.in.U?1:0)-(D.joy?D.joy.y:0);const l=Math.max(1,Math.hypot(mx,my));q.x+=mx/l*240*dt;q.y+=my/l*240*dt;
       if(D.press.C)q.catchT=0.32;
       if(D.press.T&&q.hold){const opp=alive(1).sort((a,b)=>Math.hypot(a.x-q.x,a.y-q.y)-Math.hypot(b.x-q.x,b.y-q.y))[0];if(opp)throwAt(q,opp);}}
     else{const myBall=D.balls.find(b=>b.st==='free'&&(q.team===0?b.x<CT.mid:b.x>CT.mid));const fetcher=myBall&&!D.P.some(o=>o!==q&&!o.out&&o.team===q.team&&!o.me&&o.fetch===myBall);
@@ -2534,7 +2551,7 @@ function startKart(){
     <div id="krBig" style="position:absolute;left:50%;top:38%;transform:translate(-50%,-50%);font:900 clamp(40px,9vw,110px) 'Noto Sans TC',sans-serif;color:#ffe23a;text-shadow:0 6px 0 #b8331a,0 0 20px #000;pointer-events:none;white-space:nowrap"></div>
     <div id="krHelp" style="position:absolute;left:50%;bottom:14px;transform:translateX(-50%);font:700 12px 'Noto Sans TC',sans-serif;color:#dde;text-shadow:0 1px 2px #000;white-space:nowrap">W/↑ 油門・S/↓ 煞車・A/D 轉彎・Shift 甩尾（放開加速）・空白鍵 用道具・Q 向後丟</div>
     <div class="dpad" id="krTouch" style="position:absolute;left:0;right:0;bottom:16px;padding:0 14px;justify-content:space-between;align-items:flex-end">
-      <div class="mrow"><button data-k="L" style="width:76px;height:76px">◀</button><button data-k="R" style="width:76px;height:76px">▶</button></div>
+      <div class="vstick"><div class="vknob"></div></div>
       <div class="mrow"><button data-k="I">道具</button><button data-k="D">甩尾</button><button data-k="B">煞車</button><button data-k="G" style="width:80px;height:80px;background:rgba(47,168,79,.8)">油門</button></div></div>
   </div>`);
   const cvs=$('krCv'),wrap=$('krWrap'),R=new THREE.WebGLRenderer({canvas:cvs,antialias:true});R.setPixelRatio(Math.min(devicePixelRatio,SET.quality==='low'?1:1.5));
@@ -2591,7 +2608,8 @@ function startKart(){
   KR.mapTf=q=>[12+(q.x-mnx)/(mxx-mnx)*196,12+(q.z-mnz)/(mxz-mnz)*136];KR.mc=mc;
   const resize=()=>{const w=wrap.clientWidth,h=wrap.clientHeight;R.setSize(w,h,false);cam.aspect=w/h;cam.updateProjectionMatrix();};resize();addEventListener('resize',resize);
   miniKey=(e,d)=>{if(!KR)return;KR.keys[e.code]=d;if(['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code))e.preventDefault();if(d&&!e.repeat&&(e.code==='Space'||e.code==='KeyJ'))kUse(KR.me,false);if(d&&!e.repeat&&e.code==='KeyQ')kUse(KR.me,true);};
-  $('krTouch').querySelectorAll('button').forEach(b=>{const k=b.dataset.k,map={L:'ArrowLeft',R:'ArrowRight',G:'ArrowUp',B:'ArrowDown',D:'ShiftLeft'};b.onpointerdown=e=>{e.preventDefault();if(k==='I')kUse(KR.me,false);else KR.keys[map[k]]=true;};b.onpointerup=b.onpointerleave=b.onpointercancel=()=>{if(map[k])KR.keys[map[k]]=false;};});
+  KR.joy={x:0,y:0};vStick($('krTouch').querySelector('.vstick'),(x,y)=>{if(KR){KR.joy.x=x;KR.joy.y=y;}});
+  $('krTouch').querySelectorAll('button').forEach(b=>{const k=b.dataset.k,map={G:'ArrowUp',B:'ArrowDown',D:'ShiftLeft'};b.onpointerdown=e=>{e.preventDefault();if(k==='I')kUse(KR.me,false);else KR.keys[map[k]]=true;};b.onpointerup=b.onpointerleave=b.onpointercancel=()=>{if(map[k])KR.keys[map[k]]=false;};});
   $('krQuit').onclick=closeMini;
   miniCleanup=()=>{removeEventListener('resize',resize);R.dispose();try{R.forceContextLoss();}catch(e){}KR=null;};
   miniFrame=kartFrame;}
@@ -2615,7 +2633,7 @@ function kartFrame(dt){const Kr=KR;if(!Kr)return;dt=Math.min(dt,0.033);const {P,
   for(const k of K){const ni=kNear(k);const prev=k.idx;k.idx=ni;if(prev>N*0.8&&ni<N*0.2)k.lap++;if(prev<N*0.2&&ni>N*0.8)k.lap--;k.prog=k.lap*N+ni;
     const lat=(k.x-P[ni].x)*NRM[ni].x+(k.z-P[ni].z)*NRM[ni].z,off=Math.abs(lat)>TW+0.5;
     let thr=0,steer=0,drift=false;
-    if(k.me){const kk=Kr.keys;thr=(kk.KeyW||kk.ArrowUp?1:0)-(kk.KeyS||kk.ArrowDown?1:0);steer=(kk.KeyA||kk.ArrowLeft?1:0)-(kk.KeyD||kk.ArrowRight?1:0);drift=!!(kk.ShiftLeft||kk.ShiftRight);if(k.done){thr=0.4;steer=0;}}
+    if(k.me){const kk=Kr.keys;thr=(kk.KeyW||kk.ArrowUp?1:0)-(kk.KeyS||kk.ArrowDown?1:0);steer=(kk.KeyA||kk.ArrowLeft?1:0)-(kk.KeyD||kk.ArrowRight?1:0);drift=!!(kk.ShiftLeft||kk.ShiftRight);if(Kr.joy){steer=clamp(steer-Kr.joy.x,-1,1);if(Kr.joy.y>0.3)thr=Math.max(thr,1);else if(Kr.joy.y<-0.5)thr=-1;}if(k.done){thr=0.4;steer=0;}}
     else{const la=Math.floor(10+k.v*0.35),ti=(ni+la)%N,tg=P[ti].clone().addScaledVector(NRM[ti],k.ai.off);let want=Math.atan2(tg.x-k.x,tg.z-k.z),d=((want-k.h+Math.PI*3)%(Math.PI*2))-Math.PI;steer=clamp(d*2.2,-1,1);thr=1;
       if(Math.random()<dt*0.2)k.ai.off=clamp(k.ai.off+rand(-4,4),-8,8);
       k.ai.useT-=dt;if(k.item&&k.ai.useT<=0&&k.roll<=0){const ahead=K.some(o=>o!==k&&o.prog>k.prog&&o.prog-k.prog<60),behind=K.some(o=>o!==k&&o.prog<k.prog&&k.prog-o.prog<30);
@@ -2673,15 +2691,16 @@ function kartEnd(){const Kr=KR;Kr.state='end';miniFrame=null;const me=Kr.me,K=Kr
 let DU=null;
 function startDuel(boss){if(DU||G.duelDone||miniOpen||Date.now()<(G.duelCool||0))return;const practice=!boss;
   const wb=Math.floor(Math.max(0,...G.weapons.map(k=>WEAP[k].ranged?0:WEAP[k].dmg))/2);
-  openMini(`<div class="mhead"><div class="mtitle">⚔ 司令台決鬥：考卷大魔王${practice?'（練習賽）':''}</div><div style="font-size:13px;color:var(--muted)">A/D 移動・W 跳・S 防禦・J 拳・K 踢・L 躲避球波（能量 25）・U 全班合力（能量滿）</div></div>
+  openMini(`<div class="mhead"><div class="mtitle">⚔ 司令台決鬥：考卷大魔王${practice?'（練習賽）':''}</div><div style="font-size:13px;color:var(--muted)">搖桿：左右移動・往上跳・往下防禦｜A/D 移動・W 跳・S 防禦・J 拳・K 踢・L 躲避球波（能量 25）・U 全班合力（能量滿）</div></div>
     <canvas id="duelCv" width="960" height="540" style="image-rendering:pixelated"></canvas>
-    <div class="dpad"><div class="mrow"><button data-k="L">←</button><button data-k="R">→</button><button data-k="U">跳</button><button data-k="D">防</button></div><div class="mrow"><button data-k="P">拳</button><button data-k="K">踢</button><button data-k="B">波</button><button data-k="S">必殺</button></div></div>`);
+    <div class="dpad"><div class="vstick"><div class="vknob"></div></div><div class="mrow"><button data-k="P">拳</button><button data-k="K">踢</button><button data-k="B">波</button><button data-k="S">必殺</button></div></div>`);
   DU={boss,practice,wb,g:$('duelCv').getContext('2d'),t:99,phase:'intro',pt:2.2,crowd:Array.from({length:22},(_,i)=>({x:i<11?20+i*19+rand(-4,4):745+(i-11)*19+rand(-4,4),row:i%2,girl:Math.random()<.5,ph:rand(0,6)})),end:null,in:{},press:{},shots:[],fx:[],shake:0,
     p:{x:240,y:0,vy:0,hp:100,max:100,face:1,act:null,at:0,cd:0,meter:20,hurt:0},
     b:{x:720,y:0,vy:0,hp:practice?160:220,max:practice?160:220,face:-1,act:null,at:0,cd:1.4,hurt:0,hit:false}};
   const map={KeyA:'L',ArrowLeft:'L',KeyD:'R',ArrowRight:'R',KeyW:'U',ArrowUp:'U',Space:'U',KeyS:'D',ArrowDown:'D',KeyJ:'P',KeyK:'K',KeyL:'B',KeyU:'S'};
   miniKey=(e,down)=>{const k=map[e.code];if(!k)return;e.preventDefault();if(down&&!DU.in[k])DU.press[k]=true;DU.in[k]=down;};
   $('miniBox').querySelectorAll('.dpad button').forEach(b=>{const k=b.dataset.k;b.onpointerdown=e=>{e.preventDefault();DU.in[k]=true;DU.press[k]=true;};b.onpointerup=b.onpointerleave=b.onpointercancel=()=>{DU.in[k]=false;};});
+  vStick($('miniBox').querySelector('.vstick'),(x,y)=>{if(!DU)return;const set=(k,v)=>{if(v&&!DU.in[k])DU.press[k]=true;DU.in[k]=v;};set('L',x<-0.35);set('R',x>0.35);set('U',y>0.6);set('D',y<-0.6&&Math.abs(x)<0.6);});
   miniFrame=duelFrame;sfx('boss');}
 const GY=455;
 function duelFrame(dt){const D=DU;if(!D)return;dt=Math.min(dt,0.04);const p=D.p,b=D.b;
