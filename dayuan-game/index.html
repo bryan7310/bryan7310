@@ -1016,9 +1016,9 @@ const RIVER=(()=>{const R=ROADW[0].pts,dx=R[1][0]-R[0][0],dz=R[1][1]-R[0][1],l=M
       for(const [z,o,fl] of [[-175,34,24],[-160,58,22],[-185,-40,20],[170,40,25],[180,70,23],[160,-45,21]])tw(at(z)+o,z,fl,o>0?BID.wbeige:BID.wcream,18,11);}
     for(const [dx,dz] of cand){const x0=jx+dx-13,z0=jz+dz-13;if(putHouse({x0,z0,x1:x0+13,z1:z0+13,fl:12,mat:BID.wbeige,door:'S',sign:BID.cgreen,road:'現岱路',tower:true,arcade:true}))break;}}
   for(const r of ROADW)for(let si=0;si<r.pts.length-1;si++){const a=r.pts[si],b=r.pts[si+1],dx=b[0]-a[0],dz=b[1]-a[1],L=Math.hypot(dx,dz),ux=dx/L,uz=dz/L,alongX=Math.abs(ux)>Math.abs(uz);
-    for(const side of[-1,1]){let s2=3;while(s2<L-4){const wAl=7+Math.floor(rng()*5),dep=9+Math.floor(rng()*6),nx=-uz*side,nz=ux*side,off=r.hw+3.6+dep/2;
-      const cx=a[0]+ux*(s2+wAl/2)+nx*off,cz=a[1]+uz*(s2+wAl/2)+nz*off,sx2=alongX?wAl:dep,sz2=alongX?dep:wAl,x0=Math.round(cx-sx2/2),z0=Math.round(cz-sz2/2),x1=x0+sx2-1,z1=z0+sz2-1;
-      let ok=true;for(let x=x0-1;x<=x1+1&&ok;x++)for(let z=z0-1;z<=z1+1;z++)if(!colOK(x,z)){ok=false;break;}
+    for(const side of[-1,1]){let s2=3;while(s2<L-4){const wAl=7+Math.floor(rng()*5),dep=9+Math.floor(rng()*6),nx=-uz*side,nz=ux*side,sx2=alongX?wAl:dep,sz2=alongX?dep:wAl;let x0,z0,x1,z1,ok=false;
+      for(const extra of[0,2,4,6,8]){const off=r.hw+3.6+dep/2+extra,cx=a[0]+ux*(s2+wAl/2)+nx*off,cz=a[1]+uz*(s2+wAl/2)+nz*off;x0=Math.round(cx-sx2/2);z0=Math.round(cz-sz2/2);x1=x0+sx2-1;z1=z0+sz2-1;
+        ok=true;for(let x=x0-1;x<=x1+1&&ok;x++)for(let z=z0-1;z<=z1+1;z++)if(!colOK(x,z)){ok=false;break;}if(ok)break;}
       if(ok){const id=HOUSES.length;let fl=(r.name!=='巷道'&&rng()<0.16)?7+Math.floor(rng()*6):2+Math.floor(rng()*rng()*4),mat=BID[WALLS[Math.floor(rng()*WALLS.length)]],extra={};
         if(r.name==='現岱路'&&fl<7){fl=4+Math.floor(rng()*2);mat=rng()<0.6?BID.tile:BID.wcream;extra={awning:true};}
         else if(r.name==='內元路'&&si>=1&&fl<7){fl=4;mat=rng()<0.7?BID.wcream:BID.wbeige;extra={shutter:true,eaves:true};}
@@ -1132,11 +1132,23 @@ function ledTick(){if(!LED.g||Math.floor(T*12)===LED.f)return;LED.f=Math.floor(T
   for(let k=0;k<4;k++){const a=k/4*6.28,b=box(1.8,0.45,0.5,lam(0x8b5a2b));b.position.set(x+Math.cos(a)*9,0.25,z+Math.sin(a)*9);b.rotation.y=-a;scene.add(b);}}
 // ---- shops across the street from the main gate ----
 const SHOPS=[];
-{const [gx,gz]=GATE_PT;let best=null,bd=1e9;
-  for(const H of HOUSES){if(H.fl>6||H.tower)continue;const cx=(H.x0+H.x1)/2,cz=(H.z0+H.z1)/2;if(pip(cx/S+CX,cz/S+CY,BOUNDARY))continue;const d=Math.hypot(cx-gx,cz-gz);if((cx-gx)+(cz-gz)>0)continue;if(d<bd){bd=d;best=H;}}
-  if(best){best.shop='fps';best.sign=BID.cpink;best.mat=BID.wgrey;const cx=(best.x0+best.x1+1)/2,cz=(best.z0+best.z1+1)/2;SHOPS.push({x:cx,z:cz,H:best,type:'fps',label:'雷射射擊場'});
-    const lbl=makeLabel('🔫 雷射射擊場','rgba(255,60,180,.95)','#fff');lbl.position.set(cx,best.fl*4+2,best.door==='S'?best.z1+1.3:best.door==='N'?best.z0-0.3:cz);lbl.scale.set(3.8,0.95,1);scene.add(lbl);
-    const aw=box(best.x1-best.x0+1,0.15,1.6,lam(0x2f8a4a));aw.position.set(cx,3.2,best.door==='S'?best.z1+1.6:best.z0-0.6);scene.add(aw);}}
+{const [gx,gz]=GATE_PT;const cands=HOUSES.filter(H=>!(H.fl>6||H.tower)&&!pip((H.x0+H.x1)/2/S+CX,(H.z0+H.z1)/2/S+CY,BOUNDARY)).map(H=>({H,d:Math.hypot((H.x0+H.x1)/2-gx,(H.z0+H.z1)/2-gz),out:((H.x0+H.x1)/2-gx)+((H.z0+H.z1)/2-gz)<=0})).filter(c=>c.out).sort((p,q)=>p.d-q.d);
+  const front=(H,off)=>H.door==='S'?[(H.x0+H.x1+1)/2,H.z1+1+off]:H.door==='N'?[(H.x0+H.x1+1)/2,H.z0-off]:H.door==='E'?[H.x1+1+off,(H.z0+H.z1+1)/2]:[H.x0-off,(H.z0+H.z1+1)/2];
+  // kindergarten right across from the gate
+  const kg=cands[0]&&cands[0].H;
+  if(kg){kg.mat=BID.cyellow;kg.sign=BID.cpink;kg.fl=2;kg.shutter=false;kg.kinder=true;const cx=(kg.x0+kg.x1+1)/2,cz=(kg.z0+kg.z1+1)/2,[fx,fz]=front(kg,0.3);
+    const lbl=makeLabel('🧸 大元幼兒園','rgba(255,126,182,.95)','#fff');lbl.position.set(fx,10,fz);lbl.scale.set(3.6,0.9,1);scene.add(lbl);
+    const st=textTex(512,128,(c2,w,h)=>{const cols=['#e23a2c','#f2c230','#2fa84f','#2f6fd0','#8e44ad'];c2.fillStyle='#fff';c2.fillRect(0,0,w,h);c2.font='bold 76px "PingFang TC","Microsoft JhengHei",sans-serif';c2.textAlign='center';c2.textBaseline='middle';[...'大元幼兒園'].forEach((ch,k)=>{c2.fillStyle=cols[k];c2.fillText(ch,62+k*97,68);});});
+    const sg=new THREE.Mesh(new THREE.PlaneGeometry(6,1.5),new THREE.MeshLambertMaterial({map:st,side:THREE.DoubleSide}));sg.position.set(fx,6.3,fz);sg.lookAt(gx,6.3,gz);scene.add(sg);
+    const [px,pz]=front(kg,3.2),pg=new THREE.Group();pg.position.set(px,0,pz);pg.lookAt(gx,0,gz);scene.add(pg);
+    const pf=box(1.6,0.15,1.6,lam(0xf2c230));pf.position.set(-2.5,1.6,0);pg.add(pf);for(const [a2,b2] of [[-0.7,-0.7],[0.7,-0.7],[-0.7,0.7],[0.7,0.7]]){const l=box(0.12,1.6,0.12,lam(0x2f6fd0));l.position.set(-2.5+a2,0.8,b2);pg.add(l);}
+    const sl=box(0.9,0.1,3,lam(0xe23a2c));sl.position.set(-2.5,0.8,1.9);sl.rotation.x=0.5;pg.add(sl);
+    const sw=box(2.4,0.12,0.12,lam(0x2fa84f));sw.position.set(1.8,2,0);pg.add(sw);for(const sx of[0.7,2.9]){const l=box(0.1,2,0.1,lam(0x2fa84f));l.position.set(sx,1,0);pg.add(l);}const seat=box(0.5,0.06,0.3,lam(0xff7eb6));seat.position.set(1.8,0.6,0);pg.add(seat);
+    const fc=['#e23a2c','#f2c230','#2fa84f','#2f6fd0'];for(let k=-6;k<=6;k++){const pk=box(0.25,1,0.08,lam(new THREE.Color(fc[(k+6)%4])));pk.position.set(k*0.6,0.5,2.6);pg.add(pk);}}
+  // laser-tag shop moved further down the street
+  const ls=cands.find(c=>c.d>40&&c.H!==kg);
+  if(ls){const best=ls.H;best.shop='fps';best.sign=BID.cpink;best.mat=BID.wgrey;const cx=(best.x0+best.x1+1)/2,cz=(best.z0+best.z1+1)/2;SHOPS.push({x:cx,z:cz,H:best,type:'fps',label:'雷射射擊場'});
+    const [fx,fz]=front(best,0.3);const lbl=makeLabel('🔫 雷射射擊場','rgba(255,60,180,.95)','#fff');lbl.position.set(fx,best.fl*4+2,fz);lbl.scale.set(3.8,0.95,1);scene.add(lbl);}}
 // ---- kart race start point on the road outside the main gate ----
 const KART_PT=(()=>{const gx=wx(700),gz=wz(-11),r=ROADW.find(q=>q.name==='德芳南路'),a=r.pts[2],b=r.pts[3],dx=b[0]-a[0],dz=b[1]-a[1],L=Math.hypot(dx,dz),t=((gx-a[0])*dx+(gz-a[1])*dz)/(L*L);
   const x=a[0]+dx*t,z=a[1]+dz*t,g=new THREE.Group();g.position.set(x,0,z);g.rotation.y=-Math.atan2(dz,dx)+Math.PI/2;scene.add(g);
