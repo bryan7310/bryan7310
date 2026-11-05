@@ -479,7 +479,7 @@ function buildGround(){
 }
 const ground=buildGround();
 {
-  const t=tex(ground.c);t.anisotropy=renderer.capabilities.getMaxAnisotropy();
+  const t=tex(ground.c);ground.t=t;t.anisotropy=renderer.capabilities.getMaxAnisotropy();
   const m=new THREE.Mesh(new THREE.PlaneGeometry(PW*S,PH*S),new THREE.MeshLambertMaterial({map:t,alphaTest:0.5}));
   m.rotation.x=-Math.PI/2;m.receiveShadow=true;scene.add(m);
 }
@@ -1575,7 +1575,7 @@ function updateBuild(dt){
   const onBlock=target&&(target.kind==='vox'||target.kind==='tree');
   const digging=leftDown&&leftT>0.08&&onBlock&&!closeEnemy&&!(PKS&&!G.creative);let prog=0;
   if(digging){const key=target.kind==='vox'?target.cell.join(','):'t'+target.tree.x;if(key!==digKey){digKey=key;digT=0;}
-    let hard=1.2,tier=0;if(target.kind==='vox'){const b=BLK[getV(...target.cell)];hard=b.hard;tier=b.tier;if(colKind(target.cell[0]+.5,target.cell[2]+.5)===K_SCHOOL&&target.cell[1]===-1&&!VOX.has(vk(...target.cell))){hard=Infinity;tier=99;}}
+    let hard=1.2,tier=0;if(target.kind==='vox'){const b=BLK[getV(...target.cell)];hard=b.hard;tier=b.tier;}
     const tx=target.kind==='vox'?target.cell[0]+.5:target.tree.x,tz=target.kind==='vox'?target.cell[2]+.5:target.tree.z;player.facing=Math.atan2(tx-player.x,tz-player.z);
     if(!G.creative&&tier>G.pick){if(!(player.warnT>0)){banner(tier===99?'校園地面不能挖，去挖寶區或校外挖吧！':tier>3?'這個方塊挖不動':`需要${PICKS[tier].n}才能挖（按 C 合成）`,1.6);player.warnT=1.6;}digT=0;}
     else{digT+=dt*(G.creative?30:PICKS[G.pick].sp)/hard;player.p.throwT=0.25;if(Math.random()<dt*8)sfx('hit');
@@ -1584,7 +1584,8 @@ function updateBuild(dt){
   $('digRing').style.opacity=prog>0?1:0;$('digRing').style.setProperty('--p',(prog*100)+'%');
   if(placeReq){placeReq=false;if(pc&&canPlace(pc)){if(G.creative||INV[sel]>0){setV(pc[0],pc[1],pc[2],BID[sel]);if(!G.creative)INV[sel]--;invDirty=true;sfx('talk');player.p.throwT=0.2;}else banner(`沒有${ITEM_N[sel]}了，去挖或合成吧`,1.4);}
     else if(!isBlock)banner('先用 2–9 選一種方塊再放置',1.4);}}
-function finishDig(t){if(t.kind==='tree'){addItem('log',2);burst(t.tree.x,1.5,t.tree.z,0x7a5230,8);sfx('kill');popText('+2 木頭',t.tree.x,2.5,t.tree.z,'#f2c230');return;}
+function holeInGround(x,z){const g=ground.c.getContext('2d'),K=ground.K;g.save();g.setTransform(1,0,0,1,0,0);g.clearRect((x/S+CX+PAD)*K-0.5,(z/S+CY+PAD)*K-0.5,K/S+1,K/S+1);g.restore();ground.t.needsUpdate=true;}
+function finishDig(t){if(t.kind==='vox'&&t.cell[1]===-1&&colKind(t.cell[0]+.5,t.cell[2]+.5)===K_SCHOOL)holeInGround(t.cell[0],t.cell[2]);if(t.kind==='tree'){addItem('log',2);burst(t.tree.x,1.5,t.tree.z,0x7a5230,8);sfx('kill');popText('+2 木頭',t.tree.x,2.5,t.tree.z,'#f2c230');return;}
   const [x,y,z]=t.cell,b=BLK[getV(x,y,z)];setV(x,y,z,0);burst(x+.5,y+.5,z+.5,b.col,10);sfx('kill');
   if(b.drop&&!G.creative){addItem(b.drop,1);popText('+1 '+ITEM_N[b.drop],x+.5,y+1.2,z+.5,'#f2c230');}}
 const SLOTS=[[-1.5,-1.4],[1.5,-1.4],[0,-2.6],[-2.6,-2.8],[2.6,-2.8],[0,-3.9],[-3.6,-4]];
