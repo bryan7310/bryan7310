@@ -338,17 +338,18 @@ function distPoly(x,y,poly,closed=true){let m=1e9;const n=poly.length;for(let i=
 // ================= map data (pixels of the 606x492 satellite image) =================
 const BOUNDARY=[[0,135],[130,5],[310,5],[530,30],[560,95],[495,392],[455,490],[195,490],[188,325],[15,210]];
 const BOUNDW=BOUNDARY.map(p=>[wx(p[0]),wz(p[1])]);
-const GATE_SEG=1,GATE_T=0.75,GATE_PT=(()=>{const a=BOUNDW[GATE_SEG],b=BOUNDW[GATE_SEG+1];return [a[0]+(b[0]-a[0])*GATE_T,a[1]+(b[1]-a[1])*GATE_T];})();
+const GATE_SEG=0,GATE_T=0.62,GATE_PT=(()=>{const a=BOUNDW[GATE_SEG],b=BOUNDW[GATE_SEG+1];return [a[0]+(b[0]-a[0])*GATE_T,a[1]+(b[1]-a[1])*GATE_T];})();
 const ROADS=[
-  {pts:[[690,-330],[480,822]],w:70,main:true,name:'德芳南路'},
-  {pts:[[-390,-32],[990,-10]],w:36,name:'現岱路'},
-  {pts:[[-110,-30],[-150,145],[165,335],[173,822]],w:30,name:'內元路'},
+  {pts:[[690,-330],[480,822]],w:70,main:true,name:'環中東路'},
+  {pts:[[-390,-32],[990,-10]],w:36,name:'德芳南路'},
+  {pts:[[-390,1],[165,335],[173,822]],w:30,name:'內元路'},
+  {pts:[[262,-187],[-430,505]],w:24,name:'現岱路'},
   {pts:[[-390,-97],[990,-97]],w:20,name:'巷道'},{pts:[[-390,617],[990,617]],w:20,name:'巷道'},
   {pts:[[-126,-330],[-126,822]],w:20,name:'巷道'},{pts:[[846,-330],[846,822]],w:20,name:'巷道'},
 ];
 const BUILDINGS=[
   {id:'admin',c:[225,68],l:150,w:48,a:25,floors:4,sign:true,towers:[-1,1],stone:true,enter:true,cs:1,core:true,chests:[{f:1,k:1,loot:{stone:6,log:3}},{roof:true,loot:{gem:3,iron:2}}],special:{'1-3':{label:'跑酷教室 3',type:'parkour',lv:2,color:'#8e44ad'}}},
-  {id:'west',c:[95,78],l:150,w:35,a:-43.7,floors:4,towers:[1]},
+  {id:'west',c:[95,78],l:150,w:35,a:-43.7,floors:4,towers:[1],passGate:true},
   {id:'kitchen',c:[358,85],l:62,w:56,a:20,floors:2,label:'午餐廚房'},
   {id:'main',c:[140,208],l:227,w:42,a:28,floors:4,towers:[-1,0,1],stair:[1,1],enter:true,cs:-1,core:true,chests:[{f:0,k:2,loot:{log:6,plank:4}},{f:2,k:5,loot:{iron:4,log:2}},{f:3,k:7,loot:{gem:2,plank:4}}],special:{'0-4':{label:'美術教室',type:'art',color:'#c0392b'},'1-2':{label:'音樂教室',type:'music',color:'#2f6fd0'},'0-6':{label:'跑酷教室 1',type:'parkour',lv:0,color:'#8e44ad'},'2-1':{label:'跑酷教室 2',type:'parkour',lv:1,color:'#8e44ad'},'1-5':{label:'迷因大賽',type:'meme',color:'#e67e22'},'2-3':{label:'無盡合成',type:'craft',color:'#16a085'},'3-2':{label:'益智教室',type:'puzzle',color:'#2980b9'}}},
   {id:'red',c:[262,215],l:52,w:44,a:26,floors:2,redRoof:true},
@@ -625,13 +626,18 @@ for(const b of BUILDINGS){
     addChest(B,L/2-1.2,W/2-2,0,{iron:2,plank:6,log:2});
   } else if(b.enter){H=buildClass(grp,b,B);}
   else {
-    H=b.floors*3.3;const m=new THREE.Mesh(uvBox(L,H,W,4,3.3),[wallMat,wallMat,roofMat,roofMat,wallMat,wallMat]);m.position.y=H/2;m.castShadow=m.receiveShadow=true;grp.add(m);BUILD_MESHES.push(m);
+    H=b.floors*3.3;let pass=null;
+    if(b.passGate){const dx=GATE_PT[0]-wx(b.c[0]),dz=GATE_PT[1]-wz(b.c[1]),lxp=dx*Math.cos(a)+dz*Math.sin(a),T2={tex:true};pass=lxp;
+      B.add(-L/2,lxp-3.2,0,H,-W/2,W/2,wallMat,T2);B.add(lxp+3.2,L/2,0,H,-W/2,W/2,wallMat,T2);B.add(lxp-3.2,lxp+3.2,3.3,H,-W/2,W/2,wallMat,T2);B.add(-L/2,L/2,H,H+0.05,-W/2,W/2,roofMat,{solid:false});
+      B.add(lxp-3.2,lxp+3.2,0,0.04,-W/2,W/2,lam(0xb8b0a2),{solid:false});
+      const sg=signPlane('穿堂 → 校園',3.4,0.6,'#1f5e34','#fff');for(const sd of[1,-1]){const s3=sg.clone();s3.position.set(lxp,3.0,sd*(W/2+0.05));if(sd<0)s3.rotation.y=Math.PI;grp.add(s3);}}
+    else{const m=new THREE.Mesh(uvBox(L,H,W,4,3.3),[wallMat,wallMat,roofMat,roofMat,wallMat,wallMat]);m.position.y=H/2;m.castShadow=m.receiveShadow=true;grp.add(m);BUILD_MESHES.push(m);}
     const par=new THREE.Mesh(new THREE.BoxGeometry(L+0.3,0.8,W+0.3),lam(0xefe3c9));par.position.y=H+0.4;grp.add(par);
     for(let i=0;i<3;i++){const t=new THREE.Mesh(new THREE.CylinderGeometry(1,1,1.8,12),lam(0x4f86b8));t.position.set(rand(-L/3,L/3),H+1.7,rand(-W/4,W/4));t.castShadow=true;grp.add(t);}
     if(b.label){const st=textTex(512,128,(g,w,h)=>{g.fillStyle='#f5f1e6';g.fillRect(0,0,w,h);g.fillStyle='#1d4f9a';g.font='bold 80px "PingFang TC","Microsoft JhengHei",sans-serif';g.textAlign='center';g.textBaseline='middle';g.fillText(b.label,w/2,h/2+4);});
       const sign=new THREE.Mesh(new THREE.PlaneGeometry(8,2),new THREE.MeshLambertMaterial({map:st}));sign.position.set(0,H-1.4,W/2+0.06);grp.add(sign);}
     const door=new THREE.Mesh(new THREE.PlaneGeometry(3,2.6),lam(0x3c4b52));door.position.set(L*0.2,1.3,W/2+0.03);grp.add(door);
-    addSolid(wx(b.c[0]),wz(b.c[1]),L/2,W/2,a,0,H+0.8);
+    if(pass===null)addSolid(wx(b.c[0]),wz(b.c[1]),L/2,W/2,a,0,H+0.8);
   }
   b.H=H;
   const loc=(lx,lz)=>B.toW(lx,lz);
@@ -664,27 +670,27 @@ function buildMainGate(gx,gz,ux,uz,gw){let nx=-uz,nz=ux;if(pip(gx+nx*3,gz+nz*3,B
   // green folding gate pulled to one side
   const gm=lam(0x5fa86a);for(let k=0;k<7;k++){const f=box(0.08,1.6,0.9,gm);f.position.set(-gw/2+0.3+k*0.18,0.8,0.15);f.rotation.y=k%2?0.6:-0.6;g.add(f);}
   // guard booth (pink brick, brown hip roof) just inside the gate
-  const bm=lam(0xc9786a),[bx2,bz2]=lx(-gw/2-3.2,3.4);const booth=box(3.4,2.8,3,bm);booth.position.set(-gw/2-3.2,1.4,3.4);g.add(booth);addSolid(bx2,bz2,1.7,1.5,Math.atan2(uz,ux),0,2.8);
-  const rf=new THREE.Mesh(new THREE.ConeGeometry(2.8,1.2,4),lam(0x7a4a2a,{flatShading:true}));rf.rotation.y=Math.PI/4;rf.position.set(-gw/2-3.2,3.4,3.4);g.add(rf);
-  const win=box(1.6,0.9,0.05,lam(0x9ac0d0));win.position.set(-gw/2-3.2,1.7,1.88);win.rotation.y=Math.PI;g.add(win);
+  const bm=lam(0xc9786a),[bx2,bz2]=lx(gw/2+4.4,0.6);const booth=box(3.4,2.8,3,bm);booth.position.set(gw/2+4.4,1.4,0.6);g.add(booth);addSolid(bx2,bz2,1.7,1.5,Math.atan2(uz,ux),0,2.8);
+  const rf=new THREE.Mesh(new THREE.ConeGeometry(2.8,1.2,4),lam(0x7a4a2a,{flatShading:true}));rf.rotation.y=Math.PI/4;rf.position.set(gw/2+4.4,3.4,0.6);g.add(rf);
+  const win=box(1.6,0.9,0.05,lam(0x9ac0d0));win.position.set(gw/2+4.4,1.7,-0.92);g.add(win);
   // bulletin board wall with colorful posters
   const bt=textTex(512,160,(c2,w,h)=>{c2.fillStyle='#c9786a';c2.fillRect(0,0,w,h);c2.fillStyle='#2fa84f';c2.fillRect(10,10,w-20,h-20);const cols=['#ffd23a','#ff7eb6','#3fc8ff','#fff','#f08a24'];for(let k=0;k<9;k++){c2.fillStyle=cols[k%5];c2.fillRect(24+k*52,30+(k%2)*14,40,90);}c2.fillStyle='#fff';c2.font='bold 22px sans-serif';c2.fillText('大元榮譽榜',190,30);});
-  const bb=new THREE.Mesh(new THREE.BoxGeometry(6,2.2,0.4),[bm,bm,bm,bm,new THREE.MeshLambertMaterial({map:bt}),bm]);bb.position.set(gw/2+5.5,1.1,0.2);g.add(bb);const [qx,qz]=lx(gw/2+5.5,0.2);addSolid(qx,qz,3,0.25,Math.atan2(uz,ux),0,2.2);
+  const bb=new THREE.Mesh(new THREE.BoxGeometry(6,2.2,0.4),[bm,bm,bm,bm,new THREE.MeshLambertMaterial({map:bt}),bm]);bb.position.set(gw/2+10,1.1,0.2);g.add(bb);const [qx,qz]=lx(gw/2+10,0.2);addSolid(qx,qz,3,0.25,Math.atan2(uz,ux),0,2.2);
   // traffic cones and no-parking barriers outside
   for(const x of[-gw/2+0.5,0,gw/2-0.5]){const c=new THREE.Mesh(new THREE.ConeGeometry(0.25,0.7,10),lam(0xff6a1a));c.position.set(x,0.35,-3.2);g.add(c);}
   for(const x of[-gw/2-2.2,-gw/2-0.8]){const b2=box(1.2,0.9,0.08,lam(0xd6282b));b2.position.set(x,0.6,-3.6);g.add(b2);}
   // banners on the building facing the gate
-  const adm=BUILDINGS.find(b=>b.id==='admin');if(adm){const cx=wx(adm.c[0]),cz=wz(adm.c[1]),a=adm.a*D2R,L=adm.l*S,W=adm.w*S,lzG=-(gx-cx)*Math.sin(a)+(gz-cz)*Math.cos(a),side=Math.sign(lzG)||1;
+  const adm=BUILDINGS.find(b=>b.id==='west');if(adm){const cx=wx(adm.c[0]),cz=wz(adm.c[1]),a=adm.a*D2R,L=adm.l*S,W=adm.w*S,lzG=-(gx-cx)*Math.sin(a)+(gz-cz)*Math.cos(a),lxG=(gx-cx)*Math.cos(a)+(gz-cz)*Math.sin(a),side=Math.sign(lzG)||1;
     const bg=new THREE.Group();bg.position.set(cx,0,cz);bg.rotation.y=-a;scene.add(bg);
     const BAN=[['全國唯一 2 度榮獲 教育部特優',' #2fa84f'],['ISA 國際教育中級認證獎','#d6282b'],['直笛團 全國音樂比賽 特優','#2f6fd0'],['打擊樂團 全國學生音樂比賽 特優','#8e44ad']];
     BAN.forEach(([t,c],k)=>{const tx=textTex(1024,96,(c2,w,h)=>{c2.fillStyle=c.trim();c2.fillRect(0,0,w,h);c2.fillStyle='#fff';c2.fillRect(0,0,w,6);c2.fillRect(0,h-6,w,6);c2.fillStyle='#ffe23a';c2.font='bold 56px "PingFang TC","Microsoft JhengHei",sans-serif';c2.textAlign='center';c2.textBaseline='middle';c2.fillText(t,w/2,h/2+2);});
-      const pl=new THREE.Mesh(new THREE.PlaneGeometry(13,1.2),new THREE.MeshLambertMaterial({map:tx,side:THREE.DoubleSide}));pl.position.set(L/2-16,12.6-k*2.9,side*(W/2+0.08));if(side<0)pl.rotation.y=Math.PI;bg.add(pl);});}}
+      const pl=new THREE.Mesh(new THREE.PlaneGeometry(13,1.2),new THREE.MeshLambertMaterial({map:tx,side:THREE.DoubleSide}));pl.position.set(clamp(lxG+9,-L/2+7,L/2-7),12.6-k*2.9,side*(W/2+0.08));if(side<0)pl.rotation.y=Math.PI;bg.add(pl);});}}
 
 // ================= props: fence, flag, hoops, goals, tennis net =================
 {
   const fm=new THREE.MeshLambertMaterial({map:fenceTex,transparent:true,alphaTest:0.5,side:THREE.DoubleSide});
   const wm=lam(0xb3b0a8),ym=lam(0xf2d12e),gm=lam(0x2f7a55);
-  const GATES={[GATE_SEG]:[8,GATE_T],3:[6,0.5],7:[7,0.5],0:[6,0.5]};
+  const GATES={[GATE_SEG]:[8,GATE_T],3:[6,0.5],7:[7,0.5]};
   const segs=[];for(let i=0;i<BOUNDW.length;i++){const a=BOUNDW[i],b=BOUNDW[(i+1)%BOUNDW.length],dx=b[0]-a[0],dz=b[1]-a[1],L=Math.hypot(dx,dz);
     if(GATES[i]){const [gwid,gt]=GATES[i],gw=gwid/L,main=i===GATE_SEG;for(const [t0,t1] of [[0,gt-gw/2],[gt+gw/2,1]])segs.push([i,[a[0]+dx*t0,a[1]+dz*t0],[a[0]+dx*t1,a[1]+dz*t1]]);
       const gx=a[0]+dx*gt,gz=a[1]+dz*gt;if(!main){const lbl=makeLabel('側門','rgba(31,94,52,.95)','#fff');lbl.position.set(gx,3.6,gz);lbl.scale.set(1.8,0.8,1);scene.add(lbl);}
@@ -693,7 +699,7 @@ function buildMainGate(gx,gz,ux,uz,gw){let nx=-uz,nz=ux;if(pip(gx+nx*3,gz+nz*3,B
     else segs.push([i,a,b]);}
   for(const [i,a,b] of segs){const dx=b[0]-a[0],dz=b[1]-a[1],L=Math.hypot(dx,dz),mx=(a[0]+b[0])/2,mz=(a[1]+b[1])/2,ry=-Math.atan2(dz,dx);
     addSolid(mx,mz,L/2,0.18,Math.atan2(dz,dx),0,2.4);
-    if(i<2||i>5){const m=new THREE.Mesh(uvBox(L,1.4,0.06,1.4,1.4),fm);m.position.set(mx,0.7,mz);m.rotation.y=ry;scene.add(m);continue;}
+    if(i>5){const m=new THREE.Mesh(uvBox(L,1.4,0.06,1.4,1.4),fm);m.position.set(mx,0.7,mz);m.rotation.y=ry;scene.add(m);continue;}
     const sh=new THREE.Shape(),P=6.5,n=Math.max(1,Math.round(L/P)),pw=L/n;sh.moveTo(-L/2,0);
     for(let k=0;k<=n*12;k++)sh.lineTo(-L/2+k*pw/12,1.4+1.1*Math.sin(Math.PI*(k%12)/12));
     sh.lineTo(L/2,0);sh.lineTo(-L/2,0);
@@ -776,7 +782,7 @@ for(const [px,py] of [[196,146],[232,164]]){
     if(i%2===0){const fl=new THREE.Mesh(new THREE.ConeGeometry(0.18,0.25,7),lam(0xfffbea,{flatShading:true}));fl.rotation.x=Math.PI;fl.position.set(x+lx,0.22,z+lz);scene.add(fl);const c2=sph(0.06,lam(0xf2c230),6,6);c2.position.set(x+lx,0.25,z+lz);scene.add(c2);}}
 }
 { // yellow-green pedestrian bridge over 德芳南路 (from street-view photos)
-  const ux=0.984,uy=0.178,cx=wx(619),cz=wz(60),g=new THREE.Group();g.position.set(cx,0,cz);g.rotation.y=-Math.atan2(uy,ux);scene.add(g);
+  const ux=-0.016,uy=1,cx=wx(330),cz=wz(-22),g=new THREE.Group();g.position.set(cx,0,cz);g.rotation.y=-Math.atan2(uy,ux);scene.add(g);
   const yg=lam(0xc9d66a),wh=lam(0xf3f3ef),gr=lam(0x5aa86a),yl=lam(0xf2d12e);
   const railT=textTex(512,64,(c2,w,h)=>{c2.fillStyle='#f3f3ef';c2.fillRect(0,0,w,h);c2.strokeStyle='#c9a24a';c2.lineWidth=4;for(let x=0;x<w;x+=64){c2.beginPath();c2.arc(x+32,h,28,Math.PI,0);c2.stroke();c2.beginPath();c2.arc(x+32,h*0.55,9,0,7);c2.stroke();}});railT.wrapS=THREE.RepeatWrapping;railT.repeat.set(6,1);
   const deck=box(44,0.8,3.6,yg);deck.position.y=6.3;g.add(deck);
@@ -799,7 +805,7 @@ const AMPHI=[330,200];
     const c=new THREE.Mesh(new THREE.ConeGeometry(r,h,6,1),i%3?mm:mm2);c.position.set(Math.cos(an)*d,h/2-4,Math.sin(an)*d);c.rotation.y=rand(0,3);scene.add(c);}}
 // ================= trees =================
 const TREE_ZONES=[[150,92,300,205,16],[480,105,555,385,20],[300,372,465,486,24],[185,290,325,350,8],[300,128,345,300,8],[20,140,70,215,3],[300,20,330,55,2],[400,120,470,140,2]];
-const NPC_SPOTS=[[302,186],[284,18],[190,110],[120,150],[515,150],[392,352],[332,155],[300,360],[235,180],[165,170],[452,82],[430,250],[325,170],[225,340],[195,175]];
+const NPC_SPOTS=[[302,186],[96,50],[190,110],[120,150],[515,150],[392,352],[332,155],[300,360],[235,180],[165,170],[452,82],[430,250],[325,170],[225,340],[195,175]];
 const trees=[];
 for(const [x0,y0,x1,y1,n] of TREE_ZONES){let made=0,tries=0;
   while(made<n&&tries++<400){const x=rand(x0,x1),y=rand(y0,y1);
@@ -907,7 +913,7 @@ const RIVER=(()=>{const R=ROADW[0].pts,dx=R[1][0]-R[0][0],dz=R[1][1]-R[0][1],l=M
   const WALLS=['wcream','wgrey','wwhite','tile','wbrick','wmint'],SIGNS=['cred','cblue','cyellow','cgreen','cpink'];
   const colOK=(x,z)=>{const ix=x+WX,iz=z+WZ;if(ix<2||iz<2||ix>=WW-2||iz>=WD-2)return false;const i=ix*WD+iz;return KIND[i]===K_GRASS&&HGT[i]===0;};
   const putHouse=(H)=>{for(let x=H.x0-1;x<=H.x1+1;x++)for(let z=H.z0-1;z<=H.z1+1;z++)if(!colOK(x,z))return false;const id=HOUSES.length;HOUSES.push(H);for(let x=H.x0;x<=H.x1;x++)for(let z=H.z0;z<=H.z1;z++){const i=(x+WX)*WD+(z+WZ);HOUSE[i]=id;KIND[i]=K_HOUSE;}return true;};
-  {const jx=Math.round(wx(-110)),jz=Math.round(wz(-30));const cand=[];for(let dx=-60;dx<=10;dx++)for(let dz=-50;dz<=-12;dz++)cand.push([dx,dz]);cand.sort((p1,p2)=>Math.hypot(p1[0]+7,p1[1]+7)-Math.hypot(p2[0]+7,p2[1]+7));
+  {const jx=Math.round(wx(-69)),jz=Math.round(wz(194));const cand=[];for(let dx=-60;dx<=10;dx++)for(let dz=-50;dz<=-12;dz++)cand.push([dx,dz]);cand.sort((p1,p2)=>Math.hypot(p1[0]+7,p1[1]+7)-Math.hypot(p2[0]+7,p2[1]+7));
     const tw=(px2,pz2,fl,mat,rad,sz)=>{for(let r2=0;r2<rad;r2++)for(let k=0;k<16;k++){const a=k/16*6.283,x0=Math.round(px2+Math.cos(a)*r2)-(sz>>1),z0=Math.round(pz2+Math.sin(a)*r2)-(sz>>1);if(putHouse({x0,z0,x1:x0+sz-1,z1:z0+sz-1,fl,mat,door:'S',sign:0,road:'德芳南路',tower:true}))return;}};
     {const R0=ROADW[0].pts,at=z=>{const t=(z-R0[0][1])/(R0[1][1]-R0[0][1]);return R0[0][0]+(R0[1][0]-R0[0][0])*t;};
       tw(at(-93)+28,-120,10,BID.wwhite,14,12);
@@ -978,8 +984,8 @@ function updateChunks(){const ref=G.started?player:{x:wx(250),z:wz(170)},pcx=Mat
   if(Math.random()<0.03)for(const [key,c] of CHUNKS)if(Math.abs(c.cx-pcx)>RAD+3||Math.abs(c.cz-pcz)>RAD+3){for(const m of['mesh','wmesh'])if(c[m]){scene.remove(c[m]);c[m].geometry.dispose();}CHUNKS.delete(key);}}
 // ---- 德芳南路 intersection details: LED screen on the school corner, green crosswalks, street lights ----
 const LED={};
-{const [c,g]=cv(256,144);LED.c=c;LED.g=g;LED.t=tex(c);const lx=wx(515),lz=wz(44),grp=new THREE.Group();grp.position.set(lx,0,lz);
-  const tx=wx(633),tz=wz(-20);grp.rotation.y=Math.atan2(tx-lx,tz-lz);scene.add(grp);
+{const [c,g]=cv(256,144);LED.c=c;LED.g=g;LED.t=tex(c);const lx=wx(124),lz=wz(24),grp=new THREE.Group();grp.position.set(lx,0,lz);
+  const tx=wx(148),tz=wz(-23);grp.rotation.y=Math.atan2(tx-lx,tz-lz);scene.add(grp);
   for(const sx of[-2.6,2.6]){const pl=box(0.4,3,0.4,lam(0x555a60));pl.position.set(sx,1.5,0);grp.add(pl);}
   const fr=box(6.4,3.8,0.5,lam(0x222428));fr.position.set(0,4.6,-0.05);grp.add(fr);
   const sc2=new THREE.Mesh(new THREE.PlaneGeometry(6,3.4),new THREE.MeshBasicMaterial({map:LED.t}));sc2.position.set(0,4.6,0.21);grp.add(sc2);addSolid(lx,lz,3.2,0.4,0,0,6.5);}
@@ -989,11 +995,11 @@ function ledTick(){if(!LED.g||Math.floor(T*12)===LED.f)return;LED.f=Math.floor(T
   g.fillStyle='#ffe23a';g.font='bold 34px "PingFang TC","Microsoft JhengHei",sans-serif';g.textAlign='center';g.textBaseline='middle';
   const msgs=['大元國小 歡迎您','上下學注意安全','打倒考卷大魔王！'];const m=msgs[k],w=g.measureText(m).width;g.fillText(m,k===0?128:256+w/2-((T*60)%(256+w)),72);
   g.fillStyle='rgba(0,0,0,.25)';for(let y=0;y<144;y+=3)g.fillRect(0,y,256,1);LED.t.needsUpdate=true;}
-{const R0=ROADW[0],R1=ROADW[1],a=R0.pts[0],b=R0.pts[1],L=Math.hypot(b[0]-a[0],b[1]-a[1]),ux=(b[0]-a[0])/L,uz=(b[1]-a[1])/L;
-  const zI=wz(-20),tI=(zI-a[1])/(b[1]-a[1]),ix=a[0]+(b[0]-a[0])*tI,iz=zI;
+{const R0=ROADW.find(r=>r.name==='德芳南路'),R1=ROADW.find(r=>r.name==='現岱路'),a=R0.pts[0],b=R0.pts[1],L=Math.hypot(b[0]-a[0],b[1]-a[1]),ux=(b[0]-a[0])/L,uz=(b[1]-a[1])/L;
+  const c0=R1.pts[0],c1=R1.pts[1],L1=Math.hypot(c1[0]-c0[0],c1[1]-c0[1]),vx=(c1[0]-c0[0])/L1,vz=(c1[1]-c0[1])/L1,den=ux*vz-uz*vx,tI=((c0[0]-a[0])*vz-(c0[1]-a[1])*vx)/den,ix=a[0]+ux*tI,iz=a[1]+uz*tI,sn=Math.abs(den);
   const cwT=textTex(256,64,(c2,w,h)=>{c2.fillStyle='#3aa07a';c2.fillRect(0,0,w,h);c2.fillStyle='#fff';for(let x=6;x<w;x+=20)c2.fillRect(x,8,10,h-16);});
   const cw=(cx2,cz2,len,dirx,dirz)=>{const m=new THREE.Mesh(new THREE.PlaneGeometry(len,4.5),new THREE.MeshLambertMaterial({map:cwT,transparent:true,opacity:.95}));m.rotation.x=-Math.PI/2;m.rotation.z=-Math.atan2(dirz,dirx);m.position.set(cx2,0.03,cz2);m.receiveShadow=true;scene.add(m);};
-  for(const sg of[-1,1]){cw(ix+ux*sg*(R1.hw+4),iz+uz*sg*(R1.hw+4),R0.hw*2,-uz,ux);cw(ix+sg*(R0.hw+4),iz,R1.hw*2,0,1);}
+  for(const sg of[-1,1]){const o0=R1.hw/sn+3,o1=R0.hw/sn+3;cw(ix+ux*sg*o0,iz+uz*sg*o0,R0.hw*2,-uz,ux);cw(ix+vx*sg*o1,iz+vz*sg*o1,R1.hw*2,-vz,vx);}
   const pm=lam(0xb8bcc0),lm=new THREE.MeshBasicMaterial({color:0xfff4c8});
   for(let t=0;t<L;t+=32)for(const sd of[-1,1]){const px2=a[0]+ux*t+(-uz)*sd*(R0.hw+1.8),pz2=a[1]+uz*t+ux*sd*(R0.hw+1.8);if(Math.abs(px2)>WX-2||Math.abs(pz2)>WZ-2)continue;
     const gp=new THREE.Group();gp.position.set(px2,0,pz2);gp.rotation.y=Math.atan2(-uz,ux)+(sd>0?Math.PI:0);scene.add(gp);
@@ -1006,17 +1012,17 @@ function ledTick(){if(!LED.g||Math.floor(T*12)===LED.f)return;LED.f=Math.floor(T
   for(const [a0,a1,f,ax,sg] of aw){const len=a1-a0,mid=(a0+a1)/2;for(const [y,dep] of [[3.2,1.4],[7.2,0.6]]){const pos=ax==='z'?V.set(mid,y,f+sg*dep/2):V.set(f+sg*dep/2,y,mid);M.compose(pos,Q,ax==='z'?new THREE.Vector3(len,1,dep):new THREE.Vector3(dep,1,len));am.setMatrixAt(n++,M);}}
   am.count=n;am.castShadow=true;scene.add(am);
   const pm=lam(0x3f8f3a,{flatShading:true}),fm=lam(0xff7eb6,{flatShading:true});for(const H of gd){const y=H.fl*4+1;for(let k=0;k<3;k++){const b=new THREE.Mesh(new THREE.IcosahedronGeometry(0.7,0),k%2?fm:pm);b.position.set(H.x0+1.5+k*((H.x1-H.x0-2)/2),y+0.3,H.z0+1.5+((k*7)%3));scene.add(b);}}
-  const [jx,jz]=[wx(-110),wz(-30)];let best=null,bd=1e9;for(const H of HOUSES){if(H.road!=='內元路'||H.tower)continue;const d=Math.hypot((H.x0+H.x1)/2-jx,(H.z0+H.z1)/2-jz);if(d<bd){bd=d;best=H;}}
+  const [jx,jz]=[wx(-69),wz(194)];let best=null,bd=1e9;for(const H of HOUSES){if(H.road!=='內元路'||H.tower)continue;const d=Math.hypot((H.x0+H.x1)/2-jx,(H.z0+H.z1)/2-jz);if(d<bd){bd=d;best=H;}}
   if(best){best.sign=BID.cred;best.shutter=false;const cx=(best.x0+best.x1+1)/2,cz=(best.z0+best.z1+1)/2;const lbl=makeLabel('🍔 漢堡早餐店','rgba(226,58,44,.95)','#fff');lbl.position.set(cx,best.fl*4+2,cz);lbl.scale.set(3.4,0.85,1);scene.add(lbl);}}
 // ---- shops across the street from the main gate ----
 const SHOPS=[];
 {const [gx,gz]=GATE_PT;let best=null,bd=1e9;
-  for(const H of HOUSES){if(H.road!=='現岱路'||H.fl>6)continue;const cx=(H.x0+H.x1)/2,cz=(H.z0+H.z1)/2;if(pip(cx/S+CX,cz/S+CY,BOUNDARY))continue;const d=Math.hypot(cx-gx,cz-gz);if(cz>gz)continue;if(d<bd){bd=d;best=H;}}
+  for(const H of HOUSES){if(H.fl>6||H.tower)continue;const cx=(H.x0+H.x1)/2,cz=(H.z0+H.z1)/2;if(pip(cx/S+CX,cz/S+CY,BOUNDARY))continue;const d=Math.hypot(cx-gx,cz-gz);if((cx-gx)+(cz-gz)>0)continue;if(d<bd){bd=d;best=H;}}
   if(best){best.shop='fps';best.sign=BID.cpink;best.mat=BID.wgrey;const cx=(best.x0+best.x1+1)/2,cz=(best.z0+best.z1+1)/2;SHOPS.push({x:cx,z:cz,H:best,type:'fps',label:'雷射射擊場'});
     const lbl=makeLabel('🔫 雷射射擊場','rgba(255,60,180,.95)','#fff');lbl.position.set(cx,best.fl*4+2,best.door==='S'?best.z1+1.3:best.door==='N'?best.z0-0.3:cz);lbl.scale.set(3.8,0.95,1);scene.add(lbl);
     const aw=box(best.x1-best.x0+1,0.15,1.6,lam(0x2f8a4a));aw.position.set(cx,3.2,best.door==='S'?best.z1+1.6:best.z0-0.6);scene.add(aw);}}
 // ---- kart race start point on the road outside the main gate ----
-const KART_PT=(()=>{const gx=GATE_PT[0]+30,gz=GATE_PT[1],r=ROADW[1],a=r.pts[0],b=r.pts[1],dx=b[0]-a[0],dz=b[1]-a[1],L=Math.hypot(dx,dz),t=((gx-a[0])*dx+(gz-a[1])*dz)/(L*L);
+const KART_PT=(()=>{const gx=GATE_PT[0]-15,gz=GATE_PT[1]+15,r=ROADW.find(q=>q.name==='現岱路'),a=r.pts[0],b=r.pts[1],dx=b[0]-a[0],dz=b[1]-a[1],L=Math.hypot(dx,dz),t=((gx-a[0])*dx+(gz-a[1])*dz)/(L*L);
   const x=a[0]+dx*t,z=a[1]+dz*t,g=new THREE.Group();g.position.set(x,0,z);g.rotation.y=-Math.atan2(dz,dx)+Math.PI/2;scene.add(g);
   const pm=lam(0xe23a2c);for(const sx of[-r.hw-0.6,r.hw+0.6]){const pl=box(0.8,6.5,0.8,pm);pl.position.set(sx,3.25,0);g.add(pl);}
   const st=textTex(1024,128,(c2,w,h)=>{for(let i=0;i<16;i++){c2.fillStyle=i%2?'#111':'#fff';c2.fillRect(i*64,0,64,24);c2.fillStyle=i%2?'#fff':'#111';c2.fillRect(i*64,24,64,24);}c2.fillStyle='#e23a2c';c2.fillRect(0,48,w,80);c2.fillStyle='#fff';c2.font='bold 64px "PingFang TC","Microsoft JhengHei",sans-serif';c2.textAlign='center';c2.textBaseline='middle';c2.fillText('🏁 台74 環線大亂鬥 賽車起點',w/2,90);});
@@ -1237,7 +1243,7 @@ const principal=addNPC('principal','校長',[302,186],{scale:1.28,tex:TEX.princi
 addNPC('pe','體育老師',[392,352],{scale:1.3,tex:TEX.pe,shirt:0x2a5db0,sleeve:0x2a5db0,longSleeve:true,pants:0x2a5db0,longPants:true,cap:true,capColor:0x2a5db0,whistle:true,skin:0xd9a77f});
 addNPC('sci','自然老師',[332,155],{scale:1.27,tex:TEX.lab,shirt:0xf5f5f5,sleeve:0xf5f5f5,longSleeve:true,pants:0x384050,longPants:true,coat:0xf5f5f5,glasses:true,hair:0x3a2a20});
 addNPC('nurse','護理阿姨',[300,360],{scale:1.25,tex:TEX.nurse,shirt:0xf6b3c9,sleeve:0xf6b3c9,pants:0xf6b3c9,longPants:true,hair:0x2a1b12,pony:true});
-addNPC('frog','大元蛙',[284,18],{make:makeFrog});
+addNPC('frog','大元蛙',[96,50],{make:makeFrog});
 addNPC('homeroom','王老師',[190,110],{scale:1.25,shirt:0xe8538f,sleeve:0xe8538f,pants:0x2b3550,longPants:true,hair:0x1b1310,bob:true,glasses:true});
 addNPC('homeroom','陳老師',[120,150],{scale:1.3,shirt:0x1f2f4f,sleeve:0x1f2f4f,pants:0x4a6a8f,longPants:true,hair:0x111111,skin:0xd9a77f});
 const FRIENDS=[
