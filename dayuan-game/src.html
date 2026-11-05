@@ -666,7 +666,7 @@ function buildMainGate(gx,gz,ux,uz,gw){let nx=-uz,nz=ux;if(pip(gx+nx*3,gz+nz*3,B
   const plate=signPlane('60',0.8,0.4,'#1d4f9a','#fff');plate.position.set(gw/2+1,1.4,0.04);plate.rotation.y=Math.PI;g.add(plate);
   // yellow cross-hatched no-stopping box on 現岱路 in front of the gate
   {const ht=textTex(256,160,(c2,w,h)=>{c2.strokeStyle='#f2c230';c2.lineWidth=7;c2.strokeRect(4,4,w-8,h-8);for(let k=-h;k<w;k+=26){c2.beginPath();c2.moveTo(k,0);c2.lineTo(k+h,h);c2.stroke();c2.beginPath();c2.moveTo(k+h,0);c2.lineTo(k,h);c2.stroke();}});
-    const hb=new THREE.Mesh(new THREE.PlaneGeometry(gw+4,6),new THREE.MeshLambertMaterial({map:ht,transparent:true}));hb.rotation.x=-Math.PI/2;hb.position.set(0,0.05,-9.5);g.add(hb);}
+    const hb=new THREE.Mesh(new THREE.PlaneGeometry(gw+4,6),new THREE.MeshLambertMaterial({map:ht,transparent:true}));hb.rotation.x=-Math.PI/2;hb.position.set(0,0.05,-13);g.add(hb);}
   // orange arch over the gate
   const arch=new THREE.Mesh(new THREE.TorusGeometry(gw/2+0.4,0.22,8,24,Math.PI),lam(0xf08a24));arch.position.set(0,3.2,-0.5);g.add(arch);
   const arch2=new THREE.Mesh(new THREE.TorusGeometry(gw/2+0.4,0.12,6,24,Math.PI),lam(0x2fa84f));arch2.position.set(0,3.2,-1.1);g.add(arch2);
@@ -1197,7 +1197,9 @@ const G={started:false,overlay:false,hp:100,maxHp:100,score:0,kills:0,killGoal:1
 const SPAWN=[205,185];
 const START_GENDER=(()=>{try{return JSON.parse(localStorage.getItem('dayuan-settings')||'{}').gender;}catch(e){}})()||'boy';
 function playerOpts(gd){const girl=gd==='girl';return {tex:TEX.uniform,shirt:0xffffff,sleeve:girl?0xf08a24:0x2e8b3e,pants:girl?0xf08a24:0x2e8b3e,cap:true,capRed:girl,longHair:girl,shoe:girl?0xe86d8a:0x1e7a3c};}
-const player={x:wx(SPAWN[0]),y:0,vy:0,z:wz(SPAWN[1]),facing:Math.PI,cd:0,inv:0,speed:0,p:makePerson(playerOpts(START_GENDER))};
+const GATE_START=(()=>{const a=BOUNDW[GATE_SEG],b=BOUNDW[GATE_SEG+1],dx=b[0]-a[0],dz=b[1]-a[1],L=Math.hypot(dx,dz);let nx=-dz/L,nz=dx/L;if(pip(GATE_PT[0]+nx*3,GATE_PT[1]+nz*3,BOUNDW)){nx=-nx;nz=-nz;}return {x:GATE_PT[0]+nx*5,z:GATE_PT[1]+nz*5,face:Math.atan2(-nx,-nz),camYaw:Math.atan2(nx,nz)};})();
+function toGate(){player.x=GATE_START.x;player.z=GATE_START.z;player.y=0;player.vy=0;player.facing=GATE_START.face;}
+const player={x:GATE_START.x,y:0,vy:0,z:GATE_START.z,facing:GATE_START.face,cd:0,inv:0,speed:0,p:makePerson(playerOpts(START_GENDER))};
 function addPlayerRing(){const ring=new THREE.Mesh(new THREE.RingGeometry(0.42,0.52,24),new THREE.MeshBasicMaterial({color:0xf2c230,transparent:true,opacity:.8}));ring.rotation.x=-Math.PI/2;ring.position.y=0.03;player.p.root.add(ring);}
 scene.add(player.p.root);
 addPlayerRing();
@@ -1382,14 +1384,14 @@ function interact(n){
 function win(){G.won=true;G.overlay=true;const m=Math.floor(G.time/60),s=Math.floor(G.time%60);
   $('winTxt').innerHTML=`恭喜你和 ${friendsOf().length} 位同學一起保衛了大元國小！<br>花費時間：<b>${m} 分 ${s} 秒</b>　分數：<b>${G.score}</b><br>打倒怪獸：<b>${G.kills}</b> 隻`;$('winOv').style.display='flex';sfx('power');}
 function die(){G.overlay=true;$('deadOv').style.display='flex';}
-$('reviveBtn').onclick=()=>{G.overlay=false;$('deadOv').style.display='none';G.hp=G.maxHp;player.x=wx(SPAWN[0]);player.z=wz(SPAWN[1]);player.y=0;player.vy=0;player.inv=2;
+$('reviveBtn').onclick=()=>{G.overlay=false;$('deadOv').style.display='none';G.hp=G.maxHp;toGate();player.inv=2;
   for(const e of enemies.slice())if(e.type!=='boss'&&Math.hypot(e.x-player.x,e.z-player.z)<25)killEnemy(e,true);
   for(const f of friendsOf()){f.x=player.x+rand(-2,2);f.z=player.z+rand(-2,2);f.y=0;}};
 $('bagClose').onclick=()=>toggleBag(false);$('modeBtn').onclick=()=>toggleCreative();
 $('againBtn').onclick=()=>location.reload();
 function goFull(){const de=document.documentElement;if(document.fullscreenElement||document.webkitFullscreenElement)return;const rq=de.requestFullscreen||de.webkitRequestFullscreen;try{const r=rq&&rq.call(de);if(r&&r.catch)r.catch(()=>{});}catch(e){}}
-function startGame(creative){if(G.started)return;if(isTouch)goFull();$('startOv').style.display='none';document.body.classList.remove('title');G.started=true;refreshGear();audioInit();
-  if(creative){G.creative=true;invDirty=true;banner('創造模式：方塊無限、不會受傷、按住空白鍵飛行',3);}else banner('先到中庭找校長報到！');}
+function startGame(creative){if(G.started)return;if(isTouch)goFull();$('startOv').style.display='none';document.body.classList.remove('title');G.started=true;refreshGear();audioInit();toGate();yaw=GATE_START.camYaw;pitch=0.25;
+  if(creative){G.creative=true;invDirty=true;banner('創造模式：方塊無限、不會受傷、按住空白鍵飛行',3);}else banner('歡迎來到大元國小！走進校門，到中庭找校長報到！',3.5);}
 $('startBtn').onclick=()=>startGame(false);$('startCreative').onclick=()=>startGame(true);
 $('helpBtn').onclick=()=>$('tsHelp').classList.toggle('open');
 addEventListener('keydown',e=>{if(!G.started&&(e.code==='Enter'||e.code==='NumpadEnter')){e.preventDefault();startGame(false);}});
@@ -1479,7 +1481,7 @@ function updatePlayer(dt){
   else if((jumpNow||T-(player.jumpReq||-9)<0.18)&&T-(player.lastGround||-9)<(PKS?0.18:0.1)&&player.vy<=0.5){player.vy=PKS?8.4:7.6;player.jumpReq=-9;player.lastGround=-9;}
   if(inWater&&(keys.Space||jumpHeld))player.vy=3.2;
   physY(player,dt,0.3);if(inWater&&player.vy<-2.5)player.vy=-2.5;
-  if(player.y<-40){player.x=wx(SPAWN[0]);player.z=wz(SPAWN[1]);player.y=0;player.vy=0;}
+  if(player.y<-40){toGate();}
   const below=getV(Math.floor(player.x),Math.floor(player.y-0.05),Math.floor(player.z));
   if(below===BID.pad&&player.onGround){player.vy=15.5;player.onGround=false;sfx('power');burst(player.x,player.y+0.2,player.z,0x7cf05a,8);}
   if(below===BID.lava&&typeof onLava==='function')onLava();if(below===BID.goal&&typeof onGoal==='function')onGoal();
