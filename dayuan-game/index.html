@@ -383,8 +383,8 @@ const ROADS=[
 ];
 const PARK={px:-255,py:620,r:22};
 const BUILDINGS=[
-  {id:'admin',c:[225,68],l:150,w:48,a:25,floors:4,sign:true,towers:[-1,1],stone:true,enter:true,cs:1,core:true,chests:[{f:1,k:1,loot:{stone:6,log:3}},{roof:true,loot:{gem:3,iron:2}}],special:{'1-3':{label:'跑酷教室 3',type:'parkour',lv:2,color:'#8e44ad'}}},
-  {id:'west',c:[95,78],l:150,w:35,a:-43.7,floors:4,towers:[1],passGate:true,roundEnd:true},
+  {id:'admin',c:[234,72],l:130,w:48,a:25,floors:4,sign:true,towers:[-1,1],stone:true,enter:true,cs:1,core:true,chests:[{f:1,k:1,loot:{stone:6,log:3}},{roof:true,loot:{gem:3,iron:2}}],special:{'1-3':{label:'跑酷教室 3',type:'parkour',lv:2,color:'#8e44ad'}}},
+  {id:'west',c:[104,87],l:150,w:35,a:-43.7,floors:4,towers:[1],passGate:true,roundEnd:true},
   {id:'kitchen',c:[358,85],l:62,w:56,a:20,floors:2,label:'午餐廚房'},
   {id:'main',c:[140,208],l:227,w:42,a:28,floors:4,towers:[-1,0,1],stair:[1,1],enter:true,cs:-1,core:true,chests:[{f:0,k:2,loot:{log:6,plank:4}},{f:2,k:5,loot:{iron:4,log:2}},{f:3,k:7,loot:{gem:2,plank:4}}],special:{'0-4':{label:'美術教室',type:'art',color:'#c0392b'},'1-2':{label:'音樂教室',type:'music',color:'#2f6fd0'},'0-6':{label:'跑酷教室 1',type:'parkour',lv:0,color:'#8e44ad'},'2-1':{label:'跑酷教室 2',type:'parkour',lv:1,color:'#8e44ad'},'1-5':{label:'迷因大賽',type:'meme',color:'#e67e22'},'2-3':{label:'無盡合成',type:'craft',color:'#16a085'},'3-2':{label:'益智教室',type:'puzzle',color:'#2980b9'}}},
   {id:'red',c:[262,215],l:52,w:44,a:26,floors:2,redRoof:true},
@@ -666,12 +666,24 @@ for(const b of BUILDINGS){
   else {
     H=b.floors*3.3;let pass=null;
     if(b.passGate){const dx=GATE_PT[0]-wx(b.c[0]),dz=GATE_PT[1]-wz(b.c[1]),lxp=dx*Math.cos(a)+dz*Math.sin(a),T2={tex:true};pass=lxp;
-      const PW=9.6;B.add(-L/2,lxp-PW,0,H,-W/2,W/2,wallMat,T2);B.add(lxp+PW,L/2,0,H,-W/2,W/2,wallMat,T2);B.add(lxp-PW,lxp+PW,3.3,H,-W/2,W/2,wallMat,T2);for(const cx of[-PW/3,PW/3])B.add(lxp+cx-0.35,lxp+cx+0.35,0,3.3,-0.35,0.35,lam(0xeba792));B.add(-L/2,L/2,H,H+0.05,-W/2,W/2,roofMat,{solid:false});
+      const PW=9.6,lzp=-dx*Math.sin(a)+dz*Math.cos(a),sd=Math.sign(lzp)||1,H5=16.5,x0=-L/2,x1=lxp-PW,mv=lam(0xb08a9a);b.leftH=H5;b.leftMat=mv;
+      B.add(x0,x1,0,H5,-W/2,W/2,mv);
+      {const sh=new THREE.Shape(),n=40;sh.moveTo(x0,0);for(let k=0;k<=n;k++){const t=k/n;sh.lineTo(x0+(x1-x0)*t,1.2+3.2*(0.5+0.5*Math.cos(t*Math.PI))+1.4*Math.sin(t*Math.PI*2.2));}sh.lineTo(x1,0);sh.lineTo(x0,0);
+        const gg=new THREE.ExtrudeGeometry(sh,{depth:W,bevelEnabled:false});gg.translate(0,0,-W/2);const wv=new THREE.Mesh(gg,mv);wv.position.y=H5;wv.castShadow=true;grp.add(wv);BUILD_MESHES.push(wv);}
+      const bl=lam(0x5aa8d8,{emissive:0x0a2a40});for(let f=0;f<4;f++){const y=1.4+f*3.3;B.add(x0+1,x1-0.6,y,y+1.3,sd>0?W/2:-W/2-0.08,sd>0?W/2+0.08:-W/2,bl,{solid:false});B.add(x0+1,x1-0.6,y+1.3,y+1.6,sd>0?W/2:-W/2-0.12,sd>0?W/2+0.12:-W/2,lam(0xd8c8d0),{solid:false});}
+      {const mt=textTex(1024,192,(c2,w,h)=>{c2.fillStyle='#b8949f';c2.fillRect(0,0,w,h);const cols=['#e23a2c','#f2c230','#2f6fd0','#2fa84f','#ff7eb6','#8e44ad'];
+          for(let k=0;k<11;k++){const x=50+k*90,c=cols[k%6];c2.fillStyle='#f0c8a0';c2.beginPath();c2.arc(x,60,16,0,7);c2.fill();c2.fillStyle='#2a1b12';c2.beginPath();c2.arc(x,54,16,Math.PI,0);c2.fill();
+            c2.fillStyle=c;c2.fillRect(x-15,78,30,46);c2.strokeStyle='#f0c8a0';c2.lineWidth=7;c2.beginPath();c2.moveTo(x-14,86);c2.lineTo(x-34,70+(k%2)*30);c2.moveTo(x+14,86);c2.lineTo(x+34,100-(k%2)*30);c2.stroke();
+            c2.strokeStyle='#333';c2.lineWidth=7;c2.beginPath();c2.moveTo(x-8,124);c2.lineTo(x-14,168);c2.moveTo(x+8,124);c2.lineTo(x+16,168);c2.stroke();
+            if(k%3===0){c2.fillStyle='#d6282b';c2.beginPath();c2.ellipse(x+40,120,22,14,0,0,7);c2.fill();c2.fillStyle='#fff';c2.fillRect(x+30,112,20,4);}
+            if(k%3===1){c2.fillStyle='#8a5a2a';c2.fillRect(x+30,74,10,40);}
+            if(k%3===2){c2.fillStyle='#ffe23a';c2.font='bold 34px sans-serif';c2.fillText('♪',x+28,64);}}});
+        const mp=new THREE.Mesh(new THREE.PlaneGeometry((x1-x0)*0.88,3.2),new THREE.MeshLambertMaterial({map:mt}));mp.position.set((x0+x1)/2,H5-1.9,sd*(W/2+0.1));if(sd<0)mp.rotation.y=Math.PI;grp.add(mp);}B.add(lxp+PW,L/2,0,H,-W/2,W/2,wallMat,T2);B.add(lxp-PW,lxp+PW,3.3,H,-W/2,W/2,wallMat,T2);for(const cx of[-PW/3,PW/3])B.add(lxp+cx-0.35,lxp+cx+0.35,0,3.3,-0.35,0.35,lam(0xeba792));B.add(-L/2,L/2,H,H+0.05,-W/2,W/2,roofMat,{solid:false});
       B.add(lxp-PW,lxp+PW,0,0.04,-W/2,W/2,lam(0xb8b0a2),{solid:false});
       const sg=signPlane('穿堂 → 校園',3.4,0.6,'#1f5e34','#fff');for(const sd of[1,-1]){const s3=sg.clone();s3.position.set(lxp,3.0,sd*(W/2+0.05));if(sd<0)s3.rotation.y=Math.PI;grp.add(s3);}}
     else{const m=new THREE.Mesh(uvBox(L,H,W,4,3.3),[wallMat,wallMat,roofMat,roofMat,wallMat,wallMat]);m.position.y=H/2;m.castShadow=m.receiveShadow=true;grp.add(m);BUILD_MESHES.push(m);}
-    if(b.roundEnd){const r=W/2,ct=schoolWallTex.clone();ct.needsUpdate=true;ct.repeat.set(Math.PI*r/4,H/3.3);
-      const cy=new THREE.Mesh(new THREE.CylinderGeometry(r,r,H,28,1,false,Math.PI,Math.PI),[new THREE.MeshLambertMaterial({map:ct})]);cy.position.set(-L/2,H/2,0);cy.castShadow=cy.receiveShadow=true;grp.add(cy);BUILD_MESHES.push(cy);
+    if(b.roundEnd){const H=b.leftH||H,r=W/2,ct=schoolWallTex.clone();ct.needsUpdate=true;ct.repeat.set(Math.PI*r/4,H/3.3);
+      const cy=new THREE.Mesh(new THREE.CylinderGeometry(r,r,H,28,1,false,Math.PI,Math.PI),[b.leftMat||new THREE.MeshLambertMaterial({map:ct})]);cy.position.set(-L/2,H/2,0);cy.castShadow=cy.receiveShadow=true;grp.add(cy);BUILD_MESHES.push(cy);
       const cap=new THREE.Mesh(new THREE.CircleGeometry(r,28,Math.PI/2,Math.PI),roofMat);cap.rotation.x=-Math.PI/2;cap.position.set(-L/2,H+0.02,0);grp.add(cap);
       const rim=new THREE.Mesh(new THREE.CylinderGeometry(r+0.15,r+0.15,0.8,28,1,true,Math.PI,Math.PI),lam(0xefe3c9,{side:THREE.DoubleSide}));rim.position.set(-L/2,H+0.4,0);grp.add(rim);
       for(const f of[0.55,0.85]){const [qx,qz]=B.toW(-L/2-r*f*0.5,0);addSolid(qx,qz,r*f*0.5,r*Math.sqrt(1-f*f*0.25),a,0,H);}}
@@ -701,8 +713,8 @@ for(const b of BUILDINGS){
 function buildMainGate(gx0,gz0,ux,uz,gw){let nx=-uz,nz=ux;if(pip(gx0+nx*3,gz0+nz*3,BOUNDW)){nx=-nx;nz=-nz;}
   // set the gate back from the fence to the building's passage entrance (forecourt in front)
   let D=0;for(let d=1;d<30;d+=0.25){if(solidAt(gx0-nx*d+ux*12,1,gz0-nz*d+uz*12)||solidAt(gx0-nx*d-ux*12,1,gz0-nz*d-uz*12)){D=Math.max(0,d-1.6);break;}}
-  const gx=gx0-nx*D,gz=gz0-nz*D;
-  const fc=new THREE.Mesh(new THREE.PlaneGeometry(gw+6,D+1),lam(0xb8b0a2));fc.rotation.x=-Math.PI/2;fc.rotation.z=-Math.atan2(uz,ux);fc.position.set((gx0+gx)/2,0.04,(gz0+gz)/2);fc.receiveShadow=true;scene.add(fc);
+  const gx=gx0,gz=gz0;
+  const fc=new THREE.Mesh(new THREE.PlaneGeometry(gw+6,D+1),lam(0xb8b0a2));fc.rotation.x=-Math.PI/2;fc.rotation.z=-Math.atan2(uz,ux);fc.position.set(gx0-nx*D/2,0.04,gz0-nz*D/2);fc.receiveShadow=true;scene.add(fc);
   const g=new THREE.Group();g.position.set(gx,0,gz);g.rotation.y=Math.atan2(ux,uz)-Math.PI/2;scene.add(g);
   const lx=(x,z)=>[gx+ux*x-nx*z,gz+uz*x-nz*z];
   // stone pillar with vertical school name
@@ -713,22 +725,22 @@ function buildMainGate(gx0,gz0,ux,uz,gw){let nx=-uz,nz=ux;if(pip(gx0+nx*3,gz0+nz
   const plate=signPlane('60',0.8,0.4,'#1d4f9a','#fff');plate.position.set(gw/2+1,1.4,0.04);plate.rotation.y=Math.PI;g.add(plate);
   // yellow cross-hatched no-stopping box on 現岱路 in front of the gate
   {const ht=textTex(256,160,(c2,w,h)=>{c2.strokeStyle='#f2c230';c2.lineWidth=7;c2.strokeRect(4,4,w-8,h-8);for(let k=-h;k<w;k+=26){c2.beginPath();c2.moveTo(k,0);c2.lineTo(k+h,h);c2.stroke();c2.beginPath();c2.moveTo(k+h,0);c2.lineTo(k,h);c2.stroke();}});
-    const hb=new THREE.Mesh(new THREE.PlaneGeometry(gw+4,6),new THREE.MeshLambertMaterial({map:ht,transparent:true}));hb.rotation.x=-Math.PI/2;hb.position.set(0,0.05,-13-D);g.add(hb);}
+    const hb=new THREE.Mesh(new THREE.PlaneGeometry(gw+4,6),new THREE.MeshLambertMaterial({map:ht,transparent:true}));hb.rotation.x=-Math.PI/2;hb.position.set(0,0.05,-13);g.add(hb);}
   // orange arch over the gate
   const arch=new THREE.Mesh(new THREE.TorusGeometry(gw/2+0.4,0.22,8,24,Math.PI),lam(0xf08a24));arch.position.set(0,3.2,-0.5);g.add(arch);
   const arch2=new THREE.Mesh(new THREE.TorusGeometry(gw/2+0.4,0.12,6,24,Math.PI),lam(0x2fa84f));arch2.position.set(0,3.2,-1.1);g.add(arch2);
   // green folding gate pulled to one side
   const gm=lam(0x5fa86a);for(let k=0;k<7;k++){const f=box(0.08,1.6,0.9,gm);f.position.set(-gw/2+0.3+k*0.18,0.8,0.15);f.rotation.y=k%2?0.6:-0.6;g.add(f);}
   // guard booth (pink brick, brown hip roof) just inside the gate
-  const bm=lam(0xc9786a),[bx2,bz2]=lx(gw/2+4.4,0.6);const booth=box(3.4,2.8,3,bm);booth.position.set(gw/2+4.4,1.4,0.6);g.add(booth);addSolid(bx2,bz2,1.7,1.5,Math.atan2(uz,ux),0,2.8);
-  const rf=new THREE.Mesh(new THREE.ConeGeometry(2.8,1.2,4),lam(0x7a4a2a,{flatShading:true}));rf.rotation.y=Math.PI/4;rf.position.set(gw/2+4.4,3.4,0.6);g.add(rf);
-  const win=box(1.6,0.9,0.05,lam(0x9ac0d0));win.position.set(gw/2+4.4,1.7,-0.92);g.add(win);
+  const bm=lam(0xc9786a),[bx2,bz2]=lx(-gw/2-4.4,0.6);const booth=box(3.4,2.8,3,bm);booth.position.set(-gw/2-4.4,1.4,0.6);g.add(booth);addSolid(bx2,bz2,1.7,1.5,Math.atan2(uz,ux),0,2.8);
+  const rf=new THREE.Mesh(new THREE.ConeGeometry(2.8,1.2,4),lam(0x7a4a2a,{flatShading:true}));rf.rotation.y=Math.PI/4;rf.position.set(-gw/2-4.4,3.4,0.6);g.add(rf);
+  const win=box(1.6,0.9,0.05,lam(0x9ac0d0));win.position.set(-gw/2-4.4,1.7,-0.92);g.add(win);
   // bulletin board wall with colorful posters
   const bt=textTex(512,160,(c2,w,h)=>{c2.fillStyle='#c9786a';c2.fillRect(0,0,w,h);c2.fillStyle='#2fa84f';c2.fillRect(10,10,w-20,h-20);const cols=['#ffd23a','#ff7eb6','#3fc8ff','#fff','#f08a24'];for(let k=0;k<9;k++){c2.fillStyle=cols[k%5];c2.fillRect(24+k*52,30+(k%2)*14,40,90);}c2.fillStyle='#fff';c2.font='bold 22px sans-serif';c2.fillText('大元榮譽榜',190,30);});
   const bb=new THREE.Mesh(new THREE.BoxGeometry(6,2.2,0.4),[bm,bm,bm,bm,new THREE.MeshLambertMaterial({map:bt}),bm]);bb.position.set(gw/2+10,1.1,0.2);g.add(bb);const [qx,qz]=lx(gw/2+10,0.2);addSolid(qx,qz,3,0.25,Math.atan2(uz,ux),0,2.2);
   // traffic cones and no-parking barriers outside
-  for(const x of[-gw/2+0.5,0,gw/2-0.5]){const c=new THREE.Mesh(new THREE.ConeGeometry(0.25,0.7,10),lam(0xff6a1a));c.position.set(x,0.35,-D-3.2);g.add(c);}
-  for(const x of[-gw/2-2.2,-gw/2-0.8]){const b2=box(1.2,0.9,0.08,lam(0xd6282b));b2.position.set(x,0.6,-D-3.6);g.add(b2);}
+  for(const x of[-gw/2+0.5,0,gw/2-0.5]){const c=new THREE.Mesh(new THREE.ConeGeometry(0.25,0.7,10),lam(0xff6a1a));c.position.set(x,0.35,-3.2);g.add(c);}
+  for(const x of[-gw/2-2.2,-gw/2-0.8]){const b2=box(1.2,0.9,0.08,lam(0xd6282b));b2.position.set(x,0.6,-3.6);g.add(b2);}
   // banners on the building facing the gate
   const adm=BUILDINGS.find(b=>b.id==='west');if(adm){const cx=wx(adm.c[0]),cz=wz(adm.c[1]),a=adm.a*D2R,L=adm.l*S,W=adm.w*S,lzG=-(gx-cx)*Math.sin(a)+(gz-cz)*Math.cos(a),lxG=(gx-cx)*Math.cos(a)+(gz-cz)*Math.sin(a),side=Math.sign(lzG)||1;
     const bg=new THREE.Group();bg.position.set(cx,0,cz);bg.rotation.y=-a;scene.add(bg);
