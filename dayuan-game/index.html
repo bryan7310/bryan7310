@@ -1172,8 +1172,10 @@ function shirtTex(kind){const [c,g]=cv(128,128);
   if(kind==='uniform'){g.fillStyle='#fff';g.fillRect(0,0,128,128);const cols=['#f08a24','#2e8b3e','#fff','#1b1b1b'];
     for(let y=0;y<3;y++)for(let x=0;x<11;x++){g.fillStyle=cols[(x*3+y*2)%4];g.fillRect(2+x*11.5,48+y*11,10,10);}
     g.fillStyle='#2e8b3e';g.fillRect(40,0,48,7);}
-  else if(kind==='principal'){g.fillStyle='#5a5c62';g.fillRect(0,0,128,128);g.fillStyle='#fafafa';g.beginPath();g.moveTo(40,0);g.lineTo(88,0);g.lineTo(64,90);g.closePath();g.fill();
-    g.fillStyle='#333';for(let i=0;i<12;i++)g.fillRect(52+Math.random()*24,4+Math.random()*50,2,2);g.fillStyle='#45474c';g.fillRect(28,0,6,128);g.fillRect(94,0,6,128);}
+  else if(kind==='principal'){const ht=(x0,y0,w,h)=>{g.fillStyle='#6f7f9c';g.fillRect(x0,y0,w,h);for(let y=y0;y<y0+h;y+=4)for(let x=x0;x<x0+w;x+=4){if(((x+y)>>2)&1){g.fillStyle='#3e4a66';g.fillRect(x,y,2,2);g.fillRect(x+2,y+2,1,1);}}};
+    ht(0,0,128,128);g.fillStyle='#4a2a6a';g.beginPath();g.moveTo(44,0);g.lineTo(84,0);g.lineTo(70,100);g.lineTo(58,100);g.closePath();g.fill();
+    g.fillStyle='#5a6886';g.beginPath();g.moveTo(44,0);g.lineTo(34,22);g.lineTo(50,30);g.lineTo(58,96);g.closePath();g.fill();g.beginPath();g.moveTo(84,0);g.lineTo(94,22);g.lineTo(78,30);g.lineTo(70,96);g.closePath();g.fill();
+    g.fillStyle='#222';for(const y of[70,96])g.beginPath(),g.arc(60,y,4,0,7),g.fill();g.fillStyle='#4e5a76';g.fillRect(12,84,26,6);g.fillRect(90,84,26,6);}
   else if(kind==='pe'){g.fillStyle='#2a5db0';g.fillRect(0,0,128,128);g.fillStyle='#fff';g.fillRect(14,0,8,128);g.fillRect(106,0,8,128);g.fillRect(62,0,4,128);g.fillStyle='#ddd';g.beginPath();g.arc(64,60,7,0,7);g.fill();}
   else if(kind==='lab'){g.fillStyle='#f5f5f5';g.fillRect(0,0,128,128);g.fillStyle='#3a7bd5';g.fillRect(56,0,16,40);g.fillStyle='#ccc';g.fillRect(63,0,2,128);for(let y=30;y<128;y+=24){g.beginPath();g.arc(70,y,3,0,7);g.fill();}g.strokeStyle='#bbb';g.strokeRect(20,70,26,22);}
   else if(kind==='nurse'){g.fillStyle='#f6b3c9';g.fillRect(0,0,128,128);g.fillStyle='#fff';g.fillRect(44,30,40,40);g.fillStyle='#e23a4b';g.fillRect(58,36,12,28);g.fillRect(50,44,28,12);}
@@ -1223,8 +1225,12 @@ function makePerson(o){
     if(o.bob){const bk=box(0.42,0.26,0.18,hairM);bk.position.set(0,-0.03,-0.1);head.add(bk);}
     if(o.pony){const p=sph(0.09,hairM);p.position.set(0,0.02,-0.24);head.add(p);}}
   const eyeM=lam(o.eyes||0x111111);for(const sx of[-0.07,0.07]){const e=sph(0.03,eyeM,6,6);e.position.set(sx,0.02,0.185);head.add(e);}
-  const mo=box(0.07,0.018,0.02,lam(0xb5524a));mo.position.set(0,-0.08,0.19);head.add(mo);
-  if(o.glasses){const gm=lam(0x222222);for(const sx of[-0.07,0.07]){const r=new THREE.Mesh(new THREE.TorusGeometry(0.048,0.008,4,12),gm);r.position.set(sx,0.02,0.205);head.add(r);}const br=box(0.05,0.01,0.01,gm);br.position.set(0,0.03,0.205);head.add(br);}
+  if(o.bigSmile){const sm=new THREE.Mesh(new THREE.CircleGeometry(0.055,14,Math.PI,Math.PI),new THREE.MeshBasicMaterial({color:0x7a1f24}));sm.position.set(0,-0.06,0.196);head.add(sm);const th=box(0.09,0.02,0.005,new THREE.MeshBasicMaterial({color:0xffffff}));th.position.set(0,-0.068,0.199);head.add(th);}
+  else{const mo=box(0.07,0.018,0.02,lam(0xb5524a));mo.position.set(0,-0.08,0.19);head.add(mo);}
+  if(o.blush)for(const sx of[-0.12,0.12]){const bl=new THREE.Mesh(new THREE.CircleGeometry(0.03,10),new THREE.MeshBasicMaterial({color:0xf2a0a0,transparent:true,opacity:.7}));bl.position.set(sx,-0.035,0.175);bl.rotation.y=sx*1.2;head.add(bl);}
+  if(o.sweep){const hm=lam(o.hair);const fr=box(0.34,0.08,0.06,hm);fr.position.set(0.03,0.125,0.17);fr.rotation.z=-0.28;head.add(fr);for(const sx of[-1,1]){const sd=box(0.05,0.2,0.16,hm);sd.position.set(sx*0.2,-0.02,0.04);head.add(sd);}}
+  if(o.glassesSq){const gm=lam(0x2b2420);for(const sx of[-0.075,0.075]){const fr=new THREE.Mesh(new THREE.TorusGeometry(0.058,0.01,4,4),gm);fr.rotation.z=Math.PI/4;fr.scale.set(1.15,0.85,1);fr.position.set(sx,0.02,0.205);head.add(fr);}const br=box(0.04,0.012,0.01,gm);br.position.set(0,0.03,0.21);head.add(br);}
+  else if(o.glasses){const gm=lam(0x222222);for(const sx of[-0.07,0.07]){const r=new THREE.Mesh(new THREE.TorusGeometry(0.048,0.008,4,12),gm);r.position.set(sx,0.02,0.205);head.add(r);}const br=box(0.05,0.01,0.01,gm);br.position.set(0,0.03,0.205);head.add(br);}
   if(o.cap&&(o.pony||o.bob||o.longHair)){const hm=lam(o.hair||0x1d1a18);if(o.pony){const pt=sph(0.1,hm);pt.position.set(0,-0.02,-0.24);head.add(pt);}else{const bk=box(o.longHair?0.42:0.4,o.longHair?0.5:0.24,0.16,hm);bk.position.set(0,o.longHair?-0.18:-0.06,-0.12);head.add(bk);if(o.longHair){for(const sx of[-0.2,0.2]){const sd=box(0.05,0.34,0.22,hm);sd.position.set(sx,-0.1,-0.02);head.add(sd);}}}}
   if(o.mask){const mk=box(0.36,0.08,0.02,lam(0x111111));mk.position.set(0,0.02,0.19);head.add(mk);for(const sx of[-0.07,0.07]){const e=sph(0.028,new THREE.MeshBasicMaterial({color:0xff2a2a}),6,6);e.position.set(sx,0.02,0.205);head.add(e);}}
   if(o.whistle){const w=box(0.05,0.04,0.06,lam(0xdddddd));w.position.set(0,H+0.32,0.15);body.add(w);}
@@ -1237,7 +1243,7 @@ function makePerson(o){
     const fl=new THREE.Mesh(new THREE.PlaneGeometry(0.5,0.33),new THREE.MeshLambertMaterial({map:KFLAG,side:THREE.DoubleSide}));fl.position.set(-0.26,0.3,0.06);armL.add(fl);}
   root.traverse(m=>{if(m.isMesh)m.castShadow=true;});
   const top=(H+0.48+0.45)*sc;
-  return {root,body,legL,legR,armL,armR,head,top,phase:Math.random()*6,throwT:0};
+  return {root,body,legL,legR,armL,armR,head,top,phase:Math.random()*6,throwT:0,clasp:!!o.clasp};
 }
 function rig(root,body,parts,top){root.add(body);return Object.assign({root,body,top,phase:Math.random()*6,throwT:0},parts);}
 function makeFrog(){const root=new THREE.Group(),body=new THREE.Group(),G2=lam(0x6cc24a),W2=lam(0xf6f6f0),dk=lam(0x2f6a2a);
@@ -1259,6 +1265,7 @@ function makeDino(){const root=new THREE.Group(),body=new THREE.Group(),O=lam(0x
 function animPerson(p,speed,dt){p.phase+=dt*speed*2.2;const amp=Math.min(1,speed/4)*0.75;const s=Math.sin(p.phase)*amp;
   p.legL.rotation.x=s;p.legR.rotation.x=-s;p.armL.rotation.x=-s*0.8;
   if(p.throwT>0){p.throwT-=dt;p.armR.rotation.x=-2.6*(p.throwT/0.3);}else p.armR.rotation.x=s*0.8;
+  if(p.clasp&&speed<0.5){p.armL.rotation.set(-1.15,0,0.5);p.armR.rotation.set(-1.15,0,-0.5);}
   p.body.position.y=Math.abs(Math.cos(p.phase))*0.05*amp;}
 
 // ================= audio =================
@@ -1354,7 +1361,7 @@ function addNPC(kind,name,px,opts,lines){const p=opts.make?opts.make():makePerso
   const lbl=makeLabel(name,kind==='friend'?'rgba(47,168,79,.92)':'rgba(242,194,48,.95)',kind==='friend'?'#fff':'#222');lbl.position.y=p.top+0.3;p.root.add(lbl);
   n.marker=makeMarker(kind==='friend'?'?':'!',kind==='friend'?'#9fe3ae':'#f2c230');n.marker.position.y=p.top+0.85;p.root.add(n.marker);
   CIRCLES.push(n.col={x:n.x,z:n.z,r:0.35});npcs.push(n);return n;}
-const principal=addNPC('principal','校長',[302,186],{scale:1.28,tex:TEX.principal,shirt:0x5a5c62,sleeve:0x5a5c62,longSleeve:true,pants:0x1e1e22,longPants:true,hair:0x141414,bob:true,glasses:true,shoe:0x111111});
+const principal=addNPC('principal','校長',[302,186],{scale:1.3,tex:TEX.principal,shirt:0x6f7f9c,sleeve:0x6f7f9c,longSleeve:true,pants:0x23262e,longPants:true,hair:0x3a2318,bob:true,glasses:true,glassesSq:true,bigSmile:true,blush:true,sweep:true,clasp:true,shoe:0x2a1d16,skin:0xf6d6bf});
 addNPC('pe','體育老師',[392,352],{scale:1.3,tex:TEX.pe,shirt:0x2a5db0,sleeve:0x2a5db0,longSleeve:true,pants:0x2a5db0,longPants:true,cap:true,capColor:0x2a5db0,whistle:true,skin:0xd9a77f});
 addNPC('sci','自然老師',[332,155],{scale:1.27,tex:TEX.lab,shirt:0xf5f5f5,sleeve:0xf5f5f5,longSleeve:true,pants:0x384050,longPants:true,coat:0xf5f5f5,glasses:true,hair:0x3a2a20});
 addNPC('nurse','護理阿姨',[300,360],{scale:1.25,tex:TEX.nurse,shirt:0xf6b3c9,sleeve:0xf6b3c9,pants:0xf6b3c9,longPants:true,hair:0x2a1b12,pony:true});
