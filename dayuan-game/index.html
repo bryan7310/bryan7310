@@ -3108,9 +3108,9 @@ function startRun(){
       <div id="rnFill" style="position:absolute;left:62px;top:4px;bottom:4px;width:0;border-radius:8px;background:linear-gradient(#5ab0ff,#1d5fd0)"></div>
       <b style="position:absolute;left:10px;top:3px;font:900 14px sans-serif;color:#1d5fd0">START</b><b style="position:absolute;right:10px;top:3px;font:900 14px sans-serif;color:#e8542f">GOAL</b><div id="rnMarks"></div></div>
     <div id="rnBig" style="position:absolute;left:50%;top:36%;transform:translate(-50%,-50%);font:900 clamp(48px,10vw,120px) 'Noto Sans TC',sans-serif;color:#fff;text-shadow:0 6px 0 #e8542f,0 0 18px rgba(0,0,0,.4);pointer-events:none;white-space:nowrap"></div>
-    <div id="rnHelp" style="position:absolute;left:50%;bottom:58px;transform:translateX(-50%);font:800 14px 'Noto Sans TC',sans-serif;color:#fff;text-shadow:0 2px 3px #000;white-space:nowrap">交替按 ← → (或 A D) 跑步・空白鍵 跳欄架・撿 💧 水壺加速</div>
+    <div id="rnHelp" style="position:absolute;left:50%;bottom:58px;transform:translateX(-50%);font:800 14px 'Noto Sans TC',sans-serif;color:#fff;text-shadow:0 2px 3px #000;white-space:nowrap">一直連點 空白鍵（或 J）跑步，點越快跑越快・↑ 或 W 跳欄架・撿 💧 水壺加速</div>
     <div class="dpad" id="rnTouch" style="position:absolute;left:0;right:0;bottom:60px;padding:0 18px;justify-content:space-between">
-      <div class="mrow"><button data-k="L" style="width:84px;height:84px;font-size:18px">左腳</button><button data-k="R" style="width:84px;height:84px;font-size:18px">右腳</button></div><div class="mrow"><button data-k="J" style="width:84px;height:84px;font-size:18px;background:rgba(47,168,79,.8)">跳</button></div></div>
+      <div class="mrow"><button data-k="J" style="width:84px;height:84px;font-size:18px;background:rgba(47,168,79,.8)">跳</button></div><div class="mrow"><button data-k="R" style="width:120px;height:120px;font-size:24px;background:rgba(232,84,47,.85)">連點<br>跑！</button></div></div>
   </div>`);
   const cvs=$('rnCv'),wrap=$('rnWrap'),R=new THREE.WebGLRenderer({canvas:cvs,antialias:true});R.setPixelRatio(Math.min(devicePixelRatio,SET.quality==='low'?1:1.5));
   const sc=new THREE.Scene();sc.background=new THREE.Color(0x3a8ee8);sc.fog=new THREE.Fog(0x8fc8f0,90,260);const cam=new THREE.PerspectiveCamera(62,16/9,0.2,600);
@@ -3140,10 +3140,10 @@ function startRun(){
   RN={R,sc,cam,LEN,R2:rivals.map(mk),hurdles,bottles,t:0,state:'count',ct:3.6,last:null,keys:{},order:[]};const me=RN.R2[0];
   $('rnMarks').innerHTML=RN.R2.map((r,i)=>`<div class="rnm" style="position:absolute;top:-22px;font-size:18px;transform:translateX(-50%)">${r.me?'🟡':['','🔵','🟢','🟠','🟣'][i]}</div>`).join('');
   const resize=()=>{const w=wrap.clientWidth,h=wrap.clientHeight;R.setSize(w,h,false);cam.aspect=w/h;cam.updateProjectionMatrix();};resize();addEventListener('resize',resize);
-  const step=k=>{if(!RN||RN.state!=='race'||me.trip>0||me.fin)return;if(RN.last!==k){me.v=Math.min(9.5,me.v+0.9);RN.last=k;}else me.v=Math.max(0,me.v-0.6);};
+  const step=()=>{if(!RN||RN.state!=='race'||me.trip>0||me.fin)return;me.v=Math.min(9.5,me.v+0.9);};
   const jump=()=>{if(RN&&RN.state==='race'&&me.y<=0.01&&!me.fin)me.vy=5.2;};
-  miniKey=(e,d)=>{if(!d||e.repeat)return;if(e.code==='ArrowLeft'||e.code==='KeyA'){e.preventDefault();step('L');}if(e.code==='ArrowRight'||e.code==='KeyD'){e.preventDefault();step('R');}if(e.code==='Space'||e.code==='ArrowUp'||e.code==='KeyW'){e.preventDefault();jump();}};
-  $('rnTouch').querySelectorAll('button').forEach(b=>b.onpointerdown=e=>{e.preventDefault();const k=b.dataset.k;if(k==='J')jump();else step(k);});
+  miniKey=(e,d)=>{if(!d||e.repeat)return;if(e.code==='Space'||e.code==='KeyJ'||e.code==='Enter'){e.preventDefault();step();}if(e.code==='ArrowUp'||e.code==='KeyW'||e.code==='KeyK'){e.preventDefault();jump();}};
+  $('rnTouch').querySelectorAll('button').forEach(b=>b.onpointerdown=e=>{e.preventDefault();const k=b.dataset.k;if(k==='J')jump();else step();});
   $('rnQuit').onclick=closeMini;miniCleanup=()=>{removeEventListener('resize',resize);R.dispose();try{R.forceContextLoss();}catch(e){}RN=null;};miniFrame=runFrame;}
 function runFrame(dt){const N=RN;if(!N)return;dt=Math.min(dt,0.033);const me=N.R2[0];
   if(N.state==='count'){N.ct-=dt;const n=Math.ceil(N.ct-0.6),t=n>0?String(n):'GO!';if(t!==N.lc){N.lc=t;$('rnBig').textContent=t;fpsBeep(n>0?440:880,0.25,'square',0.08);}if(N.ct<=0.6){N.state='race';setTimeout(()=>{if($('rnBig'))$('rnBig').textContent='';},600);}}
@@ -3151,7 +3151,7 @@ function runFrame(dt){const N=RN;if(!N)return;dt=Math.min(dt,0.033);const me=N.R
   for(const r of N.R2){if(N.state==='count'){r.per.root.position.set(r.x,0,r.z);continue;}
     if(!r.me&&!r.fin&&N.state!=='end'){const tgt=r.ai.base+Math.sin(N.t*0.7+r.ai.jit)*0.6+(r.name==='體育老師'?0:0);r.v+=(tgt-r.v)*dt*1.5;
       for(const hz of N.hurdles)if(hz-r.z>0&&hz-r.z<1.6&&r.y<=0.01&&r.trip<=0){if(Math.random()<0.88)r.vy=5.2;}}
-    if(r.me&&!r.fin)r.v=Math.max(0,r.v-dt*1.6);
+    if(r.me&&!r.fin)r.v=Math.max(0,r.v-dt*(0.6+r.v*0.5));
     if(r.trip>0){r.trip-=dt;r.v=Math.min(r.v,1.5);}
     if(r.boost>0)r.boost-=dt;
     const spd=r.fin?Math.max(0,r.v-dt*4):r.v*(r.boost>0?1.45:1);if(r.fin)r.v=spd;r.z+=spd*dt;
@@ -3172,7 +3172,7 @@ function runFrame(dt){const N=RN;if(!N)return;dt=Math.min(dt,0.033);const me=N.R
 function runEnd(){const N=RN;N.state='end';miniFrame=null;const rest=N.R2.filter(r=>!r.fin).sort((a,b)=>b.z-a.z),order=N.order.concat(rest),me=N.R2[0],place=order.indexOf(me)+1;
   const ov=document.createElement('div');ov.style.cssText='position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;background:rgba(0,0,0,.55);color:#fff;z-index:4';
   ov.innerHTML=`<div style="font:900 44px 'Noto Sans TC',sans-serif;color:#ffd23a">🏁 跑步比賽結果</div><div style="display:grid;grid-template-columns:auto auto;gap:6px 26px;font:800 20px 'Noto Sans TC',sans-serif">${order.map((r,i)=>`<span style="color:${r.me?'#ffd23a':'#fff'}">${i+1}. ${r.name}</span><span style="color:#cde">${r.fin?r.fin.toFixed(2)+' 秒':'—'}</span>`).join('')}</div>
-    <div>${place===1?'你贏過宇德和體育老師了！太厲害了！':'交替按得越快跑越快，記得跳過欄架！'}</div><div class="mrow"><button class="gbtn" id="rnAgain">再跑一次</button><button class="gbtn ghost" id="rnOut">回到操場</button></div>`;$('rnWrap').appendChild(ov);
+    <div>${place===1?'你贏過宇德和體育老師了！太厲害了！':'空白鍵點得越快跑越快，記得跳過欄架！'}</div><div class="mrow"><button class="gbtn" id="rnAgain">再跑一次</button><button class="gbtn ghost" id="rnOut">回到操場</button></div>`;$('rnWrap').appendChild(ov);
   $('rnAgain').onclick=()=>{closeMini();startRun();};$('rnOut').onclick=closeMini;const loot=[null,{gem:1,iron:2},{iron:2},{log:2}][place];if(loot)reward(loot,`跑步比賽第 ${place} 名！`);}
 
 // ---- kart battle on the 台74 ring ----
