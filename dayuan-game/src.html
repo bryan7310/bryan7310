@@ -883,7 +883,7 @@ const AMPHI=[330,200];
     const c=new THREE.Mesh(new THREE.ConeGeometry(r,h,6,1),i%3?mm:mm2);c.position.set(Math.cos(an)*d,h/2-4,Math.sin(an)*d);c.rotation.y=rand(0,3);scene.add(c);}}
 // ================= trees =================
 const TREE_ZONES=[[150,92,300,205,16],[480,105,555,385,20],[300,372,465,486,24],[185,290,325,350,8],[300,128,345,300,8],[20,140,70,215,3],[300,20,330,55,2],[400,120,470,140,2]];
-const NPC_SPOTS=[[302,186],[300,300],[105,22],[190,110],[120,150],[515,150],[392,352],[332,155],[300,360],[235,180],[165,170],[452,82],[430,250],[325,170],[225,340],[195,175]];
+const NPC_SPOTS=[[302,186],[350,330],[275,110],[300,300],[105,22],[190,110],[120,150],[515,150],[392,352],[332,155],[300,360],[235,180],[165,170],[452,82],[430,250],[325,170],[225,340],[195,175]];
 const trees=[];
 for(const [x0,y0,x1,y1,n] of TREE_ZONES){let made=0,tries=0;
   while(made<n&&tries++<400){const x=rand(x0,x1),y=rand(y0,y1);
@@ -1229,6 +1229,9 @@ function makePerson(o){
   if(o.mask){const mk=box(0.36,0.08,0.02,lam(0x111111));mk.position.set(0,0.02,0.19);head.add(mk);for(const sx of[-0.07,0.07]){const e=sph(0.028,new THREE.MeshBasicMaterial({color:0xff2a2a}),6,6);e.position.set(sx,0.02,0.205);head.add(e);}}
   if(o.whistle){const w=box(0.05,0.04,0.06,lam(0xdddddd));w.position.set(0,H+0.32,0.15);body.add(w);}
   if(o.chubby){torso.scale.set(1.45,1.05,1.6);hip.scale.set(1.45,1,1.6);for(const q of[legL,legR,armL,armR])q.position.x*=1.45;for(const q of[legL,legR])q.scale.set(1.3,1,1.3);head.scale.set(1.12,1.04,1.1);}
+  if(o.cool){const br=box(0.36,0.035,0.02,lam(0x111111));br.position.set(0,0.085,0.19);br.rotation.z=0.06;head.add(br);const sm=box(0.06,0.018,0.02,lam(0x7a2a2a));sm.position.set(0.04,-0.07,0.195);sm.rotation.z=0.3;head.add(sm);
+    const tuft=box(0.12,0.06,0.12,lam(o.hair||0x111111));tuft.position.set(0.05,0.23,0.1);tuft.rotation.z=-0.3;head.add(tuft);}
+  if(o.bag){const bg=box(0.32,0.26,0.1,lam(0x1b1b1b));bg.position.set(0,-0.62,0);armR.add(bg);const hd=new THREE.Mesh(new THREE.TorusGeometry(0.07,0.015,5,10,Math.PI),lam(0x1b1b1b));hd.position.set(0,-0.48,0);armR.add(hd);}
   if(o.mole){const ml=sph(0.026,lam(0x1b1b1b),6,6);ml.position.set(-0.08,-0.075,0.18);head.add(ml);}
   if(o.flag){const pole=new THREE.Mesh(new THREE.CylinderGeometry(0.012,0.012,0.95,6),lam(0x8a6a3a));pole.position.set(0,-0.03,0.06);armL.add(pole);
     const fl=new THREE.Mesh(new THREE.PlaneGeometry(0.5,0.33),new THREE.MeshLambertMaterial({map:KFLAG,side:THREE.DoubleSide}));fl.position.set(-0.26,0.3,0.06);armL.add(fl);}
@@ -1365,6 +1368,8 @@ const FRIENDS=[
   ['昀蔚',[165,170],{sleeve:0xf08a24,pants:0xf08a24,pony:true,scale:0.82},'我雖然個子小，可是跑得很快喔！算我一份！'],
   ['妤墨',[425,248],{sleeve:0xf08a24,pants:0xf08a24,longHair:true,mole:true},'作業怪最討厭了！我們一起把牠們趕走！'],
   ['品岑',[225,340],{sleeve:0xf08a24,pants:0xf08a24,bob:true},'我跟你走！大家一起就不怕了！'],
+  ['宇德',[350,330],{sleeve:0x2e8b3e,pants:0x2e8b3e,skin:0xa8754e,cool:true,hair:0x0d0b0a},'嘿！打怪獸這種事，交給我就對了！'],
+  ['品昊',[275,110],{sleeve:0x2e8b3e,pants:0x2e8b3e,glasses:true,bag:true},'等我一下，我把作業放進袋子裡……好了，出發！'],
   ['千綺',[300,300],{sleeve:0xf08a24,pants:0xf08a24,longHair:true},'我會接球！有我在，大家就不會被打中！'],
 ];
 for(const [name,pos,o,line] of FRIENDS){if(o.pants===0xf08a24)o.capRed=true;const n=addNPC('friend',name,pos,Object.assign({tex:TEX.uniform,shirt:0xffffff,cap:true,shoe:pick([0x1e7a3c,0x222222,0xe86d8a,0x2f6fd0])},o));n.joinLine=line;}
@@ -1949,7 +1954,7 @@ function vStick(el,cb){if(!el)return;const kn=el.querySelector('.vknob');let id=
   el.onpointerup=el.onpointercancel=e=>{if(e.pointerId!==id)return;id=null;kn.style.transform='';cb(0,0);};}
 // ---- dodgeball in 新元館 ----
 let DB=null;
-function startDodge(r){const fr=friendsOf().map(f=>f.name);while(fr.length<3)fr.push(['家亨','佑俊','凱翔','昀蔚','妤墨','品岑','千綺'].find(n=>!fr.includes(n))||'同學');
+function startDodge(r){const fr=friendsOf().map(f=>f.name);while(fr.length<3)fr.push(['家亨','佑俊','凱翔','宇德','品昊','昀蔚','妤墨','品岑','千綺'].find(n=>!fr.includes(n))||'同學');
   openMini(`<div class="mhead"><div class="mtitle">🔴 新元館躲避球：大元隊 vs 搗蛋鬼隊</div><div style="font-size:13px;color:var(--muted)">WASD 移動・J 或點畫面 丟球（瞄準最近的對手）・K 接球（球快打到時按）・撿到自己場上的球才能丟</div></div>
     <canvas id="dbCv" width="960" height="540" style="width:100%;height:auto;max-height:74vh;border-radius:10px;touch-action:none"></canvas>
     <div class="dpad"><div class="vstick"><div class="vknob"></div></div><div class="mrow"><button data-k="T">丟</button><button data-k="C">接</button></div></div>
