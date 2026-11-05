@@ -283,7 +283,7 @@ body.touch .ts-press{display:none}
     <div class="ts-press">PRESS ENTER TO START</div>
   </div>
   <div class="ts-bottom">
-    <div class="ts-story">「考卷大魔王」派出作業怪、蚊子怪、搗蛋鬼和磁磚龍佔領了校園！<br>到中庭找校長報到，和同學組隊，一起把大元國小搶回來！</div>
+    <div class="ts-story">「考卷大魔王」派出作業怪、蚊子怪、搗蛋鬼和磁磚龍佔領了校園！<br>到校門口找校長報到，和同學組隊，一起把大元國小搶回來！</div>
     <div class="ts-feats">
       <span class="ts-feat"><i>⚔️</i>魔王格鬥決鬥</span><span class="ts-feat"><i>⛏️</i>挖掘・建造・合成</span><span class="ts-feat"><i>🏫</i>走進校舍上屋頂</span>
       <span class="ts-feat"><i>🏃</i>跑酷教室</span><span class="ts-feat"><i>🎨</i>美術作畫</span><span class="ts-feat"><i>🎹</i>音樂小星星</span><span class="ts-feat"><i>🔴</i>新元館躲避球</span>
@@ -1362,6 +1362,14 @@ function addNPC(kind,name,px,opts,lines){const p=opts.make?opts.make():makePerso
   n.marker=makeMarker(kind==='friend'?'?':'!',kind==='friend'?'#9fe3ae':'#f2c230');n.marker.position.y=p.top+0.85;p.root.add(n.marker);
   CIRCLES.push(n.col={x:n.x,z:n.z,r:0.35});npcs.push(n);return n;}
 const principal=addNPC('principal','校長',[302,186],{scale:1.3,tex:TEX.principal,shirt:0x6f7f9c,sleeve:0x6f7f9c,longSleeve:true,pants:0x23262e,longPants:true,hair:0x3a2318,bob:true,glasses:true,glassesSq:true,bigSmile:true,blush:true,sweep:true,clasp:true,shoe:0x2a1d16,skin:0xf6d6bf});
+{const a=BOUNDW[GATE_SEG],b=BOUNDW[GATE_SEG+1],L=Math.hypot(b[0]-a[0],b[1]-a[1]),ux=(b[0]-a[0])/L,uz=(b[1]-a[1])/L;
+  principal.x=GATE_START.x+ux*2.6+(GATE_PT[0]-GATE_START.x)*0.35;principal.z=GATE_START.z+uz*2.6+(GATE_PT[1]-GATE_START.z)*0.35;principal.col.x=principal.x;principal.col.z=principal.z;
+  principal.p.root.position.set(principal.x,0,principal.z);
+  const [c,g]=cv(320,200);const pf=(x,y,r)=>{g.beginPath();g.arc(x,y,r,0,7);g.fill();};
+  g.fillStyle='rgba(0,0,0,.12)';for(const [x,y,r] of [[90,98,52],[160,78,62],[232,98,54],[124,124,46],[200,126,46]])pf(x+4,y+5,r);
+  g.fillStyle='#fff';for(const [x,y,r] of [[90,98,52],[160,78,62],[232,98,54],[124,124,46],[200,126,46]])pf(x,y,r);pf(112,172,13);pf(94,192,8);
+  g.fillStyle='#e8542f';g.font='900 46px "Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif';g.textAlign='center';g.textBaseline='middle';g.fillText('早安！',160,82);g.fillStyle='#2f6fd0';g.fillText('早安！',168,130);
+  const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:tex(c),depthWrite:false}));sp.scale.set(3.4,2.12,1);sp.position.set(1.2,principal.p.top+1.4,0);sp.renderOrder=7;principal.p.root.add(sp);principal.cloud=sp;}
 addNPC('pe','體育老師',[392,352],{scale:1.3,tex:TEX.pe,shirt:0x2a5db0,sleeve:0x2a5db0,longSleeve:true,pants:0x2a5db0,longPants:true,cap:true,capColor:0x2a5db0,whistle:true,skin:0xd9a77f});
 addNPC('sci','自然老師',[332,155],{scale:1.27,tex:TEX.lab,shirt:0xf5f5f5,sleeve:0xf5f5f5,longSleeve:true,pants:0x384050,longPants:true,coat:0xf5f5f5,glasses:true,hair:0x3a2a20});
 addNPC('nurse','護理阿姨',[300,360],{scale:1.25,tex:TEX.nurse,shirt:0xf6b3c9,sleeve:0xf6b3c9,pants:0xf6b3c9,longPants:true,hair:0x2a1b12,pony:true});
@@ -1464,7 +1472,7 @@ function interact(n){
     else if(G.bossDead){say([['校長','太棒了！你和同學們同心協力，打倒了考卷大魔王！'],['校長','大元國小的校園恢復和平了。校長要頒給你們「校園英雄獎」！'],['校長','記得：遇到困難不要怕，和朋友一起努力，就一定做得到！']],win);}
     else{G.hp=G.maxHp;say([['校長',hint()]]);}
     return;}
-  if(!G.met){say([[n.name,n.kind==='friend'?'聽說校長在中庭找人，好像出了大事，你快去看看！':'同學早安！先去中庭找校長報到喔。']]);return;}
+  if(!G.met){say([[n.name,n.kind==='friend'?'聽說校長在校門口找人，好像出了大事，你快去看看！':'同學早安！先去校門口找校長報到喔。']]);return;}
   if(n.kind==='friend'){
     if(n.recruited){say([[n.name,pick(['我會一直跟著你的！','怪獸在哪裡？衝啊！','我們是最強小隊！'])]]);return;}
     say([[n.name,n.joinLine]],()=>{n.recruited=true;n.marker.visible=false;n.col.r=0;n.slot=friendsOf().length-1;sfx('power');banner(`${n.name} 加入小隊！`);});return;}
@@ -1484,7 +1492,7 @@ $('bagClose').onclick=()=>toggleBag(false);$('modeBtn').onclick=()=>toggleCreati
 $('againBtn').onclick=()=>location.reload();
 function goFull(){const de=document.documentElement;if(document.fullscreenElement||document.webkitFullscreenElement)return;const rq=de.requestFullscreen||de.webkitRequestFullscreen;try{const r=rq&&rq.call(de);if(r&&r.catch)r.catch(()=>{});}catch(e){}}
 function startGame(creative){if(G.started)return;if(isTouch)goFull();$('startOv').style.display='none';document.body.classList.remove('title');G.started=true;refreshGear();audioInit();toGate();yaw=GATE_START.camYaw;pitch=0.25;
-  if(creative){G.creative=true;invDirty=true;banner('創造模式：方塊無限、不會受傷、按住空白鍵飛行',3);}else banner('歡迎來到大元國小！走進校門，到中庭找校長報到！',3.5);}
+  if(creative){G.creative=true;invDirty=true;banner('創造模式：方塊無限、不會受傷、按住空白鍵飛行',3);}else banner('歡迎來到大元國小！校長在校門口跟你說早安，快去報到！',3.5);}
 $('startBtn').onclick=()=>startGame(false);$('startCreative').onclick=()=>startGame(true);
 $('helpBtn').onclick=()=>$('tsHelp').classList.toggle('open');
 addEventListener('keydown',e=>{if(!G.started&&(e.code==='Enter'||e.code==='NumpadEnter')){e.preventDefault();startGame(false);}});
@@ -1626,7 +1634,7 @@ function roomAt(x,y,z){for(const r of ROOMS){if(!r.special||Math.abs(y-r.y)>1)co
 function updateNPCs(dt){
   nearNPC=null;let bd=3.2;
   for(const n of npcs){
-    n.marker.position.y=n.p.top+0.85+Math.sin(T*4)*0.1;
+    n.marker.position.y=n.p.top+0.85+Math.sin(T*4)*0.1;if(n.cloud){n.cloud.position.y=n.p.top+1.4+Math.sin(T*2)*0.12;n.cloud.material.rotation=Math.sin(T*1.5)*0.04;}
     if(n.kind==='friend')n.marker.visible=!n.recruited&&G.met;
     else if(n.kind==='principal')n.marker.visible=!G.met||G.bossDead;
     else if(n.kind==='nurse')n.marker.visible=G.met&&G.hp<G.maxHp*0.6;
@@ -1665,7 +1673,7 @@ function killEnemy(e,silent){if(e.dead)return;e.dead=true;scene.remove(e.g);enem
   if(silent){burst(e.x,e.y+1,e.z,0xffffff,6);return;}
   G.kills++;G.score+=e.score;burst(e.x,e.y+e.hitY,e.z,e.type==='boss'?0xf2c230:0xffffff,e.type==='boss'?60:14);popText('+'+e.score,e.x,e.y+e.hitY+1,e.z);sfx('kill');
   if(Math.random()<0.35&&e.type!=='boss'){const k=pick(['log','stone','iron','plank']);addItem(k,1);popText('+1 '+ITEM_N[k],e.x,e.y+e.hitY+1.6,e.z,'#9fe3ae');}
-  if(e.type==='boss'){G.bossDead=true;$('bossbar').style.display='none';for(const o of enemies.slice())killEnemy(o,true);banner('打倒考卷大魔王了！回中庭找校長領獎！',4);}
+  if(e.type==='boss'){G.bossDead=true;$('bossbar').style.display='none';for(const o of enemies.slice())killEnemy(o,true);banner('打倒考卷大魔王了！回校門口找校長領獎！',4);}
 }
 function hitEnemy(e,dmg){if(e.type==='boss'){if(T-(G.bossPop||-9)>1.5){G.bossPop=T;popText('走上司令台決鬥！',e.x,e.y+5,e.z,'#ffd23a');}return;}e.hp-=dmg;e.flash=0.12;sfx('hit');burst(e.x,e.y+e.hitY,e.z,0xe8542f,4);if(e.hp<=0)killEnemy(e);}
 function damagePlayer(n,fromX,fromZ){if(player.inv>0||G.overlay||G.creative||miniOpen)return;if(G.shield)n=n/2;n=Math.max(1,Math.round(n*armorFactor()*DIFF[SET.diff].dmg));G.hp=Math.max(0,G.hp-n);player.inv=0.7;sfx('hurt');hurtFlash();popText('-'+n,player.x,player.y+2,player.z,'#ff6b5b');
@@ -1763,7 +1771,7 @@ function objective(){if(!G.met||G.bossDead)return principal;const f=friendsOf().
 let hudCache='';
 function updateHUD(){
   $('hpfill').style.width=(G.hp/G.maxHp*100)+'%';$('hptxt').textContent=`${Math.ceil(G.hp)}/${G.maxHp}`;$('score').textContent=G.score;const f=friendsOf().length;$('fcount').textContent=f;
-  const qs=[[G.met,'到中庭向校長報到'],[f>=G.friendGoal,`找同學組隊 (${Math.min(f,G.friendGoal)}/${G.friendGoal})`],[G.kills>=G.killGoal,`打倒怪獸 (${Math.min(G.kills,G.killGoal)}/${G.killGoal})`],[G.bossDead,G.bossSpawned?'在司令台打倒考卷大魔王':'？？？（完成上面任務後出現）'],[G.won,'回中庭找校長領獎']];
+  const qs=[[G.met,'到校門口向校長報到'],[f>=G.friendGoal,`找同學組隊 (${Math.min(f,G.friendGoal)}/${G.friendGoal})`],[G.kills>=G.killGoal,`打倒怪獸 (${Math.min(G.kills,G.killGoal)}/${G.killGoal})`],[G.bossDead,G.bossSpawned?'在司令台打倒考卷大魔王':'？？？（完成上面任務後出現）'],[G.won,'回中庭找校長領獎']];
   const isCur=i=>!qs[i][0]&&(i===0||(i<3?G.met:qs.slice(0,i).every(q=>q[0])));
   const html=qs.map(([d,t],i)=>`<li class="${d?'done':isCur(i)?'cur':''}">${d?'☑':'☐'} ${t}</li>`).join('');
   const buffs=(G.dmg>1?'<span>💪 攻擊加倍</span>':'')+(G.rapid?'<span>⚡ 躲避球連發</span>':'')+(G.shield?'<span>🫧 泡泡護盾</span>':'')+(G.fast?'<span>👟 跳跳鞋</span>':'');
