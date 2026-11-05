@@ -1563,7 +1563,7 @@ function popText(text,x,y,z,color){const d=document.createElement('div');d.class
 const $=id=>document.getElementById(id);
 let dlg=null;
 function say(lines,done){dlg={lines,i:0,done};showDlg();sfx('talk');}
-function artFor(who){const m={'校長':'principal','嘉亨':'jiaheng','昀蔚':'yunwei','千綺':'qianqi','宇德':'yude','佑俊':'youjun','大元蛙':'frog','仲仲':'boy','心心':'girl'};return ART[m[who]]||null;}
+function artFor(who){const m={'校長':'principal','嘉亨':'jiaheng','昀蔚':'yunwei','千綺':'qianqi','宇德':'yude','佑俊':'youjun','大元蛙':'frog','仲仲':'boy','心心':'girl','妤墨':'yumo'};return ART[m[who]]||null;}
 function showDlg(){const [who,txt]=dlg.lines[dlg.i];const D=$('dlg');D.style.display='block';D.querySelector('.who').textContent=who;D.querySelector('.txt').textContent=txt;const a=artFor(who),av=D.querySelector('.ava');if(a){av.src=a;av.style.display='block';D.classList.add('hasAva');}else{av.style.display='none';D.classList.remove('hasAva');}}
 function advance(){if(!dlg)return;dlg.i++;sfx('talk');if(dlg.i>=dlg.lines.length){const d=dlg.done;dlg=null;$('dlg').style.display='none';d&&d();}else showDlg();}
 let bannerT=0;function banner(t,dur=2.6){$('banner').textContent=t;$('banner').style.opacity=1;bannerT=dur;}
