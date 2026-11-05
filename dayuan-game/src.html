@@ -3280,17 +3280,34 @@ function csFrame(rdt){const K=CST;if(!K)return;rdt=Math.min(rdt,0.05);const D=K.
   K.R.render(K.sc,K.cam);}
 
 // ---- 足球大亂鬥: original 3v3 top-down soccer brawl ----
-let BB=null;
-const BBW=20,BBL=32,BBGW=6;
+let BB=null,BB_LAST='me';
+const BB_CH=[
+  {id:'me',n:()=>SET.gender==='girl'?'心心':'仲仲',ic:'⭐',role:'全能',desc:'三發散射，什麼都會一點',tough:1,spd:1,dmg:12,shots:[-0.14,0,0.14],ss:16,life:0.5,kick:1,look:()=>playerOpts(SET.gender)},
+  {id:'家亨',n:()=>'家亨',ic:'🛡️',role:'坦克',desc:'血超厚，近距離五連霰彈',tough:1.5,spd:0.88,dmg:9,shots:[-0.3,-0.15,0,0.15,0.3],ss:15,life:0.3,kick:1.05,look:()=>dbOpts('家亨')},
+  {id:'昀蔚',n:()=>'昀蔚',ic:'💨',role:'飛毛腿',desc:'跑最快，帶球突破',tough:0.8,spd:1.2,dmg:10,shots:[-0.05,0.05],ss:17,life:0.5,kick:1,look:()=>dbOpts('昀蔚')},
+  {id:'千綺',n:()=>'千綺',ic:'🎯',role:'狙擊手',desc:'單發長射程，一發超痛',tough:0.85,spd:0.95,dmg:30,shots:[0],ss:22,life:0.85,kick:0.95,look:()=>dbOpts('千綺')},
+  {id:'宇德',n:()=>'宇德',ic:'⚽',role:'前鋒',desc:'射門最大力，遠射也進得了',tough:1.1,spd:1.05,dmg:11,shots:[-0.1,0,0.1],ss:16,life:0.5,kick:1.4,look:()=>Object.assign(dbOpts('宇德'),{ball:false})},
+  {id:'佑俊',n:()=>'佑俊',ic:'🇰🇷',role:'中場',desc:'射程中等、傷害穩定',tough:1,spd:1,dmg:14,shots:[-0.08,0,0.08],ss:17,life:0.6,kick:1.1,look:()=>dbOpts('佑俊')},
+  {id:'frog',n:()=>'大元蛙',ic:'🐸',role:'跳跳怪',desc:'速度快，雙發大範圍',tough:0.95,spd:1.1,dmg:16,shots:[-0.2,0.2],ss:15,life:0.4,kick:1,frog:true}];
+function bbSelect(){openMini(`<div style="position:fixed;inset:0;z-index:25;overflow:auto;background:radial-gradient(circle at 50% 30%,#2a5ad8,#0c1a4a);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:16px;font-family:'Noto Sans TC',sans-serif;color:#fff">
+  <div style="font:italic 900 clamp(28px,5vw,46px) 'Noto Sans TC',sans-serif;text-shadow:0 4px 0 #12307a">⚽ 選擇你的角色</div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;width:min(720px,96vw)">${BB_CH.map((c,i)=>{const bar=(v,mx)=>`<div style="height:6px;border-radius:3px;background:rgba(0,0,0,.35);overflow:hidden"><div style="width:${Math.min(100,v/mx*100)}%;height:100%;background:#ffd23a"></div></div>`;
+    return `<button data-c="${i}" style="appearance:none;cursor:pointer;text-align:left;padding:10px 12px;border-radius:16px;border:3px solid ${c.id===BB_LAST?'#ffd23a':'rgba(255,255,255,.6)'};background:linear-gradient(160deg,#3a7aff,#1f3a9a);color:#fff;box-shadow:0 5px 0 #0c1a4a">
+      <div style="display:flex;align-items:center;gap:8px"><span style="font-size:30px">${c.ic}</span><div><div style="font:900 18px 'Noto Sans TC',sans-serif">${c.n()}</div><div style="font:800 12px 'Noto Sans TC',sans-serif;color:#ffd23a">${c.role}</div></div></div>
+      <div style="font:700 11px/1.4 'Noto Sans TC',sans-serif;margin:6px 0;opacity:.9">${c.desc}</div>
+      <div style="font:700 10px sans-serif;display:grid;grid-template-columns:30px 1fr;gap:3px 6px;align-items:center"><span>血量</span>${bar(c.tough,1.5)}<span>速度</span>${bar(c.spd,1.2)}<span>攻擊</span>${bar(c.dmg*c.shots.length,45)}<span>射程</span>${bar(c.ss*c.life,19)}<span>射門</span>${bar(c.kick,1.4)}</div></button>`;}).join('')}</div>
+  <button class="mbtn" id="bbSelQ" style="background:rgba(0,0,0,.35)">✕ 離開</button></div>`);
+  $('miniBox').querySelectorAll('[data-c]').forEach(b=>b.onclick=()=>{const c=BB_CH[+b.dataset.c];BB_LAST=c.id;closeMini();startBallBrawl(c.id);});$('bbSelQ').onclick=closeMini;}
+const BBW=24,BBL=38.4,BBGW=7.2,BBK=1.2;
 const BB_OBS=(()=>{const half=[['c',-6.5,-11,2,1],['c',6.5,-11,2,1],['s',-5,-6.5,2,1],['s',0,-6.5,3,1],['s',5.5,-6.5,2,1],['c',-6,-3,2,1],['c',-1,-3,5,1],['c',6,-3,2,1],['c',-2.5,-13.4,2,1],['c',2.5,-13.4,2,1]],out=[];
-  for(const [k,x,z,w,d] of half){out.push({k,x,z,w,d});out.push({k,x:-x,z:-z,w,d});}return out;})();
-const BB_BUSH=(()=>{const half=[[-6,-14.2,3,1.4],[0,-10,6,3],[-6,-8.5,2,2.5],[6,-8.5,2,2.5],[-8.5,-1,2,3]],out=[];for(const [x,z,w,d] of half){out.push({x,z,w,d});out.push({x:-x,z:-z,w,d});}return out;})();
+  for(let [k,x,z,w,d] of half){x*=BBK;z*=BBK;out.push({k,x,z,w,d});out.push({k,x:-x,z:-z,w,d});}return out;})();
+const BB_BUSH=(()=>{const half=[[-6,-14.2,3,1.4],[0,-10,6,3],[-6,-8.5,2,2.5],[6,-8.5,2,2.5],[-8.5,-1,2,3]],out=[];for(let [x,z,w,d] of half){x*=BBK;z*=BBK;w*=BBK;d*=BBK;out.push({x,z,w,d});out.push({x:-x,z:-z,w,d});}return out;})();
 function bbBlocked(x,z,r){if(Math.abs(x)>BBW/2-r)return true;const inMouth=Math.abs(x)<BBGW/2-r;if(!inMouth&&Math.abs(z)>BBL/2-r)return true;if(Math.abs(z)>BBL/2+1.6-r)return true;
   for(const o of BB_OBS)if(Math.abs(x-o.x)<o.w/2+r&&Math.abs(z-o.z)<o.d/2+r)return true;return false;}
 function bbInBush(x,z){return BB_BUSH.some(b=>Math.abs(x-b.x)<b.w/2&&Math.abs(z-b.z)<b.d/2);}
 function bbLOS(a,b){const n=Math.ceil(Math.hypot(b.x-a.x,b.z-a.z)/0.4);for(let i=1;i<n;i++){const t=i/n,x=a.x+(b.x-a.x)*t,z=a.z+(b.z-a.z)*t;if(BB_OBS.some(o=>Math.abs(x-o.x)<o.w/2&&Math.abs(z-o.z)<o.d/2))return false;}return true;}
-function startBallBrawl(){
-  const pool=friendsOf().map(f=>f.name);for(const n of['家亨','千綺','凱翔','品岑'])if(pool.length<2&&!pool.includes(n))pool.push(n);
+function startBallBrawl(pickId){if(!pickId)return bbSelect();const myCh=BB_CH.find(c=>c.id===pickId)||BB_CH[0];
+  const rest=BB_CH.filter(c=>c!==myCh&&c.id!=='me').sort(()=>Math.random()-0.5),mateCh=rest.slice(0,2),foeCh=BB_CH.slice().sort(()=>Math.random()-0.5).slice(0,3);
   openMini(`<div id="bbWrap" style="position:fixed;inset:0;z-index:25;overflow:hidden;background:#2a7a3a;user-select:none;font-family:'Noto Sans TC',sans-serif">
     <canvas id="bbCv" style="width:100%;height:100%;display:block;touch-action:none"></canvas>
     <div style="position:absolute;left:12px;top:10px;display:flex;align-items:center;pointer-events:none;filter:drop-shadow(0 4px 6px rgba(0,0,0,.4))"><div style="width:58px;height:58px;margin-right:-18px;z-index:1;border-radius:50%;background:radial-gradient(circle at 40% 35%,#fff,#d8e4ff);border:4px solid #2a5ad8;display:flex;align-items:center;justify-content:center;font-size:32px">⚽</div><div style="padding:4px 28px 4px 30px;background:linear-gradient(#22336a,#121c44);clip-path:polygon(0 0,100% 0,88% 100%,0 100%);color:#fff;font:900 40px 'Noto Sans TC',sans-serif;border-bottom:4px solid #3a7aff" id="bbS0">0</div></div>
@@ -3359,12 +3376,12 @@ function startBallBrawl(){
   const [bc,bg]=cv(128,64);bg.fillStyle='#fff';bg.fillRect(0,0,128,64);bg.fillStyle='#1a1a1a';for(const [x,y] of[[20,16],[64,32],[108,16],[42,52],[86,52],[0,48],[128,48]]){bg.beginPath();for(let k=0;k<5;k++){const a=k*1.2566-1.57;bg.lineTo(x+Math.cos(a)*9,y+Math.sin(a)*9);}bg.fill();}
   const ballM=new THREE.Mesh(new THREE.SphereGeometry(0.32,20,14),new THREE.MeshPhongMaterial({map:tex(bc),shininess:60}));ballM.castShadow=true;sc.add(ballM);
   const ring=c=>{const m=new THREE.Mesh(new THREE.RingGeometry(0.62,0.86,32),new THREE.MeshBasicMaterial({color:c,transparent:true,opacity:0.85,depthWrite:false}));m.rotation.x=-Math.PI/2;m.position.y=0.03;return m;};
-  const mkP=(name,team,i,me)=>{const o=me?playerOpts(SET.gender):team===0?dbOpts(name):{shirt:0x7a34b8,sleeve:0x7a34b8,pants:0x2a1a3a,hair:0x2a1a12,skin:pick([0xf0c8a0,0xe0b088])};const p=makePerson(o);
-    if(team===1)for(const sx of[-1,1]){const hn=new THREE.Mesh(new THREE.ConeGeometry(0.07,0.2,8),toonM(0xff3a3a));hn.position.set(sx*0.12,0.3,0);hn.rotation.z=-sx*0.3;p.head.add(hn);}
-    p.root.scale.setScalar(1.3);const g=new THREE.Group();g.add(p.root);const rg=ring(me?0x5aff8a:team===0?0x3a8aff:0xff4a5a);g.add(rg);const disc=new THREE.Mesh(new THREE.CircleGeometry(0.62,28),new THREE.MeshBasicMaterial({color:me?0x2aff6a:team===0?0x2a6aff:0xff2a3a,transparent:true,opacity:0.28,depthWrite:false}));disc.rotation.x=-Math.PI/2;disc.position.y=0.025;g.add(disc);sc.add(g);g.traverse(q=>{if(q.isMesh)q.castShadow=true;});
+  const mkP=(ch,team,i,me,foeName)=>{const name=team===1?foeName:ch.n();const p=team===1?makePerson({shirt:0x7a34b8,sleeve:0x7a34b8,pants:0x2a1a3a,hair:0x2a1a12,skin:pick([0xf0c8a0,0xe0b088])}):ch.frog?makeFrog():makePerson(ch.look());
+    if(team===1&&p.head)for(const sx of[-1,1]){const hn=new THREE.Mesh(new THREE.ConeGeometry(0.07,0.2,8),toonM(0xff3a3a));hn.position.set(sx*0.12,0.3,0);hn.rotation.z=-sx*0.3;p.head.add(hn);}
+    p.root.scale.setScalar(ch.frog&&team===0?0.72:1.3);const g=new THREE.Group();g.add(p.root);const rg=ring(me?0x5aff8a:team===0?0x3a8aff:0xff4a5a);g.add(rg);const disc=new THREE.Mesh(new THREE.CircleGeometry(0.62,28),new THREE.MeshBasicMaterial({color:me?0x2aff6a:team===0?0x2a6aff:0xff2a3a,transparent:true,opacity:0.28,depthWrite:false}));disc.rotation.x=-Math.PI/2;disc.position.y=0.025;g.add(disc);sc.add(g);g.traverse(q=>{if(q.isMesh)q.castShadow=true;});
     const tag=document.createElement('div');tag.style.cssText='position:absolute;transform:translate(-50%,-100%);text-align:center;pointer-events:none;font:900 14px "Noto Sans TC",sans-serif;color:#fff;text-shadow:0 2px 0 #000,0 0 3px #000;white-space:nowrap';$('bbLayer').appendChild(tag);
-    const sp=[[0,9.5],[-4.3,11.5],[4.3,11.5]][i];return {name:me?(SET.gender==='girl'?'心心':'仲仲'):name,team,me:!!me,p,g,tag,hp:100,x:sp[0],z:(team===0?1:-1)*sp[1],sx:sp[0],sz:(team===0?1:-1)*sp[1],face:team===0?Math.PI:0,ammo:3,rl:0,cd:0,sup:0,dead:0,path:null,pt:0,tgt:null,role:i,hits:0,goals:0};};
-  const P=[mkP('你',0,0,true),...pool.slice(0,2).map((n,i)=>mkP(n,0,i+1)),...['搗蛋鬼','皮皮','鬧鬧'].map((n,i)=>mkP(n,1,i))];
+    const sp=[[0,9.5],[-4.3,11.5],[4.3,11.5]][i].map(v=>v*BBK);return {ch,name:team===1?name+(ch.ic):name,team,me:!!me,p,g,tag,hp:100,x:sp[0],z:(team===0?1:-1)*sp[1],sx:sp[0],sz:(team===0?1:-1)*sp[1],face:team===0?Math.PI:0,ammo:3,rl:0,cd:0,sup:0,dead:0,path:null,pt:0,tgt:null,role:i,hits:0,goals:0};};
+  const P=[mkP(myCh,0,0,true),...mateCh.map((c,i)=>mkP(c,0,i+1)),...foeCh.map((c,i)=>mkP(c,1,i,false,['搗蛋鬼','皮皮','鬧鬧'][i]))];
   BB={R,sc,cam,P,ballM,ball:{x:0,z:0,vx:0,vz:0,y:0.32,vy:0,carrier:null,kickT:0,last:null},shots:[],fx:[],score:[0,0],t:150,state:'ready',st:2.4,ot:false,in:{},aim:null,mouse:null,joy:{x:0,y:0},aimJoy:{x:0,y:0,on:false},camP:new THREE.Vector3(0,22,18),camL:new THREE.Vector3(0,0,2),shotGeo:new THREE.SphereGeometry(0.16,8,6),shotM:[new THREE.MeshBasicMaterial({color:0x5ad8ff}),new THREE.MeshBasicMaterial({color:0xff5a7a})],aimLine:null};
   const al=new THREE.Mesh(new THREE.PlaneGeometry(0.5,1),new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:0.45,depthWrite:false}));al.rotation.x=-Math.PI/2;al.visible=false;sc.add(al);BB.aimLine=al;
   bbBig('READY?',1.6);
@@ -3386,11 +3403,11 @@ function bbBig(t,d){const el=$('bbBig');if(!el)return;el.textContent=t;BB.bigT=d
 function bbAutoAim(q){const B=BB.ball;if(B.carrier===q){const gz=q.team===0?-BBL/2-1:BBL/2+1;return Math.atan2(clamp(q.x*0.3,-2,2)-q.x,gz-q.z);}let best=null,bd=1e9;for(const o of BB.P){if(o.team===q.team||o.dead)continue;const d=Math.hypot(o.x-q.x,o.z-q.z);if(d<bd){bd=d;best=o;}}
   if(best&&bd<9)return Math.atan2(best.x+(best.vx||0)*0.2-q.x,best.z+(best.vz||0)*0.2-q.z);return q.face;}
 function bbFire(q,ang){if(!BB||BB.state!=='play'||q.dead)return;if(ang===null)ang=bbAutoAim(q);const B=BB.ball;q.face=ang;
-  if(B.carrier===q){B.carrier=null;B.kickT=0.35;B.last=q;const sp=q.me?17:15;B.vx=Math.sin(ang)*sp;B.vz=Math.cos(ang)*sp;B.vy=2.2;B.x=q.x+Math.sin(ang)*0.8;B.z=q.z+Math.cos(ang)*0.8;sfx('throw');q.p.throwT=0.3;return;}
-  if(q.ammo<1||q.cd>0)return;q.ammo-=1;q.cd=0.38;q.p.throwT=0.3;for(const da of[-0.14,0,0.14])BB.shots.push({x:q.x+Math.sin(ang)*0.6,z:q.z+Math.cos(ang)*0.6,vx:Math.sin(ang+da)*16,vz:Math.cos(ang+da)*16,life:0.5,team:q.team,owner:q,dmg:12,m:null});if(q.me)fpsBeep(700,0.05,'square',0.03);}
+  if(B.carrier===q){B.carrier=null;B.kickT=0.35;B.last=q;const sp=(q.me?17:15)*q.ch.kick;B.vx=Math.sin(ang)*sp;B.vz=Math.cos(ang)*sp;B.vy=2.2;B.x=q.x+Math.sin(ang)*0.8;B.z=q.z+Math.cos(ang)*0.8;sfx('throw');q.p.throwT=0.3;return;}
+  if(q.ammo<1||q.cd>0)return;q.ammo-=1;q.cd=0.38;q.p.throwT=0.3;const C=q.ch;for(const da of C.shots)BB.shots.push({x:q.x+Math.sin(ang)*0.6,z:q.z+Math.cos(ang)*0.6,vx:Math.sin(ang+da)*C.ss,vz:Math.cos(ang+da)*C.ss,life:C.life,team:q.team,owner:q,dmg:C.dmg,m:null});if(q.me)fpsBeep(700,0.05,'square',0.03);}
 function bbSuper(q,ang){if(!BB||BB.state!=='play'||q.dead||q.sup<1)return;q.sup=0;if(ang===null)ang=bbAutoAim(q);q.face=ang;const B=BB.ball;if(B.carrier===q)B.carrier=null;
   BB.shots.push({x:q.x+Math.sin(ang)*0.6,z:q.z+Math.cos(ang)*0.6,vx:Math.sin(ang)*14,vz:Math.cos(ang)*14,life:0.9,team:q.team,owner:q,dmg:40,big:true,hit:new Set(),m:null});sfx('power');if(q.me)bbBig('大絕招！',0.6);}
-function bbHurt(o,dmg,by){if(o.dead)return;o.hp-=dmg;o.hitT=3;if(by&&!by.me)by.sup=Math.min(1,by.sup+0.12);else if(by)by.sup=Math.min(1,by.sup+0.2);
+function bbHurt(o,dmg,by){if(o.dead)return;o.hp-=dmg/o.ch.tough;o.hitT=3;if(by&&!by.me)by.sup=Math.min(1,by.sup+0.12);else if(by)by.sup=Math.min(1,by.sup+0.2);
   if(o.hp<=0){o.dead=3;o.hp=0;o.g.visible=false;if(BB.ball.carrier===o){BB.ball.carrier=null;BB.ball.vx=BB.ball.vz=0;}if(by){by.hits++;}BB.fx.push({t:0,x:o.x,z:o.z,txt:'💫'});if(o.me)bbBig('倒下了…',1.2);}}
 function bbResetKick(){const B=BB.ball;Object.assign(B,{x:0,z:0,vx:0,vz:0,y:0.32,vy:0,carrier:null,kickT:0});for(const q of BB.P){q.x=q.sx;q.z=q.sz;q.hp=100;q.dead=0;q.g.visible=true;q.ammo=3;q.path=null;q.face=q.team===0?Math.PI:0;}BB.shots.forEach(s=>s.m&&BB.sc.remove(s.m));BB.shots=[];}
 function bbPath(q,tx,tz){const W=BBW,L=BBL+4,ox=W/2,oz=L/2,cell=(x,z)=>[Math.floor(x+ox),Math.floor(z+oz)],ok=(cx,cz)=>cx>=0&&cz>=0&&cx<W&&cz<L&&!bbBlocked(cx-ox+0.5,cz-oz+0.5,0.35);
@@ -3406,7 +3423,7 @@ function bbFrame(dt){const D=BB;if(!D)return;dt=Math.min(dt,0.04);const B=D.ball
   // people
   for(const q of D.P){if(q.dead){q.dead-=dt;if(q.dead<=0){q.dead=0;q.hp=100;q.x=q.sx;q.z=q.sz;q.g.visible=true;q.ammo=3;}continue;}
     q.cd-=dt;q.rl+=dt;if(q.ammo<3&&q.rl>1.1){q.ammo++;q.rl=0;}if(q.ammo>=3)q.rl=0;if(q.hitT>0)q.hitT-=dt;else q.hp=Math.min(100,q.hp+dt*8);
-    let mx=0,mz=0;const sp=q.me?5:4.6;
+    let mx=0,mz=0;const sp=(q.me?5:4.6)*0.9*q.ch.spd;
     if(q.me){const f=new THREE.Vector3();D.cam.getWorldDirection(f);f.y=0;f.normalize();const r=new THREE.Vector3(-f.z,0,f.x);let jx=(D.in.R?1:0)-(D.in.L?1:0)+D.joy.x,jy=(D.in.D?1:0)-(D.in.U?1:0)-D.joy.y;mx=r.x*jx-f.x*jy;mz=r.z*jx-f.z*jy;const l=Math.hypot(mx,mz);if(l>1){mx/=l;mz/=l;}
       if(D.mouse&&!isTouch)q.face=Math.atan2(D.mouse.x-q.x,D.mouse.z-q.z);else if(D.aimJoy.on&&Math.hypot(D.aimJoy.x,D.aimJoy.y)>0.25)q.face=bbScreenAngle(D.aimJoy.x,D.aimJoy.y);else if(l>0.1)q.face=Math.atan2(mx,mz);}
     else if(play){q.pt-=dt;const myGoalZ=q.team===0?BBL/2:-BBL/2,theirGoalZ=-myGoalZ;let tx,tz,urgent=false;
@@ -3418,7 +3435,7 @@ function bbFrame(dt){const D=BB;if(!D)return;dt=Math.min(dt,0.04);const B=D.ball
       if(!q.path||q.pt<=0||urgent&&q.pt<0.2){q.path=bbPath(q,clamp(tx,-BBW/2+0.6,BBW/2-0.6),clamp(tz,-BBL/2-1,BBL/2+1));q.pt=0.45;}
       if(q.path&&q.path.length){const [px,pz]=q.path[0];const dx=px-q.x,dz=pz-q.z,d=Math.hypot(dx,dz);if(d<0.35)q.path.shift();else{mx=dx/d;mz=dz/d;}}
       // shooting
-      if(B.carrier!==q&&q.ammo>=1&&q.cd<=0){let best=null,bd=1e9;for(const f of foes){const d=Math.hypot(f.x-q.x,f.z-q.z);if(d<7.5&&d<bd&&bbLOS(q,f)&&!(bbInBush(f.x,f.z)&&d>2.6)){bd=d;best=f;}}if(best&&Math.random()<0.06+(B.carrier===best?0.1:0)){const lead=bd/16;bbFire(q,Math.atan2(best.x+(best.vx||0)*lead-q.x,best.z+(best.vz||0)*lead-q.z)+rand(-0.12,0.12));}}
+      if(B.carrier!==q&&q.ammo>=1&&q.cd<=0){let best=null,bd=1e9;for(const f of foes){const d=Math.hypot(f.x-q.x,f.z-q.z);if(d<Math.max(4,q.ch.ss*q.ch.life)&&d<bd&&bbLOS(q,f)&&!(bbInBush(f.x,f.z)&&d>2.6)){bd=d;best=f;}}if(best&&Math.random()<0.06+(B.carrier===best?0.1:0)){const lead=bd/16;bbFire(q,Math.atan2(best.x+(best.vx||0)*lead-q.x,best.z+(best.vz||0)*lead-q.z)+rand(-0.12,0.12));}}
       if(q.sup>=1&&foes.some(f=>Math.hypot(f.x-q.x,f.z-q.z)<6))bbSuper(q,null);
       if(Math.hypot(mx,mz)>0.1&&B.carrier!==q)q.face=Math.atan2(mx,mz);else if(B.carrier===q)q.face=Math.atan2(mx||0.001,mz);}
     if(!play){mx=mz=0;}
@@ -3451,8 +3468,8 @@ function bbFrame(dt){const D=BB;if(!D)return;dt=Math.min(dt,0.04);const B=D.ball
   // aim line for the player
   const al=D.aimLine;if(!me.dead&&(D.aimJoy.on||(!isTouch&&D.mouse))){al.visible=true;const len=B.carrier===me?7:7.5;al.scale.set(1,len,1);al.position.set(me.x+Math.sin(me.face)*len/2,0.05,me.z+Math.cos(me.face)*len/2);al.rotation.set(-Math.PI/2,0,me.face+Math.PI);al.material.color.set(B.carrier===me?0xffe36a:0xffffff);}else al.visible=false;
   // tags: name + hp + ammo
-  const r=$('bbCv').getBoundingClientRect();for(const q of D.P){if(q.dead||q.hidden){q.tag.style.display='none';continue;}q.tag.style.display='block';const v=new THREE.Vector3(q.x,q.p.top*1.3+0.6,q.z).project(D.cam);q.tag.style.left=((v.x+1)/2*r.width)+'px';q.tag.style.top=((1-v.y)/2*r.height)+'px';
-    const col=q.me?'#5aff8a':q.team===0?'#5ab0ff':'#ff6a7a',key=q.hp+'|'+q.ammo+'|'+(B.carrier===q);if(q.tagKey!==key){q.tagKey=key;q.tag.innerHTML=`<div style="color:${col}">${q.name}${B.carrier===q?' ⚽':''}</div><div style="font:900 12px 'Noto Sans TC',sans-serif;color:#fff">${Math.round(q.hp*20)}</div><div style="width:70px;height:10px;margin:1px auto 0;border-radius:5px;background:rgba(0,0,0,.6);border:2px solid rgba(0,0,0,.6);overflow:hidden"><div style="width:${q.hp}%;height:100%;background:linear-gradient(${col},${col}cc)"></div></div>${q.me?`<div style="display:flex;gap:2px;justify-content:center;margin-top:2px">${[0,1,2].map(k=>`<div style="width:22px;height:7px;border-radius:2px;border:1px solid rgba(0,0,0,.6);background:${k<q.ammo?'#ff8a1a':'rgba(0,0,0,.45)'}"></div>`).join('')}</div>`:''}`;}}
+  const r=$('bbCv').getBoundingClientRect();for(const q of D.P){if(q.dead||q.hidden){q.tag.style.display='none';continue;}q.tag.style.display='block';const v=new THREE.Vector3(q.x,q.p.top*q.p.root.scale.y+0.6,q.z).project(D.cam);q.tag.style.left=((v.x+1)/2*r.width)+'px';q.tag.style.top=((1-v.y)/2*r.height)+'px';
+    const col=q.me?'#5aff8a':q.team===0?'#5ab0ff':'#ff6a7a',key=q.hp+'|'+q.ammo+'|'+(B.carrier===q);if(q.tagKey!==key){q.tagKey=key;q.tag.innerHTML=`<div style="color:${col}">${q.name}${B.carrier===q?' ⚽':''}</div><div style="font:900 12px 'Noto Sans TC',sans-serif;color:#fff">${Math.round(q.hp*20*q.ch.tough)}</div><div style="width:70px;height:10px;margin:1px auto 0;border-radius:5px;background:rgba(0,0,0,.6);border:2px solid rgba(0,0,0,.6);overflow:hidden"><div style="width:${q.hp}%;height:100%;background:linear-gradient(${col},${col}cc)"></div></div>${q.me?`<div style="display:flex;gap:2px;justify-content:center;margin-top:2px">${[0,1,2].map(k=>`<div style="width:22px;height:7px;border-radius:2px;border:1px solid rgba(0,0,0,.6);background:${k<q.ammo?'#ff8a1a':'rgba(0,0,0,.45)'}"></div>`).join('')}</div>`:''}`;}}
   const m=Math.max(0,Math.ceil(D.t));$('bbTime').textContent=(D.ot?'OT ':'')+Math.floor(m/60)+':'+String(m%60).padStart(2,'0');const sb=$('bbSuper');sb.style.opacity=me.sup>=1?1:0.35;sb.style.boxShadow=me.sup>=1?'0 0 0 4px #ffd23a,0 0 18px #ffd23a':'none';
   for(const o of D.sc.children)if(o.userData&&o.userData.ph!==undefined)o.position.y=o.userData.by+(D.state==='goal'?Math.abs(Math.sin(performance.now()/90+o.userData.ph))*0.25:0);
   D.R.render(D.sc,D.cam);}
@@ -3462,7 +3479,7 @@ function bbEnd(){const D=BB;if(!D||D.state==='end')return;D.state='end';const [a
     <div style="font:900 40px 'Press Start 2P',monospace"><span style="color:#5ab0ff">${a}</span> - <span style="color:#ff6a7a">${b}</span></div>
     <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center">${D.P.filter(q=>q.team===0).map(q=>`<div style="padding:8px 14px;border-radius:14px;background:rgba(255,255,255,.92);color:#1a3a6a;${q===mvp?'box-shadow:0 0 0 4px #ffd23a':''}"><div style="font:900 15px 'Noto Sans TC',sans-serif">${q===mvp?'👑 ':''}${q.name}</div><div style="font:700 12px 'Noto Sans TC',sans-serif">進球 ${q.goals}・擊倒 ${q.hits}</div></div>`).join('')}</div>
     <div class="mrow"><button class="gbtn" id="bbAgain">再踢一場</button><button class="gbtn ghost" id="bbOut">離開</button></div>`;
-  $('bbAgain').onclick=()=>{closeMini();startBallBrawl();};$('bbOut').onclick=closeMini;if(win)reward(BB_WON?{log:2}:{gem:2,iron:2},'足球大亂鬥獲勝！');if(win)BB_WON=true;}
+  $('bbAgain').onclick=()=>{closeMini();startBallBrawl(BB_LAST);};const bbSw=document.createElement('button');bbSw.className='gbtn alt';bbSw.textContent='換角色';bbSw.onclick=()=>{closeMini();bbSelect();};$('bbAgain').after(bbSw);$('bbOut').onclick=closeMini;if(win)reward(BB_WON?{log:2}:{gem:2,iron:2},'足球大亂鬥獲勝！');if(win)BB_WON=true;}
 let BB_WON=false;
 
 // ---- marimba rhythm game (concert stage style) ----
