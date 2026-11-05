@@ -3695,7 +3695,7 @@ let KR=null;
 const KITEMS=[{k:'ball',n:'躲避球飛彈',ic:'🔴',art:'i_ball'},{k:'banana',n:'香蕉皮',ic:'🍌',art:'i_banana'},{k:'boost',n:'火箭加速',ic:'🚀',art:'i_rocket'},{k:'shield',n:'泡泡護盾',ic:'🫧',art:'i_shield'},{k:'bomb',n:'考卷炸彈',ic:'💣',art:'i_bomb'},{k:'triple',n:'三連躲避球',ic:'🔴',art:'i_ball',x3:true}];
 const kIcon=it=>{if(!it)return '';const a=ART[it.art];if(!a)return it.ic;const im=`<img src="${a}" style="width:64px;height:64px;object-fit:contain">`;return it.x3?`<div style="position:relative;width:70px;height:64px">${[0,1,2].map(k=>`<img src="${a}" style="position:absolute;width:40px;left:${k*15}px;top:${k%2*14+4}px">`).join('')}</div>`:im;};
 const KEXITS=['大里交流道','太平交流道','東山路','北屯交流道','西屯','台中港路','南屯','烏日','五權南路','大里'];
-const KCAST=[['你',null,'電動休旅・珍珠白'],['嘉亨',0x2e8b3e,'不鏽鋼皮卡・銀'],['昀蔚',0xf08a24,'流線轎跑・紅'],['佑俊',0x2f6fd0,'流線轎跑・黑'],['搗蛋鬼',0x4b2a6b,'電動休旅・藍'],['大元蛙',0x6cc24a,'流線轎跑・綠']];
+const KCAST=[['你',null,'電動休旅・珍珠白'],['嘉亨',0x2e8b3e,'不鏽鋼皮卡・銀'],['昀蔚',0xf08a24,'流線轎跑・紅'],['佑俊',0x2f6fd0,'流線轎跑・黑'],['搗蛋鬼',0x4b2a6b,'電動休旅・紫'],['大元蛙',0x6cc24a,'流線轎跑・綠']];
 let KR_PICK=0;
 const kArt=n=>n==='你'?ART[SET.gender==='girl'?'girl':'boy']:artFor(n);
 function kartSelect(){openMini(`<div style="position:fixed;inset:0;z-index:25;overflow:auto;background:#0c1a4a ${ART.k_cover?`url(${ART.k_cover}) center/cover`:''};font-family:'Noto Sans TC',sans-serif;color:#fff">
@@ -3773,9 +3773,9 @@ function startKart(kpick){if(kpick===undefined)return kartSelect();
   const CAST=[KCAST[kpick],...KCAST.filter((c,i)=>i!==kpick)];
   function mkKart(i){const [name,col]=CAST[i],me=i===0,g=new THREE.Group(),body=new THREE.Group();g.add(body);
     // body style per racer: crossover (Y-like), fastback sedan (3-like), angular stainless pickup
-    const STY={'你':['suv',0xf4f4f6],'嘉亨':['truck',0xb8bcc2],'昀蔚':['sedan',0xd8202a],'佑俊':['sedan',0x1a1c22],'搗蛋鬼':['suv',0x2a62d8],'大元蛙':['sedan',0x3ab84a]}[name],type=STY[0],c=STY[1];
+    const STY={'你':['suv',0xf4f4f6],'嘉亨':['truck',0xb8bcc2],'昀蔚':['sedan',0xd8202a],'佑俊':['sedan',0x1a1c22],'搗蛋鬼':['suv',0x7a34c8],'大元蛙':['sedan',0x3ab84a]}[name],type=STY[0],c=STY[1];
     const paint=type==='truck'?new THREE.MeshPhongMaterial({color:c,shininess:140,specular:0xffffff,flatShading:true}):new THREE.MeshPhongMaterial({color:c,shininess:110,specular:0xaaaaaa}),
-      glass=new THREE.MeshPhongMaterial({color:0x1a2836,shininess:160,specular:0xffffff,transparent:true,opacity:0.62}),dark=toonM(0x1c1c22),trim=new THREE.MeshPhongMaterial({color:0x111114,shininess:60});
+      glass=new THREE.MeshPhongMaterial({color:0x22324a,shininess:160,specular:0xffffff}),dark=toonM(0x1c1c22),trim=new THREE.MeshPhongMaterial({color:0x111114,shininess:60});
     const W=2.0,ext=(pts,depth,mat,bev,x0,y0)=>{const sh=new THREE.Shape();sh.moveTo(pts[0][0],pts[0][1]);for(let k=1;k<pts.length;k++){const q=pts[k];if(q.length===4)sh.quadraticCurveTo(q[0],q[1],q[2],q[3]);else sh.lineTo(q[0],q[1]);}
       const geo=new THREE.ExtrudeGeometry(sh,{depth,bevelEnabled:bev>0,bevelSize:bev,bevelThickness:bev,bevelSegments:3,curveSegments:10});const m=new THREE.Mesh(geo,mat);m.rotation.y=-Math.PI/2;m.position.set(depth/2+(x0||0),y0||0,0);body.add(m);return m;};
     let roofY;
@@ -3797,8 +3797,27 @@ function startKart(kpick){if(kpick===undefined)return kartSelect();
       const disc=new THREE.Mesh(new THREE.CylinderGeometry(r*0.72,r*0.72,0.38,18),new THREE.MeshPhongMaterial({color:0x3a3c42,shininess:80}));w.add(disc);for(let k=0;k<5;k++){const sp=box(0.06,0.4,r*1.25,trim);sp.rotation.y=k*Math.PI/5;sp.position.y=0;w.add(sp);}
       body.add(w);wheels.push(w);}
     // driver behind the glass
-    let drv;if(name==='大元蛙')drv=makeFrog();else if(name==='你')drv=makePerson(playerOpts(SET.gender));else if(name==='搗蛋鬼'){drv=makePerson({shirt:0x7a34b8,sleeve:0x7a34b8,pants:0x2a1a3a,hair:0x2a1a12});for(const sx of[-1,1]){const hn=new THREE.Mesh(new THREE.ConeGeometry(0.07,0.2,8),toonM(0xff3a3a));hn.position.set(sx*0.12,0.3,0);hn.rotation.z=-sx*0.3;drv.head.add(hn);}}else drv=makePerson(dbOpts(name));
-    drv.root.scale.setScalar(name==='大元蛙'?0.5:0.72);drv.root.position.set(-0.42,0.3,0.1);body.add(drv.root);if(drv.legL){drv.legL.rotation.x=drv.legR.rotation.x=-1.45;drv.armL.rotation.set(-1.15,0,0.2);drv.armR.rotation.set(-1.15,0,-0.2);}
+    // cartoon car face (eyes on the windshield, smiling grille) + per-racer trim, styled after the ChatGPT cover art
+    {const WS={sedan:[0.95,0.8,0.15,1.3,2.16,0.48],suv:[0.9,0.88,0.25,1.48,2.2,0.5],truck:[1.1,1.26,0.05,1.66,2.24,0.56]}[type],[z0,y0,z1,y1,fz,my]=WS,tilt=-Math.atan2(z0-z1,y1-y0);
+      const wM=toonM(0xffffff),kM=toonM(0x1a1a22),irisC=name==='搗蛋鬼'?0xffc21a:name==='大元蛙'?0x2a1a10:0x3a7ad8;
+      const eye=(x,y,z,sc,rt,angry)=>{const g2=new THREE.Group();g2.position.set(x,y,z);g2.rotation.x=rt;const w=new THREE.Mesh(new THREE.SphereGeometry(1,16,12),wM);w.scale.set(0.27*sc,0.22*sc,0.08*sc);g2.add(w);
+        const ir=new THREE.Mesh(new THREE.SphereGeometry(1,14,10),toonM(irisC));ir.scale.set(0.14*sc,0.16*sc,0.05*sc);ir.position.set(-Math.sign(x)*0.03*sc,-0.02*sc,0.05*sc);g2.add(ir);
+        const pu=new THREE.Mesh(new THREE.SphereGeometry(1,12,8),kM);pu.scale.set(0.08*sc,0.1*sc,0.04*sc);pu.position.set(ir.position.x,ir.position.y,0.08*sc);g2.add(pu);
+        const hl=new THREE.Mesh(new THREE.SphereGeometry(1,8,6),wM);hl.scale.setScalar(0.035*sc);hl.position.set(ir.position.x+0.04*sc,0.05*sc,0.11*sc);g2.add(hl);
+        if(angry){const br=box(0.34*sc,0.06*sc,0.04,kM);br.position.set(0,0.22*sc,0.04);br.rotation.z=Math.sign(x)*0.45;g2.add(br);}body.add(g2);return g2;};
+      if(name!=='大元蛙'){const t=0.42,ey=y0+(y1-y0)*t+0.04,ez=z0+(z1-z0)*t+0.04;for(const sx of[-1,1])eye(sx*0.36,ey,ez,1,tilt,name==='搗蛋鬼');}
+      else{for(const sx of[-1,1]){const bump=sph(0.3,paint,14,10);bump.position.set(sx*0.48,roofY+0.05,0.55);body.add(bump);eye(sx*0.48,roofY+0.12,0.8,1.15,-0.25,false);const ck=new THREE.Mesh(new THREE.SphereGeometry(1,10,8),toonM(0xff8aa8));ck.scale.set(0.16,0.08,0.03);ck.position.set(sx*0.7,0.62,2.04);body.add(ck);}}
+      const mouth=new THREE.Mesh(new THREE.TorusGeometry(0.3,0.05,8,18,Math.PI),kM);mouth.rotation.z=Math.PI;mouth.position.set(0,my,fz);body.add(mouth);
+      const teeth=name==='搗蛋鬼'?[-0.14,0.14]:[];for(const tx of teeth){const f=new THREE.Mesh(new THREE.ConeGeometry(0.06,0.14,6),wM);f.rotation.x=Math.PI;f.position.set(tx,my-0.06,fz+0.02);body.add(f);}
+      const roofZ=type==='truck'?0.05:-0.2;
+      if(name==='你'){if(SET.gender==='girl'){const hm=toonM(0xd6282b);const hb=new THREE.Mesh(new THREE.CylinderGeometry(0.42,0.5,0.32,18),hm);hb.position.set(0,roofY+0.18,roofZ);body.add(hb);const br=new THREE.Mesh(new THREE.CylinderGeometry(0.78,0.78,0.05,22),hm);br.position.set(0,roofY+0.04,roofZ);body.add(br);}
+        else{const cap=new THREE.Mesh(new THREE.SphereGeometry(0.5,16,10,0,Math.PI*2,0,Math.PI/2),toonM(0xe8e8e8));cap.position.set(0,roofY,roofZ);body.add(cap);const bill=box(0.7,0.05,0.5,toonM(0xd0d0d0));bill.position.set(0,roofY+0.02,roofZ+0.6);body.add(bill);}}
+      else if(name==='嘉亨'){const lb=box(1.5,0.16,0.3,dark);lb.position.set(0,roofY+0.1,0.3);body.add(lb);for(let k=0;k<5;k++){const l=new THREE.Mesh(new THREE.CylinderGeometry(0.09,0.09,0.06,10),new THREE.MeshBasicMaterial({color:0xfff2a0}));l.rotation.x=Math.PI/2;l.position.set(-0.6+k*0.3,roofY+0.1,0.47);body.add(l);}}
+      else if(name==='昀蔚'){const wg=box(1.9,0.08,0.45,paint);wg.position.set(0,1.28,-1.85);body.add(wg);for(const sx of[-0.6,0.6]){const st=box(0.08,0.4,0.1,dark);st.position.set(sx,1.05,-1.8);body.add(st);}}
+      else if(name==='佑俊'){const ant=new THREE.Mesh(new THREE.CylinderGeometry(0.02,0.02,1.1,6),dark);ant.position.set(0.7,roofY+0.4,-1.0);body.add(ant);const [fc,fg]=cv(96,64);fg.fillStyle='#fff';fg.fillRect(0,0,96,64);fg.fillStyle='#cd2e3a';fg.beginPath();fg.arc(48,32,14,Math.PI,0);fg.fill();fg.fillStyle='#0047a0';fg.beginPath();fg.arc(48,32,14,0,Math.PI);fg.fill();fg.fillStyle='#111';for(const [x,y] of[[14,12],[82,12],[14,52],[82,52]])fg.fillRect(x-6,y-3,12,6);
+        const fl=new THREE.Mesh(new THREE.PlaneGeometry(0.6,0.4),new THREE.MeshBasicMaterial({map:tex(fc),side:THREE.DoubleSide}));fl.position.set(0.7,roofY+0.75,-1.3);fl.rotation.y=Math.PI/2;body.add(fl);}
+      else if(name==='搗蛋鬼'){const hM=toonM(0xff2a2a);for(const sx of[-1,1]){const hn=new THREE.Mesh(new THREE.ConeGeometry(0.16,0.55,10),hM);hn.position.set(sx*0.55,roofY+0.2,0.1);hn.rotation.set(0.2,0,-sx*0.35);body.add(hn);
+          const wsh=new THREE.Shape();wsh.moveTo(0,0);wsh.lineTo(1.1,0.5);wsh.lineTo(0.85,0.1);wsh.lineTo(0.7,0.3);wsh.lineTo(0.5,0.0);wsh.lineTo(0.3,0.2);wsh.lineTo(0,0);const wing=new THREE.Mesh(new THREE.ShapeGeometry(wsh),new THREE.MeshLambertMaterial({color:0x2a1a3a,side:THREE.DoubleSide}));wing.scale.set(sx,1,1);wing.position.set(sx*(W/2-0.05),0.95,-0.6);wing.rotation.y=sx>0?-0.2:0.2;body.add(wing);}}}
     const lbl=makeLabel(name,me?'rgba(255,210,58,.95)':'rgba(0,0,0,.55)',me?'#222':'#fff');lbl.position.y=roofY+1.5;lbl.scale.set(2.4,0.6,1);g.add(lbl);
     const shell=new THREE.Mesh(new THREE.SphereGeometry(2.7,16,12),new THREE.MeshPhongMaterial({color:0x7ad8ff,transparent:true,opacity:0.3,shininess:120,emissive:0x2a8ac8,emissiveIntensity:0.3}));shell.position.y=1;shell.visible=false;g.add(shell);
     g.traverse(o=>{if(o.isMesh)o.castShadow=true;});sc.add(g);
