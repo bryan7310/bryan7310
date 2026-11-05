@@ -646,7 +646,13 @@ for(const b of BUILDINGS){
     const [hx,hz]=B.toW(-L/2+1.2,0),[tx,tz]=B.toW(0,0);hoopAt(hx,hz,tx,tz);
     addChest(B,L/2-3,0,1.0,{gem:2,iron:3});
     ROOMS.push({special:{label:'新元館躲避球',type:'dodge'},y:0,xa:-L/2+1,xb:L/2-6.5,B,cs:1,cw0:W/2-1.2});
-  } else if(b.redRoof){H=6.6;buildHall(b,B,H,wallMat,4,3.3,3,2.8,woodFloor);
+  } else if(b.redRoof){H=6.6;
+    // open passage: pillars + roof slab + paved floor, open on all sides
+    const pm=lam(0xeba792),bm=lam(0xefe3c9);
+    for(const px of[-L/2+0.4,-L/4,0,L/4,L/2-0.4])for(const pz of[-W/2+0.4,W/2-0.4]){B.add(px-0.35,px+0.35,0,H-0.3,pz-0.35,pz+0.35,pm);B.add(px-0.42,px+0.42,0,0.4,pz-0.42,pz+0.42,bm,{solid:false});}
+    B.add(-L/2,L/2,H-0.4,H,-W/2,W/2,slabMat);B.add(-L/2,L/2,H-0.9,H-0.4,-W/2,-W/2+0.3,bm,{solid:false});B.add(-L/2,L/2,H-0.9,H-0.4,W/2-0.3,W/2,bm,{solid:false});
+    B.add(-L/2+0.2,L/2-0.2,0,0.04,-W/2+0.2,W/2-0.2,lam(0xc9bfae),{solid:false});
+    for(const tx of[-L/3,0,L/3]){B.add(tx-1.2,tx+1.2,0,0.45,-0.3,0.3,lam(0x8b5a2b));}
     const n=5,sw=L/n,hR=2.8,rm=lam(0xa9473a,{flatShading:true});
     for(let i=0;i<n;i++){const sh=new THREE.Shape();sh.moveTo(-sw/2-0.1,0);sh.lineTo(sw/2+0.1,0);sh.lineTo(0,hR);sh.lineTo(-sw/2-0.1,0);
       const gg=new THREE.ExtrudeGeometry(sh,{depth:W+0.8,bevelEnabled:false});gg.translate(0,0,-(W+0.8)/2);
@@ -654,11 +660,8 @@ for(const b of BUILDINGS){
     const fr=Math.min(W/2-0.5,H-0.4);const fg=new THREE.CylinderGeometry(fr,fr,0.6,28,1,false,0,Math.PI);fg.rotateZ(Math.PI/2);
     const fan=new THREE.Mesh(fg,lam(0xa29d95));fan.position.set(L/2+0.3,0.05,0);fan.castShadow=true;grp.add(fan);
     for(let k=1;k<4;k++){const rg=new THREE.TorusGeometry(fr*k/4,0.06,4,24,Math.PI);rg.rotateY(Math.PI/2);const rr=new THREE.Mesh(rg,lam(0x7d786f));rr.position.set(L/2+0.62,0.05,0);grp.add(rr);}
-    const shelf=new THREE.MeshLambertMaterial({map:shelfTex});
-    B.add(-L/2+0.4,L/2-0.4,0,2.6,W/2-1.0,W/2-0.36,shelf,{tex:true,ux:2,uy:2.6});B.add(-L/2+0.36,-L/2+1.0,0,2.6,-W/2+1,W/2-1,shelf,{tex:true,ux:2,uy:2.6});
-    for(const tx of[-L/4,L/4])B.add(tx-1.6,tx+1.6,0,0.8,-1.2,1.2,deskMat);
-    const sg=signPlane('圖書館',3,0.8,'#1f5e34','#fff');sg.position.set(0,3.4,-W/2-0.06);sg.rotation.y=Math.PI;grp.add(sg);
-    addChest(B,L/2-1.2,W/2-2,0,{iron:2,plank:6,log:2});
+    for(const sd of[-1,1]){const sg=signPlane('穿堂',2.4,0.7,'#1f5e34','#fff');sg.position.set(0,H-0.65,sd*(W/2+0.02));if(sd<0)sg.rotation.y=Math.PI;grp.add(sg);}
+    addChest(B,L/2-1.6,W/2-1.6,0,{iron:2,plank:6,log:2});
   } else if(b.enter){H=buildClass(grp,b,B);}
   else {
     H=b.floors*3.3;let pass=null;
