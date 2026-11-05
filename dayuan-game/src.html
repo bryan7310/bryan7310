@@ -2434,7 +2434,7 @@ const ROUNDS=[{t:30,goal:16,move:0},{t:30,goal:40,move:0.28},{t:30,goal:70,move:
 function arP(x,y,z){const d=z-AR.cam.z;return [AR.cx+(x-AR.cam.x)*AR.f/d,AR.cy-(y-AR.cam.y)*AR.f/d,AR.f/d];}
 function arShoot(aim,pw){const H=HS;if(!H||H.state!=='play'||H.supply<=0||H.cd>0)return;H.supply--;H.cd=0.22;H.shots++;
   const x0=0,y0=1.1,z0=0.25,dx=H.hx-x0,dz=AR.rimZ+0.05-z0,d=Math.hypot(dx,dz),h=AR.rimY-y0,c=Math.cos(AR.ang),t=Math.tan(AR.ang);
-  const vStar=Math.sqrt(AR.g*d*d/(2*c*c*(d*t-h))),v=vStar*(0.72+pw*0.37),head=Math.atan2(dx,dz)+aim;
+  const vStar=Math.sqrt(AR.g*d*d/(2*c*c*(d*t-h))),v=vStar*(0.72+pw*0.37),head=Math.atan2(dx,dz)-aim;
   H.balls.push({x:x0,y:y0,z:z0,vx:Math.sin(head)*v*c,vy:v*Math.sin(AR.ang),vz:Math.cos(head)*v*c,touched:false,scored:false,py:y0,rolling:false,spin:0});sfx('throw');}
 function hoopsFrame(dt){const H=HS;if(!H)return;dt=Math.min(dt,0.033);H.lights+=dt;H.cd-=dt;H.flash=Math.max(0,H.flash-dt);H.netT=Math.max(0,H.netT-dt);
   if(H.left)H.aim=Math.max(-0.3,H.aim-dt*0.5);if(H.right)H.aim=Math.min(0.3,H.aim+dt*0.5);if(H.charging)H.pow=Math.min(1,H.pow+dt/1.1);
@@ -2464,7 +2464,8 @@ function startHoops(){
     <div id="hpBig" style="position:absolute;left:50%;top:42%;transform:translate(-50%,-50%);font:900 clamp(34px,7vw,70px) 'Noto Sans TC',sans-serif;font-style:italic;color:#fff;white-space:nowrap;pointer-events:none;text-shadow:0 5px 0 #7a2ad0,0 0 24px rgba(255,80,200,.7);text-align:center;line-height:1.15"></div>
     <div id="hpPops" style="position:absolute;inset:0;pointer-events:none"></div>
     <div id="hpPow" style="position:absolute;left:50%;bottom:22px;transform:translateX(-50%);width:220px;height:14px;border-radius:9px;background:rgba(0,0,0,.45);border:2px solid #fff;display:none;overflow:hidden"><div style="height:100%;width:0;background:linear-gradient(90deg,#ffd23a,#ff5a2a)"></div></div>
-    <div id="hpHint" style="position:absolute;left:50%;bottom:20px;transform:translateX(-50%);padding:6px 16px;border-radius:999px;background:rgba(0,0,0,.5);font:700 13px 'Noto Sans TC',sans-serif;color:#fff;white-space:nowrap;pointer-events:none">按住籃球往上滑動投籃（滑越長越大力、往左右滑調方向）・鍵盤：←→ 瞄準、按住空白鍵蓄力放開投</div>
+    <div id="hpHint" style="position:absolute;left:50%;${isTouch?'bottom:170px':'bottom:20px'};transform:translateX(-50%);padding:6px 16px;border-radius:999px;background:rgba(0,0,0,.5);font:700 13px 'Noto Sans TC',sans-serif;color:#fff;white-space:nowrap;pointer-events:none">${isTouch?'左手搖桿調方向・右手往前撥投籃（撥越長越大力）':'按住滑鼠往上撥投籃（越長越大力）・←→ 瞄準・按住空白鍵蓄力放開投'}</div>
+    <div class="dpad" id="hpPad" style="position:absolute;left:0;right:0;bottom:24px;padding:0 18px;pointer-events:none"><div class="vstick"><div class="vknob"></div></div><div style="pointer-events:none;align-self:center;padding:8px 14px;border-radius:14px;background:rgba(0,0,0,.4);color:#fff;font:800 14px 'Noto Sans TC',sans-serif;text-align:center">右手<br>往前撥 ↑ 投籃</div></div>
     <div id="hpEnd" style="position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;gap:12px;background:radial-gradient(circle,rgba(60,20,90,.75),rgba(5,3,12,.92));color:#fff;text-align:center;padding:16px"></div>
   </div>`);
   const cvs=$('hoopCv'),wrap=$('hpWrap'),R=new THREE.WebGLRenderer({canvas:cvs,antialias:true});R.setPixelRatio(Math.min(devicePixelRatio,SET.quality==='low'?1:1.5));R.shadowMap.enabled=SET.quality!=='low';R.shadowMap.type=THREE.PCFSoftShadowMap;
@@ -2519,11 +2520,12 @@ function startHoops(){
   HS={round:0,t:ROUNDS[0].t,score:0,made:0,shots:0,balls:[],supply:4,cd:0,aim:0,pow:0,charging:false,hx:0,lights:0,flash:0,pops:[],state:'ready',st:2.2,netT:0,combo:0,drag:null,
     v:{R,sc,cam,rimG,netGeo,netPts,NS,sbC,sbT,bulbs,ballGeo,ballMat,trayBalls,aimArrow,key,lastSb:''}};
   hpBig(`STAGE 1<br><span style="font-size:.5em">TARGET ${ROUNDS[0].goal}</span>`,2);
+  vStick(wrap.querySelector('#hpPad .vstick'),(x,y)=>{if(HS&&Math.abs(x)>0.06)HS.aim=clamp(x*0.32,-0.32,0.32);});
   const resize=()=>{const w=wrap.clientWidth,h=wrap.clientHeight;R.setSize(w,h,false);cam.aspect=w/h;cam.fov=w/h>1.2?60:62;cam.updateProjectionMatrix();};resize();addEventListener('resize',resize);
   const cvp=e=>({x:e.clientX,y:e.clientY,t:performance.now()});
   cvs.onpointerdown=e=>{e.preventDefault();HS.drag=cvp(e);try{cvs.setPointerCapture(e.pointerId);}catch(_){}cvs.style.cursor='grabbing';};
   cvs.onpointermove=e=>{if(HS&&HS.drag)HS.dragNow=cvp(e);};
-  cvs.onpointerup=e=>{if(!HS||!HS.drag)return;cvs.style.cursor='grab';const p2=cvp(e),k=900/Math.max(500,wrap.clientHeight),dy=(HS.drag.y-p2.y)*k,dx=(p2.x-HS.drag.x)*k;HS.drag=null;HS.dragNow=null;if(dy>25)arShoot(clamp(dx/600,-0.35,0.35),clamp(dy/260,0,1.5));};
+  cvs.onpointerup=e=>{if(!HS||!HS.drag)return;cvs.style.cursor='grab';const p2=cvp(e),k=900/Math.max(500,wrap.clientHeight),dy=(HS.drag.y-p2.y)*k,dx=(p2.x-HS.drag.x)*k;HS.drag=null;HS.dragNow=null;if(dy>25)arShoot(clamp(HS.aim+dx/(isTouch?1400:600),-0.35,0.35),clamp(dy/260,0,1.5));};
   miniKey=(e,d)=>{if(!HS)return;if(e.code==='ArrowLeft'||e.code==='KeyA'){HS.left=d;e.preventDefault();}if(e.code==='ArrowRight'||e.code==='KeyD'){HS.right=d;e.preventDefault();}
     if(e.code==='Space'||e.code==='KeyJ'){e.preventDefault();if(d&&!e.repeat){HS.charging=true;HS.pow=0;}if(!d&&HS.charging){HS.charging=false;arShoot(HS.aim,HS.pow*1.5);}}};
   $('hQuit').onclick=closeMini;
@@ -2556,7 +2558,7 @@ function hoop3DRender(dt){const H=HS,v=H.v,T=H.lights,R2=ROUNDS[H.round];
   v.trayBalls.forEach((m,i)=>{m.visible=i<H.supply;});
   if(H.drag&&H.dragNow&&H.supply>0){const k=900/Math.max(500,$('hpWrap').clientHeight),dy=(H.drag.y-H.dragNow.y)*k,dx=(H.dragNow.x-H.drag.x)*k;const tb=v.trayBalls[H.supply-1];tb.position.y=AR.floor+AR.br-0.01+clamp(dy/260,0,1.5)*0.05;}
   else v.trayBalls.forEach(m=>m.position.y=AR.floor+AR.br-0.01);
-  const showAim=!isTouch&&H.state==='play';v.aimArrow.visible=showAim;if(showAim){v.aimArrow.position.set(Math.sin(H.aim)*0.9,flr2(1.2)+0.03,1.2);v.aimArrow.rotation.z=-H.aim;}
+  const showAim=H.state==='play';v.aimArrow.visible=showAim;if(showAim){v.aimArrow.position.set(-Math.sin(H.aim)*0.9,flr2(1.2)+0.03,1.2);v.aimArrow.rotation.z=H.aim;}
   const pw=$('hpPow');pw.style.display=H.charging?'block':'none';if(H.charging)pw.firstElementChild.style.width=(H.pow*100)+'%';
   $('hpHint').style.display=H.state==='play'&&H.shots<3?'block':'none';
   v.R.render(v.sc,v.cam);}
