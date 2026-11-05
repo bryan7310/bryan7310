@@ -1157,7 +1157,8 @@ const SHOPS=[];
   // 主角的家
   {const H=HOME_LOT.H,st=HOME_LOT.store;
    if(st){const [fx,fz]=front(st,0.05);for(const [y,c] of[[3.3,0x2fbf5a],[3.75,0xffffff],[4.05,0x2f6fd0]]){const band=box(st.x1-st.x0+1.2,y===3.75?0.25:0.4,0.3,lam(c));band.position.set((st.x0+st.x1+1)/2,y,fz+0.2);scene.add(band);}
-     const sg=signPlane('便利商店 24H',5,0.8,'#ffffff','#2a8a4a');sg.position.set((st.x0+st.x1+1)/2,2.75,fz+0.42);scene.add(sg);}
+     const sg=signPlane('大元便利商店 24H',5,0.8,'#ffffff','#2a8a4a');sg.position.set((st.x0+st.x1+1)/2,2.75,fz+0.42);scene.add(sg);
+     const lb=makeLabel('🏪 便利商店（經營遊戲）','rgba(90,214,160,.95)','#fff');lb.position.set((st.x0+st.x1+1)/2,6.5,fz);lb.scale.set(5,1.25,1);scene.add(lb);SHOPS.push({x:(st.x0+st.x1+1)/2,z:(st.z0+st.z1+1)/2,H:st,type:'cstore',label:'便利商店'});}
    if(H){const cx=(H.x0+H.x1+1)/2,[fx,fz]=front(H,0);const gm=new THREE.MeshPhongMaterial({color:0x9fe8d8,transparent:true,opacity:0.45,shininess:90});
      const can=new THREE.Mesh(new THREE.BoxGeometry(6,0.12,3),gm);can.position.set(cx-3.5,3.4,fz+1.5);scene.add(can);for(const dx of[-2,0,2]){const r2=box(0.08,0.08,3,lam(0x666a70));r2.position.set(cx-3.5+dx,3.32,fz+1.5);scene.add(r2);}
      const pine=new THREE.Group();for(let k=0;k<3;k++){const c2=new THREE.Mesh(new THREE.ConeGeometry(0.9-k*0.22,1.4,8),lam(0x2f7a3a));c2.position.y=1+k*0.75;pine.add(c2);}pine.position.set(cx+0.2,0,fz+0.8);scene.add(pine);
@@ -1961,7 +1962,7 @@ function closeMini(){if(miniCleanup){const f=miniCleanup;miniCleanup=null;f();}m
 addEventListener('keydown',e=>{if(miniOpen&&miniKey){miniKey(e,true);}});
 addEventListener('keyup',e=>{if(miniOpen&&miniKey){miniKey(e,false);}});
 function reward(loot,why){const got=Object.entries(loot).map(([k,v])=>{addItem(k,v);return ITEM_N[k]+'×'+v;}).join('、');banner(why+'　獲得 '+got,3.2);sfx('power');}
-function enterRoom(r){const t=r.special.type;if(t==='home'){G.hp=G.maxHp;say([[SET.gender==='girl'?'心心':'仲仲','我回來了！'],['媽媽','回來啦～先吃點水果，休息一下再出門！'],['媽媽','記得不要太晚回家喔！']],()=>{G.hp=G.maxHp;sfx('power');banner('回到家休息，體力全滿！');});return;}if(t==='art')startArt(r);else if(t==='music')startMusic(r);else if(t==='parkour')startParkour(r);else if(t==='dodge')startDodge(r);else if(t==='fish')startFish();else if(t==='hoops')startHoops();else if(t==='fps')startFPS();else if(t==='meme')startMeme();else if(t==='craft')startCraft();else if(t==='puzzle')startPuzzle();else if(t==='kart')startKart();else if(t==='run')startRun();else if(t==='kinder')startKinder();}
+function enterRoom(r){const t=r.special.type;if(t==='cstore'){startCStore();return;}if(t==='home'){G.hp=G.maxHp;say([[SET.gender==='girl'?'心心':'仲仲','我回來了！'],['媽媽','回來啦～先吃點水果，休息一下再出門！'],['媽媽','記得不要太晚回家喔！']],()=>{G.hp=G.maxHp;sfx('power');banner('回到家休息，體力全滿！');});return;}if(t==='art')startArt(r);else if(t==='music')startMusic(r);else if(t==='parkour')startParkour(r);else if(t==='dodge')startDodge(r);else if(t==='fish')startFish();else if(t==='hoops')startHoops();else if(t==='fps')startFPS();else if(t==='meme')startMeme();else if(t==='craft')startCraft();else if(t==='puzzle')startPuzzle();else if(t==='kart')startKart();else if(t==='run')startRun();else if(t==='kinder')startKinder();}
 
 // ---- art room: 1-minute drawing ----
 const THEMES=[['太陽',['#f2c230','#f08a24','#3a8ee8']],['大樹',['#2fa84f','#7a5230']],['我的家',['#e23a2c','#7a5230','#3a8ee8']],['彩虹',['#e23a2c','#f08a24','#f2c230','#2fa84f','#3a8ee8','#8e44ad']],
@@ -3016,6 +3017,248 @@ function kdWin(){const K=KD,lv=K.lv;K.state='win';if(document.pointerLockElement
   st.querySelectorAll('[data-lv]').forEach(b=>b.onclick=()=>{closeMini();startKinder(+b.dataset.lv);});
   if($('kdNext'))$('kdNext').onclick=()=>{closeMini();startKinder(lv+1);};$('kdAgain').onclick=()=>{closeMini();startKinder(lv);};$('kdOut').onclick=closeMini;
   const loot={iron:1+Math.floor(lv/2)};if(stars===3)loot.gem=1+Math.floor(lv/2);if(last)loot.gem=(loot.gem||0)+3;reward(loot,last?'麥米倫幼兒園五關全破！':`幼兒園第 ${lv+1} 關過關！`);}
+
+// ---- 大元便利商店 經營遊戲 (original isometric convenience-store sim, 5 save slots) ----
+let CST=null;
+const CSW=12,CSD=10,CS_DOOR=[5,6];
+const CS_CAT={飲料:{c:15,p:25,col:0x3fa8ff},牛奶:{c:20,p:35,col:0xf4f4f4},零食:{c:18,p:30,col:0xff9a2a},泡麵:{c:20,p:35,col:0xe8402a},日用品:{c:40,p:70,col:0x7ad0a0},文具:{c:15,p:28,col:0x9a6aff},
+  冰品:{c:15,p:30,col:0x9fe8ff},便當:{c:45,p:75,col:0xf2c230,spoil:true},飯糰:{c:15,p:28,col:0xffffff,spoil:true},麵包:{c:18,p:32,col:0xc8843a},雜誌:{c:50,p:80,col:0xff5a8a},關東煮:{c:8,p:15,col:0xd8a05a},咖啡:{c:10,p:45,col:0x6a3a1a}};
+const CS_FIX={
+  shelf:{n:'貨架',ic:'🗄️',cost:3000,w:2,d:1,cap:40,cats:['零食','泡麵','日用品','文具']},
+  fridge:{n:'冷藏櫃',ic:'🧊',cost:8000,w:2,d:1,cap:40,cats:['飲料','牛奶']},
+  freezer:{n:'冰櫃',ic:'🍦',cost:6000,w:1,d:1,cap:30,cats:['冰品']},
+  bento:{n:'便當櫃',ic:'🍱',cost:7000,w:2,d:1,cap:24,cats:['便當','飯糰']},
+  bread:{n:'麵包架',ic:'🥐',cost:3500,w:1,d:1,cap:20,cats:['麵包']},
+  mag:{n:'雜誌架',ic:'📰',cost:2500,w:1,d:1,cap:20,cats:['雜誌']},
+  oden:{n:'關東煮',ic:'🍢',cost:5000,w:1,d:1,cap:30,cats:['關東煮']},
+  coffee:{n:'咖啡機',ic:'☕',cost:9000,w:1,d:1,cap:50,cats:['咖啡']},
+  counter:{n:'收銀台',ic:'🛎️',cost:5000,w:2,d:1,counter:true},
+  atm:{n:'ATM',ic:'🏧',cost:12000,w:1,d:1,svc:'ATM 提款'},
+  copier:{n:'影印機',ic:'🖨️',cost:6000,w:1,d:1,svc:'影印傳真'},
+  plant:{n:'盆栽',ic:'🪴',cost:800,w:1,d:1,decor:true}};
+const CS_SVC=[{n:'代收繳費',ic:'🧾',fee:6000,inc:6},{n:'宅配寄件',ic:'📦',fee:6000,inc:15},{n:'手機儲值',ic:'📱',fee:3000,inc:6},{n:'網購取貨',ic:'🛍️',fee:5000,inc:8},{n:'影印傳真',ic:'🖨️',fee:4000,inc:10,need:'copier'},{n:'ATM 提款',ic:'🏧',fee:8000,inc:8,need:'atm'}];
+const CS_WANT=[[6,11,{咖啡:3,麵包:3,飯糰:3,牛奶:2,飲料:1,雜誌:1}],[11,15,{便當:4,飲料:3,飯糰:2,零食:1}],[15,18,{飲料:2,冰品:3,零食:3,文具:1,雜誌:1}],[18,22,{便當:2,泡麵:3,關東煮:3,零食:2,日用品:2,飲料:2}],[22,30,{泡麵:3,零食:2,飲料:2,日用品:2,冰品:1}]];
+const CS_RATE=[2,1,1,1,1,3,6,16,16,8,8,12,20,12,9,9,9,12,18,18,12,12,6,4];
+function csSlotKey(n){return 'dayuan-cstore-'+n;}
+function csReadSlot(n){try{const s=localStorage.getItem(csSlotKey(n));return s?JSON.parse(s):null;}catch(e){return null;}}
+function csNewData(){return {v:1,day:1,min:7*60,money:60000,rep:50,services:{},flags:{},hist:[],fixtures:[{t:'counter',x:8,z:6,r:0},{t:'shelf',x:2,z:4,r:0,cat:'零食',stock:40},{t:'shelf',x:2,z:6,r:0,cat:'泡麵',stock:40},{t:'fridge',x:1,z:0,r:0,cat:'飲料',stock:40},{t:'bento',x:4,z:0,r:0,cat:'便當',stock:24},{t:'bread',x:7,z:0,r:0,cat:'麵包',stock:20},{t:'plant',x:11,z:0,r:0},{t:'plant',x:0,z:8,r:0}]};}
+function csToon(c,o){return toonM(c,o);}
+function startCStore(){
+  openMini(`<div id="csWrap" style="position:fixed;inset:0;z-index:25;overflow:hidden;background:#1a1530;user-select:none;font-family:'Noto Sans TC',sans-serif">
+    <canvas id="csCv" style="width:100%;height:100%;display:block;touch-action:none"></canvas>
+    <div id="csMoney" style="position:absolute;right:14px;top:10px;text-align:right;pointer-events:none"></div>
+    <div id="csTools" style="position:absolute;left:10px;top:54px;display:flex;flex-direction:column;flex-wrap:wrap;max-height:calc(100% - 210px);gap:6px"></div>
+    <div id="csPhone" style="position:absolute;left:12px;bottom:12px;width:150px;padding:10px 10px 12px;border-radius:26px;background:linear-gradient(#cfe4ff,#9cc4f8);border:3px solid #fff;box-shadow:0 6px 16px rgba(0,0,0,.35);text-align:center"></div>
+    <div id="csHelper" style="position:absolute;right:12px;bottom:12px;display:flex;align-items:flex-end;gap:8px;pointer-events:none;max-width:min(420px,70vw)">
+      <div id="csSay" style="padding:10px 14px;border-radius:16px 16px 4px 16px;background:#fff;border:3px solid #9cc4f8;color:#3a4a6a;font:800 14px/1.5 'Noto Sans TC',sans-serif;box-shadow:0 4px 10px rgba(0,0,0,.25)"></div>
+      <div style="width:64px;height:64px;flex:none;border-radius:50%;background:radial-gradient(circle at 50% 40%,#ffe0c8,#ffb08a);border:3px solid #fff;display:flex;align-items:center;justify-content:center;font-size:40px;box-shadow:0 4px 10px rgba(0,0,0,.3)">👧</div></div>
+    <div id="csPanel" style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:min(560px,92vw);max-height:80vh;overflow:auto;display:none;padding:16px 18px;border-radius:26px;background:linear-gradient(#eef5ff,#d8e8ff);border:4px solid #fff;box-shadow:0 10px 30px rgba(0,0,0,.45);color:#2a3a5a;z-index:5"></div>
+    <div id="csBuild" style="position:absolute;left:50%;bottom:12px;transform:translateX(-50%);display:none;gap:6px;padding:8px;border-radius:20px;background:rgba(220,235,255,.95);border:3px solid #fff;box-shadow:0 6px 16px rgba(0,0,0,.35);max-width:94vw;overflow-x:auto;z-index:4"></div>
+    <div id="csMenu" style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;background:radial-gradient(circle,rgba(60,50,120,.85),rgba(10,8,25,.96));color:#fff;padding:16px;overflow:auto;z-index:6"></div>
+  </div>`);
+  const cvs=$('csCv'),wrap=$('csWrap'),R=new THREE.WebGLRenderer({canvas:cvs,antialias:true});R.setPixelRatio(Math.min(devicePixelRatio,SET.quality==='low'?1:1.5));R.shadowMap.enabled=SET.quality!=='low';R.shadowMap.type=THREE.PCFSoftShadowMap;
+  const sc=new THREE.Scene();sc.background=new THREE.Color(0x2a2448);const cam=new THREE.OrthographicCamera(-10,10,6,-6,0.1,200);
+  const hemi=new THREE.HemisphereLight(0xffffff,0x6a6a8a,0.75);sc.add(hemi);const sun=new THREE.DirectionalLight(0xfff2e0,0.65);sun.position.set(CSW/2-10,18,CSD/2+8);sun.target.position.set(CSW/2,0,CSD/2);sun.castShadow=true;sun.shadow.mapSize.set(1024,1024);const sca=sun.shadow.camera;sca.left=sca.bottom=-12;sca.right=sca.top=12;sc.add(sun,sun.target);
+  const lamp=new THREE.PointLight(0xfff6e8,0.5,22);lamp.position.set(CSW/2,4,CSD/2);sc.add(lamp);
+  // city below the floating store
+  const city=new THREE.Group();city.position.y=-7;sc.add(city);const cg=new THREE.Mesh(new THREE.PlaneGeometry(90,90),lam(0x3a3a4a));cg.rotation.x=-Math.PI/2;city.add(cg);
+  for(let i=-4;i<=4;i++){const r1=new THREE.Mesh(new THREE.PlaneGeometry(90,2.2),lam(0x55555f));r1.rotation.x=-Math.PI/2;r1.position.set(CSW/2,0.02,i*9+CSD/2);city.add(r1);const r2=r1.clone();r2.rotation.z=Math.PI/2;r2.position.set(i*9+CSW/2,0.02,CSD/2);city.add(r2);}
+  const winM=[0xffe6a0,0x9fd8ff,0xffb0d8].map(c=>new THREE.MeshBasicMaterial({color:c}));
+  for(let i=0;i<70;i++){const bx=Math.floor(rand(-4,5))*9+CSW/2+rand(-3,3),bz=Math.floor(rand(-4,5))*9+CSD/2+rand(-3,3);if(Math.abs(bx-CSW/2)<9&&Math.abs(bz-CSD/2)<8)continue;const h=rand(1.5,6.5),b=box(rand(1.8,3.5),h,rand(1.8,3.5),csToon(pick([0xb8a8d8,0xd8b8c8,0xa8c0d8,0xe0d0b0,0x9a90c0])));b.position.set(bx,h/2,bz);city.add(b);
+    for(let k=0;k<3;k++){const w=new THREE.Mesh(new THREE.PlaneGeometry(0.4,0.3),pick(winM));w.position.set(bx+rand(-0.6,0.6),rand(0.6,h-0.3),bz+b.geometry.parameters.depth/2+0.01);city.add(w);}}
+  const plinth=box(CSW+1.2,1.2,CSD+1.2,csToon(0xf6e8f0));plinth.position.set(CSW/2,-0.6,CSD/2);sc.add(plinth);for(let k=0;k<4;k++){const leg=box(1.2,6,1.2,csToon(0x8a7aa8));leg.position.set(CSW/2+(k%2?3:-3),-4,CSD/2+(k<2?2:-2));sc.add(leg);}
+  // floor & walls
+  const [fc,fg]=cv(128,128);for(let y=0;y<2;y++)for(let x=0;x<2;x++){fg.fillStyle=(x+y)%2?'#fbe8f0':'#ffffff';fg.fillRect(x*64,y*64,64,64);}fg.strokeStyle='rgba(200,170,190,.6)';fg.lineWidth=2;fg.strokeRect(0,0,128,128);fg.beginPath();fg.moveTo(64,0);fg.lineTo(64,128);fg.moveTo(0,64);fg.lineTo(128,64);fg.stroke();
+  const ft=tex(fc,true);ft.repeat.set(CSW/2,CSD/2);const floor=new THREE.Mesh(new THREE.PlaneGeometry(CSW,CSD),new THREE.MeshLambertMaterial({map:ft}));floor.rotation.x=-Math.PI/2;floor.position.set(CSW/2,0.01,CSD/2);floor.receiveShadow=true;sc.add(floor);
+  const wallM=csToon(0xf4f0ff),stripeG=csToon(0x5ad6a0),stripeB=csToon(0x5aa8ff),glass=new THREE.MeshPhongMaterial({color:0xbfe8ff,transparent:true,opacity:0.35,shininess:90,depthWrite:false});
+  const wl=(w,d,x,z)=>{const m=box(w,2.6,d,wallM);m.position.set(x,1.3,z);m.receiveShadow=true;sc.add(m);for(const [y,mt] of[[2.3,stripeG],[2.42,stripeB]]){const s=box(w+0.02,0.08,d+0.02,mt);s.position.set(x,y,z);sc.add(s);}};
+  wl(CSW,0.2,CSW/2,-0.1);wl(0.2,CSD,-0.1,CSD/2);
+  for(let x=1;x<CSW;x+=3){const w=new THREE.Mesh(new THREE.PlaneGeometry(1.8,1),glass);w.position.set(x+0.5,1.5,0.01);sc.add(w);}
+  const lowF=(x0,x1)=>{const w=box(x1-x0,0.45,0.18,wallM);w.position.set((x0+x1)/2,0.22,CSD+0.09);sc.add(w);const g=new THREE.Mesh(new THREE.BoxGeometry(x1-x0,1.6,0.05),glass);g.position.set((x0+x1)/2,1.25,CSD+0.09);sc.add(g);};
+  lowF(0,CS_DOOR[0]);lowF(CS_DOOR[1]+1,CSW);const rw=box(0.18,0.45,CSD,wallM);rw.position.set(CSW+0.09,0.22,CSD/2);sc.add(rw);const rg=new THREE.Mesh(new THREE.BoxGeometry(0.05,1.6,CSD),glass);rg.position.set(CSW+0.09,1.25,CSD/2);sc.add(rg);
+  const mat=new THREE.Mesh(new THREE.PlaneGeometry(2,0.9),csToon(0x5ad6a0));mat.rotation.x=-Math.PI/2;mat.position.set(CS_DOOR[0]+1,0.02,CSD-0.45);sc.add(mat);
+  const sign=signPlane('大元便利商店',4,0.6,'#5ad6a0','#fff');sign.position.set(CSW/2,2.9,0.12);sc.add(sign);
+  // ghost for build mode
+  const ghost=new THREE.Mesh(new THREE.BoxGeometry(1,0.1,1),new THREE.MeshBasicMaterial({color:0x5aff8a,transparent:true,opacity:0.5,depthWrite:false}));ghost.visible=false;sc.add(ghost);
+  const moodTex={};for(const e of['😊','😢','😠','💰','😐','🎵']){const [c,g]=cv(64,64);g.font='48px sans-serif';g.textAlign='center';g.textBaseline='middle';g.fillStyle='#fff';g.beginPath();g.arc(32,30,28,0,7);g.fill();g.fillText(e,32,32);moodTex[e]=new THREE.SpriteMaterial({map:tex(c),depthTest:false});}
+  CST={R,sc,cam,hemi,sun,lamp,ghost,moodTex,fix:[],cust:[],speed:1,zoom:1,mode:'menu',sel:null,slot:null,d:null,today:null,spawnAcc:0,tipT:0,clerk:null};
+  const resize=()=>{const w=wrap.clientWidth,h=wrap.clientHeight,a=w/h,v=(a<1?9.5:7)/CST.zoom;R.setSize(w,h,false);cam.left=-v*a;cam.right=v*a;cam.top=v;cam.bottom=-v;cam.updateProjectionMatrix();};CST.resize=resize;
+  cam.position.set(CSW/2+14,15,CSD/2+14);cam.lookAt(CSW/2,0,CSD/2);resize();addEventListener('resize',resize);
+  const ray=new THREE.Raycaster(),ndc=e=>{const b=cvs.getBoundingClientRect();return {x:(e.clientX-b.left)/b.width*2-1,y:-((e.clientY-b.top)/b.height*2-1)};};
+  const cellAt=e=>{ray.setFromCamera(ndc(e),cam);const o=ray.ray.origin,d=ray.ray.direction;if(Math.abs(d.y)<1e-5)return null;const t=-o.y/d.y,x=o.x+d.x*t,z=o.z+d.z*t;return [Math.floor(x),Math.floor(z)];};
+  cvs.onpointermove=e=>{if(!CST)return;CST.hover=cellAt(e);};
+  cvs.onpointerdown=e=>{if(!CST||CST.mode==='menu')return;const c=cellAt(e);if(CST.mode==='build'&&CST.sel){if(c)csPlace(CST.sel,c[0],c[1],CST.rot||0);return;}
+    if(CST.mode==='sell'){if(c){const f=csFixAt(c[0],c[1]);if(f)csSell(f);}return;}
+    ray.setFromCamera(ndc(e),cam);const hits=ray.intersectObjects(CST.fix.map(f=>f.g),true);if(hits.length){let o=hits[0].object;while(o&&o.userData.fid===undefined)o=o.parent;const f=o&&CST.fix.find(q=>q.id===o.userData.fid);if(f)csFixPanel(f);}};
+  cvs.addEventListener('wheel',e=>{e.preventDefault();CST.zoom=clamp(CST.zoom*(e.deltaY>0?0.9:1.1),0.6,2.2);resize();},{passive:false});
+  miniKey=(e,d)=>{if(!d||!CST)return;if(e.code==='KeyR'&&CST.mode==='build'){CST.rot=((CST.rot||0)+1)%4;}if(e.code==='Escape'){csClosePanel();csEndBuild();}if(e.code==='Space'&&CST.mode==='play'){e.preventDefault();CST.speed=CST.speed?0:1;csPhone();}};
+  miniCleanup=()=>{removeEventListener('resize',resize);R.dispose();try{R.forceContextLoss();}catch(e){}CST=null;};
+  csTools();csTitle();miniFrame=csFrame;}
+// ---------- data <-> scene ----------
+let CS_FID=1;
+function csFoot(t,r){const F=CS_FIX[t];return r%2?[F.d,F.w]:[F.w,F.d];}
+function csCells(f){const [w,d]=csFoot(f.t,f.r),o=[];for(let i=0;i<w;i++)for(let k=0;k<d;k++)o.push([f.x+i,f.z+k]);return o;}
+function csFixAt(x,z){return CST.fix.find(f=>csCells(f).some(c=>c[0]===x&&c[1]===z));}
+function csFree(x,z,ign){if(x<0||z<0||x>=CSW||z>=CSD)return false;if(z===CSD-1&&(x===CS_DOOR[0]||x===CS_DOOR[1]))return false;const f=csFixAt(x,z);return !f||f===ign;}
+function csBuildModel(f){const F=CS_FIX[f.t],g=new THREE.Group(),w=F.w,d=F.d,white=csToon(0xffffff),pink=csToon(0xffc8e0);g.userData.fid=f.id;
+  const inner=new THREE.Group();g.add(inner);f.prod=new THREE.Group();inner.add(f.prod);
+  const B=(bw,bh,bd,m,x,y,z)=>{const b=box(bw,bh,bd,m);b.position.set(x,y,z);inner.add(b);return b;};
+  if(f.t==='shelf'||f.t==='bento'||f.t==='mag'){const acc=f.t==='bento'?csToon(0xffe08a):f.t==='mag'?csToon(0x9fd8ff):pink;B(w*0.9,0.14,d*0.7,white,0,0.07,0);B(w*0.9,1.55,0.06,acc,0,0.78,-d*0.33);for(const y of[0.45,0.85,1.25])B(w*0.9,0.04,d*0.66,white,0,y,0);B(0.05,1.55,d*0.7,white,-w*0.45,0.78,0);B(0.05,1.55,d*0.7,white,w*0.45,0.78,0);B(w*0.9,0.1,0.05,acc,0,1.5,d*0.33);}
+  else if(f.t==='fridge'){const fr=csToon(0xe8eef8);B(w*0.92,0.2,d*0.8,fr,0,0.1,0);B(w*0.92,2.1,0.06,fr,0,1.05,-d*0.37);B(0.06,2.1,d*0.8,fr,-w*0.45,1.05,0);B(0.06,2.1,d*0.8,fr,w*0.45,1.05,0);B(w*0.92,0.22,d*0.8,csToon(0x5aa8ff),0,2.08,0);for(const y of[0.5,0.9,1.3,1.7])B(w*0.86,0.03,d*0.7,white,0,y,0);
+    const gl=new THREE.Mesh(new THREE.BoxGeometry(w*0.86,1.75,0.03),new THREE.MeshPhongMaterial({color:0xcff0ff,transparent:true,opacity:0.28,shininess:100,emissive:0x2a5a8a,emissiveIntensity:0.25,depthWrite:false}));gl.position.set(0,1.1,d*0.38);inner.add(gl);for(const x of[-0.33,0.33]){const hd=box(0.04,0.5,0.04,csToon(0xb0b8c8));hd.position.set(x*w,1.1,d*0.41);inner.add(hd);}
+    const lt=new THREE.PointLight(0xbfe8ff,0.35,2.2);lt.position.set(0,1.5,0.1);inner.add(lt);}
+  else if(f.t==='freezer'){B(w*0.85,0.8,d*0.85,white,0,0.4,0);const gt=new THREE.Mesh(new THREE.BoxGeometry(w*0.75,0.04,d*0.75),new THREE.MeshPhongMaterial({color:0x9fe8ff,transparent:true,opacity:0.45,depthWrite:false}));gt.position.set(0,0.82,0);inner.add(gt);B(w*0.86,0.12,0.03,csToon(0x5aa8ff),0,0.62,d*0.43);}
+  else if(f.t==='bread'){B(w*0.85,1.3,0.06,csToon(0xb8844a),0,0.65,-0.38);for(const y of[0.3,0.7,1.1])B(w*0.85,0.04,0.66,csToon(0xd8a868),0,y,-0.05);B(0.05,1.3,0.7,csToon(0xb8844a),-0.42,0.65,-0.05);B(0.05,1.3,0.7,csToon(0xb8844a),0.42,0.65,-0.05);}
+  else if(f.t==='oden'){B(w*0.85,0.9,d*0.7,white,0,0.45,0);B(w*0.86,0.12,0.03,csToon(0xe8402a),0,0.7,d*0.36);const pot=new THREE.Mesh(new THREE.CylinderGeometry(0.3,0.3,0.18,16),csToon(0xc0c0c8));pot.position.set(0,0.98,0);inner.add(pot);const soup=new THREE.Mesh(new THREE.CircleGeometry(0.27,16),csToon(0xe8b060));soup.rotation.x=-Math.PI/2;soup.position.set(0,1.075,0);inner.add(soup);f.steam=[];for(let k=0;k<3;k++){const st=new THREE.Mesh(new THREE.SphereGeometry(0.08,6,5),new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:0.5}));inner.add(st);f.steam.push(st);}}
+  else if(f.t==='coffee'){B(w*0.85,0.9,d*0.7,white,0,0.45,0);B(0.42,0.65,0.36,csToon(0x3a3a44),0,1.22,-0.08);B(0.2,0.12,0.03,new THREE.MeshBasicMaterial({color:0x7affc0}),0,1.4,0.11);for(let k=0;k<3;k++){const c=new THREE.Mesh(new THREE.CylinderGeometry(0.05,0.04,0.12,8),white);c.position.set(-0.28+k*0.28,0.96,0.24);inner.add(c);}}
+  else if(f.t==='counter'){B(w*0.96,1.0,d*0.8,csToon(0x5ad6a0),0,0.5,0);B(w*0.98,0.06,d*0.86,white,0,1.02,0);B(w*0.97,0.14,0.03,csToon(0xffffff),0,0.75,d*0.41);B(0.4,0.25,0.3,csToon(0x3a3a44),-w*0.25,1.18,0);B(0.3,0.2,0.04,csToon(0x7affc0),-w*0.25,1.4,-0.1);B(0.3,0.15,0.25,csToon(0xf2c230),w*0.25,1.12,0);}
+  else if(f.t==='atm'){B(w*0.7,1.6,d*0.6,csToon(0x2f6fd0),0,0.8,0);B(0.4,0.3,0.03,new THREE.MeshBasicMaterial({color:0x9fe8ff}),0,1.15,d*0.31);B(0.3,0.06,0.1,csToon(0x222222),0,0.85,d*0.32);}
+  else if(f.t==='copier'){B(w*0.8,0.9,d*0.6,csToon(0xd0d0d8),0,0.45,0);B(w*0.8,0.06,d*0.6,csToon(0x6a6a7a),0,0.93,0);B(0.3,0.03,0.2,white,0.15,0.98,0.05);}
+  else if(f.t==='plant'){const pot=new THREE.Mesh(new THREE.CylinderGeometry(0.22,0.17,0.35,12),csToon(0xd87a4a));pot.position.y=0.18;inner.add(pot);const bush=sph(0.38,csToon(0x4fae4a),12,10);bush.position.y=0.7;inner.add(bush);const fl=sph(0.08,csToon(0xff7eb6),6,5);fl.position.set(0.2,0.9,0.2);inner.add(fl);}
+  inner.rotation.y=f.r*Math.PI/2;const [fw,fd]=csFoot(f.t,f.r);g.position.set(f.x+fw/2,0,f.z+fd/2);
+  g.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;}});CST.sc.add(g);f.g=g;f.inner=inner;f.lastLv=-1;csProducts(f);}
+function csProducts(f){const F=CS_FIX[f.t];if(!F.cap)return;const lv=Math.ceil((f.stock||0)/F.cap*8);if(lv===f.lastLv)return;f.lastLv=lv;while(f.prod.children.length)f.prod.remove(f.prod.children[0]);
+  const C=CS_CAT[f.cat]||{col:0xcccccc},m=csToon(C.col),m2=csToon(new THREE.Color(C.col).lerp(new THREE.Color(0xffffff),0.45).getHex()),w=F.w;let n=0;
+  const add=(geo,mt,x,y,z)=>{const o=new THREE.Mesh(geo,mt);o.position.set(x,y,z);f.prod.add(o);};const slots=Math.round(w*3.6);
+  if(f.t==='shelf'||f.t==='bento'||f.t==='mag'){const geo=f.t==='mag'?new THREE.BoxGeometry(0.2,0.28,0.04):f.t==='bento'?new THREE.BoxGeometry(0.22,0.08,0.18):new THREE.BoxGeometry(0.18,0.22,0.16);const per=Math.ceil(lv/8*slots*3);
+    for(const y of[0.47,0.87,1.27])for(let k=0;k<slots;k++){if(n++>=per)break;add(geo,k%2?m:m2,-w*0.4+0.13+k*(w*0.8-0.26)/(slots-1),y+(f.t==='bento'?0.04:0.11),f.t==='mag'?0.05:0.02);}}
+  else if(f.t==='fridge'){const geo=new THREE.CylinderGeometry(0.055,0.055,0.26,8),per=Math.ceil(lv/8*slots*4);for(const y of[0.53,0.93,1.33,1.73])for(let k=0;k<slots;k++){if(n++>=per)break;add(geo,k%2?m:m2,-w*0.38+0.1+k*(w*0.76-0.2)/(slots-1),y+0.13,0);}}
+  else if(f.t==='freezer'){const geo=new THREE.BoxGeometry(0.16,0.1,0.12);for(let k=0;k<lv*2;k++)add(geo,k%2?m:csToon(0xff9ad0),-0.28+(k%4)*0.18,0.72,-0.25+Math.floor(k/4)*0.16);}
+  else if(f.t==='bread'){const geo=new THREE.SphereGeometry(0.1,8,6);for(const y of[0.36,0.76,1.16])for(let k=0;k<4;k++){if(n++>=lv*1.5)break;add(geo,m,-0.3+k*0.2,y,-0.05);}}
+  else if(f.t==='oden'){const geo=new THREE.SphereGeometry(0.06,6,5);for(let k=0;k<lv;k++)add(geo,k%3?m:csToon(0xffffff),Math.cos(k)*0.16,1.09,Math.sin(k)*0.16);}}
+function csAddFix(o){const f=Object.assign({id:CS_FID++,stock:0},o);const F=CS_FIX[f.t];if(F.cap&&!f.cat)f.cat=F.cats[0];CST.fix.push(f);csBuildModel(f);return f;}
+function csClearScene(){for(const f of CST.fix)CST.sc.remove(f.g);CST.fix=[];for(const c of CST.cust)CST.sc.remove(c.p.root);CST.cust=[];if(CST.clerk){CST.sc.remove(CST.clerk.root);CST.clerk=null;}}
+function csLoad(d,slot){csClearScene();CST.d=d;CST.slot=slot;for(const o of d.fixtures)csAddFix(o);CST.today={rev:0,cogs:0,svc:0,cust:0,happy:0,sad:0};CST.mode='play';CST.speed=1;$('csMenu').style.display='none';csPhone();csMoney();csSay(d.day===1&&d.min<=7*60?'開店囉！客人進來會買東西，記得常常<b>補貨</b>喔～':'歡迎回來，店長！今天也要加油！');}
+function csSnapshot(){const d=CST.d;d.fixtures=CST.fix.map(f=>{const o={t:f.t,x:f.x,z:f.z,r:f.r};if(f.cat)o.cat=f.cat;if(CS_FIX[f.t].cap)o.stock=f.stock;return o;});return d;}
+function csSave(n,quiet){const d=csSnapshot();d.savedAt=Date.now();try{localStorage.setItem(csSlotKey(n),JSON.stringify(d));CST.slot=n;if(!quiet)csSay(`已經存到 <b>存檔 ${n}</b> 了！`);return true;}catch(e){csSay('存檔失敗了…（瀏覽器不允許儲存）');return false;}}
+// ---------- UI ----------
+function csSay(html){const el=$('csSay');if(el)el.innerHTML=html;if(CST)CST.tipT=12;}
+function csMoney(){const d=CST.d;if(!d)return;const st='⭐'.repeat(Math.max(1,Math.round(d.rep/20)));$('csMoney').innerHTML=`<div style="font:900 30px 'Press Start 2P',monospace;color:#7affea;text-shadow:0 3px 0 #2a5a8a,0 0 12px rgba(120,255,230,.6)">$${d.money.toLocaleString()}</div><div style="margin-top:6px;font:900 14px 'Noto Sans TC',sans-serif;color:#ffd0f0;text-shadow:0 2px 0 #000">人氣 ${st} ${Math.round(d.rep)}</div>`;}
+function csPhone(){const d=CST.d;if(!d)return;const h=Math.floor(d.min/60)%24,m=Math.floor(d.min%60),night=h>=19||h<6;
+  $('csPhone').innerHTML=`<div style="background:#1a2a4a;border-radius:14px;padding:8px 4px;color:#9fffd8;font:900 13px 'Noto Sans TC',sans-serif">第 ${d.day} 天 ${night?'🌙':'☀️'}<div style="font:900 22px 'Press Start 2P',monospace;margin-top:4px;color:#fff">${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}</div></div>
+    <div style="display:flex;gap:4px;justify-content:center;margin-top:8px">${[[0,'⏸'],[1,'▶'],[2,'⏩'],[3,'⏭']].map(([s,ic])=>`<button data-sp="${s}" style="width:32px;height:30px;border-radius:10px;border:2px solid #fff;background:${CST.speed===s?'#ff7eb6':'#5a8ae0'};color:#fff;font-size:14px;cursor:pointer">${ic}</button>`).join('')}</div>`;
+  $('csPhone').querySelectorAll('[data-sp]').forEach(b=>b.onclick=()=>{CST.speed=+b.dataset.sp;csPhone();});}
+function csTools(){const T=[['🏗️','建造',()=>csStartBuild()],['📦','進貨',()=>csStockPanel()],['🛎️','服務',()=>csSvcPanel()],['📊','報表',()=>csReportPanel()],['💾','存檔',()=>csSlotPanel('save')],['📂','讀檔',()=>csSlotPanel('load')],['🔍','放大',()=>{CST.zoom=Math.min(2.2,CST.zoom*1.2);CST.resize();}],['🔎','縮小',()=>{CST.zoom=Math.max(0.6,CST.zoom/1.2);CST.resize();}],['🚪','離開',()=>csQuit()]];
+  $('csTools').innerHTML=T.map((t,i)=>`<button data-i="${i}" title="${t[1]}" style="width:50px;height:50px;border-radius:14px;border:3px solid #fff;background:linear-gradient(#ffd0e8,#ff9ac8);box-shadow:0 4px 0 #c05a90,0 6px 12px rgba(0,0,0,.3);cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:19px;line-height:1;color:#7a2a5a"><span>${t[0]}</span><span style="font:900 10px 'Noto Sans TC',sans-serif;margin-top:2px">${t[1]}</span></button>`).join('');
+  $('csTools').querySelectorAll('button').forEach(b=>b.onclick=()=>{if(CST.mode==='menu')return;T[+b.dataset.i][2]();});}
+function csPanel(html){const p=$('csPanel');p.style.display='block';p.innerHTML=`<div style="text-align:right;margin:-6px -6px 0 0"><button id="csX" style="border:0;background:#ff7eb6;color:#fff;border-radius:50%;width:32px;height:32px;font-size:16px;cursor:pointer">✕</button></div>`+html;$('csX').onclick=csClosePanel;}
+function csClosePanel(){const p=$('csPanel');if(p)p.style.display='none';}
+const csBtn=(id,txt,bg)=>`<button id="${id}" style="padding:8px 14px;border-radius:12px;border:2px solid #fff;background:${bg||'#5a8ae0'};color:#fff;font:900 14px 'Noto Sans TC',sans-serif;cursor:pointer">${txt}</button>`;
+function csTitle(){const m=$('csMenu');m.style.display='flex';CST.mode='menu';
+  m.innerHTML=`<div style="font:900 clamp(30px,6vw,52px) 'Noto Sans TC',sans-serif;color:#fff;text-shadow:0 4px 0 #ff5aa8,0 0 22px rgba(255,120,200,.7)">🏪 大元便利商店</div><div style="font:800 16px 'Noto Sans TC',sans-serif;color:#cfe4ff">當上店長！擺貨架、補貨、服務客人，讓小店越來越熱鬧！</div>
+    <button class="gbtn" id="csNew" style="min-width:260px">✨ 新開幕（新遊戲）</button>
+    <div style="font:900 15px 'Noto Sans TC',sans-serif;color:#ffd0f0;margin-top:6px">── 讀取存檔 ──</div><div style="display:grid;gap:8px;width:min(460px,92vw)">${csSlotRows('load')}</div>`;
+  $('csNew').onclick=()=>csLoad(csNewData(),null);csSlotWire(m,'load');}
+function csSlotRows(mode){let h='';for(let n=1;n<=5;n++){const s=csReadSlot(n);h+=`<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:14px;background:${s?'rgba(255,255,255,.95)':'rgba(255,255,255,.4)'};color:#2a3a5a">
+  <div style="font:900 18px 'Noto Sans TC',sans-serif;width:68px">存檔 ${n}</div><div style="flex:1;font:700 13px/1.4 'Noto Sans TC',sans-serif;text-align:left">${s?`第 ${s.day} 天・$${s.money.toLocaleString()}・人氣 ${Math.round(s.rep)}<br><span style="color:#8a9aba">${new Date(s.savedAt||0).toLocaleString('zh-TW',{hour12:false})}</span>`:'（空的）'}</div>
+  ${mode==='save'?`<button data-save="${n}" style="padding:6px 12px;border-radius:10px;border:0;background:#ff7eb6;color:#fff;font-weight:900;cursor:pointer">存這裡</button>`:''}${s?`<button data-load="${n}" style="padding:6px 12px;border-radius:10px;border:0;background:#5a8ae0;color:#fff;font-weight:900;cursor:pointer">讀取</button><button data-del="${n}" style="padding:6px 8px;border-radius:10px;border:0;background:#c0c8d8;color:#fff;font-weight:900;cursor:pointer">🗑</button>`:''}</div>`;}return h;}
+function csSlotWire(root,mode){root.querySelectorAll('[data-save]').forEach(b=>b.onclick=()=>{const n=+b.dataset.save;if(csReadSlot(n)&&!confirm(`存檔 ${n} 已經有資料，要覆蓋嗎？`))return;csSave(n);csSlotPanel('save');});
+  root.querySelectorAll('[data-load]').forEach(b=>b.onclick=()=>{const s=csReadSlot(+b.dataset.load);if(s){csClosePanel();csLoad(s,+b.dataset.load);csSay(`讀取 <b>存檔 ${b.dataset.load}</b>：第 ${s.day} 天，繼續營業！`);}});
+  root.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>{const n=+b.dataset.del;if(!confirm(`確定要刪除存檔 ${n} 嗎？`))return;try{localStorage.removeItem(csSlotKey(n));}catch(e){}if(CST.mode==='menu')csTitle();else csSlotPanel(mode);});}
+function csSlotPanel(mode){csPanel(`<div style="font:900 22px 'Noto Sans TC',sans-serif;margin-bottom:10px">${mode==='save'?'💾 存檔（1～5）':'📂 讀檔（1～5）'}</div><div style="display:grid;gap:8px">${csSlotRows(mode)}</div><div style="font:700 12px 'Noto Sans TC',sans-serif;color:#6a7a9a;margin-top:8px">每天打烊時會自動存到目前使用的存檔。</div>`);csSlotWire($('csPanel'),mode);}
+function csStartBuild(){csClosePanel();CST.mode='build';CST.sel=null;CST.rot=0;const el=$('csBuild');el.style.display='flex';
+  el.innerHTML=Object.entries(CS_FIX).map(([k,F])=>`<button data-t="${k}" style="flex:none;width:76px;padding:6px 2px;border-radius:14px;border:2px solid #fff;background:#fff;cursor:pointer;color:#2a3a5a"><div style="font-size:24px">${F.ic}</div><div style="font:900 12px 'Noto Sans TC',sans-serif">${F.n}</div><div style="font:700 11px 'Noto Sans TC',sans-serif;color:#e0508a">$${F.cost.toLocaleString()}</div></button>`).join('')+
+   `<button id="csRot" style="flex:none;width:64px;border-radius:14px;border:2px solid #fff;background:#5a8ae0;color:#fff;font:900 13px 'Noto Sans TC',sans-serif;cursor:pointer">🔄<br>旋轉 R</button><button id="csSellB" style="flex:none;width:64px;border-radius:14px;border:2px solid #fff;background:#c0c8d8;color:#fff;font:900 13px 'Noto Sans TC',sans-serif;cursor:pointer">🗑<br>賣掉</button><button id="csDone" style="flex:none;width:64px;border-radius:14px;border:2px solid #fff;background:#5ad6a0;color:#fff;font:900 13px 'Noto Sans TC',sans-serif;cursor:pointer">✔<br>完成</button>`;
+  el.querySelectorAll('[data-t]').forEach(b=>b.onclick=()=>{CST.mode='build';CST.sel=b.dataset.t;el.querySelectorAll('[data-t]').forEach(q=>q.style.background=q===b?'#ffd0e8':'#fff');csSay(`點地板放置<b>${CS_FIX[CST.sel].n}</b>（$${CS_FIX[CST.sel].cost.toLocaleString()}），按 🔄 旋轉。`);});
+  $('csRot').onclick=()=>{CST.rot=((CST.rot||0)+1)%4;};$('csSellB').onclick=()=>{CST.mode='sell';CST.sel=null;csSay('點要賣掉的設備，可以拿回一半的錢。');};$('csDone').onclick=csEndBuild;
+  csSay('選一個設備，再點地板放上去。門口兩格要留給客人走喔！');}
+function csEndBuild(){if(!CST)return;$('csBuild').style.display='none';CST.ghost.visible=false;if(CST.mode==='build'||CST.mode==='sell')CST.mode='play';CST.sel=null;}
+function csPlace(t,x,z,r){const F=CS_FIX[t],[w,d]=csFoot(t,r),D=CST.d;for(let i=0;i<w;i++)for(let k=0;k<d;k++)if(!csFree(x+i,z+k)){csSay('這裡放不下喔！');fpsBeep(200,0.1,'square',0.04);return;}
+  if(D.money<F.cost){csSay('錢不夠了…先多賣一點東西吧！');return;}D.money-=F.cost;const f=csAddFix({t,x,z,r});if(F.cap)f.stock=0;csMoney();sfx('power');
+  csSay(F.cap?`放好${F.n}了！點它可以選商品和<b>補貨</b>。`:F.counter?'收銀台放好了！客人可以在這裡結帳。':`放好${F.n}了！`);for(const c of CST.cust)c.path=null;}
+function csSell(f){const D=CST.d;if(CS_FIX[f.t].counter&&CST.fix.filter(q=>CS_FIX[q.t].counter).length<=1&&CST.cust.length){csSay('至少要留一個收銀台喔！');return;}
+  D.money+=Math.floor(CS_FIX[f.t].cost/2);CST.sc.remove(f.g);CST.fix.splice(CST.fix.indexOf(f),1);csMoney();csClosePanel();csSay(`賣掉${CS_FIX[f.t].n}，拿回 $${Math.floor(CS_FIX[f.t].cost/2).toLocaleString()}`);for(const c of CST.cust){c.path=null;if(c.tgt&&c.tgt.f===f)c.tgt=null;}}
+function csRestockCost(f){const F=CS_FIX[f.t];return F.cap?(F.cap-f.stock)*CS_CAT[f.cat].c:0;}
+function csRestock(f){const D=CST.d,cost=csRestockCost(f);if(!cost)return true;if(D.money<cost){const can=Math.floor(D.money/CS_CAT[f.cat].c);if(can<=0){csSay('錢不夠補貨了…');return false;}f.stock+=can;D.money-=can*CS_CAT[f.cat].c;CST.today.cogs+=can*CS_CAT[f.cat].c;}else{D.money-=cost;CST.today.cogs+=cost;f.stock=CS_FIX[f.t].cap;}csProducts(f);csMoney();return true;}
+function csFixPanel(f){const F=CS_FIX[f.t];let h=`<div style="font:900 22px 'Noto Sans TC',sans-serif">${F.ic} ${F.n}</div>`;
+  if(F.cap){const C=CS_CAT[f.cat];h+=`<div style="margin:10px 0 6px;font-weight:800">商品：${F.cats.length>1?`<select id="csCat" style="font:800 15px 'Noto Sans TC',sans-serif;padding:4px 8px;border-radius:8px">${F.cats.map(c=>`<option ${c===f.cat?'selected':''}>${c}</option>`).join('')}</select>`:f.cat}　進價 $${C.c}・售價 $${C.p}${C.spoil?'・<span style="color:#e0508a">當天沒賣完會過期</span>':''}</div>
+    <div style="height:18px;border-radius:9px;background:#fff;border:2px solid #9cc4f8;overflow:hidden"><div style="height:100%;width:${f.stock/F.cap*100}%;background:${f.stock/F.cap<0.25?'#ff7a7a':'#5ad6a0'}"></div></div><div style="font:700 13px 'Noto Sans TC',sans-serif;margin-top:4px">庫存 ${f.stock} / ${F.cap}</div>
+    <div class="mrow" style="margin-top:10px">${csBtn('csRe',`📦 補滿（$${csRestockCost(f).toLocaleString()}）`,'#5ad6a0')}${csBtn('csSell1','🗑 賣掉','#c0c8d8')}</div>`;}
+  else h+=`<div style="margin:10px 0;font-weight:700">${F.counter?'客人會在這裡排隊結帳。':F.svc?`開啟「${F.svc}」服務後，客人會來使用。`:'讓店裡更漂亮，客人心情更好！'}</div><div class="mrow">${csBtn('csSell1','🗑 賣掉','#c0c8d8')}</div>`;
+  csPanel(h);if($('csCat'))$('csCat').onchange=e=>{const old=f.cat;if(f.stock>0&&!confirm(`換成${e.target.value}的話，架上的${old}會清掉，確定嗎？`)){e.target.value=old;return;}f.cat=e.target.value;f.stock=0;f.lastLv=-1;csProducts(f);csFixPanel(f);};
+  if($('csRe'))$('csRe').onclick=()=>{csRestock(f);csFixPanel(f);sfx('power');};$('csSell1').onclick=()=>csSell(f);}
+function csStockPanel(){const list=CST.fix.filter(f=>CS_FIX[f.t].cap);const tot=list.reduce((a,f)=>a+csRestockCost(f),0);
+  csPanel(`<div style="font:900 22px 'Noto Sans TC',sans-serif;margin-bottom:8px">📦 進貨補貨</div><div style="display:grid;gap:6px">${list.map((f,i)=>{const F=CS_FIX[f.t];return `<div style="display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:12px;background:#fff"><div style="width:110px;font-weight:900">${F.ic} ${f.cat}</div><div style="flex:1;height:12px;border-radius:6px;background:#eef;overflow:hidden"><div style="height:100%;width:${f.stock/F.cap*100}%;background:${f.stock/F.cap<0.25?'#ff7a7a':'#5ad6a0'}"></div></div><div style="width:56px;font:700 12px sans-serif">${f.stock}/${F.cap}</div><button data-i="${i}" style="padding:4px 10px;border-radius:8px;border:0;background:#5ad6a0;color:#fff;font-weight:900;cursor:pointer">$${csRestockCost(f)}</button></div>`;}).join('')||'還沒有任何貨架喔！'}</div>
+    <div class="mrow" style="margin-top:12px">${csBtn('csAll',`📦 全部補滿（$${tot.toLocaleString()}）`,'#ff7eb6')}</div>`);
+  $('csPanel').querySelectorAll('[data-i]').forEach(b=>b.onclick=()=>{csRestock(list[+b.dataset.i]);csStockPanel();});$('csAll').onclick=()=>{for(const f of list)if(!csRestock(f))break;sfx('power');csStockPanel();};}
+function csSvcPanel(){const D=CST.d;csPanel(`<div style="font:900 22px 'Noto Sans TC',sans-serif;margin-bottom:8px">🛎️ 便利服務</div><div style="font:700 13px 'Noto Sans TC',sans-serif;color:#6a7a9a;margin-bottom:8px">開啟服務會吸引更多客人，每次使用有手續費收入，但每個月要付費用（每天扣 1/30）。</div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">${CS_SVC.map((s,i)=>{const ok=!s.need||CST.fix.some(f=>f.t===s.need);return `<label style="display:flex;align-items:center;gap:8px;padding:10px;border-radius:14px;background:#fff;${ok?'':'opacity:.5'}"><span style="font-size:26px">${s.ic}</span><span style="flex:1;font:800 14px/1.4 'Noto Sans TC',sans-serif">${s.n}<br><span style="color:#e0508a;font-size:12px">費用 $${s.fee.toLocaleString()}／月・每次 +$${s.inc}</span>${ok?'':`<br><span style="font-size:11px">需要先放${CS_FIX[s.need].n}</span>`}</span><input type="checkbox" data-s="${i}" ${D.services[s.n]?'checked':''} ${ok?'':'disabled'} style="width:22px;height:22px"></label>`;}).join('')}</div>`);
+  $('csPanel').querySelectorAll('[data-s]').forEach(b=>b.onchange=()=>{const s=CS_SVC[+b.dataset.s];D.services[s.n]=b.checked;csSay(b.checked?`開始提供「${s.n}」服務！`:`停止「${s.n}」服務。`);});}
+function csReportPanel(){const D=CST.d,T=CST.today,H=D.hist.slice(-7),mx=Math.max(1,...H.map(h=>Math.abs(h.profit)));
+  csPanel(`<div style="font:900 22px 'Noto Sans TC',sans-serif;margin-bottom:8px">📊 營業報表</div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;text-align:center">${[['今天營收','$'+T.rev.toLocaleString()],['服務收入','$'+T.svc.toLocaleString()],['進貨成本','$'+T.cogs.toLocaleString()],['來客數',T.cust+' 人'],['滿意','😊 '+T.happy],['不滿意','😢 '+T.sad]].map(([a,b])=>`<div style="padding:8px;border-radius:12px;background:#fff"><div style="font:700 12px sans-serif;color:#6a7a9a">${a}</div><div style="font:900 18px 'Noto Sans TC',sans-serif">${b}</div></div>`).join('')}</div>
+    <div style="font:900 15px 'Noto Sans TC',sans-serif;margin:12px 0 6px">最近 7 天淨利</div><div style="display:flex;align-items:flex-end;gap:6px;height:110px;padding:6px;background:#fff;border-radius:12px">${H.length?H.map(h=>`<div style="flex:1;text-align:center;font:700 10px sans-serif"><div style="height:${Math.abs(h.profit)/mx*70+2}px;background:${h.profit>=0?'#5ad6a0':'#ff7a7a'};border-radius:6px 6px 0 0"></div>第${h.day}天<br>${h.profit>=0?'+':''}${h.profit}</div>`).join(''):'<div style="margin:auto;color:#9aa">還沒有完整的營業日</div>'}</div>`);}
+function csQuit(){csPanel(`<div style="font:900 20px 'Noto Sans TC',sans-serif;margin-bottom:10px">🚪 要離開便利商店嗎？</div><div style="font:700 14px 'Noto Sans TC',sans-serif;margin-bottom:12px">沒存檔的進度會不見喔！</div><div class="mrow">${csBtn('csQS','💾 存檔後離開','#ff7eb6')}${csBtn('csQ','直接離開','#c0c8d8')}</div>`);
+  $('csQS').onclick=()=>csSlotPanel('save');$('csQ').onclick=closeMini;}
+// ---------- simulation ----------
+function csPath(sx,sz,goal){const W=CSW+2,Hh=CSD+3,id=(x,z)=>(z+1)*W+(x+1),prev=new Int16Array(W*Hh).fill(-1),q=[[sx,sz]];prev[id(sx,sz)]=id(sx,sz);
+  const pass=(x,z)=>{if(z>=CSD)return x>=CS_DOOR[0]&&x<=CS_DOOR[1]&&z<=CSD+1;return x>=0&&z>=0&&x<CSW&&!csFixAt(x,z);};
+  for(let i=0;i<q.length;i++){const [x,z]=q[i];if(goal(x,z)){const out=[[x,z]];let c=id(x,z);while(prev[c]!==c){c=prev[c];out.unshift([c%W-1,Math.floor(c/W)-1]);}return out;}
+    for(const [dx,dz] of[[1,0],[-1,0],[0,1],[0,-1]]){const nx=x+dx,nz=z+dz;if(nx<-1||nz<-1||nx>CSW||nz>CSD+1)continue;const k=id(nx,nz);if(prev[k]>=0||!pass(nx,nz))continue;prev[k]=id(x,z);q.push([nx,nz]);}}return null;}
+function csAccess(f){const [w,d]=csFoot(f.t,f.r),cells=csCells(f),dir=[[0,1],[1,0],[0,-1],[-1,0]][f.r],out=[];for(const [x,z] of cells){const nx=x+dir[0],nz=z+dir[1];if(!cells.some(c=>c[0]===nx&&c[1]===nz))out.push([nx,nz]);}
+  const ok=out.filter(([x,z])=>x>=0&&z>=0&&x<CSW&&z<CSD&&!csFixAt(x,z));if(ok.length)return ok;const all=[];for(const [x,z] of cells)for(const [dx,dz] of[[1,0],[-1,0],[0,1],[0,-1]]){const nx=x+dx,nz=z+dz;if(nx>=0&&nz>=0&&nx<CSW&&nz<CSD&&!csFixAt(nx,nz))all.push([nx,nz]);}return all;}
+function csWantList(h){const row=CS_WANT.find(r=>h>=r[0]&&h<r[1]||h+24>=r[0]&&h+24<r[1])||CS_WANT[4],W0=row[2],have=new Set(CST.fix.filter(f=>CS_FIX[f.t].cap).map(f=>f.cat)),W={};for(const [k,v] of Object.entries(W0))W[k]=v*(have.has(k)?3:1);for(const k of have)if(!W[k])W[k]=1;const n=1+(Math.random()<0.5?1:0)+(Math.random()<0.2?1:0),out=[];for(let i=0;i<n;i++){let t=Object.values(W).reduce((a,b)=>a+b,0)*Math.random();for(const [k,v] of Object.entries(W)){t-=v;if(t<=0){if(!out.includes(k))out.push(k);break;}}}return out;}
+function csSpawn(){const D=CST.d,h=Math.floor(D.min/60)%24;const sv=CS_SVC.filter(s=>D.services[s.n]&&(!s.need||CST.fix.some(f=>f.t===s.need)));
+  const kid=Math.random()<0.3,o={tex:TEX.uniform,shirt:pick([0xffffff,0xff9ac8,0x9fd8ff,0xffe08a,0xb8f0a0,0xd8b0ff,0xf4a460,0x6a8ad0]),sleeve:null,pants:pick([0x2a3a5a,0x5a4a3a,0x3a5a8a,0x8a3a5a,0x2a2a2a]),longPants:Math.random()<0.6,cap:Math.random()<0.4,capColor:pick([0xe23a2c,0x2f6fd0,0xf2c230]),hair:pick([0x1b1310,0x3a2a1a,0x6a4a2a,0x111111]),longHair:Math.random()<0.35,glasses:Math.random()<0.2,scale:kid?0.8:rand(1,1.2),skin:pick([0xf0c8a0,0xe0b088,0xd9a77f])};o.sleeve=o.shirt;delete o.tex;
+  const p=makePerson(o);CST.sc.add(p.root);const c={p,x:rand(CS_DOOR[0],CS_DOOR[1]+1),z:CSD+1.6,ox:rand(-0.22,0.22),oz:rand(-0.22,0.22),want:csWantList(h),svc:sv.length&&Math.random()<0.25?pick(sv):null,cart:[],missed:0,st:'go',tgt:null,path:null,t:0,wait:0,mood:null,moodT:0};
+  p.root.position.set(c.x,0,c.z);CST.cust.push(c);CST.today.cust++;}
+function csMood(c,e){if(c.mood){c.p.root.remove(c.mood);}c.mood=new THREE.Sprite(CST.moodTex[e]);c.mood.scale.set(0.6,0.6,1);c.mood.position.y=c.p.top+0.5;c.p.root.add(c.mood);c.moodT=2.2;}
+function csNextTarget(c){while(c.want.length){const cat=c.want[0];const fs=CST.fix.filter(f=>f.cat===cat&&CS_FIX[f.t].cap);if(!fs.length){c.want.shift();c.missed++;csMood(c,'😢');continue;}
+    const f=fs.sort((a,b)=>b.stock-a.stock)[0],acc=csAccess(f);if(!acc.length){c.want.shift();c.missed++;continue;}const set=new Set(acc.map(a=>a.join(',')));const path=csPath(Math.floor(c.x),Math.min(CSD+1,Math.floor(c.z)),(x,z)=>set.has(x+','+z));if(!path){c.want.shift();c.missed++;continue;}c.tgt={f,cat,kind:'shop'};c.path=path;return;}
+  if(c.svc){const s=c.svc;c.svc=null;const f=s.need?CST.fix.find(q=>q.t===s.need):null;if(f){const acc=csAccess(f),set=new Set(acc.map(a=>a.join(','))),path=acc.length&&csPath(Math.floor(c.x),Math.min(CSD+1,Math.floor(c.z)),(x,z)=>set.has(x+','+z));if(path){c.tgt={f,kind:'svc',s};c.path=path;return;}}else{c.cart.push({svc:s});}}
+  const cs=CST.fix.filter(f=>CS_FIX[f.t].counter);if((c.cart.length)&&cs.length){const f=cs.sort((a,b)=>(a.q||[]).length-(b.q||[]).length)[0];f.q=f.q||[];f.q.push(c);c.tgt={f,kind:'pay'};c.path=null;c.st='queue';return;}
+  if(c.cart.length&&!cs.length){c.missed+=2;csMood(c,'😠');csSay('沒有<b>收銀台</b>，客人沒辦法結帳！快去「建造」放一個！');}
+  c.tgt={kind:'leave'};c.path=csPath(Math.floor(c.x),Math.min(CSD+1,Math.floor(c.z)),(x,z)=>z===CSD+1);c.st='leave';}
+function csQueueCell(f,i){const acc=csAccess(f);const base=acc[0]||[f.x,f.z+1],dir=[[0,1],[1,0],[0,-1],[-1,0]][f.r];let cell=base;for(let k=0;k<i;k++){const n=[cell[0]+dir[0],cell[1]+dir[1]];if(n[0]>=0&&n[1]>=0&&n[0]<CSW&&n[1]<CSD&&!csFixAt(n[0],n[1]))cell=n;else{const s=[cell[0]+1,cell[1]];if(s[0]<CSW&&!csFixAt(s[0],s[1]))cell=s;}}return cell;}
+function csWalk(c,dt){if(!c.path||!c.path.length)return true;const [tx,tz]=c.path[0],last=c.path.length===1&&tz<CSD,gx=tx+0.5+(last?c.ox:0),gz=tz+0.5+(last?c.oz:0),dx=gx-c.x,dz=gz-c.z,d=Math.hypot(dx,dz),sp=1.6*dt;if(d<=sp){c.x=gx;c.z=gz;c.path.shift();}else{c.x+=dx/d*sp;c.z+=dz/d*sp;c.face=Math.atan2(dx,dz);}return !c.path.length;}
+function csEndDay(){const D=CST.d,T=CST.today;let waste=0;for(const f of CST.fix)if(CS_FIX[f.t].cap&&CS_CAT[f.cat].spoil&&f.stock>0){waste+=f.stock*CS_CAT[f.cat].c;f.stock=0;csProducts(f);}
+  const rent=2500,util=CST.fix.reduce((a,f)=>a+(f.t==='fridge'||f.t==='freezer'?120:f.t==='coffee'||f.t==='oden'?80:30),0),svcFee=Math.round(CS_SVC.filter(s=>D.services[s.n]).reduce((a,s)=>a+s.fee,0)/30);
+  D.money-=rent+util+svcFee;const profit=T.rev+T.svc-T.cogs-rent-util-svcFee;D.hist.push({day:D.day,rev:T.rev+T.svc,cost:T.cogs,profit,cust:T.cust});if(D.hist.length>30)D.hist.shift();
+  const rep=[];if(profit>0&&!D.flags.p1){D.flags.p1=1;rep.push([{iron:2},'便利商店第一次賺錢！']);}if(D.money>=150000&&!D.flags.m15){D.flags.m15=1;rep.push([{gem:2},'便利商店存款 15 萬！']);}if(D.money>=300000&&!D.flags.m30){D.flags.m30=1;rep.push([{gem:4,iron:4},'便利商店存款 30 萬！大老闆！']);}if(D.day>=7&&!D.flags.d7){D.flags.d7=1;rep.push([{gem:2},'便利商店營業滿一週！']);}
+  rep.forEach((r,i)=>setTimeout(()=>reward(r[0],r[1]),i*1800));
+  csPanel(`<div style="font:900 24px 'Noto Sans TC',sans-serif;text-align:center">🌙 第 ${D.day} 天 營業結束</div>
+    <div style="display:grid;grid-template-columns:1fr auto;gap:4px 16px;margin:12px auto;max-width:320px;font:800 15px 'Noto Sans TC',sans-serif">
+      <div>商品營收</div><div style="text-align:right;color:#2a9a6a">+$${T.rev.toLocaleString()}</div><div>服務收入</div><div style="text-align:right;color:#2a9a6a">+$${T.svc.toLocaleString()}</div>
+      <div>進貨成本</div><div style="text-align:right;color:#d0406a">-$${T.cogs.toLocaleString()}</div><div>房租</div><div style="text-align:right;color:#d0406a">-$${rent.toLocaleString()}</div><div>水電</div><div style="text-align:right;color:#d0406a">-$${util.toLocaleString()}</div><div>服務月費</div><div style="text-align:right;color:#d0406a">-$${svcFee.toLocaleString()}</div>
+      ${waste?`<div>過期報廢（成本）</div><div style="text-align:right;color:#d0406a">$${waste.toLocaleString()}</div>`:''}
+      <div style="border-top:2px solid #9cc4f8;padding-top:4px;font-size:18px">今日淨利</div><div style="border-top:2px solid #9cc4f8;padding-top:4px;font-size:18px;text-align:right;color:${profit>=0?'#2a9a6a':'#d0406a'}">${profit>=0?'+':''}$${profit.toLocaleString()}</div></div>
+    <div style="text-align:center;font:700 14px 'Noto Sans TC',sans-serif">來客 ${T.cust} 人・😊 ${T.happy}・😢 ${T.sad}・人氣 ${Math.round(D.rep)}${CST.slot?`<br>已自動存到存檔 ${CST.slot}`:'<br>記得用「存檔」保存進度喔！'}</div>
+    <div class="mrow" style="margin-top:10px">${csBtn('csNextDay','☀️ 開始第 '+(D.day+1)+' 天','#ff7eb6')}</div>`);
+  D.day++;D.min=7*60;CST.today={rev:0,cogs:0,svc:0,cust:0,happy:0,sad:0};for(const c of CST.cust)CST.sc.remove(c.p.root);CST.cust=[];for(const f of CST.fix)f.q=[];
+  if(CST.slot)csSave(CST.slot,true);CST.speed=0;csPhone();csMoney();$('csNextDay').onclick=()=>{csClosePanel();CST.speed=1;csPhone();csSay(`第 ${D.day} 天開店！早上客人喜歡<b>咖啡、麵包、飯糰</b>喔～`);};
+  if(D.money<0)csSay('錢變成負的了…少進一點貨、多開熱門商品試試看！');}
+function csFrame(rdt){const K=CST;if(!K)return;rdt=Math.min(rdt,0.05);const D=K.d;
+  if(K.mode!=='menu'&&D){const gdt=rdt*K.speed;
+    if(gdt>0){const oldH=Math.floor(D.min/60);D.min+=gdt*4;const h=Math.floor(D.min/60)%24;if(Math.floor(D.min/60)!==oldH)csPhone();
+      if(D.min>=24*60+60){csEndDay();}
+      else{const variety=new Set(K.fix.filter(f=>CS_FIX[f.t].cap&&f.stock>0).map(f=>f.cat)).size,svc=CS_SVC.filter(s=>D.services[s.n]).length,decor=K.fix.filter(f=>f.t==='plant').length;
+        const rate=CS_RATE[h]*(0.4+D.rep/80)*(1+variety*0.06+svc*0.1+Math.min(decor,4)*0.03);K.spawnAcc+=rate*gdt*4/60;while(K.spawnAcc>=1&&K.cust.length<18){K.spawnAcc-=1;csSpawn();}if(K.spawnAcc>3)K.spawnAcc=3;}
+      if(Math.floor(D.min)%7===0)csMoney();}
+    // customers
+    for(const c of K.cust.slice()){const cdt=gdt;c.moodT-=rdt;if(c.mood&&c.moodT<=0){c.p.root.remove(c.mood);c.mood=null;}let moving=false;
+      if(cdt>0){if(c.st==='go'){if(!c.tgt)csNextTarget(c);if(c.tgt&&c.tgt.kind!=='leave'&&c.st==='go'){if(c.path&&c.path.length){csWalk(c,cdt);moving=true;}else{c.st='browse';c.t=1.4;}}}
+        else if(c.st==='browse'){c.t-=cdt;if(c.t<=0){const tg=c.tgt;if(tg.kind==='shop'){if(tg.f.stock>0&&K.fix.includes(tg.f)){tg.f.stock--;csProducts(tg.f);c.cart.push({cat:tg.cat,p:CS_CAT[tg.cat].p});if(Math.random()<0.5)csMood(c,'😊');}else{c.missed++;csMood(c,'😢');if(K.tipT<=0)csSay(`<b>${tg.cat}</b>賣完了！客人買不到很失望，快去補貨～`);}c.want.shift();}
+            else if(tg.kind==='svc'){c.cart.push({svc:tg.s});}c.tgt=null;c.st='go';}}
+        else if(c.st==='queue'){const f=c.tgt.f;if(!K.fix.includes(f)||!f.q){c.tgt=null;c.st='go';continue;}if(!c.path)c.qc=null;const i=f.q.indexOf(c);const cell=csQueueCell(f,i);if(!c.qc||c.qc.join()!==cell.join()){c.qc=cell;c.path=csPath(Math.floor(c.x),Math.min(CSD+1,Math.floor(c.z)),(x,z)=>x===cell[0]&&z===cell[1])||[];}
+          if(c.path.length){csWalk(c,cdt);moving=true;}else{c.wait+=cdt;if(i===0){c.t=(c.t||0)+cdt;if(c.t>=1.0+c.cart.length*0.25){let sum=0,sv=0;for(const it of c.cart){if(it.svc)sv+=it.svc.inc;else sum+=it.p;}D.money+=sum+sv;CST.today.rev+=sum;CST.today.svc+=sv;f.q.shift();
+              const happy=c.missed===0&&c.wait<14;D.rep=clamp(D.rep+(happy?0.7:-0.35*c.missed)-(c.wait>14?0.8:0),5,100);if(happy)CST.today.happy++;else if(c.missed>=2||c.wait>14)CST.today.sad++;csMood(c,happy?'💰':c.wait>14?'😠':'😐');fpsBeep(1320,0.06,'square',0.03);csMoney();
+              c.tgt={kind:'leave'};c.st='leave';c.path=csPath(Math.floor(c.x),Math.floor(c.z),(x,z)=>z===CSD+1);}}}}
+        if(c.st==='leave'||c.tgt&&c.tgt.kind==='leave'){c.st='leave';if(!c.path)c.path=csPath(Math.floor(c.x),Math.min(CSD+1,Math.floor(c.z)),(x,z)=>z===CSD+1)||[];moving=true;if(csWalk(c,cdt)){if(c.z>CSD+0.5){if(!c.paid&&c.cart.length===0){if(c.missed){CST.today.sad++;D.rep=clamp(D.rep-0.8,5,100);}}K.sc.remove(c.p.root);K.cust.splice(K.cust.indexOf(c),1);continue;}else c.path=[[Math.floor(c.x),CSD+1]];}}}
+      c.p.root.position.set(c.x,0,c.z);if(c.face!==undefined)c.p.root.rotation.y=c.face;if(c.st==='browse'&&c.tgt&&c.tgt.f){const f=c.tgt.f,[fw,fd]=csFoot(f.t,f.r);c.p.root.rotation.y=Math.atan2(f.x+fw/2-c.x,f.z+fd/2-c.z);}
+      animPerson(c.p,moving?2.5*Math.min(K.speed,2):0,rdt);}
+    // clerk behind the first counter
+    const ctr=K.fix.find(f=>CS_FIX[f.t].counter);if(ctr){if(!K.clerk){K.clerk=makePerson(playerOpts(SET.gender));K.sc.add(K.clerk.root);}const dir=[[0,1],[1,0],[0,-1],[-1,0]][ctr.r],[fw,fd]=csFoot(ctr.t,ctr.r);K.clerk.root.position.set(ctr.x+fw/2-dir[0]*0.95,0,ctr.z+fd/2-dir[1]*0.95);K.clerk.root.rotation.y=Math.atan2(dir[0],dir[1]);animPerson(K.clerk,0,rdt);}else if(K.clerk){K.sc.remove(K.clerk.root);K.clerk=null;}
+    for(const f of K.fix)if(f.steam)f.steam.forEach((s,i)=>{const t=(performance.now()/1000+i*0.4)%1.2;s.position.set(Math.sin(i*2)*0.1,1.1+t*0.6,Math.cos(i*2)*0.1);s.material.opacity=0.5*(1-t/1.2);});
+    // day / night
+    const hh=(D.min/60)%24,day=hh>=6&&hh<18.5?1:hh>=18.5&&hh<20?1-(hh-18.5)/1.5:hh>=5&&hh<6?hh-5:0;K.hemi.intensity=0.4+0.4*day;K.sun.intensity=0.15+0.55*day;K.lamp.intensity=0.5+0.6*(1-day);K.sc.background.setRGB(0.08+0.32*day,0.08+0.5*day,0.18+0.62*day);
+    // tips
+    K.tipT-=rdt;if(K.tipT<=0){K.tipT=14;const low=K.fix.filter(f=>CS_FIX[f.t].cap&&f.stock/CS_FIX[f.t].cap<0.25);const h=Math.floor(D.min/60)%24;
+      if(!K.fix.some(f=>CS_FIX[f.t].counter))csSay('要先放<b>收銀台</b>，客人才能結帳！');else if(low.length)csSay(`記得上架補貨喔～ <b>${low.map(f=>f.cat).slice(0,3).join('、')}</b>快沒了！`);
+      else if(h>=6&&h<10)csSay('早上的客人愛買<b>咖啡、麵包、飯糰</b>！');else if(h>=11&&h<14)csSay('中午是<b>便當</b>的尖峰時間！');else if(h>=18&&h<22)csSay('晚上大家喜歡<b>泡麵、關東煮</b>～');else if(h>=22||h<5)csSay('深夜客人比較少，可以趁現在整理店面。');else csSay(pick(['開啟「服務」可以吸引更多客人喔！','放幾盆盆栽，客人心情會更好～','點報表可以看今天賺了多少錢！']));}}
+  // build ghost
+  if((K.mode==='build'&&K.sel||K.mode==='sell')&&K.hover){const [hx,hz]=K.hover;if(K.mode==='build'){const [w,d]=csFoot(K.sel,K.rot||0);let ok=true;for(let i=0;i<w;i++)for(let k=0;k<d;k++)if(!csFree(hx+i,hz+k))ok=false;K.ghost.visible=true;K.ghost.scale.set(w,1,d);K.ghost.position.set(hx+w/2,0.06,hz+d/2);K.ghost.material.color.set(ok?0x5aff8a:0xff5a5a);}
+    else{const f=csFixAt(hx,hz);K.ghost.visible=!!f;if(f){const [w,d]=csFoot(f.t,f.r);K.ghost.scale.set(w,1,d);K.ghost.position.set(f.x+w/2,0.06,f.z+d/2);K.ghost.material.color.set(0xff5a5a);}}}else K.ghost.visible=false;
+  K.R.render(K.sc,K.cam);}
 
 // ---- marimba rhythm game (concert stage style) ----
 const MSONGS=[{n:'小蜜蜂',bpm:118,lv:2,ic:'🐝',notes:'5 3 3 - 4 2 2 - 1 2 3 4 5 5 5 - 5 3 3 - 4 2 2 - 1 3 5 5 3 - - - 2 2 2 2 2 3 4 - 3 3 3 3 3 4 5 - 5 3 3 - 4 2 2 - 1 3 5 5 1'},
