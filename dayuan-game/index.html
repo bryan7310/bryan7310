@@ -286,7 +286,7 @@ body.touch .ts-press{display:none}
     <div class="ts-story">「考卷大魔王」派出作業怪、蚊子怪、搗蛋鬼和磁磚龍佔領了校園！<br>到校門口找校長報到，和同學組隊，一起把大元國小搶回來！</div>
     <div class="ts-feats">
       <span class="ts-feat"><i>⚔️</i>魔王格鬥決鬥</span><span class="ts-feat"><i>⛏️</i>挖掘・建造・合成</span><span class="ts-feat"><i>🏫</i>走進校舍上屋頂</span>
-      <span class="ts-feat"><i>🏃</i>跑酷教室</span><span class="ts-feat"><i>🎨</i>美術作畫</span><span class="ts-feat"><i>🎹</i>音樂小星星</span><span class="ts-feat"><i>🔴</i>新元館躲避球</span>
+      <span class="ts-feat"><i>🏃</i>跑酷教室</span><span class="ts-feat"><i>🎨</i>美術作畫</span><span class="ts-feat"><i>🎹</i>音樂小星星</span><span class="ts-feat"><i>🔴</i>操場躲避球</span><span class="ts-feat"><i>🎵</i>新元館木琴</span>
     </div>
     <div class="ts-foot">© DAYUAN ELEMENTARY ・ FAN GAME ・ VER 2.0</div>
   </div>
@@ -645,7 +645,6 @@ for(const b of BUILDINGS){
     B.add(L/2-6,L/2-0.35,0,1.0,-W/2+3,W/2-3,lam(0x8b5a2b));B.add(L/2-0.6,L/2-0.36,1,7.5,-W/2+3,W/2-3,lam(0x9b1b2b),{solid:false});
     const [hx,hz]=B.toW(-L/2+1.2,0),[tx,tz]=B.toW(0,0);hoopAt(hx,hz,tx,tz);
     addChest(B,L/2-3,0,1.0,{gem:2,iron:3});
-    ROOMS.push({special:{label:'新元館躲避球',type:'dodge'},y:0,xa:-L/2+1,xb:L/2-6.5,B,cs:1,cw0:W/2-1.2});
   } else if(b.redRoof){H=6.6;
     // open passage: pillars + roof slab + paved floor, open on all sides
     const pm=lam(0xeba792),bm=lam(0xefe3c9);
@@ -898,7 +897,7 @@ const AMPHI=[330,200];
     const c=new THREE.Mesh(new THREE.ConeGeometry(r,h,6,1),i%3?mm:mm2);c.position.set(Math.cos(an)*d,h/2-4,Math.sin(an)*d);c.rotation.y=rand(0,3);scene.add(c);}}
 // ================= trees =================
 const TREE_ZONES=[[150,92,300,205,16],[480,105,555,385,20],[300,372,465,486,24],[185,290,325,350,8],[300,128,345,300,8],[20,140,70,215,3],[300,20,330,55,2],[400,120,470,140,2]];
-const NPC_SPOTS=[[302,186],[350,330],[275,110],[300,300],[105,22],[190,110],[120,150],[515,150],[392,352],[332,155],[300,360],[235,180],[165,170],[452,82],[430,250],[325,170],[225,340],[195,175]];
+const NPC_SPOTS=[[302,186],[440,250],[250,412],[350,330],[275,110],[300,300],[105,22],[190,110],[120,150],[515,150],[392,352],[332,155],[300,360],[235,180],[165,170],[452,82],[430,250],[325,170],[225,340],[195,175]];
 const trees=[];
 for(const [x0,y0,x1,y1,n] of TREE_ZONES){let made=0,tries=0;
   while(made<n&&tries++<400){const x=rand(x0,x1),y=rand(y0,y1);
@@ -1261,6 +1260,7 @@ function makePerson(o){
   if(o.cap&&(o.pony||o.bob||o.longHair)){const hm=lam(o.hair||0x1d1a18);if(o.pony){const pt=sph(0.1,hm);pt.position.set(0,-0.02,-0.24);head.add(pt);}else{const bk=box(o.longHair?0.42:0.4,o.longHair?0.5:0.24,0.16,hm);bk.position.set(0,o.longHair?-0.18:-0.06,-0.12);head.add(bk);if(o.longHair){for(const sx of[-0.2,0.2]){const sd=box(0.05,0.34,0.22,hm);sd.position.set(sx,-0.1,-0.02);head.add(sd);}}}}
   if(o.mask){const mk=box(0.36,0.08,0.02,lam(0x111111));mk.position.set(0,0.02,0.19);head.add(mk);for(const sx of[-0.07,0.07]){const e=sph(0.028,new THREE.MeshBasicMaterial({color:0xff2a2a}),6,6);e.position.set(sx,0.02,0.205);head.add(e);}}
   if(o.whistle){const w=box(0.05,0.04,0.06,lam(0xdddddd));w.position.set(0,H+0.32,0.15);body.add(w);}
+  if(o.thin){torso.scale.set(0.78,1.06,0.85);hip.scale.set(0.8,1,0.85);for(const q of[legL,legR,armL,armR])q.position.x*=0.8;}
   if(o.chubby){torso.scale.set(1.45,1.05,1.6);hip.scale.set(1.45,1,1.6);for(const q of[legL,legR,armL,armR])q.position.x*=1.45;for(const q of[legL,legR])q.scale.set(1.3,1,1.3);head.scale.set(1.12,1.04,1.1);}
   if(o.cool){const br=box(0.36,0.035,0.02,lam(0x111111));br.position.set(0,0.085,0.19);br.rotation.z=0.06;head.add(br);const sm=box(0.06,0.018,0.02,lam(0x7a2a2a));sm.position.set(0.04,-0.07,0.195);sm.rotation.z=0.3;head.add(sm);
     const tuft=box(0.12,0.06,0.12,lam(o.hair||0x111111));tuft.position.set(0.05,0.23,0.1);tuft.rotation.z=-0.3;head.add(tuft);}
@@ -1407,16 +1407,29 @@ addNPC('homeroom','王老師',[190,110],{scale:1.25,shirt:0xe8538f,sleeve:0xe853
 addNPC('homeroom','陳老師',[120,150],{scale:1.3,shirt:0x1f2f4f,sleeve:0x1f2f4f,pants:0x4a6a8f,longPants:true,hair:0x111111,skin:0xd9a77f});
 const FRIENDS=[
   ['家亨',[235,180],{sleeve:0x2e8b3e,pants:0x2e8b3e,chubby:true},'好啊！我力氣最大，躲避球丟超遠，一起去打怪獸！'],
-  ['佑俊',[452,82],{sleeve:0x2e8b3e,pants:0x2e8b3e,flag:true,skin:0xf3d3b5},'안녕！我是佑俊！帶著韓國國旗幫大家加油，一起保護大元國小！'],
   ['凱翔',[325,170],{sleeve:0x2e8b3e,pants:0x2e8b3e},'搗蛋鬼又在亂搞？交給我們吧！'],
   ['昀蔚',[165,170],{sleeve:0xf08a24,pants:0xf08a24,pony:true,scale:0.82},'我雖然個子小，可是跑得很快喔！算我一份！'],
   ['妤墨',[425,248],{sleeve:0xf08a24,pants:0xf08a24,longHair:true,mole:true},'作業怪最討厭了！我們一起把牠們趕走！'],
   ['品岑',[225,340],{sleeve:0xf08a24,pants:0xf08a24,bob:true},'我跟你走！大家一起就不怕了！'],
   ['宇德',[350,330],{sleeve:0x2e8b3e,pants:0x2e8b3e,skin:0xa8754e,cool:true,ball:true,hair:0x0d0b0a},'嘿！打怪獸這種事，交給我就對了！'],
-  ['品昊',[275,110],{sleeve:0x2e8b3e,pants:0x2e8b3e,glasses:true,bag:true},'等我一下，我把作業放進袋子裡……好了，出發！'],
   ['千綺',[300,300],{sleeve:0xf08a24,pants:0xf08a24,longHair:true},'我會接球！有我在，大家就不會被打中！'],
 ];
 for(const [name,pos,o,line] of FRIENDS){if(o.pants===0xf08a24)o.capRed=true;const n=addNPC('friend',name,pos,Object.assign({tex:TEX.uniform,shirt:0xffffff,cap:true,shoe:pick([0x1e7a3c,0x222222,0xe86d8a,0x2f6fd0])},o));n.joinLine=line;}
+{const u=Object.assign({tex:TEX.uniform,shirt:0xffffff,cap:true,shoe:0x1e7a3c},{sleeve:0x2e8b3e,pants:0x2e8b3e,flag:true,skin:0xf3d3b5});addNPC('dodge','佑俊',[440,250],u);}
+// marimba band in 新元館
+const BAND=[];
+{const gx=wx(250),gz=wz(418),g=new THREE.Group();g.position.set(gx,0,gz);scene.add(g);const blk=lam(0x1b1b1b),wood=lam(0x8a3a24),tube=lam(0xc9a45a);
+  const L=3.4,D=1.1;for(const sx of[-1,1])for(const sz of[-1,1]){const lg=box(0.07,0.95,0.07,blk);lg.position.set(sx*L/2*0.9,0.47,sz*D/2*0.8);g.add(lg);}
+  for(const sz of[-1,1]){const rail=box(L,0.08,0.08,blk);rail.position.set(0,0.95,sz*D/2);g.add(rail);}
+  for(let i=0;i<22;i++){const t=i/21,len=0.55-0.25*t,x=-L/2+0.12+i*(L-0.24)/21;const bar=box(0.12,0.05,len,wood);bar.position.set(x,1.0,0.22);g.add(bar);const tb=new THREE.Mesh(new THREE.CylinderGeometry(0.045,0.045,0.7-0.45*t,8),tube);tb.position.set(x,0.95-(0.7-0.45*t)/2,0.22);g.add(tb);}
+  for(let i=0;i<15;i++){const t=i/14,len=0.42-0.18*t,x=-L/2+0.25+i*(L-0.5)/14;const bar=box(0.11,0.05,len,wood);bar.position.set(x,1.06,-0.3);g.add(bar);}
+  for(const [x,c] of [[L/2+0.15,0xd6282b],[L/2+0.15,0xf2e6a0]]){const mt=new THREE.Mesh(new THREE.SphereGeometry(0.05,8,6),lam(c));mt.position.set(x,1.02,c===0xd6282b?0.05:0.18);g.add(mt);}
+  addSolid(gx,gz,L/2,D/2,0,0,1.1);
+  const lbl=makeLabel('🎵 木琴合奏','rgba(139,58,36,.95)','#fff');lbl.position.set(gx,3.4,gz);lbl.scale.set(2.6,0.65,1);scene.add(lbl);
+  const base={tex:TEX.uniform,shirt:0xffffff,cap:true,shoe:0x222222};
+  for(const [name,pos,o] of [['阿輝',[242,410],{sleeve:0x2e8b3e,pants:0x2e8b3e,scale:1.15,cool:true}],['家樂',[248,409],{sleeve:0x2e8b3e,pants:0x2e8b3e}],['品昊',[254,409],{sleeve:0x2e8b3e,pants:0x2e8b3e,glasses:true,bag:true}],
+      ['彥筠',[259,410],{sleeve:0xf08a24,pants:0xf08a24,capRed:true,longHair:true,scale:1.1,thin:true}],['柏豪',[263,412],{sleeve:0x2e8b3e,pants:0x2e8b3e,thin:true}]]){
+    const n=addNPC('band',name,pos,Object.assign({},base,o));n.p.root.rotation.y=Math.atan2(gx-n.x,gz-n.z);BAND.push(n);}}
 {const d=addNPC('friend','恐龍',[515,150],{make:makeDino});d.joinLine='吼——！恐龍也來幫忙！我的躲避球特別大顆！';d.power=2;}
 const friendsOf=()=>npcs.filter(n=>n.recruited);
 
@@ -1501,12 +1514,14 @@ function interact(n){
     else if(G.bossDead){say([['校長','太棒了！你和同學們同心協力，打倒了考卷大魔王！'],['校長','大元國小的校園恢復和平了。校長要頒給你們「校園英雄獎」！'],['校長','記得：遇到困難不要怕，和朋友一起努力，就一定做得到！']],win);}
     else{G.hp=G.maxHp;say([['校長',hint()]]);}
     return;}
-  if(!G.met){say([[n.name,n.kind==='friend'?'聽說校長在校門口找人，好像出了大事，你快去看看！':'同學早安！先去校門口找校長報到喔。']]);return;}
+  if(!G.met&&n.kind!=='dodge'&&n.kind!=='band'){say([[n.name,n.kind==='friend'?'聽說校長在校門口找人，好像出了大事，你快去看看！':'同學早安！先去校門口找校長報到喔。']]);return;}
   if(n.kind==='friend'){
     if(n.recruited){say([[n.name,pick(['我會一直跟著你的！','怪獸在哪裡？衝啊！','我們是最強小隊！'])]]);return;}
     say([[n.name,n.joinLine]],()=>{n.recruited=true;n.marker.visible=false;n.col.r=0;n.slot=friendsOf().length-1;sfx('power');banner(`${n.name} 加入小隊！`);});return;}
   if(n.kind==='pe'){if(!n.done)say([['體育老師','嗶——！同學，打怪獸也要有好體力！'],['體育老師','老師教你「躲避球連發」：丟球更快，一次丟三顆！']],()=>{n.done=true;G.rapid=true;G.hp=G.maxHp;sfx('power');banner('學會：躲避球連發！');});else{G.hp=G.maxHp;say([['體育老師','很好！體力幫你補滿了！要不要跟老師比賽跑步？到起跑線按 E 就開始！']]);}return;}
   if(n.kind==='sci'){if(!n.done)say([['自然老師','我在生態池觀察青蛙的時候，發現了一種神奇的泡泡！'],['自然老師','這個「泡泡護盾」可以讓你受到的傷害減半，拿去用吧！']],()=>{n.done=true;G.shield=true;G.hp=G.maxHp;sfx('power');banner('獲得：泡泡護盾！');});else say([['自然老師','科學的力量就是觀察和勇氣！加油！']]);return;}
+  if(n.kind==='dodge'){say([['佑俊','안녕！我是佑俊！要不要一起玩躲避球？大元隊對搗蛋鬼隊！'],['佑俊','準備好了嗎？開始！']],()=>startDodge({special:n.dodgeSp||(n.dodgeSp={label:'操場躲避球',type:'dodge'})}));return;}
+  if(n.kind==='band'){say([[n.name,pick(['我們正在練木琴合奏！','你也來敲敲看！','跟著落下的音符敲琴鍵喔！'])],[n.name,'來，這兩支琴槌給你！']],()=>startMarimba());return;}
   if(n.kind==='frog'){if(!n.done)say([['大元蛙','呱呱！歡迎來到大元國小！我是站在大門口迎接大家的大元蛙！'],['大元蛙','送你一雙「跳跳鞋」，走路跑步都會變快喔！呱！']],()=>{n.done=true;G.fast=true;sfx('power');banner('獲得：跳跳鞋！');});else say([['大元蛙','呱呱！加油加油！']]);return;}
   if(n.kind==='homeroom'){if(!n.done)say([[n.name,'同學好！打怪獸之前，老師幫你們全班加油打氣！'],[n.name,'吃飽睡好、身體健康，體力上限 +20！']],()=>{n.done=true;G.maxHp+=20;G.hp=G.maxHp;sfx('power');banner('體力上限 +20！');});else{G.hp=Math.min(G.maxHp,G.hp+30);say([[n.name,'記得要互相幫忙喔！（體力 +30）']]);}return;}
   if(n.kind==='nurse'){G.hp=G.maxHp;n.done=true;say([['護理阿姨','受傷了嗎？來，阿姨幫你擦藥貼 OK 繃。'],['護理阿姨','好了，體力全滿！記得多喝水喔！']],()=>sfx('power'));return;}
@@ -1667,6 +1682,7 @@ function updateNPCs(dt){
     if(n.kind==='friend')n.marker.visible=!n.recruited&&G.met;
     else if(n.kind==='principal')n.marker.visible=!G.met||G.bossDead;
     else if(n.kind==='nurse')n.marker.visible=G.met&&G.hp<G.maxHp*0.6;
+    else if(n.kind==='dodge'||n.kind==='band')n.marker.visible=true;
     else n.marker.visible=G.met&&!n.done;
     let speed=0;
     if(n.recruited&&PKS){n.p.root.visible=false;continue;}
@@ -1999,8 +2015,8 @@ function vStick(el,cb){if(!el)return;const kn=el.querySelector('.vknob');let id=
   el.onpointerup=el.onpointercancel=e=>{if(e.pointerId!==id)return;id=null;kn.style.transform='';cb(0,0);};}
 // ---- dodgeball in 新元館 ----
 let DB=null;
-function startDodge(r){const fr=friendsOf().map(f=>f.name);while(fr.length<3)fr.push(['家亨','佑俊','凱翔','宇德','品昊','昀蔚','妤墨','品岑','千綺'].find(n=>!fr.includes(n))||'同學');
-  openMini(`<div class="mhead"><div class="mtitle">🔴 新元館躲避球：大元隊 vs 搗蛋鬼隊</div><div style="font-size:13px;color:var(--muted)">WASD 移動・J 或點畫面 丟球（瞄準最近的對手）・K 接球（球快打到時按）・撿到自己場上的球才能丟</div></div>
+function startDodge(r){const fr=friendsOf().map(f=>f.name);while(fr.length<3)fr.push(['家亨','佑俊','凱翔','宇德','昀蔚','妤墨','品岑','千綺'].find(n=>!fr.includes(n))||'同學');
+  openMini(`<div class="mhead"><div class="mtitle">🔴 操場躲避球：大元隊 vs 搗蛋鬼隊</div><div style="font-size:13px;color:var(--muted)">WASD 移動・J 或點畫面 丟球（瞄準最近的對手）・K 接球（球快打到時按）・撿到自己場上的球才能丟</div></div>
     <canvas id="dbCv" width="960" height="540" style="width:100%;height:auto;max-height:74vh;border-radius:10px;touch-action:none"></canvas>
     <div class="dpad"><div class="vstick"><div class="vknob"></div></div><div class="mrow"><button data-k="T">丟</button><button data-k="C">接</button></div></div>
     <div class="mrow"><button class="mbtn" id="dbQuit">離開</button></div>`);
@@ -2048,7 +2064,7 @@ function dodgeFrame(dt){const D=DB;if(!D)return;dt=Math.min(dt,0.04);const alive
   else if(!alive(1).length){D.end='win';D.et=2.4;D.msg={t:'大元隊獲勝！',time:3};}
   drawDodge();}
 function finishDodge(){const D=DB;DB=null;
-  $('miniBox').innerHTML=`<div class="mtitle">🔴 新元館躲避球</div><div class="score">${D.end==='win'?'🏆 勝利！':'再接再厲！'}</div><div>${D.end==='win'?`剩下 ${D.P.filter(q=>q.team===0&&!q.out).length} 位隊友還在場上`:'記得按 K 接球，接到球對方就出局！'}</div>
+  $('miniBox').innerHTML=`<div class="mtitle">🔴 操場躲避球</div><div class="score">${D.end==='win'?'🏆 勝利！':'再接再厲！'}</div><div>${D.end==='win'?`剩下 ${D.P.filter(q=>q.team===0&&!q.out).length} 位隊友還在場上`:'記得按 K 接球，接到球對方就出局！'}</div>
     <div class="mrow"><button class="mbtn go" id="dbAgain">再比一場</button><button class="mbtn" id="dbBack">回到新元館</button></div>`;
   miniFrame=null;miniKey=null;$('dbAgain').onclick=()=>startDodge(D.r);$('dbBack').onclick=closeMini;
   if(D.end==='win'){if(!D.r.special.done){D.r.special.done=true;reward({gem:2,iron:2},'躲避球比賽獲勝！');}else reward({log:2},'躲避球又贏了！');}}
@@ -2592,6 +2608,46 @@ function startSuika(){const W=400,H=560,TOP=90;
     g.fillStyle='#7a5a2a';g.font='900 13px "Noto Sans TC",sans-serif';g.textAlign='left';g.fillText('下一個',W-80,24);fruit(W-40,50,S.next,Math.min(18,FRUITS[S.next][2]));
     for(const q of S.pops){q.t+=dt;g.strokeStyle=q.c;g.globalAlpha=Math.max(0,1-q.t*2);g.lineWidth=4;g.beginPath();g.arc(q.x,q.y,20+q.t*80,0,7);g.stroke();g.globalAlpha=1;}S.pops=S.pops.filter(q=>q.t<0.5);
     if(S.over){g.fillStyle='rgba(0,0,0,.55)';g.fillRect(0,0,W,H);g.fillStyle='#fff';g.font='900 34px "Noto Sans TC",sans-serif';g.textAlign='center';g.fillText('遊戲結束',W/2,H/2-10);g.font='700 18px "Noto Sans TC",sans-serif';g.fillText(`分數 ${S.score}・按「重新開始」再玩`,W/2,H/2+24);}};}
+
+// ---- marimba rhythm game ----
+const MSONGS=[{n:'小蜜蜂',bpm:118,notes:'5 3 3 - 4 2 2 - 1 2 3 4 5 5 5 - 5 3 3 - 4 2 2 - 1 3 5 5 3 - - - 2 2 2 2 2 3 4 - 3 3 3 3 3 4 5 - 5 3 3 - 4 2 2 - 1 3 5 5 1'},
+  {n:'兩隻老虎',bpm:126,notes:'1 2 3 1 1 2 3 1 3 4 5 - 3 4 5 - 5 6 5 4 3 - 1 - 5 6 5 4 3 - 1 - 2 5 1 - 2 5 1'},
+  {n:'小星星',bpm:110,notes:'1 1 5 5 6 6 5 - 4 4 3 3 2 2 1 - 5 5 4 4 3 3 2 - 5 5 4 4 3 3 2 - 1 1 5 5 6 6 5 - 4 4 3 3 2 2 1'}];
+const MFREQ=[0,523.25,587.33,659.25,698.46,783.99,880,987.77];
+function mallet(f){if(!actx)return;const t=actx.currentTime;for(const [mul,v,d] of [[1,0.32,0.9],[4,0.08,0.18],[10,0.03,0.06]]){const o=actx.createOscillator(),g=actx.createGain();o.type='sine';o.frequency.value=f*mul;o.connect(g);g.connect(sfxBus);g.gain.setValueAtTime(v,t);g.gain.exponentialRampToValueAtTime(0.0008,t+d);o.start(t);o.stop(t+d+0.05);}}
+let MB=null;
+function startMarimba(si){const song=MSONGS[si===undefined?Math.floor(Math.random()*MSONGS.length):si];
+  openMini(`<div class="mhead"><div class="mtitle">🎵 新元館木琴合奏：〈${song.n}〉</div><div>分數 <b id="mbS">0</b>・連擊 <b id="mbC">0</b></div></div>
+    <canvas id="mbCv" width="900" height="520" style="width:min(900px,100%);height:auto;max-height:70vh;border-radius:12px;touch-action:none"></canvas>
+    <div class="mrow">${MSONGS.map((q,i)=>`<button class="mbtn${q===song?' go':''}" data-s="${i}">${q.n}</button>`).join('')}<button class="mbtn" id="mbQ">離開</button></div>
+    <div style="color:var(--muted);font-size:13px">音符落到琴鍵上的金線時，按對應的琴鍵：1–7 或 A S D F G H J，也可以直接點畫面上的琴鍵</div>`);
+  const seq=[];let tt=2.2;const beat=60/song.bpm;for(const tok of song.notes.split(' ')){if(tok!=='-')seq.push({n:+tok,t:tt,st:0});tt+=beat;}
+  MB={song,seq,t:0,score:0,combo:0,max:0,hits:{p:0,g:0,m:0},fx:[],flash:[0,0,0,0,0,0,0,0],end:tt+1.5,g:$('mbCv').getContext('2d'),done:false};
+  const hit=n=>{if(!MB||MB.done)return;mallet(MFREQ[n]);MB.flash[n]=0.2;let best=null,bd=1;for(const q of MB.seq){if(q.st||q.n!==n)continue;const d=Math.abs(q.t-MB.t);if(d<bd){bd=d;best=q;}}
+    if(best&&bd<0.22){best.st=1;const pf=bd<0.08;MB.combo++;MB.max=Math.max(MB.max,MB.combo);MB.score+=(pf?100:60)+Math.min(50,MB.combo*2);MB.hits[pf?'p':'g']++;MB.fx.push({n,t:0.5,txt:pf?'PERFECT':'GOOD',c:pf?'#ffd23a':'#7dffb0'});}
+    else{MB.combo=0;}};
+  miniKey=(e,d)=>{if(!d||e.repeat)return;let n=0;if(/^Digit[1-7]$/.test(e.code))n=+e.code.slice(5);const i='ASDFGHJ'.indexOf(e.code.replace('Key',''));if(e.code.startsWith('Key')&&i>=0)n=i+1;if(n){e.preventDefault();hit(n);}};
+  $('mbCv').onpointerdown=e=>{const r=$('mbCv').getBoundingClientRect(),x=(e.clientX-r.left)*900/r.width,y=(e.clientY-r.top)*520/r.height;if(y<330)return;const n=Math.floor((x-80)/106)+1;if(n>=1&&n<=7)hit(n);};
+  $('miniBox').querySelectorAll('[data-s]').forEach(b=>b.onclick=()=>startMarimba(+b.dataset.s));$('mbQ').onclick=closeMini;
+  miniFrame=mbFrame;}
+function mbFrame(dt){const M=MB;if(!M)return;M.t+=dt;const g=M.g,LY=380,SP=260;
+  for(const q of M.seq)if(!q.st&&M.t-q.t>0.22){q.st=2;M.combo=0;M.hits.m++;M.fx.push({n:q.n,t:0.5,txt:'MISS',c:'#ff8a7a'});}
+  const bg=g.createLinearGradient(0,0,0,520);bg.addColorStop(0,'#2a1a3a');bg.addColorStop(1,'#120c1a');g.fillStyle=bg;g.fillRect(0,0,900,520);
+  for(let i=1;i<=7;i++){const x=80+(i-1)*106;g.fillStyle='rgba(255,255,255,.04)';g.fillRect(x+4,0,98,LY);}
+  for(const q of M.seq){if(q.st)continue;const y=LY-(q.t-M.t)*SP;if(y<-30||y>LY+40)continue;const x=80+(q.n-1)*106+53;const cols=['','#e23a2c','#f08a24','#f2c230','#2fa84f','#3a8ee8','#5a3ad0','#b03ad0'];
+    g.fillStyle=cols[q.n];g.beginPath();g.ellipse(x,y,36,14,0,0,7);g.fill();g.strokeStyle='#fff';g.lineWidth=3;g.stroke();}
+  g.strokeStyle='#ffd23a';g.lineWidth=4;g.beginPath();g.moveTo(70,LY);g.lineTo(830,LY);g.stroke();
+  // marimba bars
+  g.fillStyle='#151515';g.fillRect(60,LY+18,780,20);
+  for(let i=1;i<=7;i++){const x=80+(i-1)*106,h=120-(i-1)*8,fl=M.flash[i]>0;M.flash[i]=Math.max(0,M.flash[i]-dt);
+    const wg=g.createLinearGradient(x,0,x+98,0);wg.addColorStop(0,fl?'#d8704a':'#6a2416');wg.addColorStop(0.5,fl?'#ffa070':'#9a3a24');wg.addColorStop(1,fl?'#d8704a':'#6a2416');g.fillStyle=wg;g.fillRect(x+6,LY+6,94,h);
+    g.fillStyle='rgba(255,255,255,.15)';g.fillRect(x+10,LY+10,86,6);g.fillStyle='#c9a45a';g.fillRect(x+40,LY+h+8,26,Math.max(10,120-h+20));
+    g.fillStyle='#fff';g.font='900 20px "Noto Sans TC",sans-serif';g.textAlign='center';g.fillText(['','Do','Re','Mi','Fa','So','La','Ti'][i],x+53,LY+44);g.font='12px sans-serif';g.fillStyle='#f0d8c8';g.fillText(i+' / '+'ASDFGHJ'[i-1],x+53,LY+64);}
+  for(const f of M.fx){f.t-=dt;g.globalAlpha=Math.max(0,f.t*2);g.fillStyle=f.c;g.font='900 24px "Press Start 2P",monospace';g.textAlign='center';g.fillText(f.txt,80+(f.n-1)*106+53,LY-50-(0.5-f.t)*60);g.globalAlpha=1;}M.fx=M.fx.filter(f=>f.t>0);
+  $('mbS').textContent=M.score;$('mbC').textContent=M.combo;
+  if(!M.done&&M.t>M.end){M.done=true;miniFrame=null;const tot=M.seq.length,acc=Math.round((M.hits.p+M.hits.g*0.7)/tot*100);
+    $('miniBox').insertAdjacentHTML('beforeend',`<div class="score">${M.score} 分</div><div>PERFECT ${M.hits.p}・GOOD ${M.hits.g}・MISS ${M.hits.m}・最高連擊 ${M.max}・正確率 ${acc}%</div>`);
+    if(acc>=60){const l={log:2,plank:2};if(acc>=80)l.iron=2;if(acc>=95)l.gem=1;reward(l,`木琴合奏正確率 ${acc}%！`);}}}
 
 // ---- running race on the school track ----
 const RUN_PT=(()=>{const [px,py]=trackLocalToPx(-10,79),x=wx(px),z=wz(py);const lbl=makeLabel('🏃 跑步比賽 起跑線','rgba(232,84,47,.95)','#fff');lbl.position.set(x,3.2,z);lbl.scale.set(3.6,0.9,1);scene.add(lbl);
