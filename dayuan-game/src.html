@@ -39,6 +39,7 @@ html,body{height:100%;height:100dvh}
 #prompt{position:fixed;left:50%;bottom:150px;transform:translateX(-50%);padding:8px 16px;font-size:16px;display:none;pointer-events:none;white-space:nowrap}
 #banner{z-index:30;position:fixed;left:50%;top:22%;transform:translateX(-50%);font-size:clamp(20px,4.5vw,36px);font-weight:900;color:#fff;text-shadow:0 3px 0 #0006,0 0 18px #000a;opacity:0;transition:opacity .4s;pointer-events:none;text-align:center;width:92vw}
 #dlg{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);width:min(720px,calc(100vw - 24px));padding:14px 18px 12px;display:none;cursor:pointer}
+#dlg .ava{display:none;position:absolute;left:6px;bottom:6px;width:112px;height:112px;object-fit:contain;filter:drop-shadow(0 4px 6px rgba(0,0,0,.4));pointer-events:none}#dlg.hasAva{padding-left:126px;min-height:96px}
 #dlg .who{display:inline-block;font-weight:900;color:#1b1b1b;background:var(--gold);border-radius:8px;padding:2px 10px;margin-bottom:6px}
 #dlg .txt{font-size:18px;line-height:1.55;min-height:2.6em}
 #dlg .next{text-align:right;font-size:12px;color:var(--muted)}
@@ -258,7 +259,7 @@ body.touch .ts-press{display:none}
 <div id="bossbar" class="panel">考卷大魔王<div class="bar"><div id="bossfill"></div></div></div>
 <div id="prompt" class="panel"></div>
 <div id="banner"></div>
-<div id="dlg" class="panel"><div class="who"></div><div class="txt"></div><div class="next">按 E / 空白鍵 / 點一下 繼續 ▶</div></div>
+<div id="dlg" class="panel"><img class="ava" alt=""><div class="who"></div><div class="txt"></div><div class="next">按 E / 空白鍵 / 點一下 繼續 ▶</div></div>
 <div id="touch">
   <div id="joy"><div id="knob"></div></div>
   <div id="tbtns"><button id="bBag">背包</button><button id="bView">視角</button><button id="bTalk">對話</button><button id="bPlace">放置</button><button id="bJump">跳</button><button id="bThrow">挖/攻</button></div>
@@ -268,8 +269,11 @@ body.touch .ts-press{display:none}
   <div id="sparks" aria-hidden="true"></div>
   <div class="ts-top">
     <div class="ts-badge"><img id="startLogo" alt="大元國小校徽">臺中市大里區・大元國民小學</div>
+    <img id="tsArt" alt="大元國小大冒險" style="display:none;width:min(620px,92vw);max-height:38vh;object-fit:contain;border-radius:22px;border:4px solid rgba(255,255,255,.85);box-shadow:0 10px 30px rgba(0,0,0,.5),0 0 0 6px rgba(255,190,60,.55)">
     <h1 class="ts-title"><span>大</span><span>元</span><span>國</span><span>小</span><span>大</span><span>冒</span><span>險</span><b class="ts-shine" aria-hidden="true">大元國小大冒險</b></h1>
     <div class="ts-sub">DAYUAN SCHOOL ADVENTURE</div>
+    <script>
+const ART=__ART__;(()=>{const a=ART.title;if(!a)return;const i=document.getElementById('tsArt');i.src=a;i.style.display='block';const t=document.querySelector('.ts-title');if(t)t.style.display='none';})();</script>
     <div class="ts-ribbon">保衛校園！打倒考卷大魔王</div>
   </div>
   <div class="ts-mid">
@@ -1425,8 +1429,8 @@ function refreshGear(){for(const m of gearMeshes)m.parent&&m.parent.remove(m);ge
 function armorFactor(){let f=1;for(const k of G.armor)f*=1-ARMOR[k].def;return f;}
 function selectSlot(i){G.slot=i;invDirty=true;}
 function cycleWeapon(){const i=G.weapons.indexOf(G.weapon);G.weapon=G.weapons[(i+1)%G.weapons.length];G.slot=0;refreshGear();invDirty=true;banner('武器：'+WEAP[G.weapon].n,1.2);}
-const iconURL={};for(const k in ICON)iconURL[k]=ICON[k].image.toDataURL();
-function iconHTML(k){if(k==='weapon')return `<span class="sw">${WEAP[G.weapon].icon}</span>`;return `<span class="sw" style="background-image:url(${iconURL[k]})"></span>`;}
+const iconURL={};for(const k in ICON)iconURL[k]=ICON[k].image.toDataURL();for(const k of['gem','iron','log'])if(ART['i_'+k])iconURL[k]=ART['i_'+k];
+function iconHTML(k){if(k==='weapon')return `<span class="sw">${WEAP[G.weapon].icon}</span>`;if(!iconURL[k])return '';return `<span class="sw" style="background-image:url(${iconURL[k]});${ART['i_'+k]?'image-rendering:auto;background-size:contain;background-repeat:no-repeat;background-position:center':''}"></span>`;}
 function renderHotbar(){invDirty=false;$('hotbar').innerHTML=HOT.map((k,i)=>{const cnt=k==='weapon'?'':(G.creative?'∞':INV[k]);const nm=k==='weapon'?WEAP[G.weapon].n:ITEM_N[k];
   return `<div class="slot${i===G.slot?' sel':''}" data-i="${i}"><span class="num">${i+1}</span>${iconHTML(k)}<span>${nm}</span><span class="cnt">${cnt}</span></div>`;}).join('');
   $('hotbar').querySelectorAll('.slot').forEach(el=>el.onpointerdown=e=>{e.stopPropagation();const i=+el.dataset.i;if(i===0&&G.slot===0)cycleWeapon();selectSlot(i);});}
@@ -1559,7 +1563,8 @@ function popText(text,x,y,z,color){const d=document.createElement('div');d.class
 const $=id=>document.getElementById(id);
 let dlg=null;
 function say(lines,done){dlg={lines,i:0,done};showDlg();sfx('talk');}
-function showDlg(){const [who,txt]=dlg.lines[dlg.i];$('dlg').style.display='block';$('dlg').querySelector('.who').textContent=who;$('dlg').querySelector('.txt').textContent=txt;}
+function artFor(who){const m={'校長':'principal','嘉亨':'jiaheng','昀蔚':'yunwei','千綺':'qianqi','宇德':'yude','佑俊':'youjun','大元蛙':'frog','仲仲':'boy','心心':'girl'};return ART[m[who]]||null;}
+function showDlg(){const [who,txt]=dlg.lines[dlg.i];const D=$('dlg');D.style.display='block';D.querySelector('.who').textContent=who;D.querySelector('.txt').textContent=txt;const a=artFor(who),av=D.querySelector('.ava');if(a){av.src=a;av.style.display='block';D.classList.add('hasAva');}else{av.style.display='none';D.classList.remove('hasAva');}}
 function advance(){if(!dlg)return;dlg.i++;sfx('talk');if(dlg.i>=dlg.lines.length){const d=dlg.done;dlg=null;$('dlg').style.display='none';d&&d();}else showDlg();}
 let bannerT=0;function banner(t,dur=2.6){$('banner').textContent=t;$('banner').style.opacity=1;bannerT=dur;}
 function hurtFlash(){$('hurt').style.boxShadow='inset 0 0 120px 40px rgba(220,30,30,.55)';setTimeout(()=>$('hurt').style.boxShadow='inset 0 0 120px 30px rgba(220,30,30,0)',160);}
@@ -3294,7 +3299,7 @@ function bbSelect(){openMini(`<div style="position:fixed;inset:0;z-index:25;over
   <div style="font:italic 900 clamp(28px,5vw,46px) 'Noto Sans TC',sans-serif;text-shadow:0 4px 0 #12307a">⚽ 選擇你的角色</div>
   <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;width:min(720px,96vw)">${BB_CH.map((c,i)=>{const bar=(v,mx)=>`<div style="height:6px;border-radius:3px;background:rgba(0,0,0,.35);overflow:hidden"><div style="width:${Math.min(100,v/mx*100)}%;height:100%;background:#ffd23a"></div></div>`;
     return `<button data-c="${i}" style="appearance:none;cursor:pointer;text-align:left;padding:10px 12px;border-radius:16px;border:3px solid ${c.id===BB_LAST?'#ffd23a':'rgba(255,255,255,.6)'};background:linear-gradient(160deg,#3a7aff,#1f3a9a);color:#fff;box-shadow:0 5px 0 #0c1a4a">
-      <div style="display:flex;align-items:center;gap:8px"><span style="font-size:30px">${c.ic}</span><div><div style="font:900 18px 'Noto Sans TC',sans-serif">${c.n()}</div><div style="font:800 12px 'Noto Sans TC',sans-serif;color:#ffd23a">${c.role}</div></div></div>
+      <div style="display:flex;align-items:center;gap:8px">${(()=>{const a=ART[{me:SET.gender==='girl'?'girl':'boy','嘉亨':'jiaheng','昀蔚':'yunwei','千綺':'qianqi','宇德':'yude','佑俊':'youjun',frog:'frog'}[c.id]];return a?`<img src="${a}" style="width:64px;height:64px;object-fit:contain;filter:drop-shadow(0 3px 3px rgba(0,0,0,.4))">`:`<span style="font-size:30px;width:64px;text-align:center">${c.ic}</span>`;})()}<div><div style="font:900 18px 'Noto Sans TC',sans-serif">${c.n()}</div><div style="font:800 12px 'Noto Sans TC',sans-serif;color:#ffd23a">${c.role}</div></div></div>
       <div style="font:700 11px/1.4 'Noto Sans TC',sans-serif;margin:6px 0;opacity:.9">${c.desc}</div>
       <div style="font:700 10px sans-serif;display:grid;grid-template-columns:30px 1fr;gap:3px 6px;align-items:center"><span>血量</span>${bar(c.tough,1.5)}<span>速度</span>${bar(c.spd,1.2)}<span>攻擊</span>${bar(c.dmg*c.shots.length,45)}<span>射程</span>${bar(c.ss*c.life,19)}<span>射門</span>${bar(c.kick,1.4)}</div></button>`;}).join('')}</div>
   <button class="mbtn" id="bbSelQ" style="background:rgba(0,0,0,.35)">✕ 離開</button></div>`);
@@ -3687,7 +3692,8 @@ function runEnd(){const N=RN;N.state='end';miniFrame=null;const rest=N.R2.filter
 
 // ---- kart battle on the 台74 ring ----
 let KR=null;
-const KITEMS=[{k:'ball',n:'躲避球飛彈',ic:'🔴'},{k:'banana',n:'香蕉皮',ic:'🍌'},{k:'boost',n:'火箭加速',ic:'🚀'},{k:'shield',n:'泡泡護盾',ic:'🫧'},{k:'bomb',n:'考卷炸彈',ic:'💣'},{k:'triple',n:'三連躲避球',ic:'🔴'}];
+const KITEMS=[{k:'ball',n:'躲避球飛彈',ic:'🔴',art:'i_ball'},{k:'banana',n:'香蕉皮',ic:'🍌',art:'i_banana'},{k:'boost',n:'火箭加速',ic:'🚀',art:'i_rocket'},{k:'shield',n:'泡泡護盾',ic:'🫧',art:'i_shield'},{k:'bomb',n:'考卷炸彈',ic:'💣',art:'i_bomb'},{k:'triple',n:'三連躲避球',ic:'🔴',art:'i_ball',x3:true}];
+const kIcon=it=>{if(!it)return '';const a=ART[it.art];if(!a)return it.ic;const im=`<img src="${a}" style="width:64px;height:64px;object-fit:contain">`;return it.x3?`<div style="position:relative;width:70px;height:64px">${[0,1,2].map(k=>`<img src="${a}" style="position:absolute;width:40px;left:${k*15}px;top:${k%2*14+4}px">`).join('')}</div>`:im;};
 const KEXITS=['大里交流道','太平交流道','東山路','北屯交流道','西屯','台中港路','南屯','烏日','五權南路','大里'];
 function startKart(){
   openMini(`<div id="krWrap" style="position:fixed;inset:0;z-index:25;overflow:hidden;background:#000;user-select:none">
@@ -3855,7 +3861,7 @@ function kartFrame(dt){const Kr=KR;if(!Kr)return;dt=Math.min(dt,0.033);const {P,
   // HUD
   const pos=1+K.filter(o=>o!==me&&(o.done&&!me.done?true:o.prog>me.prog&&!(me.done&&!o.done))).length;const pn=me.done?Kr.order.indexOf(me)+1:pos;
   $('krPos').innerHTML=`${pn}<span style="font-size:24px">${['','st','nd','rd','th','th','th'][pn]}</span>`;$('krLap').textContent=`LAP ${Math.min(Kr.laps,Math.max(1,me.lap+1))} / ${Kr.laps}　${KEXITS[Math.floor(me.idx/N*KEXITS.length)]}`;
-  $('krItem').textContent=me.roll>0?KITEMS[Math.floor(Kr.t*14)%KITEMS.length].ic:me.item?me.item.ic:'';$('krItemN').textContent=me.roll>0?'':me.item?me.item.n+'（空白鍵）':'撿道具箱！';
+  {const it=me.roll>0?KITEMS[Math.floor(Kr.t*14)%KITEMS.length]:me.item,key=it?it.k:'';if(Kr.lastIc!==key){Kr.lastIc=key;$('krItem').innerHTML=kIcon(it);}}$('krItemN').textContent=me.roll>0?'':me.item?me.item.n+'（空白鍵）':'撿道具箱！';
   $('krSpd').innerHTML=`${Math.round(Math.abs(me.v)*3.2)}<span style="font-size:14px"> km/h</span>`;$('krLines').style.opacity=me.boost>0?0.85:me.drift&&me.dchg===2?0.3:0;
   const mc=Kr.mc;mc.clearRect(0,0,220,160);mc.strokeStyle='#ddd';mc.lineWidth=5;mc.beginPath();Kr.P.forEach((q,i)=>{const [x,y]=Kr.mapTf(q);i?mc.lineTo(x,y):mc.moveTo(x,y);});mc.closePath();mc.stroke();
   for(const k of K){const [x,y]=Kr.mapTf(k);mc.fillStyle=k.me?'#ffe23a':'#'+(k.g.children[0].children[0].material.color.getHexString());mc.beginPath();mc.arc(x,y,k.me?6:4,0,7);mc.fill();mc.strokeStyle='#000';mc.lineWidth=1.5;mc.stroke();}
