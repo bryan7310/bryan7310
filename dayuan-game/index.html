@@ -357,7 +357,7 @@ function distPoly(x,y,poly,closed=true){let m=1e9;const n=poly.length;for(let i=
 // ================= map data (pixels of the 606x492 satellite image) =================
 const BOUNDARY=[[0,135],[130,5],[310,5],[530,30],[560,95],[495,392],[455,490],[195,490],[188,325],[15,210]];
 const BOUNDW=BOUNDARY.map(p=>[wx(p[0]),wz(p[1])]);
-const GATE_SEG=0,GATE_T=0.335,GATE_PT=(()=>{const a=BOUNDW[GATE_SEG],b=BOUNDW[GATE_SEG+1];return [a[0]+(b[0]-a[0])*GATE_T,a[1]+(b[1]-a[1])*GATE_T];})();
+const GATE_SEG=0,GATE_T=0.72,GATE_PT=(()=>{const a=BOUNDW[GATE_SEG],b=BOUNDW[GATE_SEG+1];return [a[0]+(b[0]-a[0])*GATE_T,a[1]+(b[1]-a[1])*GATE_T];})();
 const ROADS=[
   {pts:[[690,-330],[480,822]],w:70,main:true,name:'環中東路'},
   {pts:[[-383,-270],[96,-21],[640,-12],[990,-10]],w:36,name:'德芳南路'},
@@ -713,9 +713,11 @@ function buildMainGate(gx0,gz0,ux,uz,gw){let nx=-uz,nz=ux;if(pip(gx0+nx*3,gz0+nz
   // banners on the building facing the gate
   const adm=BUILDINGS.find(b=>b.id==='west');if(adm){const cx=wx(adm.c[0]),cz=wz(adm.c[1]),a=adm.a*D2R,L=adm.l*S,W=adm.w*S,lzG=-(gx-cx)*Math.sin(a)+(gz-cz)*Math.cos(a),lxG=(gx-cx)*Math.cos(a)+(gz-cz)*Math.sin(a),side=Math.sign(lzG)||1;
     const bg=new THREE.Group();bg.position.set(cx,0,cz);bg.rotation.y=-a;scene.add(bg);
-    const BAN=[['全國唯一 2 度榮獲 教育部特優',' #2fa84f'],['ISA 國際教育中級認證獎','#d6282b'],['直笛團 全國音樂比賽 特優','#2f6fd0'],['打擊樂團 全國學生音樂比賽 特優','#8e44ad']];
-    BAN.forEach(([t,c],k)=>{const tx=textTex(1024,96,(c2,w,h)=>{c2.fillStyle=c.trim();c2.fillRect(0,0,w,h);c2.fillStyle='#fff';c2.fillRect(0,0,w,6);c2.fillRect(0,h-6,w,6);c2.fillStyle='#ffe23a';c2.font='bold 56px "PingFang TC","Microsoft JhengHei",sans-serif';c2.textAlign='center';c2.textBaseline='middle';c2.fillText(t,w/2,h/2+2);});
-      const pl=new THREE.Mesh(new THREE.PlaneGeometry(13,1.2),new THREE.MeshLambertMaterial({map:tx,side:THREE.DoubleSide}));pl.position.set(clamp(lxG+9,-L/2+7,L/2-7),12.6-k*2.9,side*(W/2+0.08));if(side<0)pl.rotation.y=Math.PI;bg.add(pl);});}}
+    const BAN=[['全國唯一 2 度榮獲 教育部特優','#2fa84f','#ffe23a'],['ISA 國際教育中級認證獎','#d63a8a','#fff'],['直笛團 全國學生音樂比賽 第一名 特優5連霸','#9fd86a','#1d4f9a'],['打擊樂團 全國學生音樂比賽 特優10連霸','#6ac0f0','#1d3f9a']];
+    BAN.forEach(([t,c,tc],k)=>{const tx=textTex(1024,96,(c2,w,h)=>{c2.fillStyle=c.trim();c2.fillRect(0,0,w,h);c2.fillStyle='#fff';c2.fillRect(0,0,w,6);c2.fillRect(0,h-6,w,6);c2.fillStyle=tc;c2.font='bold 52px "PingFang TC","Microsoft JhengHei",sans-serif';c2.textAlign='center';c2.textBaseline='middle';c2.fillText(t,w/2,h/2+2);});
+      const pl=new THREE.Mesh(new THREE.PlaneGeometry(13,1.2),new THREE.MeshLambertMaterial({map:tx,side:THREE.DoubleSide}));pl.position.set(clamp(lxG,-L/2+7,L/2-7),12.6-k*2.9,side*(W/2+0.08));if(side<0)pl.rotation.y=Math.PI;bg.add(pl);});
+    for(const [sx,txt,col] of [[-3.5,'大元學生 品德好','#2f6fd0'],[3.5,'大智大勇 樂學習','#2f6fd0']]){const vt=textTex(96,512,(c2,w,h)=>{const gr=c2.createLinearGradient(0,0,0,h);gr.addColorStop(0,'#3a6fd0');gr.addColorStop(0.6,'#8fd0f0');gr.addColorStop(1,'#ffe23a');c2.fillStyle=gr;c2.fillRect(0,0,w,h);c2.fillStyle='#fff';c2.font='bold 52px "PingFang TC","Microsoft JhengHei",sans-serif';c2.textAlign='center';[...txt].filter(ch=>ch!==' ').forEach((ch,k)=>c2.fillText(ch,w/2,58+k*60));});
+      const vb=new THREE.Mesh(new THREE.PlaneGeometry(0.8,3.2),new THREE.MeshLambertMaterial({map:vt,side:THREE.DoubleSide}));vb.position.set(clamp(lxG,-L/2+7,L/2-7)+sx,1.8,side*(W/2+0.1));if(side<0)vb.rotation.y=Math.PI;bg.add(vb);}}}
 
 // ================= props: fence, flag, hoops, goals, tennis net =================
 {
@@ -865,7 +867,7 @@ const AMPHI=[330,200];
     const c=new THREE.Mesh(new THREE.ConeGeometry(r,h,6,1),i%3?mm:mm2);c.position.set(Math.cos(an)*d,h/2-4,Math.sin(an)*d);c.rotation.y=rand(0,3);scene.add(c);}}
 // ================= trees =================
 const TREE_ZONES=[[150,92,300,205,16],[480,105,555,385,20],[300,372,465,486,24],[185,290,325,350,8],[300,128,345,300,8],[20,140,70,215,3],[300,20,330,55,2],[400,120,470,140,2]];
-const NPC_SPOTS=[[302,186],[96,50],[190,110],[120,150],[515,150],[392,352],[332,155],[300,360],[235,180],[165,170],[452,82],[430,250],[325,170],[225,340],[195,175]];
+const NPC_SPOTS=[[302,186],[105,22],[190,110],[120,150],[515,150],[392,352],[332,155],[300,360],[235,180],[165,170],[452,82],[430,250],[325,170],[225,340],[195,175]];
 const trees=[];
 for(const [x0,y0,x1,y1,n] of TREE_ZONES){let made=0,tries=0;
   while(made<n&&tries++<400){const x=rand(x0,x1),y=rand(y0,y1);
@@ -1328,7 +1330,7 @@ const principal=addNPC('principal','校長',[302,186],{scale:1.28,tex:TEX.princi
 addNPC('pe','體育老師',[392,352],{scale:1.3,tex:TEX.pe,shirt:0x2a5db0,sleeve:0x2a5db0,longSleeve:true,pants:0x2a5db0,longPants:true,cap:true,capColor:0x2a5db0,whistle:true,skin:0xd9a77f});
 addNPC('sci','自然老師',[332,155],{scale:1.27,tex:TEX.lab,shirt:0xf5f5f5,sleeve:0xf5f5f5,longSleeve:true,pants:0x384050,longPants:true,coat:0xf5f5f5,glasses:true,hair:0x3a2a20});
 addNPC('nurse','護理阿姨',[300,360],{scale:1.25,tex:TEX.nurse,shirt:0xf6b3c9,sleeve:0xf6b3c9,pants:0xf6b3c9,longPants:true,hair:0x2a1b12,pony:true});
-addNPC('frog','大元蛙',[96,50],{make:makeFrog});
+addNPC('frog','大元蛙',[105,22],{make:makeFrog});
 addNPC('homeroom','王老師',[190,110],{scale:1.25,shirt:0xe8538f,sleeve:0xe8538f,pants:0x2b3550,longPants:true,hair:0x1b1310,bob:true,glasses:true});
 addNPC('homeroom','陳老師',[120,150],{scale:1.3,shirt:0x1f2f4f,sleeve:0x1f2f4f,pants:0x4a6a8f,longPants:true,hair:0x111111,skin:0xd9a77f});
 const FRIENDS=[
