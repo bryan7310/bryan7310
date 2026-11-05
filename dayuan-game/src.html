@@ -3695,7 +3695,17 @@ let KR=null;
 const KITEMS=[{k:'ball',n:'躲避球飛彈',ic:'🔴',art:'i_ball'},{k:'banana',n:'香蕉皮',ic:'🍌',art:'i_banana'},{k:'boost',n:'火箭加速',ic:'🚀',art:'i_rocket'},{k:'shield',n:'泡泡護盾',ic:'🫧',art:'i_shield'},{k:'bomb',n:'考卷炸彈',ic:'💣',art:'i_bomb'},{k:'triple',n:'三連躲避球',ic:'🔴',art:'i_ball',x3:true}];
 const kIcon=it=>{if(!it)return '';const a=ART[it.art];if(!a)return it.ic;const im=`<img src="${a}" style="width:64px;height:64px;object-fit:contain">`;return it.x3?`<div style="position:relative;width:70px;height:64px">${[0,1,2].map(k=>`<img src="${a}" style="position:absolute;width:40px;left:${k*15}px;top:${k%2*14+4}px">`).join('')}</div>`:im;};
 const KEXITS=['大里交流道','太平交流道','東山路','北屯交流道','西屯','台中港路','南屯','烏日','五權南路','大里'];
-function startKart(){
+const KCAST=[['你',null,'電動休旅・珍珠白'],['嘉亨',0x2e8b3e,'不鏽鋼皮卡・銀'],['昀蔚',0xf08a24,'流線轎跑・紅'],['佑俊',0x2f6fd0,'流線轎跑・黑'],['搗蛋鬼',0x4b2a6b,'電動休旅・藍'],['大元蛙',0x6cc24a,'流線轎跑・綠']];
+let KR_PICK=0;
+const kArt=n=>n==='你'?ART[SET.gender==='girl'?'girl':'boy']:artFor(n);
+function kartSelect(){openMini(`<div style="position:fixed;inset:0;z-index:25;overflow:auto;background:#0c1a4a ${ART.k_cover?`url(${ART.k_cover}) center/cover`:''};font-family:'Noto Sans TC',sans-serif;color:#fff">
+  <div style="min-height:100%;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:12px;padding:16px;background:linear-gradient(180deg,rgba(10,20,60,0) 20%,rgba(10,20,60,.85) 62%)">
+  <div style="font:italic 900 clamp(26px,5vw,44px) 'Noto Sans TC',sans-serif;text-shadow:0 4px 0 #b8331a,0 0 14px rgba(0,0,0,.6)">🏁 台74 大亂鬥・選擇車手</div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;width:min(920px,96vw)">${KCAST.map((c,i)=>{const a=kArt(c[0]);return `<button data-k="${i}" style="appearance:none;cursor:pointer;padding:8px;border-radius:16px;border:3px solid ${i===KR_PICK?'#ffd23a':'rgba(255,255,255,.7)'};background:linear-gradient(160deg,rgba(255,255,255,.95),rgba(220,235,255,.95));color:#1a2a5a;box-shadow:0 5px 0 rgba(0,0,0,.35)">
+    ${a?`<img src="${a}" style="width:96px;height:96px;object-fit:contain">`:''}<div style="font:900 17px 'Noto Sans TC',sans-serif">${c[0]==='你'?(SET.gender==='girl'?'心心':'仲仲'):c[0]}</div><div style="font:800 12px 'Noto Sans TC',sans-serif;color:#e0508a">${c[2]}</div></button>`;}).join('')}</div>
+  <button class="mbtn" id="krSelQ" style="background:rgba(0,0,0,.45)">✕ 離開</button></div></div>`);
+  $('miniBox').querySelectorAll('[data-k]').forEach(b=>b.onclick=()=>{KR_PICK=+b.dataset.k;closeMini();startKart(KR_PICK);});$('krSelQ').onclick=closeMini;}
+function startKart(kpick){if(kpick===undefined)return kartSelect();
   openMini(`<div id="krWrap" style="position:fixed;inset:0;z-index:25;overflow:hidden;background:#000;user-select:none">
     <canvas id="krCv" style="width:100%;height:100%;display:block;touch-action:none"></canvas>
     <button class="mbtn" id="krQuit" style="position:absolute;left:12px;top:10px;z-index:3">✕ 離開賽車</button>
@@ -3739,7 +3749,7 @@ function startKart(){
   const winT=(()=>{const [c,g]=cv(64,64);g.fillStyle='#fff';g.fillRect(0,0,64,64);for(let y=10;y<64;y+=21)for(let x=8;x<64;x+=21){g.fillStyle='#9fe0ff';g.fillRect(x,y,9,10);g.fillStyle='rgba(255,255,255,.75)';g.fillRect(x,y,3,4);}const t=tex(c,true);t.repeat.set(1.5,2);return t;})();const bM=['#ff8ab8','#6ac4ff','#ffd23a','#7ee05a','#c08aff','#ff9a5a','#ffffff'].map(c=>new THREE.MeshLambertMaterial({color:new THREE.Color(c),map:winT,emissive:new THREE.Color(c),emissiveIntensity:0.28}));
   for(let i=0;i<260;i++){const k=Math.floor(Math.random()*N),s2=Math.random()<.5?-1:1,d=TW+12+Math.random()*90,q=P[k].clone().addScaledVector(NRM[k],s2*d);let ok=true;for(let j=0;j<N;j+=6)if(P[j].distanceTo(q)<TW+10){ok=false;break;}if(!ok)continue;
     const h=6+Math.random()*30,w=8+Math.random()*12,m=new THREE.Mesh(new THREE.BoxGeometry(w,h,w),pick(bM));m.position.set(q.x,h/2,q.z);m.castShadow=true;sc.add(m);const rf=box(w+0.8,1,w+0.8,toonM(pick([0xff3a4a,0x2f8aff,0xffd23a,0x5ad66a])));rf.position.set(q.x,h+0.5,q.z);sc.add(rf);}
-  {const hm=[toonM(0x4fc23e),toonM(0x3aae4a),toonM(0x66d050)];for(let i=0;i<18;i++){const a=i/18*6.28,c=new THREE.Mesh(new THREE.SphereGeometry(150+Math.random()*60,16,10),pick(hm));c.scale.y=0.45;c.position.set(Math.cos(a)*780,-10,Math.sin(a)*620);sc.add(c);}
+  {const hm=[toonM(0x4fc23e),toonM(0x3aae4a),toonM(0x66d050)];for(let i=0;i<18;i++){const a=i/18*6.28,c=new THREE.Mesh(new THREE.SphereGeometry(150+Math.random()*60,16,10),pick(hm));c.scale.y=0.2;c.position.set(Math.cos(a)*780,-10,Math.sin(a)*620);sc.add(c);}
     const trunkG=new THREE.CylinderGeometry(0.6,0.8,4,6),crownG=new THREE.SphereGeometry(3.4,10,8),tr=new THREE.InstancedMesh(trunkG,toonM(0x9a6a3a),220),cr=new THREE.InstancedMesh(crownG,toonM(0xffffff),220);let ti=0;const CC=[0x3fbf3a,0x2fa84a,0x6ad04a,0xff8ab8].map(c=>new THREE.Color(c));
     for(let t=0;t<600&&ti<220;t++){const k=Math.floor(Math.random()*N),s2=Math.random()<.5?-1:1,d=TW+6+Math.random()*40,q=P[k].clone().addScaledVector(NRM[k],s2*d);let ok=true;for(let j=0;j<N;j+=5)if(P[j].distanceTo(q)<TW+5){ok=false;break;}if(!ok)continue;const sc2=rand(0.8,1.4);
       M.compose(new THREE.Vector3(q.x,2*sc2,q.z),new THREE.Quaternion(),new THREE.Vector3(sc2,sc2,sc2));tr.setMatrixAt(ti,M);M.compose(new THREE.Vector3(q.x,5.6*sc2,q.z),new THREE.Quaternion(),new THREE.Vector3(sc2,sc2*1.1,sc2));cr.setMatrixAt(ti,M);cr.setColorAt(ti,CC[Math.random()<0.12?3:Math.floor(Math.random()*3)]);ti++;}
@@ -3751,14 +3761,19 @@ function startKart(){
       const beam=new THREE.Mesh(new THREE.BoxGeometry(TW*2+5,3,1),[toonM(0xff3a4a),toonM(0xff3a4a),toonM(0xff3a4a),toonM(0xff3a4a),new THREE.MeshBasicMaterial({map:ck}),new THREE.MeshBasicMaterial({map:ck})]);beam.position.y=10;g.add(beam);sc.add(g);}}
   const fl=new THREE.Mesh(new THREE.PlaneGeometry(TW*2,3),new THREE.MeshBasicMaterial({map:(()=>{const [c,g]=cv(64,8);for(let x=0;x<16;x++)for(let y=0;y<2;y++){g.fillStyle=(x+y)%2?'#111':'#fff';g.fillRect(x*4,y*4,4,4);}const t=new THREE.CanvasTexture(c);t.magFilter=THREE.NearestFilter;return t;})()}));
   fl.rotation.x=-Math.PI/2;fl.rotation.z=-Math.atan2(TAN[0].z,TAN[0].x)+Math.PI/2;fl.position.set(P[0].x,0.05,P[0].z);sc.add(fl);
+  if(ART.k_sky){const t=new THREE.TextureLoader().load(ART.k_sky);t.wrapS=THREE.RepeatWrapping;t.repeat.set(6,1);const ring=new THREE.Mesh(new THREE.CylinderGeometry(900,900,280,64,1,true),new THREE.MeshBasicMaterial({map:t,transparent:true,side:THREE.BackSide,fog:false,depthWrite:false}));ring.position.y=78;ring.renderOrder=-1;sc.add(ring);}
+  {const bbs=[1,2,3,4].map(k=>ART['k_bb'+k]).filter(Boolean);if(bbs.length){const mats=bbs.map(a=>new THREE.MeshBasicMaterial({map:new THREE.TextureLoader().load(a)}));const postM=toonM(0x666a74);
+    for(let k=0;k<12;k++){const i=Math.floor((k+0.35)/12*N),s2=k%2?1:-1,q=P[i].clone().addScaledVector(NRM[i],s2*(TW+9)),g=new THREE.Group();g.position.set(q.x,0,q.z);
+      const bd=new THREE.Mesh(new THREE.PlaneGeometry(18,6),mats[k%mats.length]);bd.position.y=7;g.add(bd);const back=box(18.6,6.6,0.3,toonM(0xffffff));back.position.set(0,7,-0.2);g.add(back);for(const sx of[-6,6]){const pl=box(0.5,7,0.5,postM);pl.position.set(sx,3.5,-0.4);g.add(pl);}
+      const ahead=P[(i-35+N)%N];g.lookAt(ahead.x*0.5+P[i].x*0.5,0,ahead.z*0.5+P[i].z*0.5);sc.add(g);}}}
   // item boxes
   const boxMat=new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:0.85,map:(()=>{const [c,g]=cv(64,64);const gg=g.createLinearGradient(0,0,64,64);gg.addColorStop(0,'#ff3cb4');gg.addColorStop(0.5,'#ffe23a');gg.addColorStop(1,'#3fc8ff');g.fillStyle=gg;g.fillRect(0,0,64,64);g.fillStyle='rgba(255,255,255,.35)';g.fillRect(0,0,64,8);g.fillRect(0,0,8,64);g.font='bold 40px sans-serif';g.textAlign='center';g.fillText('⭐',32,46);return tex(c);})()});
   const IB=[];for(let r=0;r<8;r++){const i=Math.floor((r+0.5)/8*N);for(const o of[-8,-2.7,2.7,8]){const q=P[i].clone().addScaledVector(NRM[i],o),m=new THREE.Mesh(new THREE.BoxGeometry(1.6,1.6,1.6),boxMat);m.position.set(q.x,1.3,q.z);sc.add(m);IB.push({m,t:0});}}
   // karts
-  const CAST=[['你',null],['嘉亨',0x2e8b3e],['昀蔚',0xf08a24],['佑俊',0x2f6fd0],['搗蛋鬼',0x4b2a6b],['大元蛙',0x6cc24a]];
+  const CAST=[KCAST[kpick],...KCAST.filter((c,i)=>i!==kpick)];
   function mkKart(i){const [name,col]=CAST[i],me=i===0,g=new THREE.Group(),body=new THREE.Group();g.add(body);
     // body style per racer: crossover (Y-like), fastback sedan (3-like), angular stainless pickup
-    const STY=[['suv',0xf4f4f6],['truck',0xb8bcc2],['sedan',0xd8202a],['sedan',0x1a1c22],['suv',0x2a62d8],['sedan',0x3ab84a]][i],type=STY[0],c=STY[1];
+    const STY={'你':['suv',0xf4f4f6],'嘉亨':['truck',0xb8bcc2],'昀蔚':['sedan',0xd8202a],'佑俊':['sedan',0x1a1c22],'搗蛋鬼':['suv',0x2a62d8],'大元蛙':['sedan',0x3ab84a]}[name],type=STY[0],c=STY[1];
     const paint=type==='truck'?new THREE.MeshPhongMaterial({color:c,shininess:140,specular:0xffffff,flatShading:true}):new THREE.MeshPhongMaterial({color:c,shininess:110,specular:0xaaaaaa}),
       glass=new THREE.MeshPhongMaterial({color:0x1a2836,shininess:160,specular:0xffffff,transparent:true,opacity:0.62}),dark=toonM(0x1c1c22),trim=new THREE.MeshPhongMaterial({color:0x111114,shininess:60});
     const W=2.0,ext=(pts,depth,mat,bev,x0,y0)=>{const sh=new THREE.Shape();sh.moveTo(pts[0][0],pts[0][1]);for(let k=1;k<pts.length;k++){const q=pts[k];if(q.length===4)sh.quadraticCurveTo(q[0],q[1],q[2],q[3]);else sh.lineTo(q[0],q[1]);}
@@ -3782,7 +3797,7 @@ function startKart(){
       const disc=new THREE.Mesh(new THREE.CylinderGeometry(r*0.72,r*0.72,0.38,18),new THREE.MeshPhongMaterial({color:0x3a3c42,shininess:80}));w.add(disc);for(let k=0;k<5;k++){const sp=box(0.06,0.4,r*1.25,trim);sp.rotation.y=k*Math.PI/5;sp.position.y=0;w.add(sp);}
       body.add(w);wheels.push(w);}
     // driver behind the glass
-    let drv;if(name==='大元蛙')drv=makeFrog();else if(me)drv=makePerson(playerOpts(SET.gender));else if(name==='搗蛋鬼'){drv=makePerson({shirt:0x7a34b8,sleeve:0x7a34b8,pants:0x2a1a3a,hair:0x2a1a12});for(const sx of[-1,1]){const hn=new THREE.Mesh(new THREE.ConeGeometry(0.07,0.2,8),toonM(0xff3a3a));hn.position.set(sx*0.12,0.3,0);hn.rotation.z=-sx*0.3;drv.head.add(hn);}}else drv=makePerson(dbOpts(name));
+    let drv;if(name==='大元蛙')drv=makeFrog();else if(name==='你')drv=makePerson(playerOpts(SET.gender));else if(name==='搗蛋鬼'){drv=makePerson({shirt:0x7a34b8,sleeve:0x7a34b8,pants:0x2a1a3a,hair:0x2a1a12});for(const sx of[-1,1]){const hn=new THREE.Mesh(new THREE.ConeGeometry(0.07,0.2,8),toonM(0xff3a3a));hn.position.set(sx*0.12,0.3,0);hn.rotation.z=-sx*0.3;drv.head.add(hn);}}else drv=makePerson(dbOpts(name));
     drv.root.scale.setScalar(name==='大元蛙'?0.5:0.72);drv.root.position.set(-0.42,0.3,0.1);body.add(drv.root);if(drv.legL){drv.legL.rotation.x=drv.legR.rotation.x=-1.45;drv.armL.rotation.set(-1.15,0,0.2);drv.armR.rotation.set(-1.15,0,-0.2);}
     const lbl=makeLabel(name,me?'rgba(255,210,58,.95)':'rgba(0,0,0,.55)',me?'#222':'#fff');lbl.position.y=roofY+1.5;lbl.scale.set(2.4,0.6,1);g.add(lbl);
     const shell=new THREE.Mesh(new THREE.SphereGeometry(2.7,16,12),new THREE.MeshPhongMaterial({color:0x7ad8ff,transparent:true,opacity:0.3,shininess:120,emissive:0x2a8ac8,emissiveIntensity:0.3}));shell.position.y=1;shell.visible=false;g.add(shell);
@@ -3870,9 +3885,11 @@ function kartFrame(dt){const Kr=KR;if(!Kr)return;dt=Math.min(dt,0.033);const {P,
   Kr.R.render(Kr.sc,Kr.cam);}
 function kartEnd(){const Kr=KR;Kr.state='end';miniFrame=null;const me=Kr.me,K=Kr.K;const rest=K.filter(k=>!k.done).sort((a,b)=>b.prog-a.prog);const order=Kr.order.concat(rest),place=order.indexOf(me)+1;
   const ov=document.createElement('div');ov.style.cssText='position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;background:rgba(0,0,0,.65);color:#fff;z-index:4';
-  ov.innerHTML=`<div style="font:900 44px 'Noto Sans TC',sans-serif;color:#ffe23a">🏁 比賽結束</div><div style="display:grid;grid-template-columns:auto auto;gap:6px 26px;font:800 18px 'Noto Sans TC',sans-serif">${order.map((k,i)=>`<span style="color:${k.me?'#ffe23a':'#fff'}">${i+1}. ${k.name}</span><span style="color:#9ab">${k.done?k.fin.toFixed(1)+' 秒':'—'}</span>`).join('')}</div>
+  const pod=ART.k_podium?`<div style="position:relative;width:min(380px,70vw);aspect-ratio:640/616;flex:none"><img src="${ART.k_podium}" style="position:absolute;inset:0;width:100%;height:100%">${[[0,50,46,30],[1,25,55,24],[2,75,57,24]].map(([r,x,y,w])=>{const k=order[r];if(!k)return '';const a=kArt(k.name);return a?`<img src="${a}" style="position:absolute;left:${x}%;top:${y}%;width:${w}%;transform:translate(-50%,-92%);filter:drop-shadow(0 4px 4px rgba(0,0,0,.5))${k.me?' drop-shadow(0 0 8px #ffe23a)':''}">`:'';}).join('')}</div>`:'';
+  ov.style.overflow='auto';
+  ov.innerHTML=`<div style="font:900 40px 'Noto Sans TC',sans-serif;color:#ffe23a;margin-top:12px">🏁 比賽結束・你是第 ${place} 名</div>${pod}<div style="display:grid;grid-template-columns:auto auto;gap:6px 26px;font:800 18px 'Noto Sans TC',sans-serif">${order.map((k,i)=>`<span style="color:${k.me?'#ffe23a':'#fff'}">${i+1}. ${k.name==='你'?(SET.gender==='girl'?'心心':'仲仲'):k.name}${k.me?'（你）':''}</span><span style="color:#9ab">${k.done?k.fin.toFixed(1)+' 秒':'—'}</span>`).join('')}</div>
     <div class="mrow"><button class="gbtn" id="krAgain">再跑一次</button><button class="gbtn ghost" id="krOut">回到校門口</button></div>`;$('krWrap').appendChild(ov);
-  $('krAgain').onclick=()=>{closeMini();startKart();};$('krOut').onclick=closeMini;
+  $('krAgain').onclick=()=>{closeMini();startKart(KR_PICK);};const sw=document.createElement('button');sw.className='gbtn alt';sw.textContent='換車手';sw.onclick=()=>{closeMini();kartSelect();};$('krAgain').after(sw);$('krOut').onclick=closeMini;
   const loot=[null,{gem:2,iron:2},{gem:1,iron:2},{iron:2,log:2}][place];if(loot)reward(loot,`台74 賽車第 ${place} 名！`);}
 
 // ---- boss duel: 2D side-view fight ----
