@@ -2154,9 +2154,9 @@ function dodgeFrame(rdt){const D=DB;if(!D)return;rdt=Math.min(rdt,0.04);if(D.slo
   const chip=(q)=>`<div style="min-width:46px;padding:3px 6px;border-radius:12px;background:${q.out?'rgba(0,0,0,.35)':'rgba(255,255,255,.95)'};color:${q.out?'rgba(255,255,255,.6)':q.team===0?'#136a30':'#52207e'};font:900 12px 'Noto Sans TC',sans-serif;text-align:center;${q.out?'text-decoration:line-through':''}">${q.me?'⭐'+(SET.gender==='girl'?'心心':'仲仲'):q.name}${B.holder===q?' 🔴':''}</div>`;
   const h0=D.P.filter(q=>q.team===0).map(chip).join(''),h1=D.P.filter(q=>q.team===1).map(chip).join('');if(h0+h1!==D.hud){D.hud=h0+h1;$('dbT0').innerHTML=h0;$('dbT1').innerHTML=h1;}
   D.R.render(D.sc,D.cam);}
-function finishDodge(){const D=DB;const me=D.P[0],el=$('dbEnd');el.style.display='flex';
+function finishDodge(){const D=DB;const me=D.P[0],el=$('dbEnd');el.style.display='flex';$('dbBig').textContent='';$('dbSub').textContent='';D.bigT=0;
   const mvp=D.P.filter(q=>q.team===0).sort((a,b)=>(b.hits+b.catches*1.5)-(a.hits+a.catches*1.5))[0];
-  el.innerHTML=`<div style="font:900 clamp(40px,8vw,72px) 'Noto Sans TC',sans-serif;font-style:italic;color:${D.win?'#ffd23a':'#fff'};text-shadow:0 6px 0 ${D.win?'#e8402a':'#3a5a8a'},0 12px 22px rgba(0,0,0,.35)">${D.win?'🏆 VICTORY!':'GAME SET'}</div>
+  el.innerHTML=`<div style="height:50px;flex:none"></div><div style="font:900 clamp(40px,8vw,72px) 'Noto Sans TC',sans-serif;font-style:italic;color:${D.win?'#ffd23a':'#fff'};text-shadow:0 6px 0 ${D.win?'#e8402a':'#3a5a8a'},0 12px 22px rgba(0,0,0,.35)">${D.win?'🏆 VICTORY!':'GAME SET'}</div>
     <div style="font:900 20px 'Noto Sans TC',sans-serif">${D.win?'大元隊贏了搗蛋鬼隊！':'差一點點！再挑戰一次吧！'}</div>
     <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center">${D.P.filter(q=>q.team===0).map(q=>`<div style="padding:10px 14px;border-radius:16px;background:rgba(255,255,255,.92);color:#1f4a2a;min-width:96px;${q===mvp&&(q.hits+q.catches)>0?'box-shadow:0 0 0 4px #ffd23a':''}"><div style="font:900 16px 'Noto Sans TC',sans-serif">${q===mvp&&(q.hits+q.catches)>0?'👑 ':''}${q.me?(SET.gender==='girl'?'心心':'仲仲'):q.name}</div><div style="font:700 12px 'Noto Sans TC',sans-serif;color:#5a7a5a">打中 ${q.hits}・接球 ${q.catches}</div></div>`).join('')}</div>
     <div class="mrow"><button class="gbtn" id="dbAgain">再比一場</button><button class="gbtn ghost" id="dbBack">離開</button></div>`;
