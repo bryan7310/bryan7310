@@ -1135,7 +1135,7 @@ const SHOPS=[];
   const front=(H,off)=>H.door==='S'?[(H.x0+H.x1+1)/2,H.z1+1+off]:H.door==='N'?[(H.x0+H.x1+1)/2,H.z0-off]:H.door==='E'?[H.x1+1+off,(H.z0+H.z1+1)/2]:[H.x0-off,(H.z0+H.z1+1)/2];
   // kindergarten right across from the gate
   const CJ=[wx(131),wz(-71)],ccx=CJ[0]-17,ccz=CJ[1]+3;const kg=(cands.slice().sort((p2,q2)=>Math.hypot((p2.H.x0+p2.H.x1)/2-ccx,(p2.H.z0+p2.H.z1)/2-ccz)-Math.hypot((q2.H.x0+q2.H.x1)/2-ccx,(q2.H.z0+q2.H.z1)/2-ccz))[0]||{}).H;
-  if(kg){kg.mat=BID.cyellow;kg.sign=BID.cpink;kg.fl=2;kg.shutter=false;kg.kinder=true;const cx=(kg.x0+kg.x1+1)/2,cz=(kg.z0+kg.z1+1)/2,[fx,fz]=front(kg,0.3);
+  if(kg){kg.mat=BID.cyellow;kg.sign=BID.cpink;kg.fl=2;kg.shutter=false;kg.kinder=true;SHOPS.push({x:(kg.x0+kg.x1+1)/2,z:(kg.z0+kg.z1+1)/2,H:kg,type:'kinder',label:'麥米倫幼兒園'});const cx=(kg.x0+kg.x1+1)/2,cz=(kg.z0+kg.z1+1)/2,[fx,fz]=front(kg,0.3);
     const lbl=makeLabel('🧸 麥米倫幼兒園','rgba(255,126,182,.95)','#fff');lbl.position.set(fx,13.4,fz);lbl.scale.set(6,1.5,1);scene.add(lbl);
     const st=textTex(512,128,(c2,w,h)=>{const cols=['#e23a2c','#f2c230','#2fa84f','#2f6fd0','#8e44ad'];c2.fillStyle='#fff';c2.fillRect(0,0,w,h);c2.font='bold 76px "PingFang TC","Microsoft JhengHei",sans-serif';c2.textAlign='center';c2.textBaseline='middle';c2.font='bold 64px "PingFang TC","Microsoft JhengHei",sans-serif';[...'麥米倫幼兒園'].forEach((ch,k)=>{c2.fillStyle=cols[k%5];c2.fillText(ch,48+k*83,68);});});
     const sg=new THREE.Mesh(new THREE.PlaneGeometry(12,3),new THREE.MeshLambertMaterial({map:st,side:THREE.DoubleSide}));sg.position.set(fx,10.6,fz);sg.lookAt(gx,10.6,gz);for(const px2 of[-4.5,4.5]){const po=box(0.25,3.2,0.25,lam(0xff7eb6));po.position.copy(sg.position);po.quaternion.copy(sg.quaternion);po.translateX(px2);po.translateY(-2.6);po.translateZ(-0.2);scene.add(po);}scene.add(sg);const sgb=new THREE.Mesh(new THREE.PlaneGeometry(12.6,3.6),lam(0xff7eb6,{side:THREE.DoubleSide}));sgb.position.copy(sg.position);sgb.quaternion.copy(sg.quaternion);sgb.translateZ(-0.05);scene.add(sgb);
@@ -1900,7 +1900,7 @@ function closeMini(){if(miniCleanup){const f=miniCleanup;miniCleanup=null;f();}m
 addEventListener('keydown',e=>{if(miniOpen&&miniKey){miniKey(e,true);}});
 addEventListener('keyup',e=>{if(miniOpen&&miniKey){miniKey(e,false);}});
 function reward(loot,why){const got=Object.entries(loot).map(([k,v])=>{addItem(k,v);return ITEM_N[k]+'×'+v;}).join('、');banner(why+'　獲得 '+got,3.2);sfx('power');}
-function enterRoom(r){const t=r.special.type;if(t==='art')startArt(r);else if(t==='music')startMusic(r);else if(t==='parkour')startParkour(r);else if(t==='dodge')startDodge(r);else if(t==='fish')startFish();else if(t==='hoops')startHoops();else if(t==='fps')startFPS();else if(t==='meme')startMeme();else if(t==='craft')startCraft();else if(t==='puzzle')startPuzzle();else if(t==='kart')startKart();else if(t==='run')startRun();}
+function enterRoom(r){const t=r.special.type;if(t==='art')startArt(r);else if(t==='music')startMusic(r);else if(t==='parkour')startParkour(r);else if(t==='dodge')startDodge(r);else if(t==='fish')startFish();else if(t==='hoops')startHoops();else if(t==='fps')startFPS();else if(t==='meme')startMeme();else if(t==='craft')startCraft();else if(t==='puzzle')startPuzzle();else if(t==='kart')startKart();else if(t==='run')startRun();else if(t==='kinder')startKinder();}
 
 // ---- art room: 1-minute drawing ----
 const THEMES=[['太陽',['#f2c230','#f08a24','#3a8ee8']],['大樹',['#2fa84f','#7a5230']],['我的家',['#e23a2c','#7a5230','#3a8ee8']],['彩虹',['#e23a2c','#f08a24','#f2c230','#2fa84f','#3a8ee8','#8e44ad']],
@@ -2608,6 +2608,101 @@ function startSuika(){const W=400,H=560,TOP=90;
     g.fillStyle='#7a5a2a';g.font='900 13px "Noto Sans TC",sans-serif';g.textAlign='left';g.fillText('下一個',W-80,24);fruit(W-40,50,S.next,Math.min(18,FRUITS[S.next][2]));
     for(const q of S.pops){q.t+=dt;g.strokeStyle=q.c;g.globalAlpha=Math.max(0,1-q.t*2);g.lineWidth=4;g.beginPath();g.arc(q.x,q.y,20+q.t*80,0,7);g.stroke();g.globalAlpha=1;}S.pops=S.pops.filter(q=>q.t<0.5);
     if(S.over){g.fillStyle='rgba(0,0,0,.55)';g.fillRect(0,0,W,H);g.fillStyle='#fff';g.font='900 34px "Noto Sans TC",sans-serif';g.textAlign='center';g.fillText('遊戲結束',W/2,H/2-10);g.font='700 18px "Noto Sans TC",sans-serif';g.fillText(`分數 ${S.score}・按「重新開始」再玩`,W/2,H/2+24);}};}
+
+// ---- 麥米倫幼兒園大冒險 (original kid-friendly exploration game) ----
+let KD=null;
+const KMAP=['#################',
+            '#S....#.....#..b#',
+            '#.##..#..y..#...#',
+            '#..#..R.....Y...#',
+            '#..#..#.....#...#',
+            '##.####.#####.###',
+            '#.....#.......#.#',
+            '#.r...#..#B#..#.#',
+            '#.....#..#G#....#',
+            '#################'];
+function startKinder(){
+  openMini(`<div id="kdWrap" style="position:fixed;inset:0;z-index:25;overflow:hidden;background:#000;user-select:none">
+    <canvas id="kdCv" style="width:100%;height:100%;display:block;touch-action:none"></canvas>
+    <button class="mbtn" id="kdQuit" style="position:absolute;left:12px;top:10px;z-index:3">✕ 離開幼兒園</button>
+    <div id="kdCards" style="position:absolute;right:14px;top:12px;display:flex;gap:8px"></div>
+    <div id="kdMsg" style="position:absolute;left:50%;top:22%;transform:translateX(-50%);font:900 32px 'Noto Sans TC',sans-serif;color:#fff;text-shadow:0 3px 0 #b03a7a,0 0 10px #000;white-space:nowrap;pointer-events:none"></div>
+    <div id="kdWarn" style="position:absolute;inset:0;pointer-events:none;box-shadow:inset 0 0 0 0 rgba(255,80,160,0);transition:box-shadow .3s"></div>
+    <canvas id="kdMap" width="170" height="100" style="position:absolute;left:12px;bottom:12px;background:rgba(0,0,0,.45);border-radius:8px"></canvas>
+    <div id="kdHelp" style="position:absolute;left:50%;bottom:14px;transform:translateX(-50%);font:700 13px 'Noto Sans TC',sans-serif;color:#fff;text-shadow:0 1px 3px #000;white-space:nowrap">WASD 走路・滑鼠看方向（點畫面鎖定）・Shift 跑・找齊三張鑰匙卡打開遊戲室，小心熊熊園長！</div>
+    <div class="dpad" style="position:absolute;left:0;right:0;bottom:120px;padding:0 14px"><div class="vstick"><div class="vknob"></div></div><div class="mrow"><button data-k="run" style="width:76px;height:76px">跑</button></div></div>
+    <div id="kdStart" style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;background:radial-gradient(circle,rgba(80,30,70,.8),rgba(10,5,20,.95));color:#fff;text-align:center;padding:16px">
+      <div style="font:900 clamp(26px,5vw,46px) 'Noto Sans TC',sans-serif;color:#ffd0f0;text-shadow:0 0 18px #ff7eb6">麥米倫幼兒園大冒險</div>
+      <div style="max-width:560px;font:700 15px/1.8 'Noto Sans TC',sans-serif;color:#f2e0f0">放學後的幼兒園好安靜……遊戲室的門被鎖住了！<br>找齊 <b style="color:#ff6b5b">紅</b>、<b style="color:#ffd23a">黃</b>、<b style="color:#5ab0ff">藍</b> 三張鑰匙卡，打開同色的門，進到最裡面的遊戲室。<br>熊熊園長會在走廊巡邏，被牠抱住就要回到門口重來喔！</div>
+      <button class="gbtn" id="kdGo" style="min-width:240px">▶ 走進幼兒園</button></div>
+  </div>`);
+  const cvs=$('kdCv'),wrap=$('kdWrap'),R=new THREE.WebGLRenderer({canvas:cvs,antialias:true});R.setPixelRatio(Math.min(devicePixelRatio,SET.quality==='low'?1:1.5));
+  const sc=new THREE.Scene();sc.background=new THREE.Color(0x1a1028);sc.fog=new THREE.Fog(0x1a1028,6,22);const cam=new THREE.PerspectiveCamera(72,16/9,0.05,80);sc.add(cam);
+  sc.add(new THREE.HemisphereLight(0xffe0f0,0x302040,0.55));const fl=new THREE.PointLight(0xfff0d8,0.9,9);cam.add(fl);
+  const C=2.4,Hh=2.8,rows=KMAP.length,cols=KMAP[0].length;const cell=(x,z)=>(KMAP[z]||'')[x]||'#';
+  const walls=['#ff9ec4','#9fd8ff','#ffe08a','#b8f0a0','#d8b0ff'].map(c=>{const [cc,g]=cv(64,64);g.fillStyle=c;g.fillRect(0,0,64,64);g.fillStyle='rgba(255,255,255,.35)';for(let i=0;i<6;i++){g.beginPath();g.arc(Math.random()*64,Math.random()*40+10,5+Math.random()*5,0,7);g.fill();}g.fillStyle='rgba(0,0,0,.15)';g.fillRect(0,52,64,12);return new THREE.MeshLambertMaterial({map:tex(cc)});});
+  const floorT=(()=>{const [cc,g]=cv(64,64);for(let y=0;y<4;y++)for(let x=0;x<4;x++){g.fillStyle=['#f6d06a','#f29ac0','#8fd0f0','#a8e08a'][(x+y*2)%4];g.fillRect(x*16,y*16,16,16);}const t=tex(cc,true);t.repeat.set(cols*1.5,rows*1.5);return t;})();
+  const fm=new THREE.Mesh(new THREE.PlaneGeometry(cols*C,rows*C),new THREE.MeshLambertMaterial({map:floorT}));fm.rotation.x=-Math.PI/2;fm.position.set(cols*C/2,0,rows*C/2);sc.add(fm);
+  const cm=new THREE.Mesh(new THREE.PlaneGeometry(cols*C,rows*C),lam(0x3a2a4a));cm.rotation.x=Math.PI/2;cm.position.set(cols*C/2,Hh,rows*C/2);sc.add(cm);
+  const doors={},cards=[],wg=new THREE.BoxGeometry(C,Hh,C);let goal=null,start=null;
+  for(let z=0;z<rows;z++)for(let x=0;x<cols;x++){const ch=cell(x,z),px=x*C+C/2,pz=z*C+C/2;
+    if(ch==='#'){const m=new THREE.Mesh(wg,walls[(x*3+z*7)%5]);m.position.set(px,Hh/2,pz);sc.add(m);}
+    else if('RYB'.includes(ch)){const col={R:0xe23a2c,Y:0xf2c230,B:0x2f6fd0}[ch];const d=new THREE.Mesh(new THREE.BoxGeometry(C,Hh,C*0.3),lam(col,{emissive:col,emissiveIntensity:0.15}));d.position.set(px,Hh/2,pz);const vert=cell(x-1,z)!=='#';if(vert)d.rotation.y=Math.PI/2;
+      const k=new THREE.Mesh(new THREE.TorusGeometry(0.18,0.05,6,12),lam(0xffffff));k.position.set(0,0.1,C*0.16);d.add(k);sc.add(d);doors[x+','+z]={m:d,c:ch.toLowerCase()};}
+    else if('ryb'.includes(ch)){const col={r:0xe23a2c,y:0xf2c230,b:0x2f6fd0}[ch];const m=new THREE.Mesh(new THREE.BoxGeometry(0.4,0.26,0.03),lam(col,{emissive:col,emissiveIntensity:0.6}));m.position.set(px,1,pz);sc.add(m);cards.push({m,c:ch,got:false});
+      const glow=new THREE.PointLight(col,0.8,3);glow.position.set(px,1.2,pz);sc.add(glow);}
+    else if(ch==='G'){goal={x:px,z:pz};for(let k=0;k<6;k++){const toy=new THREE.Mesh(k%2?new THREE.SphereGeometry(0.25,10,8):new THREE.BoxGeometry(0.35,0.35,0.35),lam([0xe23a2c,0xf2c230,0x2fa84f,0x2f6fd0,0xff7eb6,0x8e44ad][k]));toy.position.set(px+rand(-0.8,0.8),0.2,pz+rand(-0.8,0.8));sc.add(toy);}
+      const sg=signPlane('遊戲室',1.6,0.45,'#ff7eb6','#fff');sg.position.set(px,2.3,pz-C/2+0.05);sc.add(sg);}
+    else if(ch==='S'){start={x:px,z:pz};}}
+  // decorations: tiny tables and chairs
+  for(let z=0;z<rows;z++)for(let x=0;x<cols;x++)if(cell(x,z)==='.'&&((x*7+z*13)%11===0)){const t=box(0.8,0.45,0.5,lam(0xf2c230));t.position.set(x*C+C/2+0.5,0.22,z*C+C/2+0.5);sc.add(t);}
+  // friendly-spooky mascot: big teddy bear principal
+  const bear=new THREE.Group(),bf=lam(0xc98a5a),bl=lam(0xf0d0b0);const bd=sph(0.55,bf,14,10);bd.scale.set(1,1.2,0.9);bd.position.y=0.9;bear.add(bd);const bel=sph(0.36,bl,12,8);bel.position.set(0,0.85,0.28);bear.add(bel);
+  const hd=sph(0.42,bf,14,10);hd.position.y=1.85;bear.add(hd);for(const sx of[-0.3,0.3]){const ear=sph(0.14,bf,8,6);ear.position.set(sx,2.2,0);bear.add(ear);const e=sph(0.07,lam(0x111111),8,6);e.position.set(sx*0.45,1.92,0.36);bear.add(e);}
+  const sn=sph(0.14,bl,8,6);sn.position.set(0,1.78,0.38);bear.add(sn);const ns=sph(0.05,lam(0x2a1a10),6,6);ns.position.set(0,1.82,0.5);bear.add(ns);const bow=box(0.4,0.12,0.06,lam(0xff4a8a));bow.position.set(0,1.45,0.38);bear.add(bow);
+  const tag=makeLabel('熊熊園長','rgba(255,74,138,.9)','#fff');tag.position.y=2.6;tag.scale.set(1.6,0.4,1);bear.add(tag);sc.add(bear);
+  const patrol=[[7,6],[13,6],[7,6],[7,3],[11,3],[11,1],[7,1],[7,3]].map(([x,z])=>({x:x*C+C/2,z:z*C+C/2}));
+  KD={R,sc,cam,C,cell,doors,cards,goal,start,bear,patrol,pi:0,have:{},p:{x:start.x,z:start.z,yaw:Math.PI,pitch:0},keys:{},joy:{x:0,y:0},state:'menu',bob:0,chase:0,t:0,catches:0};
+  const resize=()=>{const w=wrap.clientWidth,h=wrap.clientHeight;R.setSize(w,h,false);cam.aspect=w/h;cam.updateProjectionMatrix();};resize();addEventListener('resize',resize);
+  const mm=e=>{if(!KD||document.pointerLockElement!==cvs)return;const k=0.0022*SET.sens/100;KD.p.yaw-=e.movementX*k;KD.p.pitch=clamp(KD.p.pitch-e.movementY*k,-1.2,1.2);};
+  document.addEventListener('mousemove',mm);cvs.addEventListener('mousedown',()=>{if(KD&&KD.state==='play'&&!isTouch){try{cvs.requestPointerLock();}catch(_){}}});
+  let lid=null,lx=0,ly=0;cvs.addEventListener('pointerdown',e=>{if(e.pointerType!=='touch')return;lid=e.pointerId;lx=e.clientX;ly=e.clientY;});cvs.addEventListener('pointermove',e=>{if(e.pointerId!==lid||!KD)return;KD.p.yaw-=(e.clientX-lx)*0.005;KD.p.pitch=clamp(KD.p.pitch-(e.clientY-ly)*0.005,-1.2,1.2);lx=e.clientX;ly=e.clientY;});cvs.addEventListener('pointerup',e=>{if(e.pointerId===lid)lid=null;});
+  vStick(wrap.querySelector('.vstick'),(x,y)=>{if(KD){KD.joy.x=x;KD.joy.y=y;}});wrap.querySelector('[data-k=run]').onpointerdown=e=>{e.preventDefault();KD.keys.ShiftLeft=!KD.keys.ShiftLeft;};
+  miniKey=(e,d)=>{if(KD)KD.keys[e.code]=d;};
+  $('kdGo').onclick=()=>{$('kdStart').style.display='none';KD.state='play';if(!isTouch){try{cvs.requestPointerLock();}catch(_){}}kdMsg('找齊三張鑰匙卡！',2);};
+  $('kdQuit').onclick=closeMini;
+  miniCleanup=()=>{document.removeEventListener('mousemove',mm);removeEventListener('resize',resize);if(document.pointerLockElement)document.exitPointerLock();R.dispose();try{R.forceContextLoss();}catch(e){}KD=null;};
+  miniFrame=kdFrame;}
+function kdMsg(t,dur){const el=$('kdMsg');if(!el)return;el.textContent=t;if(KD)KD.msgT=dur;}
+function kdSolid(x,z){const K=KD,cx=Math.floor(x/K.C),cz=Math.floor(z/K.C),ch=K.cell(cx,cz);if(ch==='#')return true;const d=K.doors[cx+','+cz];return !!(d&&!d.open);}
+function kdFrame(dt){const K=KD;if(!K)return;dt=Math.min(dt,0.033);K.t+=dt;const P=K.p;
+  if(K.msgT>0){K.msgT-=dt;if(K.msgT<=0)kdMsg('',0);}
+  if(K.state==='play'){
+    let mx=(K.keys.KeyD||K.keys.ArrowRight?1:0)-(K.keys.KeyA||K.keys.ArrowLeft?1:0)+K.joy.x,mz=(K.keys.KeyW||K.keys.ArrowUp?1:0)-(K.keys.KeyS||K.keys.ArrowDown?1:0)+K.joy.y;const ml=Math.hypot(mx,mz);if(ml>1){mx/=ml;mz/=ml;}
+    const sp=(K.keys.ShiftLeft||K.keys.ShiftRight?4.2:2.6),fx=-Math.sin(P.yaw),fz=-Math.cos(P.yaw),rx=Math.cos(P.yaw),rz=-Math.sin(P.yaw),vx=(fx*mz+rx*mx)*sp*dt,vz=(fz*mz+rz*mx)*sp*dt,r=0.3;
+    if(!kdSolid(P.x+vx+Math.sign(vx)*r,P.z))P.x+=vx;if(!kdSolid(P.x,P.z+vz+Math.sign(vz)*r))P.z+=vz;K.bob+=Math.hypot(vx,vz)*3;
+    // doors open when you have the card and walk up
+    for(const k in K.doors){const d=K.doors[k];if(d.open)continue;const [cx,cz]=k.split(',').map(Number),dd=Math.hypot(P.x-(cx*K.C+K.C/2),P.z-(cz*K.C+K.C/2));if(dd<2.5){if(K.have[d.c]){d.open=true;d.m.visible=false;fpsBeep(660,0.2,'triangle',0.07);kdMsg('門打開了！',1.2);}else if(!(K.lockT>0)){K.lockT=1.5;kdMsg({r:'需要紅色鑰匙卡',y:'需要黃色鑰匙卡',b:'需要藍色鑰匙卡'}[d.c],1.4);fpsBeep(200,0.12,'square',0.05);}}}
+    K.lockT=(K.lockT||0)-dt;
+    for(const c of K.cards){if(c.got)continue;c.m.rotation.y+=dt*2;c.m.position.y=1+Math.sin(K.t*3)*0.08;if(Math.hypot(P.x-c.m.position.x,P.z-c.m.position.z)<0.9){c.got=true;c.m.visible=false;K.have[c.c]=1;fpsBeep(1200,0.15,'square',0.06);kdMsg({r:'拿到紅色鑰匙卡！',y:'拿到黃色鑰匙卡！',b:'拿到藍色鑰匙卡！'}[c.c],1.6);}}
+    // bear AI: patrol, chase if it sees you nearby
+    const B=K.bear,bx=B.position.x,bz=B.position.z,dP=Math.hypot(P.x-bx,P.z-bz);
+    let see=dP<7;if(see){for(let s2=0.1;s2<1;s2+=0.1){if(kdSolid(bx+(P.x-bx)*s2,bz+(P.z-bz)*s2)){see=false;break;}}}
+    if(see)K.chase=2.5;else K.chase-=dt;
+    let tx,tz;if(K.chase>0){tx=P.x;tz=P.z;}else{const w=K.patrol[K.pi];tx=w.x;tz=w.z;if(Math.hypot(tx-bx,tz-bz)<0.3)K.pi=(K.pi+1)%K.patrol.length;}
+    const dx=tx-bx,dz=tz-bz,dl=Math.hypot(dx,dz)||1,bs=(K.chase>0?2.35:1.5)*dt;let nx=bx+dx/dl*bs,nz=bz+dz/dl*bs;if(kdSolid(nx,bz))nx=bx;if(kdSolid(nx,nz))nz=bz;
+    B.position.set(nx,Math.abs(Math.sin(K.t*6))*0.08,nz);B.rotation.y=Math.atan2(dx,dz);
+    $('kdWarn').style.boxShadow=K.chase>0?'inset 0 0 120px 30px rgba(255,80,160,.45)':'inset 0 0 0 0 rgba(255,80,160,0)';
+    if(dP<0.9){K.catches++;fpsBeep(300,0.4,'sine',0.08);kdMsg('被熊熊園長抱住了！回到門口～',2.2);P.x=K.start.x;P.z=K.start.z;K.chase=0;const w=K.patrol[0];B.position.set(w.x,0,w.z);K.pi=1;}
+    if(Math.hypot(P.x-K.goal.x,P.z-K.goal.z)<1.1){K.state='win';if(document.pointerLockElement)document.exitPointerLock();
+      const st=$('kdStart');st.style.display='flex';st.innerHTML=`<div style="font:900 42px 'Noto Sans TC',sans-serif;color:#ffd23a">🎉 找到遊戲室了！</div><div style="font:700 16px 'Noto Sans TC',sans-serif">花了 ${K.t.toFixed(0)} 秒・被抱住 ${K.catches} 次</div><div class="mrow"><button class="gbtn" id="kdAgain">再玩一次</button><button class="gbtn ghost" id="kdOut">離開幼兒園</button></div>`;
+      $('kdAgain').onclick=()=>{closeMini();startKinder();};$('kdOut').onclick=closeMini;reward(K.catches===0?{gem:2,iron:2}:{gem:1,iron:1},'麥米倫幼兒園大冒險過關！');}}
+  else if(!K.bear.position.x){const w=K.patrol[0];K.bear.position.set(w.x,0,w.z);}
+  const cam=K.cam;cam.position.set(P.x,1.5+Math.sin(K.bob)*0.04,P.z);cam.rotation.order='YXZ';cam.rotation.y=P.yaw;cam.rotation.x=P.pitch;
+  $('kdCards').innerHTML=['r','y','b'].map(c=>`<div style="width:44px;height:30px;border-radius:6px;border:2px solid #fff;background:${K.have[c]?{r:'#e23a2c',y:'#f2c230',b:'#2f6fd0'}[c]:'rgba(255,255,255,.15)'}"></div>`).join('');
+  const mg=$('kdMap').getContext('2d'),s2=10;mg.clearRect(0,0,170,100);for(let z=0;z<KMAP.length;z++)for(let x=0;x<KMAP[0].length;x++){const ch=K.cell(x,z),d=K.doors[x+','+z];mg.fillStyle=ch==='#'?'#8a6a9a':d&&!d.open?{r:'#e23a2c',y:'#f2c230',b:'#2f6fd0'}[d.c]:ch==='G'?'#ff7eb6':'#2a1a3a';mg.fillRect(x*s2,z*s2,s2,s2);}
+  mg.fillStyle='#ffd23a';mg.beginPath();mg.arc(P.x/K.C*s2,P.z/K.C*s2,3.5,0,7);mg.fill();if(K.chase>0){mg.fillStyle='#ff4a8a';mg.beginPath();mg.arc(K.bear.position.x/K.C*s2,K.bear.position.z/K.C*s2,3.5,0,7);mg.fill();}
+  K.R.render(K.sc,cam);}
 
 // ---- marimba rhythm game ----
 const MSONGS=[{n:'小蜜蜂',bpm:118,notes:'5 3 3 - 4 2 2 - 1 2 3 4 5 5 5 - 5 3 3 - 4 2 2 - 1 3 5 5 3 - - - 2 2 2 2 2 3 4 - 3 3 3 3 3 4 5 - 5 3 3 - 4 2 2 - 1 3 5 5 1'},
