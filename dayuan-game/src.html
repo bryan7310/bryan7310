@@ -1137,8 +1137,8 @@ const SHOPS=[];
   // kindergarten right across from the gate
   const kg=cands[0]&&cands[0].H;
   if(kg){kg.mat=BID.cyellow;kg.sign=BID.cpink;kg.fl=2;kg.shutter=false;kg.kinder=true;const cx=(kg.x0+kg.x1+1)/2,cz=(kg.z0+kg.z1+1)/2,[fx,fz]=front(kg,0.3);
-    const lbl=makeLabel('🧸 大元幼兒園','rgba(255,126,182,.95)','#fff');lbl.position.set(fx,10,fz);lbl.scale.set(3.6,0.9,1);scene.add(lbl);
-    const st=textTex(512,128,(c2,w,h)=>{const cols=['#e23a2c','#f2c230','#2fa84f','#2f6fd0','#8e44ad'];c2.fillStyle='#fff';c2.fillRect(0,0,w,h);c2.font='bold 76px "PingFang TC","Microsoft JhengHei",sans-serif';c2.textAlign='center';c2.textBaseline='middle';[...'大元幼兒園'].forEach((ch,k)=>{c2.fillStyle=cols[k];c2.fillText(ch,62+k*97,68);});});
+    const lbl=makeLabel('🧸 麥米倫幼兒園','rgba(255,126,182,.95)','#fff');lbl.position.set(fx,10,fz);lbl.scale.set(3.6,0.9,1);scene.add(lbl);
+    const st=textTex(512,128,(c2,w,h)=>{const cols=['#e23a2c','#f2c230','#2fa84f','#2f6fd0','#8e44ad'];c2.fillStyle='#fff';c2.fillRect(0,0,w,h);c2.font='bold 76px "PingFang TC","Microsoft JhengHei",sans-serif';c2.textAlign='center';c2.textBaseline='middle';c2.font='bold 64px "PingFang TC","Microsoft JhengHei",sans-serif';[...'麥米倫幼兒園'].forEach((ch,k)=>{c2.fillStyle=cols[k%5];c2.fillText(ch,48+k*83,68);});});
     const sg=new THREE.Mesh(new THREE.PlaneGeometry(6,1.5),new THREE.MeshLambertMaterial({map:st,side:THREE.DoubleSide}));sg.position.set(fx,6.3,fz);sg.lookAt(gx,6.3,gz);scene.add(sg);
     const [px,pz]=front(kg,3.2),pg=new THREE.Group();pg.position.set(px,0,pz);pg.lookAt(gx,0,gz);scene.add(pg);
     const pf=box(1.6,0.15,1.6,lam(0xf2c230));pf.position.set(-2.5,1.6,0);pg.add(pf);for(const [a2,b2] of [[-0.7,-0.7],[0.7,-0.7],[-0.7,0.7],[0.7,0.7]]){const l=box(0.12,1.6,0.12,lam(0x2f6fd0));l.position.set(-2.5+a2,0.8,b2);pg.add(l);}
