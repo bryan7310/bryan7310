@@ -360,20 +360,21 @@ const BOUNDW=BOUNDARY.map(p=>[wx(p[0]),wz(p[1])]);
 const GATE_SEG=0,GATE_T=0.72,GATE_PT=(()=>{const a=BOUNDW[GATE_SEG],b=BOUNDW[GATE_SEG+1];return [a[0]+(b[0]-a[0])*GATE_T,a[1]+(b[1]-a[1])*GATE_T];})();
 const ROADS=[
   {pts:[[690,-330],[480,822]],w:70,main:true,name:'環中東路'},
-  {pts:[[-383,-270],[96,-21],[640,-12],[990,-10]],w:36,name:'德芳南路'},
+  {pts:[[-390,-405],[-187,-276],[-4,-160],[131,-71],[234,-19],[431,-8],[560,8],[640,40],[866,132]],w:36,name:'德芳南路'},
   {pts:[[-69,194],[165,335],[173,822]],w:30,name:'內元路'},
-  {pts:[[281,-361],[96,-21],[-69,194],[-119,254],[-169,284],[-309,254],[-390,228]],w:24,name:'現岱路'},
-  {pts:[[-268,-340],[-425,300]],w:34,name:'中興路二段'},
-  {pts:[[-55,-100],[-145,-340]],w:18,name:'新義路'},
-  {pts:[[-110,262],[-112,450],[-118,822]],w:16,name:'中元路'},
-  {pts:[[-390,365],[-40,430],[60,445]],w:12,name:'現岱路16巷'},
-  {pts:[[-150,290],[-60,330],[30,400]],w:12,name:'光榮巷'},
+  {pts:[[177,-277],[131,-71],[96,-21],[-69,194],[-104,222],[-190,234],[-308,202],[-390,170]],w:24,name:'現岱路'},
+  {pts:[[-69,194],[-172,144],[-390,1]],w:14,name:'中興路二段182巷'},
+  {pts:[[-55,-192],[-145,-340]],w:18,name:'新義路'},
+  {pts:[[-110,224],[-112,450],[-118,822]],w:16,name:'中元路'},
+  {pts:[[-284,208],[-274,329],[-287,500]],w:12,name:'現岱路16巷'},
+  {pts:[[-104,222],[-40,295],[24,343]],w:12,name:'光榮巷'},
+  {pts:[[-68,443],[71,345],[163,343]],w:12,name:'中元東路10巷'},
   {pts:[[300,-200],[600,-200]],w:12,name:'巷道'},
 ];
 const PARK={px:-255,py:620,r:22};
 const BUILDINGS=[
   {id:'admin',c:[225,68],l:150,w:48,a:25,floors:4,sign:true,towers:[-1,1],stone:true,enter:true,cs:1,core:true,chests:[{f:1,k:1,loot:{stone:6,log:3}},{roof:true,loot:{gem:3,iron:2}}],special:{'1-3':{label:'跑酷教室 3',type:'parkour',lv:2,color:'#8e44ad'}}},
-  {id:'west',c:[95,78],l:150,w:35,a:-43.7,floors:4,towers:[1],passGate:true},
+  {id:'west',c:[95,78],l:150,w:35,a:-43.7,floors:4,towers:[1],passGate:true,roundEnd:true},
   {id:'kitchen',c:[358,85],l:62,w:56,a:20,floors:2,label:'午餐廚房'},
   {id:'main',c:[140,208],l:227,w:42,a:28,floors:4,towers:[-1,0,1],stair:[1,1],enter:true,cs:-1,core:true,chests:[{f:0,k:2,loot:{log:6,plank:4}},{f:2,k:5,loot:{iron:4,log:2}},{f:3,k:7,loot:{gem:2,plank:4}}],special:{'0-4':{label:'美術教室',type:'art',color:'#c0392b'},'1-2':{label:'音樂教室',type:'music',color:'#2f6fd0'},'0-6':{label:'跑酷教室 1',type:'parkour',lv:0,color:'#8e44ad'},'2-1':{label:'跑酷教室 2',type:'parkour',lv:1,color:'#8e44ad'},'1-5':{label:'迷因大賽',type:'meme',color:'#e67e22'},'2-3':{label:'無盡合成',type:'craft',color:'#16a085'},'3-2':{label:'益智教室',type:'puzzle',color:'#2980b9'}}},
   {id:'red',c:[262,215],l:52,w:44,a:26,floors:2,redRoof:true},
@@ -656,6 +657,11 @@ for(const b of BUILDINGS){
       B.add(lxp-3.2,lxp+3.2,0,0.04,-W/2,W/2,lam(0xb8b0a2),{solid:false});
       const sg=signPlane('穿堂 → 校園',3.4,0.6,'#1f5e34','#fff');for(const sd of[1,-1]){const s3=sg.clone();s3.position.set(lxp,3.0,sd*(W/2+0.05));if(sd<0)s3.rotation.y=Math.PI;grp.add(s3);}}
     else{const m=new THREE.Mesh(uvBox(L,H,W,4,3.3),[wallMat,wallMat,roofMat,roofMat,wallMat,wallMat]);m.position.y=H/2;m.castShadow=m.receiveShadow=true;grp.add(m);BUILD_MESHES.push(m);}
+    if(b.roundEnd){const r=W/2,ct=schoolWallTex.clone();ct.needsUpdate=true;ct.repeat.set(Math.PI*r/4,H/3.3);
+      const cy=new THREE.Mesh(new THREE.CylinderGeometry(r,r,H,28,1,false,Math.PI,Math.PI),[new THREE.MeshLambertMaterial({map:ct})]);cy.position.set(-L/2,H/2,0);cy.castShadow=cy.receiveShadow=true;grp.add(cy);BUILD_MESHES.push(cy);
+      const cap=new THREE.Mesh(new THREE.CircleGeometry(r,28,Math.PI/2,Math.PI),roofMat);cap.rotation.x=-Math.PI/2;cap.position.set(-L/2,H+0.02,0);grp.add(cap);
+      const rim=new THREE.Mesh(new THREE.CylinderGeometry(r+0.15,r+0.15,0.8,28,1,true,Math.PI,Math.PI),lam(0xefe3c9,{side:THREE.DoubleSide}));rim.position.set(-L/2,H+0.4,0);grp.add(rim);
+      for(const f of[0.55,0.85]){const [qx,qz]=B.toW(-L/2-r*f*0.5,0);addSolid(qx,qz,r*f*0.5,r*Math.sqrt(1-f*f*0.25),a,0,H);}}
     const par=new THREE.Mesh(new THREE.BoxGeometry(L+0.3,0.8,W+0.3),lam(0xefe3c9));par.position.y=H+0.4;grp.add(par);
     for(let i=0;i<3;i++){const t=new THREE.Mesh(new THREE.CylinderGeometry(1,1,1.8,12),lam(0x4f86b8));t.position.set(rand(-L/3,L/3),H+1.7,rand(-W/4,W/4));t.castShadow=true;grp.add(t);}
     if(b.label){const st=textTex(512,128,(g,w,h)=>{g.fillStyle='#f5f1e6';g.fillRect(0,0,w,h);g.fillStyle='#1d4f9a';g.font='bold 80px "PingFang TC","Microsoft JhengHei",sans-serif';g.textAlign='center';g.textBaseline='middle';g.fillText(b.label,w/2,h/2+4);});
@@ -844,7 +850,7 @@ for(const [px,py] of [[196,146],[232,164]]){
     if(i%2===0){const fl=new THREE.Mesh(new THREE.ConeGeometry(0.18,0.25,7),lam(0xfffbea,{flatShading:true}));fl.rotation.x=Math.PI;fl.position.set(x+lx,0.22,z+lz);scene.add(fl);const c2=sph(0.06,lam(0xf2c230),6,6);c2.position.set(x+lx,0.25,z+lz);scene.add(c2);}}
 }
 { // yellow-green pedestrian bridge over 德芳南路 (from street-view photos)
-  const ux=-0.016,uy=1,cx=wx(118),cz=wz(-20),g=new THREE.Group();g.position.set(cx,0,cz);g.rotation.y=-Math.atan2(uy,ux);scene.add(g);
+  const ux=-0.016,uy=1,cx=wx(203),cz=wz(-34),g=new THREE.Group();g.position.set(cx,0,cz);g.rotation.y=-Math.atan2(uy,ux);scene.add(g);
   const yg=lam(0xc9d66a),wh=lam(0xf3f3ef),gr=lam(0x5aa86a),yl=lam(0xf2d12e);
   const railT=textTex(512,64,(c2,w,h)=>{c2.fillStyle='#f3f3ef';c2.fillRect(0,0,w,h);c2.strokeStyle='#c9a24a';c2.lineWidth=4;for(let x=0;x<w;x+=64){c2.beginPath();c2.arc(x+32,h,28,Math.PI,0);c2.stroke();c2.beginPath();c2.arc(x+32,h*0.55,9,0,7);c2.stroke();}});railT.wrapS=THREE.RepeatWrapping;railT.repeat.set(6,1);
   const deck=box(44,0.8,3.6,yg);deck.position.y=6.3;g.add(deck);
@@ -1061,7 +1067,7 @@ function ledTick(){if(!LED.g||Math.floor(T*12)===LED.f)return;LED.f=Math.floor(T
   g.fillStyle='#ffe23a';g.font='bold 34px "PingFang TC","Microsoft JhengHei",sans-serif';g.textAlign='center';g.textBaseline='middle';
   const msgs=['大元國小 歡迎您','上下學注意安全','打倒考卷大魔王！'];const m=msgs[k],w=g.measureText(m).width;g.fillText(m,k===0?128:256+w/2-((T*60)%(256+w)),72);
   g.fillStyle='rgba(0,0,0,.25)';for(let y=0;y<144;y+=3)g.fillRect(0,y,256,1);LED.t.needsUpdate=true;}
-{const R0=ROADW.find(r=>r.name==='德芳南路'),R1=ROADW.find(r=>r.name==='現岱路'),a=R0.pts[0],b=R0.pts[1],L=Math.hypot(b[0]-a[0],b[1]-a[1]),ux=(b[0]-a[0])/L,uz=(b[1]-a[1])/L;
+{const R0=ROADW.find(r=>r.name==='德芳南路'),R1=ROADW.find(r=>r.name==='現岱路'),a=R0.pts[3],b=R0.pts[4],L=Math.hypot(b[0]-a[0],b[1]-a[1]),ux=(b[0]-a[0])/L,uz=(b[1]-a[1])/L;
   const c0=R1.pts[0],c1=R1.pts[1],L1=Math.hypot(c1[0]-c0[0],c1[1]-c0[1]),vx=(c1[0]-c0[0])/L1,vz=(c1[1]-c0[1])/L1,den=ux*vz-uz*vx,tI=((c0[0]-a[0])*vz-(c0[1]-a[1])*vx)/den,ix=a[0]+ux*tI,iz=a[1]+uz*tI,sn=Math.abs(den);
   const cwT=textTex(256,64,(c2,w,h)=>{c2.fillStyle='#3aa07a';c2.fillRect(0,0,w,h);c2.fillStyle='#fff';for(let x=6;x<w;x+=20)c2.fillRect(x,8,10,h-16);});
   const cw=(cx2,cz2,len,dirx,dirz)=>{const m=new THREE.Mesh(new THREE.PlaneGeometry(len,4.5),new THREE.MeshLambertMaterial({map:cwT,transparent:true,opacity:.95}));m.rotation.x=-Math.PI/2;m.rotation.z=-Math.atan2(dirz,dirx);m.position.set(cx2,0.03,cz2);m.receiveShadow=true;scene.add(m);};
