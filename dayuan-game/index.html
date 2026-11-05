@@ -883,7 +883,7 @@ const AMPHI=[330,200];
     const c=new THREE.Mesh(new THREE.ConeGeometry(r,h,6,1),i%3?mm:mm2);c.position.set(Math.cos(an)*d,h/2-4,Math.sin(an)*d);c.rotation.y=rand(0,3);scene.add(c);}}
 // ================= trees =================
 const TREE_ZONES=[[150,92,300,205,16],[480,105,555,385,20],[300,372,465,486,24],[185,290,325,350,8],[300,128,345,300,8],[20,140,70,215,3],[300,20,330,55,2],[400,120,470,140,2]];
-const NPC_SPOTS=[[302,186],[105,22],[190,110],[120,150],[515,150],[392,352],[332,155],[300,360],[235,180],[165,170],[452,82],[430,250],[325,170],[225,340],[195,175]];
+const NPC_SPOTS=[[302,186],[300,300],[105,22],[190,110],[120,150],[515,150],[392,352],[332,155],[300,360],[235,180],[165,170],[452,82],[430,250],[325,170],[225,340],[195,175]];
 const trees=[];
 for(const [x0,y0,x1,y1,n] of TREE_ZONES){let made=0,tries=0;
   while(made<n&&tries++<400){const x=rand(x0,x1),y=rand(y0,y1);
@@ -1188,6 +1188,11 @@ function makeLabel(text,bg,fg){const [c,g]=cv(256,64);g.font='bold 34px "PingFan
 function makeMarker(ch,color){const [c,g]=cv(64,64);g.fillStyle=color;g.beginPath();g.arc(32,32,28,0,7);g.fill();g.fillStyle='#222';g.font='bold 44px sans-serif';g.textAlign='center';g.textBaseline='middle';g.fillText(ch,32,35);
   const s=new THREE.Sprite(new THREE.SpriteMaterial({map:tex(c),depthWrite:false}));s.scale.set(0.6,0.6,1);s.renderOrder=6;return s;}
 
+const KFLAG=(()=>{const [c,g]=cv(150,100);g.fillStyle='#fff';g.fillRect(0,0,150,100);g.save();g.translate(75,50);g.rotate(Math.atan2(2,3));
+  g.fillStyle='#cd2e3a';g.beginPath();g.arc(0,0,25,Math.PI,0);g.fill();g.fillStyle='#0047a0';g.beginPath();g.arc(0,0,25,0,Math.PI);g.fill();
+  g.fillStyle='#cd2e3a';g.beginPath();g.arc(-12.5,0,12.5,0,Math.PI);g.fill();g.fillStyle='#0047a0';g.beginPath();g.arc(12.5,0,12.5,Math.PI,0);g.fill();g.restore();
+  g.fillStyle='#111';const tri=(cx,cy,ang,br)=>{g.save();g.translate(cx,cy);g.rotate(ang);for(let i=0;i<3;i++){if(br[i]){g.fillRect(-12,-9+i*7,10,4);g.fillRect(2,-9+i*7,10,4);}else g.fillRect(-12,-9+i*7,24,4);}g.restore();};
+  const a=Math.atan2(2,3);tri(26,18,a-Math.PI/2,[0,0,0]);tri(124,82,a-Math.PI/2,[1,1,1]);tri(124,18,-a+Math.PI/2,[0,1,0]);tri(26,82,-a+Math.PI/2,[1,0,1]);return tex(c);})();
 function makePerson(o){
   const root=new THREE.Group(),body=new THREE.Group();root.add(body);const sc=o.scale||1;body.scale.setScalar(sc);
   const skin=lam(o.skin||0xf0c8a0),shirt=lam(o.shirt||0xffffff),pants=lam(o.pants||0x2e7d32),shoe=lam(o.shoe||0x2a2a2a),sleeve=lam(o.sleeve||o.shirt||0xffffff);
@@ -1223,6 +1228,10 @@ function makePerson(o){
   if(o.cap&&(o.pony||o.bob||o.longHair)){const hm=lam(o.hair||0x1d1a18);if(o.pony){const pt=sph(0.1,hm);pt.position.set(0,-0.02,-0.24);head.add(pt);}else{const bk=box(o.longHair?0.42:0.4,o.longHair?0.5:0.24,0.16,hm);bk.position.set(0,o.longHair?-0.18:-0.06,-0.12);head.add(bk);if(o.longHair){for(const sx of[-0.2,0.2]){const sd=box(0.05,0.34,0.22,hm);sd.position.set(sx,-0.1,-0.02);head.add(sd);}}}}
   if(o.mask){const mk=box(0.36,0.08,0.02,lam(0x111111));mk.position.set(0,0.02,0.19);head.add(mk);for(const sx of[-0.07,0.07]){const e=sph(0.028,new THREE.MeshBasicMaterial({color:0xff2a2a}),6,6);e.position.set(sx,0.02,0.205);head.add(e);}}
   if(o.whistle){const w=box(0.05,0.04,0.06,lam(0xdddddd));w.position.set(0,H+0.32,0.15);body.add(w);}
+  if(o.chubby){torso.scale.set(1.45,1.05,1.6);hip.scale.set(1.45,1,1.6);for(const q of[legL,legR,armL,armR])q.position.x*=1.45;for(const q of[legL,legR])q.scale.set(1.3,1,1.3);head.scale.set(1.12,1.04,1.1);}
+  if(o.mole){const ml=sph(0.026,lam(0x1b1b1b),6,6);ml.position.set(-0.08,-0.075,0.18);head.add(ml);}
+  if(o.flag){const pole=new THREE.Mesh(new THREE.CylinderGeometry(0.012,0.012,0.95,6),lam(0x8a6a3a));pole.position.set(0,-0.03,0.06);armL.add(pole);
+    const fl=new THREE.Mesh(new THREE.PlaneGeometry(0.5,0.33),new THREE.MeshLambertMaterial({map:KFLAG,side:THREE.DoubleSide}));fl.position.set(-0.26,0.3,0.06);armL.add(fl);}
   root.traverse(m=>{if(m.isMesh)m.castShadow=true;});
   const top=(H+0.48+0.45)*sc;
   return {root,body,legL,legR,armL,armR,head,top,phase:Math.random()*6,throwT:0};
@@ -1350,12 +1359,13 @@ addNPC('frog','大元蛙',[105,22],{make:makeFrog});
 addNPC('homeroom','王老師',[190,110],{scale:1.25,shirt:0xe8538f,sleeve:0xe8538f,pants:0x2b3550,longPants:true,hair:0x1b1310,bob:true,glasses:true});
 addNPC('homeroom','陳老師',[120,150],{scale:1.3,shirt:0x1f2f4f,sleeve:0x1f2f4f,pants:0x4a6a8f,longPants:true,hair:0x111111,skin:0xd9a77f});
 const FRIENDS=[
-  ['小明',[235,180],{sleeve:0x2e8b3e,pants:0x2e8b3e},'好啊！我躲避球超準的，一起去打怪獸！'],
-  ['小美',[165,170],{sleeve:0xf08a24,pants:0xf08a24,pony:true},'我也要保護大元國小！算我一份！'],
-  ['阿傑',[452,82],{sleeve:0x2e8b3e,pants:0x2e8b3e},'剛好網球練完了，換打怪獸！'],
-  ['小芳',[425,248],{sleeve:0xf08a24,pants:0xf08a24,longHair:true},'作業怪最討厭了！我們一起把牠們趕走！'],
-  ['志豪',[325,170],{sleeve:0x2e8b3e,pants:0x2e8b3e},'搗蛋鬼又在亂搞？交給我們吧！'],
-  ['雅婷',[225,340],{sleeve:0xf08a24,pants:0xf08a24,bob:true},'我跟你走！大家一起就不怕了！'],
+  ['家亨',[235,180],{sleeve:0x2e8b3e,pants:0x2e8b3e,chubby:true},'好啊！我力氣最大，躲避球丟超遠，一起去打怪獸！'],
+  ['佑俊',[452,82],{sleeve:0x2e8b3e,pants:0x2e8b3e,flag:true,skin:0xf3d3b5},'안녕！我是佑俊！帶著韓國國旗幫大家加油，一起保護大元國小！'],
+  ['凱翔',[325,170],{sleeve:0x2e8b3e,pants:0x2e8b3e},'搗蛋鬼又在亂搞？交給我們吧！'],
+  ['昀蔚',[165,170],{sleeve:0xf08a24,pants:0xf08a24,pony:true,scale:0.82},'我雖然個子小，可是跑得很快喔！算我一份！'],
+  ['妤墨',[425,248],{sleeve:0xf08a24,pants:0xf08a24,longHair:true,mole:true},'作業怪最討厭了！我們一起把牠們趕走！'],
+  ['品岑',[225,340],{sleeve:0xf08a24,pants:0xf08a24,bob:true},'我跟你走！大家一起就不怕了！'],
+  ['千綺',[300,300],{sleeve:0xf08a24,pants:0xf08a24,longHair:true},'我會接球！有我在，大家就不會被打中！'],
 ];
 for(const [name,pos,o,line] of FRIENDS){if(o.pants===0xf08a24)o.capRed=true;const n=addNPC('friend',name,pos,Object.assign({tex:TEX.uniform,shirt:0xffffff,cap:true,shoe:pick([0x1e7a3c,0x222222,0xe86d8a,0x2f6fd0])},o));n.joinLine=line;}
 {const d=addNPC('friend','恐龍',[515,150],{make:makeDino});d.joinLine='吼——！恐龍也來幫忙！我的躲避球特別大顆！';d.power=2;}
@@ -1939,7 +1949,7 @@ function vStick(el,cb){if(!el)return;const kn=el.querySelector('.vknob');let id=
   el.onpointerup=el.onpointercancel=e=>{if(e.pointerId!==id)return;id=null;kn.style.transform='';cb(0,0);};}
 // ---- dodgeball in 新元館 ----
 let DB=null;
-function startDodge(r){const fr=friendsOf().map(f=>f.name);while(fr.length<3)fr.push(['阿傑','小芳','志豪','雅婷','小明'].find(n=>!fr.includes(n))||'同學');
+function startDodge(r){const fr=friendsOf().map(f=>f.name);while(fr.length<3)fr.push(['家亨','佑俊','凱翔','昀蔚','妤墨','品岑','千綺'].find(n=>!fr.includes(n))||'同學');
   openMini(`<div class="mhead"><div class="mtitle">🔴 新元館躲避球：大元隊 vs 搗蛋鬼隊</div><div style="font-size:13px;color:var(--muted)">WASD 移動・J 或點畫面 丟球（瞄準最近的對手）・K 接球（球快打到時按）・撿到自己場上的球才能丟</div></div>
     <canvas id="dbCv" width="960" height="540" style="width:100%;height:auto;max-height:74vh;border-radius:10px;touch-action:none"></canvas>
     <div class="dpad"><div class="vstick"><div class="vknob"></div></div><div class="mrow"><button data-k="T">丟</button><button data-k="C">接</button></div></div>
@@ -2587,7 +2597,7 @@ function startKart(){
   const boxMat=new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:0.85,map:(()=>{const [c,g]=cv(64,64);const gg=g.createLinearGradient(0,0,64,64);gg.addColorStop(0,'#ff3cb4');gg.addColorStop(0.5,'#ffe23a');gg.addColorStop(1,'#3fc8ff');g.fillStyle=gg;g.fillRect(0,0,64,64);g.fillStyle='#fff';g.font='bold 44px sans-serif';g.textAlign='center';g.fillText('?',32,48);return tex(c);})()});
   const IB=[];for(let r=0;r<8;r++){const i=Math.floor((r+0.5)/8*N);for(const o of[-8,-2.7,2.7,8]){const q=P[i].clone().addScaledVector(NRM[i],o),m=new THREE.Mesh(new THREE.BoxGeometry(1.6,1.6,1.6),boxMat);m.position.set(q.x,1.3,q.z);sc.add(m);IB.push({m,t:0});}}
   // karts
-  const CAST=[['你',null],['小明',0x2e8b3e],['小美',0xf08a24],['阿傑',0x2f6fd0],['搗蛋鬼',0x4b2a6b],['大元蛙',0x6cc24a]];
+  const CAST=[['你',null],['家亨',0x2e8b3e],['昀蔚',0xf08a24],['佑俊',0x2f6fd0],['搗蛋鬼',0x4b2a6b],['大元蛙',0x6cc24a]];
   function mkKart(i){const [name,col]=CAST[i],me=i===0,c=me?(SET.gender==='girl'?0xf08a24:0x2e8b3e):col,g=new THREE.Group(),body=new THREE.Group();g.add(body);
     const ch=box(1.8,0.45,3,lam(c));ch.position.y=0.55;body.add(ch);const nose=box(1.4,0.35,0.9,lam(c));nose.position.set(0,0.5,1.8);body.add(nose);
     const sp=box(2,0.12,0.5,lam(0x222222));sp.position.set(0,1.2,-1.4);body.add(sp);for(const sx of[-0.8,0.8]){const st2=box(0.1,0.5,0.1,lam(0x222222));st2.position.set(sx,0.95,-1.4);body.add(st2);}
