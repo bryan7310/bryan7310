@@ -699,6 +699,15 @@ function buildMainGate(gx,gz,ux,uz,gw){let nx=-uz,nz=ux;if(pip(gx+nx*3,gz+nz*3,B
     else segs.push([i,a,b]);}
   for(const [i,a,b] of segs){const dx=b[0]-a[0],dz=b[1]-a[1],L=Math.hypot(dx,dz),mx=(a[0]+b[0])/2,mz=(a[1]+b[1])/2,ry=-Math.atan2(dz,dx);
     addSolid(mx,mz,L/2,0.18,Math.atan2(dz,dx),0,2.4);
+    if(i===7){const fr=lam(0xc9b98a),gl=lam(0xe8e4c8,{transparent:true,opacity:.75}),gl2=lam(0xdfe8e4,{transparent:true,opacity:.7});
+      for(let t=0;t<L;t+=2.2){const w=Math.min(2.2,L-t),cx2=a[0]+dx/L*(t+w/2),cz2=a[1]+dz/L*(t+w/2);
+        const pn=box(w-0.15,1.4,0.06,(Math.floor(t/6.6)%2)?gl:gl2);pn.position.set(cx2,0.85,cz2);pn.rotation.y=ry;scene.add(pn);
+        const po=box(0.14,1.8,0.14,fr);po.position.set(a[0]+dx/L*t,0.9,a[1]+dz/L*t);scene.add(po);}
+      for(const y of[0.12,1.6]){const rl=box(L,0.1,0.1,fr);rl.position.set(mx,y,mz);rl.rotation.y=ry;scene.add(rl);}
+      let ox=-dz/L,oz=dx/L;if(pip(mx+ox*2,mz+oz*2,BOUNDW)){ox=-ox;oz=-oz;}
+      const sg=textTex(96,256,(c2,w,h)=>{c2.fillStyle='#f2d12e';c2.fillRect(0,0,w,h);c2.strokeStyle='#d6282b';c2.lineWidth=6;c2.strokeRect(3,3,w-6,h-6);c2.fillStyle='#1d3f9a';c2.font='bold 40px "PingFang TC","Microsoft JhengHei",sans-serif';c2.textAlign='center';['家','長','接','送','區'].forEach((ch,k)=>c2.fillText(ch,w/2,46+k*44));});
+      const sp=new THREE.Mesh(new THREE.PlaneGeometry(0.7,1.9),new THREE.MeshLambertMaterial({map:sg,side:THREE.DoubleSide}));const sx=a[0]+dx*0.08+ox*0.12,sz=a[1]+dz*0.08+oz*0.12;sp.position.set(sx,1.2,sz);sp.rotation.y=Math.atan2(ox,oz);scene.add(sp);
+      continue;}
     if(i>=7){let nx2=-dz/L,nz2=dx/L;if(!pip(mx+nx2*2,mz+nz2*2,BOUNDW)){nx2=-nx2;nz2=-nz2;}
       const bw=box(L,0.7,0.35,lam(0xa8553f));bw.position.set(mx,0.35,mz);bw.rotation.y=ry;scene.add(bw);
       const cap=box(L,0.08,0.45,lam(0xd8cfc0));cap.position.set(mx,0.74,mz);cap.rotation.y=ry;scene.add(cap);
@@ -930,6 +939,7 @@ const RIVER=(()=>{const R=ROADW[0].pts,dx=R[1][0]-R[0][0],dz=R[1][1]-R[0][1],l=M
     const tw=(px2,pz2,fl,mat,rad,sz)=>{for(let r2=0;r2<rad;r2++)for(let k=0;k<16;k++){const a=k/16*6.283,x0=Math.round(px2+Math.cos(a)*r2)-(sz>>1),z0=Math.round(pz2+Math.sin(a)*r2)-(sz>>1);if(putHouse({x0,z0,x1:x0+sz-1,z1:z0+sz-1,fl,mat,door:'S',sign:0,road:'德芳南路',tower:true}))return;}};
     {const R0=ROADW[0].pts,at=z=>{const t=(z-R0[0][1])/(R0[1][1]-R0[0][1]);return R0[0][0]+(R0[1][0]-R0[0][0])*t;};
       tw(at(-93)+28,-120,10,BID.wwhite,14,12);
+      tw(wx(150),wz(720),14,BID.wwhite,16,9);tw(wx(150),wz(680),5,BID.wbrick,10,9);
       for(const [z,o,fl] of [[-175,34,24],[-160,58,22],[-185,-40,20],[170,40,25],[180,70,23],[160,-45,21]])tw(at(z)+o,z,fl,o>0?BID.wbeige:BID.wcream,18,11);}
     for(const [dx,dz] of cand){const x0=jx+dx-13,z0=jz+dz-13;if(putHouse({x0,z0,x1:x0+13,z1:z0+13,fl:12,mat:BID.wbeige,door:'S',sign:BID.cgreen,road:'現岱路',tower:true,arcade:true}))break;}}
   for(const r of ROADW)for(let si=0;si<r.pts.length-1;si++){const a=r.pts[si],b=r.pts[si+1],dx=b[0]-a[0],dz=b[1]-a[1],L=Math.hypot(dx,dz),ux=dx/L,uz=dz/L,alongX=Math.abs(ux)>Math.abs(uz);
@@ -938,6 +948,7 @@ const RIVER=(()=>{const R=ROADW[0].pts,dx=R[1][0]-R[0][0],dz=R[1][1]-R[0][1],l=M
       let ok=true;for(let x=x0-1;x<=x1+1&&ok;x++)for(let z=z0-1;z<=z1+1;z++)if(!colOK(x,z)){ok=false;break;}
       if(ok){const id=HOUSES.length;let fl=(r.name!=='巷道'&&rng()<0.16)?7+Math.floor(rng()*6):2+Math.floor(rng()*rng()*4),mat=BID[WALLS[Math.floor(rng()*WALLS.length)]],extra={};
         if(r.name==='現岱路'&&fl<7){fl=4+Math.floor(rng()*2);mat=rng()<0.6?BID.tile:BID.wcream;extra={awning:true};}
+        else if(r.name==='內元路'&&si>=1&&fl<7){fl=4;mat=rng()<0.7?BID.wcream:BID.wbeige;extra={shutter:true,eaves:true};}
         else if(r.name==='內元路'&&fl<7){const old=rng()<0.45;fl=old?2:2+Math.floor(rng()*2);mat=old?BID.wwhite:[BID.wgrey,BID.wcream,BID.wwhite,BID.shutter][Math.floor(rng()*4)];extra={shutter:rng()<0.5,garden:!old&&rng()<0.3,oldRoof:old};}
         else if(fl>=7&&r.name!=='巷道')mat=rng()<0.5?BID.wbeige:BID.wcream;
         HOUSES.push(Object.assign({x0,z0,x1,z1,fl,mat,door:alongX?(nz>0?'N':'S'):(nx>0?'W':'E'),sign:rng()<0.4?BID[SIGNS[Math.floor(rng()*SIGNS.length)]]:0,road:r.name},extra));
@@ -1021,6 +1032,8 @@ function ledTick(){if(!LED.g||Math.floor(T*12)===LED.f)return;LED.f=Math.floor(T
 // ---- street details from photos: green awnings on 現岱路, roof gardens on 內元路, corner breakfast shop ----
 {const aw=[],gd=[];for(const H of HOUSES){const fx=H.door==='N'?[H.x0,H.x1+1,H.z0,'z',-1]:H.door==='S'?[H.x0,H.x1+1,H.z1+1,'z',1]:H.door==='W'?[H.z0,H.z1+1,H.x0,'x',-1]:[H.z0,H.z1+1,H.x1+1,'x',1];
     if(H.awning)aw.push(fx);if(H.garden)gd.push(H);
+    if(H.eaves){const ft=fx;for(const y of[3.7,7.7,11.7,15.9]){const len=ft[1]-ft[0],mid=(ft[0]+ft[1])/2,dep=y>15?1.2:0.9,e=box(ft[3]==='z'?len+0.4:dep,0.22,ft[3]==='z'?dep:len+0.4,lam(0x55595e));
+        if(ft[3]==='z')e.position.set(mid,y,ft[2]+ft[4]*dep/2);else e.position.set(ft[2]+ft[4]*dep/2,y,mid);e.rotation[ft[3]==='z'?'x':'z']=0.35*ft[4]*(ft[3]==='z'?1:-1);e.castShadow=true;scene.add(e);}}
     if(H.oldRoof){const w=H.x1-H.x0+1,d=H.z1-H.z0+1,cg=new THREE.ConeGeometry(Math.SQRT1_2,1,4,1);cg.rotateY(Math.PI/4);const r=new THREE.Mesh(cg,lam(0x4a4f55,{flatShading:true}));r.scale.set(w+1.2,2.6,d+1.2);r.position.set(H.x0+w/2,H.fl*4+1.3+0.9,H.z0+d/2);r.castShadow=true;scene.add(r);}}
   const am=new THREE.InstancedMesh(new THREE.BoxGeometry(1,0.18,1),lam(0x2f8a5a),aw.length*2+1),M=new THREE.Matrix4(),Q=new THREE.Quaternion(),V=new THREE.Vector3();let n=0;
   for(const [a0,a1,f,ax,sg] of aw){const len=a1-a0,mid=(a0+a1)/2;for(const [y,dep] of [[3.2,1.4],[7.2,0.6]]){const pos=ax==='z'?V.set(mid,y,f+sg*dep/2):V.set(f+sg*dep/2,y,mid);M.compose(pos,Q,ax==='z'?new THREE.Vector3(len,1,dep):new THREE.Vector3(dep,1,len));am.setMatrixAt(n++,M);}}
