@@ -342,7 +342,7 @@ const GATE_SEG=1,GATE_T=0.75,GATE_PT=(()=>{const a=BOUNDW[GATE_SEG],b=BOUNDW[GAT
 const ROADS=[
   {pts:[[690,-330],[480,822]],w:70,main:true,name:'德芳南路'},
   {pts:[[-390,-32],[990,-10]],w:36,name:'現岱路'},
-  {pts:[[-390,1],[165,335],[173,822]],w:30,name:'內元路'},
+  {pts:[[-110,-30],[-150,145],[165,335],[173,822]],w:30,name:'內元路'},
   {pts:[[-390,-97],[990,-97]],w:20,name:'巷道'},{pts:[[-390,617],[990,617]],w:20,name:'巷道'},
   {pts:[[-126,-330],[-126,822]],w:20,name:'巷道'},{pts:[[846,-330],[846,822]],w:20,name:'巷道'},
 ];
@@ -849,7 +849,7 @@ const BLK=[null,
   {k:'asphalt',n:'柏油',hard:1.4,tier:1,drop:'stone',col:0x55575b},{k:'roadline',n:'標線',hard:1.4,tier:1,drop:'stone',col:0xe8c33a},{k:'swalk',n:'人行道',hard:1.2,tier:1,drop:'stone',col:0xbdb7aa},
   {k:'sand',n:'沙子',hard:.5,tier:0,drop:'sand',col:0xe2cf96},{k:'water',n:'水',hard:Infinity,tier:9,drop:null,col:0x3f8fc8},{k:'slab',n:'水泥',hard:1.4,tier:1,drop:'stone',col:0x9a9a96},
   {k:'wcream',n:'米色牆',hard:1.3,tier:1,drop:'stone',col:0xe6dcc4},{k:'wgrey',n:'灰色牆',hard:1.3,tier:1,drop:'stone',col:0xb7bcbf},{k:'wwhite',n:'白色牆',hard:1.3,tier:1,drop:'stone',col:0xf2f0ea},
-  {k:'wbrick',n:'紅磚牆',hard:1.3,tier:1,drop:'stone',col:0xa8553f},{k:'wmint',n:'淺綠牆',hard:1.3,tier:1,drop:'stone',col:0xbfe0cf},
+  {k:'wbrick',n:'紅磚牆',hard:1.3,tier:1,drop:'stone',col:0xa8553f},{k:'wmint',n:'淺綠牆',hard:1.3,tier:1,drop:'stone',col:0xbfe0cf},{k:'shutter',n:'鐵捲門',hard:1.2,tier:1,drop:'stone',col:0xb0b4b6},{k:'wbeige',n:'米色磚牆',hard:1.3,tier:1,drop:'stone',col:0xcbb89a},
 ];
 const BID={};BLK.forEach((b,i)=>{if(b)BID[b.k]=i;});
 function pix(fn){const [c,g]=cv(16,16);for(let y=0;y<16;y++)for(let x=0;x<16;x++){g.fillStyle=fn(x,y);g.fillRect(x,y,1,1);}const t=new THREE.CanvasTexture(c);t.magFilter=THREE.NearestFilter;t.minFilter=THREE.NearestFilter;return t;}
@@ -867,6 +867,7 @@ const plastic=hex=>pix((x,y)=>{const e=x===0||y===0;const e2=x===15||y===15;retu
 Object.assign(TX,{asphalt:pix(()=>shade('#55575b',0.85+Math.random()*0.3)),roadline:pix((x,y)=>y>5&&y<10?'#e8c33a':shade('#55575b',0.85+Math.random()*0.3)),
   swalk:pix((x,y)=>(x%8===0||y%8===0)?'#9a958a':shade('#c9c3b5',0.94+Math.random()*0.1)),sand:pix(()=>shade('#e2cf96',0.9+Math.random()*0.2)),water:pix((x,y)=>((x+y*3)%11===0)?'#9fd6f0':shade('#3f8fc8',0.95+Math.random()*0.1)),
   slab:pix(()=>shade('#9a9a96',0.9+Math.random()*0.15)),wbrick:pix((x,y)=>(y%4===3||((y>>2)&1?x%8===4:x%8===0))?'#d8c8b0':shade('#a8553f',0.9+Math.random()*0.2))});
+TX.shutter=pix((x,y)=>y%3===2?'#8d9194':shade('#b8bcbf',0.95+Math.random()*0.06));TX.wbeige=pix((x,y)=>(y%4===3||((y>>2)&1?x%8===4:x%8===0))?'#a8987c':shade('#cbb89a',0.94+Math.random()*0.1));
 for(const [k,c] of [['wcream','#e6dcc4'],['wgrey','#b7bcbf'],['wwhite','#f2f0ea'],['wmint','#bfe0cf']])TX[k]=pix((x,y)=>(y===0||y===15)?shade(c,0.85):shade(c,0.95+Math.random()*0.08));
 const ICON={grass:TX.grassSide,dirt:TX.dirt,stone:TX.stone,log:TX.logSide,plank:TX.plank,leaf:TX.leaf,glass:TX.glass,tile:TX.tile};
 // ---- texture atlas ----
@@ -902,12 +903,18 @@ const RIVER=(()=>{const R=ROADW[0].pts,dx=R[1][0]-R[0][0],dz=R[1][1]-R[0][1],l=M
   let seed=20250731;const rng=()=>{seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};
   const WALLS=['wcream','wgrey','wwhite','tile','wbrick','wmint'],SIGNS=['cred','cblue','cyellow','cgreen','cpink'];
   const colOK=(x,z)=>{const ix=x+WX,iz=z+WZ;if(ix<2||iz<2||ix>=WW-2||iz>=WD-2)return false;const i=ix*WD+iz;return KIND[i]===K_GRASS&&HGT[i]===0;};
+  const putHouse=(H)=>{for(let x=H.x0-1;x<=H.x1+1;x++)for(let z=H.z0-1;z<=H.z1+1;z++)if(!colOK(x,z))return false;const id=HOUSES.length;HOUSES.push(H);for(let x=H.x0;x<=H.x1;x++)for(let z=H.z0;z<=H.z1;z++){const i=(x+WX)*WD+(z+WZ);HOUSE[i]=id;KIND[i]=K_HOUSE;}return true;};
+  {const jx=Math.round(wx(-110)),jz=Math.round(wz(-30));const cand=[];for(let dx=-60;dx<=10;dx++)for(let dz=-50;dz<=-12;dz++)cand.push([dx,dz]);cand.sort((p1,p2)=>Math.hypot(p1[0]+7,p1[1]+7)-Math.hypot(p2[0]+7,p2[1]+7));
+    for(const [dx,dz] of cand){const x0=jx+dx-13,z0=jz+dz-13;if(putHouse({x0,z0,x1:x0+13,z1:z0+13,fl:12,mat:BID.wbeige,door:'S',sign:BID.cgreen,road:'現岱路',tower:true,arcade:true}))break;}}
   for(const r of ROADW)for(let si=0;si<r.pts.length-1;si++){const a=r.pts[si],b=r.pts[si+1],dx=b[0]-a[0],dz=b[1]-a[1],L=Math.hypot(dx,dz),ux=dx/L,uz=dz/L,alongX=Math.abs(ux)>Math.abs(uz);
     for(const side of[-1,1]){let s2=3;while(s2<L-4){const wAl=7+Math.floor(rng()*5),dep=9+Math.floor(rng()*6),nx=-uz*side,nz=ux*side,off=r.hw+3.6+dep/2;
       const cx=a[0]+ux*(s2+wAl/2)+nx*off,cz=a[1]+uz*(s2+wAl/2)+nz*off,sx2=alongX?wAl:dep,sz2=alongX?dep:wAl,x0=Math.round(cx-sx2/2),z0=Math.round(cz-sz2/2),x1=x0+sx2-1,z1=z0+sz2-1;
       let ok=true;for(let x=x0-1;x<=x1+1&&ok;x++)for(let z=z0-1;z<=z1+1;z++)if(!colOK(x,z)){ok=false;break;}
-      if(ok){const id=HOUSES.length,fl=(r.name!=='巷道'&&rng()<0.16)?7+Math.floor(rng()*6):2+Math.floor(rng()*rng()*4);
-        HOUSES.push({x0,z0,x1,z1,fl,mat:BID[WALLS[Math.floor(rng()*WALLS.length)]],door:alongX?(nz>0?'N':'S'):(nx>0?'W':'E'),sign:rng()<0.4?BID[SIGNS[Math.floor(rng()*SIGNS.length)]]:0,road:r.name});
+      if(ok){const id=HOUSES.length;let fl=(r.name!=='巷道'&&rng()<0.16)?7+Math.floor(rng()*6):2+Math.floor(rng()*rng()*4),mat=BID[WALLS[Math.floor(rng()*WALLS.length)]],extra={};
+        if(r.name==='現岱路'&&fl<7){fl=4+Math.floor(rng()*2);mat=rng()<0.6?BID.tile:BID.wcream;extra={awning:true};}
+        else if(r.name==='內元路'&&fl<7){fl=3+Math.floor(rng()*3);mat=rng()<0.55?BID.wgrey:BID.wwhite;extra={shutter:true,garden:rng()<0.6};}
+        else if(fl>=7&&r.name!=='巷道')mat=rng()<0.5?BID.wbeige:BID.wcream;
+        HOUSES.push(Object.assign({x0,z0,x1,z1,fl,mat,door:alongX?(nz>0?'N':'S'):(nx>0?'W':'E'),sign:rng()<0.4?BID[SIGNS[Math.floor(rng()*SIGNS.length)]]:0,road:r.name},extra));
         for(let x=x0;x<=x1;x++)for(let z=z0;z<=z1;z++){const i=(x+WX)*WD+(z+WZ);HOUSE[i]=id;KIND[i]=K_HOUSE;}}
       s2+=wAl+1+Math.floor(rng()*3);}}}
   for(let ix=4;ix<WW-4;ix++)for(let iz=4;iz<WD-4;iz++){const i=ix*WD+iz;if(KIND[i]!==K_GRASS||hash2(ix*7+3,iz*13+1)>0.014)continue;
@@ -922,6 +929,8 @@ function houseBlock(H,x,y,z){const top=H.fl*4;if(y>top||y<0)return 0;const r=y&3
     const onDoor=(H.door==='N'&&z===H.z0)||(H.door==='S'&&z===H.z1)||(H.door==='W'&&x===H.x0)||(H.door==='E'&&x===H.x1),mid=len>>1;
     if(onDoor&&!corner&&y<3&&(along===mid||along===mid-1))return 0;
     if(onDoor&&H.sign&&!corner&&y===3)return H.sign;
+    if(onDoor&&H.shutter&&!corner&&y<3)return BID.shutter;
+    if(onDoor&&H.arcade&&!corner&&y<4&&along%3!==0)return 0;
     if(onDoor&&H.sign&&!corner&&y<3)return BID.glass;
     if(!corner&&(r===1||r===2)&&along%3===1)return BID.glass;
     return H.mat;}
@@ -960,6 +969,15 @@ function updateChunks(){const ref=G.started?player:{x:wx(250),z:wz(170)},pcx=Mat
     if(!c){const [lo,hi]=chunkRange(pcx+dx,pcz+dz);c={cx:pcx+dx,cz:pcz+dz,lo,hi,dirty:true};CHUNKS.set(key,c);}if(c.dirty)todo.push([dx*dx+dz*dz,c]);}
   todo.sort((a,b)=>a[0]-b[0]);const t0=performance.now();for(const [,c] of todo){buildChunk(c);if(performance.now()-t0>7)break;}
   if(Math.random()<0.03)for(const [key,c] of CHUNKS)if(Math.abs(c.cx-pcx)>RAD+3||Math.abs(c.cz-pcz)>RAD+3){for(const m of['mesh','wmesh'])if(c[m]){scene.remove(c[m]);c[m].geometry.dispose();}CHUNKS.delete(key);}}
+// ---- street details from photos: green awnings on 現岱路, roof gardens on 內元路, corner breakfast shop ----
+{const aw=[],gd=[];for(const H of HOUSES){const fx=H.door==='N'?[H.x0,H.x1+1,H.z0,'z',-1]:H.door==='S'?[H.x0,H.x1+1,H.z1+1,'z',1]:H.door==='W'?[H.z0,H.z1+1,H.x0,'x',-1]:[H.z0,H.z1+1,H.x1+1,'x',1];
+    if(H.awning)aw.push(fx);if(H.garden)gd.push(H);}
+  const am=new THREE.InstancedMesh(new THREE.BoxGeometry(1,0.18,1),lam(0x2f8a5a),aw.length*2+1),M=new THREE.Matrix4(),Q=new THREE.Quaternion(),V=new THREE.Vector3();let n=0;
+  for(const [a0,a1,f,ax,sg] of aw){const len=a1-a0,mid=(a0+a1)/2;for(const [y,dep] of [[3.2,1.4],[7.2,0.6]]){const pos=ax==='z'?V.set(mid,y,f+sg*dep/2):V.set(f+sg*dep/2,y,mid);M.compose(pos,Q,ax==='z'?new THREE.Vector3(len,1,dep):new THREE.Vector3(dep,1,len));am.setMatrixAt(n++,M);}}
+  am.count=n;am.castShadow=true;scene.add(am);
+  const pm=lam(0x3f8f3a,{flatShading:true}),fm=lam(0xff7eb6,{flatShading:true});for(const H of gd){const y=H.fl*4+1;for(let k=0;k<3;k++){const b=new THREE.Mesh(new THREE.IcosahedronGeometry(0.7,0),k%2?fm:pm);b.position.set(H.x0+1.5+k*((H.x1-H.x0-2)/2),y+0.3,H.z0+1.5+((k*7)%3));scene.add(b);}}
+  const [jx,jz]=[wx(-110),wz(-30)];let best=null,bd=1e9;for(const H of HOUSES){if(H.road!=='內元路'||H.tower)continue;const d=Math.hypot((H.x0+H.x1)/2-jx,(H.z0+H.z1)/2-jz);if(d<bd){bd=d;best=H;}}
+  if(best){best.sign=BID.cred;best.shutter=false;const cx=(best.x0+best.x1+1)/2,cz=(best.z0+best.z1+1)/2;const lbl=makeLabel('🍔 漢堡早餐店','rgba(226,58,44,.95)','#fff');lbl.position.set(cx,best.fl*4+2,cz);lbl.scale.set(3.4,0.85,1);scene.add(lbl);}}
 // ---- shops across the street from the main gate ----
 const SHOPS=[];
 {const [gx,gz]=GATE_PT;let best=null,bd=1e9;
