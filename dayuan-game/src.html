@@ -758,6 +758,13 @@ function buildMainGate(gx,gz,ux,uz,gw){let nx=-uz,nz=ux;if(pip(gx+nx*3,gz+nz*3,B
     let nx=-dz/L,nz=dx/L;if(pip(mx+nx*2,mz+nz*2,BOUNDW)){nx=-nx;nz=-nz;}
     const rail=box(L,0.1,0.1,ym);rail.position.set(mx+nx*1.3,1.0,mz+nz*1.3);rail.rotation.y=ry;scene.add(rail);
     const pan=box(L,0.65,0.05,gm);pan.position.set(mx+nx*1.3,0.5,mz+nz*1.3);pan.rotation.y=ry;scene.add(pan);
+    if(i>=3&&i<=5)for(let t=-0.42;t<0.45;t+=0.21){if(i===4&&Math.abs(t)<0.12)continue;const kind=Math.floor((t+0.5)*5+i)%3;
+      const mt=textTex(256,192,(c2,w,h)=>{c2.clearRect(0,0,w,h);c2.fillStyle='rgba(240,240,232,.95)';const dot=(x,y)=>{c2.beginPath();c2.arc(x,y,4.5,0,7);c2.fill();};
+        if(kind===0){for(let k=0;k<8;k++){const a=k/8*6.283;for(let r=18;r<62;r+=8){const wv=Math.sin(r/62*Math.PI)*20;dot(128+Math.cos(a)*r+Math.cos(a+1.57)*wv*0,96+Math.sin(a)*r*0.9);}}for(let r=0;r<16;r+=7)for(let k=0;k<8;k++)dot(128+Math.cos(k*0.8)*r,96+Math.sin(k*0.8)*r);for(let y=150;y<192;y+=8)dot(128,y);}
+        else if(kind===1){for(let x=30;x<200;x+=8){dot(x,96+Math.sin(x/28)*30);dot(x,96+Math.sin(x/28)*30-(Math.sin((x-30)/170*Math.PI))*34);}for(let k=0;k<10;k++)dot(206+k*4,70+k*5),dot(206+k*4,122-k*5);dot(56,82);}
+        else{for(let k=0;k<26;k++){const a=k/26*6.283;dot(128+Math.cos(a)*60,96+Math.sin(a)*60);}const cols=['#e23a2c','#f2c230','#2f6fd0','#2fa84f'];for(let k=0;k<14;k++){c2.fillStyle=cols[k%4];c2.fillRect(70+k*8,160-(k%3)*10,7,7);}c2.fillStyle='rgba(240,240,232,.95)';}});
+      let ox=-dz/L,oz=dx/L;if(pip(mx+ox*2,mz+oz*2,BOUNDW)){ox=-ox;oz=-oz;}const pl=new THREE.Mesh(new THREE.PlaneGeometry(2.4,1.8),new THREE.MeshLambertMaterial({map:mt,transparent:true}));
+      pl.position.set(mx+dx*t+ox*0.2,1.35,mz+dz*t+oz*0.2);pl.rotation.y=Math.atan2(ox,oz);scene.add(pl);}
     if(i===4)for(const t of[-0.3,0.05,0.35]){const hx=mx+dx*t,hz=mz+dz*t,hd=new THREE.Group();hd.position.set(hx,1.75,hz);hd.rotation.y=Math.atan2(-nx,-nz);
       const sk=sph(0.36,lam(0xf3b9c8),14,10);hd.add(sk);for(let q=0;q<7;q++){const sp=sph(0.07,lam(0xe0607a),6,6);const a3=rand(0,6.28),b3=rand(0.2,1.2);sp.position.set(Math.cos(a3)*Math.sin(b3)*0.35,Math.cos(b3)*0.35,Math.sin(a3)*Math.sin(b3)*0.35-0.05);hd.add(sp);}
       const face=sph(0.24,lam(0xfbe3d6),10,8);face.position.set(0,-0.06,0.16);hd.add(face);for(const ex of[-0.08,0.08]){const e=sph(0.035,lam(0x3a6fc9),6,6);e.position.set(ex,-0.02,0.38);hd.add(e);}
@@ -938,6 +945,7 @@ const BTILE=BLK.map(b=>{if(!b)return null;let sd,tp,bt;
 const atlasT=new THREE.CanvasTexture(atlasC);atlasT.magFilter=atlasT.minFilter=THREE.NearestFilter;atlasT.generateMipmaps=false;
 const chunkMat=new THREE.MeshLambertMaterial({map:atlasT}),transMat=new THREE.MeshLambertMaterial({map:atlasT,transparent:true,opacity:0.62,depthWrite:false});
 
+let EASTOF=null;
 // ================= big world: generated terrain around the school =================
 const __wt0=performance.now();
 const WX=240,WZ=200,WW=480,WD=400;
@@ -960,7 +968,8 @@ const RIVER=(()=>{const R=ROADW[0].pts,dx=R[1][0]-R[0][0],dz=R[1][1]-R[0][1],l=M
     KIND[i]=k;HGT[i]=h;}
   let seed=20250731;const rng=()=>{seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};
   const WALLS=['wcream','wgrey','wwhite','tile','wbrick','wmint'],SIGNS=['cred','cblue','cyellow','cgreen','cpink'];
-  const colOK=(x,z)=>{if(Math.hypot(x-wx(PARK.px),z-wz(PARK.py))<PARK.r+3)return false;const ix=x+WX,iz=z+WZ;if(ix<2||iz<2||ix>=WW-2||iz>=WD-2)return false;const i=ix*WD+iz;return KIND[i]===K_GRASS&&HGT[i]===0;};
+  const eastOf=(x,z)=>{const A=ROADW[0].pts[0],Bp=ROADW[0].pts[1];return ((Bp[0]-A[0])*(z-A[1])-(Bp[1]-A[1])*(x-A[0]))*((Bp[0]-A[0])*(0)-(Bp[1]-A[1])*(60))>0&&distPoly(x,z,ROADW[0].pts,false)>ROADW[0].hw-1;};EASTOF=eastOf;
+  const colOK=(x,z)=>{if(eastOf(x,z))return false;if(Math.hypot(x-wx(PARK.px),z-wz(PARK.py))<PARK.r+3)return false;const ix=x+WX,iz=z+WZ;if(ix<2||iz<2||ix>=WW-2||iz>=WD-2)return false;const i=ix*WD+iz;return KIND[i]===K_GRASS&&HGT[i]===0;};
   const putHouse=(H)=>{for(let x=H.x0-1;x<=H.x1+1;x++)for(let z=H.z0-1;z<=H.z1+1;z++)if(!colOK(x,z))return false;const id=HOUSES.length;HOUSES.push(H);for(let x=H.x0;x<=H.x1;x++)for(let z=H.z0;z<=H.z1;z++){const i=(x+WX)*WD+(z+WZ);HOUSE[i]=id;KIND[i]=K_HOUSE;}return true;};
   {const jx=Math.round(wx(-69)),jz=Math.round(wz(194));const cand=[];for(let dx=-60;dx<=10;dx++)for(let dz=-50;dz<=-12;dz++)cand.push([dx,dz]);cand.sort((p1,p2)=>Math.hypot(p1[0]+7,p1[1]+7)-Math.hypot(p2[0]+7,p2[1]+7));
     const tw=(px2,pz2,fl,mat,rad,sz)=>{for(let r2=0;r2<rad;r2++)for(let k=0;k<16;k++){const a=k/16*6.283,x0=Math.round(px2+Math.cos(a)*r2)-(sz>>1),z0=Math.round(pz2+Math.sin(a)*r2)-(sz>>1);if(putHouse({x0,z0,x1:x0+sz-1,z1:z0+sz-1,fl,mat,door:'S',sign:0,road:'德芳南路',tower:true}))return;}};
@@ -981,7 +990,7 @@ const RIVER=(()=>{const R=ROADW[0].pts,dx=R[1][0]-R[0][0],dz=R[1][1]-R[0][1],l=M
         HOUSES.push(Object.assign({x0,z0,x1,z1,fl,mat,door:alongX?(nz>0?'N':'S'):(nx>0?'W':'E'),sign:rng()<0.4?BID[SIGNS[Math.floor(rng()*SIGNS.length)]]:0,road:r.name},extra));
         for(let x=x0;x<=x1;x++)for(let z=z0;z<=z1;z++){const i=(x+WX)*WD+(z+WZ);HOUSE[i]=id;KIND[i]=K_HOUSE;}}
       s2+=wAl+1+Math.floor(rng()*3);}}}
-  for(let ix=4;ix<WW-4;ix++)for(let iz=4;iz<WD-4;iz++){const i=ix*WD+iz;if(KIND[i]!==K_GRASS||hash2(ix*7+3,iz*13+1)>0.014)continue;
+  for(let ix=4;ix<WW-4;ix++)for(let iz=4;iz<WD-4;iz++){const i=ix*WD+iz;if(KIND[i]!==K_GRASS||hash2(ix*7+3,iz*13+1)>(EASTOF&&EASTOF(ix-WX,iz-WZ)?0.002:0.014))continue;
     let ok=true;for(let dx=-3;dx<=3&&ok;dx++)for(let dz=-3;dz<=3;dz++)if(KIND[(ix+dx)*WD+iz+dz]!==K_GRASS){ok=false;break;}if(!ok)continue;
     const h=HGT[i],th=4+Math.floor(hash2(ix,iz)*2);TRUNK[i]=th;
     for(let dx=-2;dx<=2;dx++)for(let dz=-2;dz<=2;dz++){if(Math.abs(dx)===2&&Math.abs(dz)===2)continue;const j=(ix+dx)*WD+iz+dz,lo=h+th-2,hi=h+th+(Math.abs(dx)<2&&Math.abs(dz)<2?1:0);if(LEAFHI[j]<hi)LEAFHI[j]=hi;if(!LEAFLO[j]||LEAFLO[j]>lo)LEAFLO[j]=lo;}}
@@ -1068,6 +1077,17 @@ function ledTick(){if(!LED.g||Math.floor(T*12)===LED.f)return;LED.f=Math.floor(T
   const pm=lam(0x3f8f3a,{flatShading:true}),fm=lam(0xff7eb6,{flatShading:true});for(const H of gd){const y=H.fl*4+1;for(let k=0;k<3;k++){const b=new THREE.Mesh(new THREE.IcosahedronGeometry(0.7,0),k%2?fm:pm);b.position.set(H.x0+1.5+k*((H.x1-H.x0-2)/2),y+0.3,H.z0+1.5+((k*7)%3));scene.add(b);}}
   const [jx,jz]=[wx(-69),wz(194)];let best=null,bd=1e9;for(const H of HOUSES){if(H.road!=='內元路'||H.tower)continue;const d=Math.hypot((H.x0+H.x1)/2-jx,(H.z0+H.z1)/2-jz);if(d<bd){bd=d;best=H;}}
   if(best){best.sign=BID.cred;best.shutter=false;const cx=(best.x0+best.x1+1)/2,cz=(best.z0+best.z1+1)/2;const lbl=makeLabel('🍔 漢堡早餐店','rgba(226,58,44,.95)','#fff');lbl.position.set(cx,best.fl*4+2,cz);lbl.scale.set(3.4,0.85,1);scene.add(lbl);}}
+// ---- 台74 elevated expressway above 環中東路, riverside grass ----
+{const R=ROADW[0].pts,a=R[0],b=R[1],L=Math.hypot(b[0]-a[0],b[1]-a[1]),ux=(b[0]-a[0])/L,uz=(b[1]-a[1])/L,ang=Math.atan2(ux,uz),Y=14,cm=lam(0xc8c4ba),cm2=lam(0xb0aca2);
+  const g=new THREE.Group();g.position.set((a[0]+b[0])/2,0,(a[1]+b[1])/2);g.rotation.y=ang;scene.add(g);
+  const deck=box(24,1.6,L,cm);deck.position.y=Y;g.add(deck);const under=box(20,1.4,L,cm2);under.position.y=Y-1.4;g.add(under);
+  for(const sx of[-1,1]){const wl=box(0.5,1.4,L,lam(0xd8d4ca));wl.position.set(sx*11.8,Y+1.5,0);g.add(wl);const sb=box(0.2,2.4,L,lam(0xb8c8c4,{transparent:true,opacity:.6}));sb.position.set(sx*11.8,Y+3.3,0);g.add(sb);}
+  const pm=box(3,1,4.5,cm);for(let t=-L/2+14;t<L/2;t+=32){const pl=box(3,Y-2,4.5,cm2);pl.position.set(0,(Y-2)/2,t);g.add(pl);const cap=box(9,1.4,5,cm);cap.position.set(0,Y-2.4,t);g.add(cap);
+    const wx2=g.position.x+Math.sin(ang)*t,wz2=g.position.z+Math.cos(ang)*t;addSolid(wx2,wz2,1.5,2.25,Math.atan2(uz,ux)+Math.PI/2,0,Y-2);}
+  const lbl=makeLabel('台74 快速道路','rgba(31,122,58,.95)','#fff');lbl.position.set(g.position.x,Y+6,g.position.z);lbl.scale.set(3.6,0.9,1);scene.add(lbl);
+  const n=900,gm=new THREE.InstancedMesh(new THREE.ConeGeometry(0.5,1.4,5),lam(0xa8a25a,{flatShading:true}),n),M=new THREE.Matrix4(),Q=new THREE.Quaternion(),C=new THREE.Color();let k=0;
+  for(let i=0;i<4000&&k<n;i++){const x=rand(-WX,WX),z=rand(-WZ,WZ);if(!EASTOF||!EASTOF(x,z)||colKind(x,z)!==K_GRASS)continue;const sc=rand(0.7,1.6);M.compose(new THREE.Vector3(x,HGT[(Math.floor(x)+WX)*WD+Math.floor(z)+WZ]+0.6*sc,z),Q,new THREE.Vector3(sc,sc,sc));gm.setMatrixAt(k,M);C.setHSL(rand(0.12,0.2),0.35,rand(0.38,0.5));gm.setColorAt(k,C);k++;}
+  gm.count=k;scene.add(gm);}
 // ---- 大元公園 ----
 {const x=wx(PARK.px),z=wz(PARK.py);const lbl=makeLabel('🌳 大元公園','rgba(47,168,79,.95)','#fff');lbl.position.set(x,5,z);lbl.scale.set(3.2,0.8,1);scene.add(lbl);
   const sl=new THREE.Group();sl.position.set(x+4,0,z);scene.add(sl);const pf=box(2,0.2,2,lam(0xf2c230));pf.position.y=2;sl.add(pf);for(const [a,b] of [[-0.9,-0.9],[0.9,-0.9],[-0.9,0.9],[0.9,0.9]]){const l=box(0.15,2,0.15,lam(0x2f6fd0));l.position.set(a,1,b);sl.add(l);}
