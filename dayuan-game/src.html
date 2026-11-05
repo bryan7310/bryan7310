@@ -666,8 +666,8 @@ for(const b of BUILDINGS){
   else {
     H=b.floors*3.3;let pass=null;
     if(b.passGate){const dx=GATE_PT[0]-wx(b.c[0]),dz=GATE_PT[1]-wz(b.c[1]),lxp=dx*Math.cos(a)+dz*Math.sin(a),T2={tex:true};pass=lxp;
-      B.add(-L/2,lxp-3.2,0,H,-W/2,W/2,wallMat,T2);B.add(lxp+3.2,L/2,0,H,-W/2,W/2,wallMat,T2);B.add(lxp-3.2,lxp+3.2,3.3,H,-W/2,W/2,wallMat,T2);B.add(-L/2,L/2,H,H+0.05,-W/2,W/2,roofMat,{solid:false});
-      B.add(lxp-3.2,lxp+3.2,0,0.04,-W/2,W/2,lam(0xb8b0a2),{solid:false});
+      const PW=9.6;B.add(-L/2,lxp-PW,0,H,-W/2,W/2,wallMat,T2);B.add(lxp+PW,L/2,0,H,-W/2,W/2,wallMat,T2);B.add(lxp-PW,lxp+PW,3.3,H,-W/2,W/2,wallMat,T2);for(const cx of[-PW/3,PW/3])B.add(lxp+cx-0.35,lxp+cx+0.35,0,3.3,-0.35,0.35,lam(0xeba792));B.add(-L/2,L/2,H,H+0.05,-W/2,W/2,roofMat,{solid:false});
+      B.add(lxp-PW,lxp+PW,0,0.04,-W/2,W/2,lam(0xb8b0a2),{solid:false});
       const sg=signPlane('穿堂 → 校園',3.4,0.6,'#1f5e34','#fff');for(const sd of[1,-1]){const s3=sg.clone();s3.position.set(lxp,3.0,sd*(W/2+0.05));if(sd<0)s3.rotation.y=Math.PI;grp.add(s3);}}
     else{const m=new THREE.Mesh(uvBox(L,H,W,4,3.3),[wallMat,wallMat,roofMat,roofMat,wallMat,wallMat]);m.position.y=H/2;m.castShadow=m.receiveShadow=true;grp.add(m);BUILD_MESHES.push(m);}
     if(b.roundEnd){const r=W/2,ct=schoolWallTex.clone();ct.needsUpdate=true;ct.repeat.set(Math.PI*r/4,H/3.3);
@@ -700,7 +700,7 @@ for(const b of BUILDINGS){
 // ================= main gate on 現岱路 (from street-view photos) =================
 function buildMainGate(gx0,gz0,ux,uz,gw){let nx=-uz,nz=ux;if(pip(gx0+nx*3,gz0+nz*3,BOUNDW)){nx=-nx;nz=-nz;}
   // set the gate back from the fence to the building's passage entrance (forecourt in front)
-  let D=0;for(let d=1;d<30;d+=0.25){if(solidAt(gx0-nx*d+ux*4.6,1,gz0-nz*d+uz*4.6)||solidAt(gx0-nx*d-ux*4.6,1,gz0-nz*d-uz*4.6)){D=Math.max(0,d-1.6);break;}}
+  let D=0;for(let d=1;d<30;d+=0.25){if(solidAt(gx0-nx*d+ux*12,1,gz0-nz*d+uz*12)||solidAt(gx0-nx*d-ux*12,1,gz0-nz*d-uz*12)){D=Math.max(0,d-1.6);break;}}
   const gx=gx0-nx*D,gz=gz0-nz*D;
   const fc=new THREE.Mesh(new THREE.PlaneGeometry(gw+6,D+1),lam(0xb8b0a2));fc.rotation.x=-Math.PI/2;fc.rotation.z=-Math.atan2(uz,ux);fc.position.set((gx0+gx)/2,0.04,(gz0+gz)/2);fc.receiveShadow=true;scene.add(fc);
   const g=new THREE.Group();g.position.set(gx,0,gz);g.rotation.y=Math.atan2(ux,uz)-Math.PI/2;scene.add(g);
@@ -735,14 +735,14 @@ function buildMainGate(gx0,gz0,ux,uz,gw){let nx=-uz,nz=ux;if(pip(gx0+nx*3,gz0+nz
     const BAN=[['全國唯一 2 度榮獲 教育部特優','#2fa84f','#ffe23a'],['ISA 國際教育中級認證獎','#d63a8a','#fff'],['直笛團 全國學生音樂比賽 第一名 特優5連霸','#9fd86a','#1d4f9a'],['打擊樂團 全國學生音樂比賽 特優10連霸','#6ac0f0','#1d3f9a']];
     BAN.forEach(([t,c,tc],k)=>{const tx=textTex(1024,96,(c2,w,h)=>{c2.fillStyle=c.trim();c2.fillRect(0,0,w,h);c2.fillStyle='#fff';c2.fillRect(0,0,w,6);c2.fillRect(0,h-6,w,6);c2.fillStyle=tc;c2.font='bold 52px "PingFang TC","Microsoft JhengHei",sans-serif';c2.textAlign='center';c2.textBaseline='middle';c2.fillText(t,w/2,h/2+2);});
       const pl=new THREE.Mesh(new THREE.PlaneGeometry(13,1.2),new THREE.MeshLambertMaterial({map:tx,side:THREE.DoubleSide}));pl.position.set(clamp(lxG,-L/2+7,L/2-7),12.6-k*2.9,side*(W/2+0.08));if(side<0)pl.rotation.y=Math.PI;bg.add(pl);});
-    for(const [sx,txt,col] of [[-3.5,'大元學生 品德好','#2f6fd0'],[3.5,'大智大勇 樂學習','#2f6fd0']]){const vt=textTex(96,512,(c2,w,h)=>{const gr=c2.createLinearGradient(0,0,0,h);gr.addColorStop(0,'#3a6fd0');gr.addColorStop(0.6,'#8fd0f0');gr.addColorStop(1,'#ffe23a');c2.fillStyle=gr;c2.fillRect(0,0,w,h);c2.fillStyle='#fff';c2.font='bold 52px "PingFang TC","Microsoft JhengHei",sans-serif';c2.textAlign='center';[...txt].filter(ch=>ch!==' ').forEach((ch,k)=>c2.fillText(ch,w/2,58+k*60));});
+    for(const [sx,txt,col] of [[-9.9,'大元學生 品德好','#2f6fd0'],[9.9,'大智大勇 樂學習','#2f6fd0']]){const vt=textTex(96,512,(c2,w,h)=>{const gr=c2.createLinearGradient(0,0,0,h);gr.addColorStop(0,'#3a6fd0');gr.addColorStop(0.6,'#8fd0f0');gr.addColorStop(1,'#ffe23a');c2.fillStyle=gr;c2.fillRect(0,0,w,h);c2.fillStyle='#fff';c2.font='bold 52px "PingFang TC","Microsoft JhengHei",sans-serif';c2.textAlign='center';[...txt].filter(ch=>ch!==' ').forEach((ch,k)=>c2.fillText(ch,w/2,58+k*60));});
       const vb=new THREE.Mesh(new THREE.PlaneGeometry(0.8,3.2),new THREE.MeshLambertMaterial({map:vt,side:THREE.DoubleSide}));vb.position.set(clamp(lxG,-L/2+7,L/2-7)+sx,1.8,side*(W/2+0.1));if(side<0)vb.rotation.y=Math.PI;bg.add(vb);}}}
 
 // ================= props: fence, flag, hoops, goals, tennis net =================
 {
   const fm=new THREE.MeshLambertMaterial({map:fenceTex,transparent:true,alphaTest:0.5,side:THREE.DoubleSide});
   const wm=lam(0xb3b0a8),ym=lam(0xf2d12e),gm=lam(0x2f7a55);
-  const GATES={[GATE_SEG]:[8,GATE_T],3:[6,0.5],7:[7,0.5]};
+  const GATES={[GATE_SEG]:[19,GATE_T],3:[6,0.5],7:[7,0.5]};
   const segs=[];for(let i=0;i<BOUNDW.length;i++){const a=BOUNDW[i],b=BOUNDW[(i+1)%BOUNDW.length],dx=b[0]-a[0],dz=b[1]-a[1],L=Math.hypot(dx,dz);
     if(GATES[i]){const [gwid,gt]=GATES[i],gw=gwid/L,main=i===GATE_SEG;for(const [t0,t1] of [[0,gt-gw/2],[gt+gw/2,1]])segs.push([i,[a[0]+dx*t0,a[1]+dz*t0],[a[0]+dx*t1,a[1]+dz*t1]]);
       const gx=a[0]+dx*gt,gz=a[1]+dz*gt;if(!main){const lbl=makeLabel('側門','rgba(31,94,52,.95)','#fff');lbl.position.set(gx,3.6,gz);lbl.scale.set(1.8,0.8,1);scene.add(lbl);}
