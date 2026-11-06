@@ -2840,29 +2840,67 @@ const CR_R={};const addR=(a,b,c)=>{CR_R[[a,b].sort().join('+')]=c;};
 Object.assign(CR_E,{'紙':'📃','木頭':'🪵','顏料':'🖌️','牛奶':'🥛','夜晚':'🌃','鳥':'🐦','動物':'🐶','電話':'☎️','聲音':'🔊','草':'🌿'});
 let CR_FOUND=['水','火','土','風'];
 function startCraft(){
-  openMini(`<div class="mhead"><div class="mtitle">♾️ 無盡合成</div><div>已發現 <b id="crN">${CR_FOUND.length}</b>/${Object.keys(CR_E).length}</div></div>
-    <div style="display:flex;gap:10px;width:100%;max-width:1000px;flex-wrap:wrap">
-      <div id="crBoard" style="flex:1 1 520px;min-width:0;height:min(60vh,520px);position:relative;border-radius:14px;background:radial-gradient(circle,#1d2a44,#0d1424);overflow:hidden;touch-action:none"><div style="position:absolute;inset:auto 0 10px 0;text-align:center;color:rgba(255,255,255,.35);font-size:13px;pointer-events:none">把右邊的元素拖到這裡，再把兩個疊在一起合成！（雙擊元素可以複製）</div></div>
-      <div id="crList" style="flex:0 1 330px;min-width:0;height:min(60vh,520px);overflow:auto;display:flex;flex-wrap:wrap;gap:6px;align-content:flex-start;padding:8px;border-radius:14px;background:rgba(255,255,255,.06)"></div></div>
-    <div id="crMsg" style="min-height:24px;font-weight:900"></div><div class="mrow"><button class="mbtn" id="crClear">清空桌面</button><button class="mbtn" id="crQuit">離開</button></div>`);
-  const board=$('crBoard');const chip=(n)=>`<span style="font-size:18px">${CR_E[n]||'✨'}</span> ${n}`;const css='position:absolute;padding:6px 12px;border-radius:10px;background:#fff;color:#222;font:800 15px "Noto Sans TC",sans-serif;box-shadow:0 3px 0 #9ab;cursor:grab;user-select:none;touch-action:none;white-space:nowrap';
-  function list(){$('crList').innerHTML=CR_FOUND.map(n=>`<div class="crI" data-n="${n}" style="padding:6px 10px;border-radius:10px;background:#fff;color:#222;font:800 14px 'Noto Sans TC',sans-serif;cursor:grab;touch-action:none;user-select:none">${chip(n)}</div>`).join('');$('crN').textContent=CR_FOUND.length;
-    $('crList').querySelectorAll('.crI').forEach(el=>el.onpointerdown=e=>{e.preventDefault();const r=board.getBoundingClientRect();const it=place(el.dataset.n,e.clientX-r.left-40,e.clientY-r.top-16);drag(it,e);});}
-  function place(n,x,y){const d=document.createElement('div');d.style.cssText=css;d.innerHTML=chip(n);d.dataset.n=n;d.style.left=x+'px';d.style.top=y+'px';board.appendChild(d);
-    d.onpointerdown=e=>{e.preventDefault();drag(d,e);};d.ondblclick=()=>place(n,d.offsetLeft+20,d.offsetTop+20);return d;}
-  function drag(d,e){const r=board.getBoundingClientRect();let ox=e.clientX-r.left-d.offsetLeft,oy=e.clientY-r.top-d.offsetTop;d.style.zIndex=10;d.style.cursor='grabbing';
-    const mv=ev=>{d.style.left=(ev.clientX-r.left-ox)+'px';d.style.top=(ev.clientY-r.top-oy)+'px';};
-    const up=ev=>{removeEventListener('pointermove',mv);removeEventListener('pointerup',up);d.style.zIndex='';d.style.cursor='grab';const rr=board.getBoundingClientRect();
-      if(ev.clientX<rr.left||ev.clientX>rr.right||ev.clientY<rr.top||ev.clientY>rr.bottom){d.remove();return;}
-      const a=d.getBoundingClientRect();for(const o of board.querySelectorAll('div[data-n]')){if(o===d)continue;const b=o.getBoundingClientRect();if(a.left<b.right&&a.right>b.left&&a.top<b.bottom&&a.bottom>b.top){combine(d,o);return;}}};
+  if(!document.getElementById('crCss')){const st=document.createElement('style');st.id='crCss';st.textContent=`
+  .crT{position:absolute;display:flex;align-items:center;gap:6px;padding:7px 14px 7px 8px;border-radius:16px;background:linear-gradient(160deg,rgba(255,255,255,.96),rgba(225,235,255,.9));color:#1d2350;font:900 15px 'Noto Sans TC',sans-serif;box-shadow:0 4px 0 rgba(70,60,160,.45),0 0 18px var(--glow,rgba(140,180,255,.55));cursor:grab;user-select:none;touch-action:none;white-space:nowrap;border:2px solid rgba(255,255,255,.9);transition:box-shadow .2s,transform .15s}
+  .crT .ic{width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:19px;background:radial-gradient(circle at 35% 30%,#fff,var(--glow,#bcd4ff))}
+  .crT.hot{transform:scale(1.12);box-shadow:0 4px 0 rgba(70,60,160,.45),0 0 0 4px #ffe36a,0 0 26px #ffd23a}
+  .crT.idle{animation:crBob 3.2s ease-in-out infinite}
+  @keyframes crBob{0%,100%{translate:0 0}50%{translate:0 -3px}}
+  @keyframes crTw{0%,100%{opacity:.2}50%{opacity:1}}
+  .crI{display:flex;align-items:center;gap:6px;padding:6px 12px 6px 6px;border-radius:14px;background:linear-gradient(160deg,#fff,#e6ecff);color:#1d2350;font:900 14px 'Noto Sans TC',sans-serif;cursor:grab;touch-action:none;user-select:none;box-shadow:0 3px 0 rgba(70,60,160,.35);border:2px solid #fff}
+  .crI .ic{width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;background:radial-gradient(circle at 35% 30%,#fff,var(--glow,#bcd4ff))}
+  .crI:hover{filter:brightness(1.06);transform:translateY(-1px)}`;document.head.appendChild(st);}
+  const glow=n=>{let h=0;for(const c of n)h=(h*31+c.charCodeAt(0))%360;return `hsl(${h},90%,72%)`;};
+  const total=Object.keys(CR_E).length;
+  openMini(`<div id="crWrap" style="position:fixed;inset:0;z-index:25;display:flex;flex-direction:column;background:radial-gradient(ellipse at 30% 20%,#3a2a7a,#14123a 55%,#070818);font-family:'Noto Sans TC',sans-serif;color:#fff;overflow:hidden">
+    <div style="display:flex;align-items:center;gap:12px;padding:10px 14px;flex-wrap:wrap">
+      <div style="font:italic 900 clamp(22px,4vw,34px) 'Noto Sans TC',sans-serif;background:linear-gradient(90deg,#9ae0ff,#ffb0f0,#ffe36a);-webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 2px 6px rgba(160,120,255,.6))">✨ 無盡合成</div>
+      <div style="flex:1;min-width:160px;max-width:360px"><div style="font:800 12px 'Noto Sans TC',sans-serif;opacity:.85">已發現 <b id="crN">${CR_FOUND.length}</b> / ${total}</div><div style="height:10px;border-radius:5px;background:rgba(255,255,255,.15);overflow:hidden;margin-top:3px"><div id="crBar" style="height:100%;width:0;background:linear-gradient(90deg,#5ad8ff,#c08aff,#ffd23a);transition:width .5s"></div></div></div>
+      <button class="mbtn" id="crClear" style="background:rgba(255,255,255,.14)">🧹 清空桌面</button><button class="mbtn" id="crQuit" style="background:rgba(0,0,0,.35)">✕ 離開</button></div>
+    <div style="flex:1;display:flex;gap:10px;padding:0 10px 10px;min-height:0;flex-wrap:wrap">
+      <div id="crBoard" style="flex:1 1 480px;min-width:0;min-height:300px;position:relative;border-radius:22px;background:radial-gradient(circle at 50% 45%,rgba(120,90,255,.25),rgba(10,10,40,.2) 70%);border:2px solid rgba(160,140,255,.35);box-shadow:inset 0 0 60px rgba(90,60,200,.35);overflow:hidden;touch-action:none">
+        <div id="crStars" style="position:absolute;inset:0;pointer-events:none"></div>
+        <div style="position:absolute;left:50%;top:50%;width:260px;height:260px;transform:translate(-50%,-50%);border-radius:50%;border:2px dashed rgba(200,180,255,.18);pointer-events:none"></div>
+        <div style="position:absolute;inset:auto 0 12px 0;text-align:center;color:rgba(220,210,255,.55);font:700 13px 'Noto Sans TC',sans-serif;pointer-events:none">把右邊的元素拖進來，兩個疊在一起就會合成！（雙擊元素可以複製）</div>
+        <div id="crMsg" style="position:absolute;left:50%;top:12px;transform:translateX(-50%);padding:6px 16px;border-radius:999px;background:rgba(0,0,0,.35);font:900 15px 'Noto Sans TC',sans-serif;white-space:nowrap;pointer-events:none;opacity:0;transition:opacity .3s"></div>
+        <canvas id="crFx" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none"></canvas></div>
+      <div style="flex:0 1 320px;min-width:0;display:flex;flex-direction:column;gap:8px;min-height:240px;max-height:100%">
+        <input id="crSearch" placeholder="🔍 搜尋元素…" style="padding:9px 14px;border-radius:14px;border:2px solid rgba(255,255,255,.3);background:rgba(255,255,255,.1);color:#fff;font:800 14px 'Noto Sans TC',sans-serif;outline:none">
+        <div id="crList" style="flex:1;overflow:auto;display:flex;flex-wrap:wrap;gap:7px;align-content:flex-start;padding:10px;border-radius:18px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.15)"></div></div></div>
+    <div id="crNew" style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%) scale(.6);opacity:0;pointer-events:none;transition:transform .35s cubic-bezier(.2,1.6,.4,1),opacity .3s;padding:18px 34px;border-radius:26px;background:linear-gradient(160deg,#fff,#efe6ff);color:#2a1a6a;text-align:center;box-shadow:0 0 0 4px #ffe36a,0 0 50px rgba(255,220,100,.9);z-index:5"></div>
+  </div>`);
+  const board=$('crBoard'),fx=$('crFx'),fg=fx.getContext('2d'),parts=[];
+  {const st=$('crStars');for(let i=0;i<70;i++){const s=document.createElement('div'),z=Math.random()*2.5+1;s.style.cssText=`position:absolute;left:${Math.random()*100}%;top:${Math.random()*100}%;width:${z}px;height:${z}px;border-radius:50%;background:#fff;animation:crTw ${2+Math.random()*3}s ${Math.random()*3}s infinite`;st.appendChild(s);}}
+  const tile=(n,cls)=>`<span class="ic" style="--glow:${glow(n)}">${CR_E[n]||'✨'}</span>${n}`;
+  const msg=(h)=>{const m=$('crMsg');m.innerHTML=h;m.style.opacity=1;clearTimeout(m._t);m._t=setTimeout(()=>m.style.opacity=0,1800);};
+  function list(){const q=($('crSearch').value||'').trim();$('crList').innerHTML=CR_FOUND.filter(n=>!q||n.includes(q)).map(n=>`<div class="crI" data-n="${n}" style="--glow:${glow(n)}">${tile(n)}</div>`).join('');$('crN').textContent=CR_FOUND.length;$('crBar').style.width=(CR_FOUND.length/total*100)+'%';
+    $('crList').querySelectorAll('.crI').forEach(el=>el.onpointerdown=e=>{e.preventDefault();const r=board.getBoundingClientRect();const it=place(el.dataset.n,e.clientX-r.left-50,e.clientY-r.top-20);drag(it,e);});}
+  $('crSearch').oninput=list;
+  function place(n,x,y){const d=document.createElement('div');d.className='crT idle';d.style.setProperty('--glow',glow(n));d.innerHTML=tile(n);d.dataset.n=n;d.style.left=x+'px';d.style.top=y+'px';d.style.animationDelay=(-Math.random()*3)+'s';board.appendChild(d);
+    d.onpointerdown=e=>{e.preventDefault();drag(d,e);};d.ondblclick=()=>place(n,d.offsetLeft+24,d.offsetTop+24);return d;}
+  const overlap=(a,b)=>a.left<b.right&&a.right>b.left&&a.top<b.bottom&&a.bottom>b.top;
+  function drag(d,e){const r=board.getBoundingClientRect();let ox=e.clientX-r.left-d.offsetLeft,oy=e.clientY-r.top-d.offsetTop;d.style.zIndex=10;d.classList.remove('idle');d.style.cursor='grabbing';let hot=null;
+    const mv=ev=>{d.style.left=(ev.clientX-r.left-ox)+'px';d.style.top=(ev.clientY-r.top-oy)+'px';const a=d.getBoundingClientRect();let h=null;for(const o of board.querySelectorAll('.crT')){if(o!==d&&overlap(a,o.getBoundingClientRect())){h=o;break;}}if(h!==hot){if(hot)hot.classList.remove('hot');hot=h;if(hot)hot.classList.add('hot');}};
+    const up=ev=>{removeEventListener('pointermove',mv);removeEventListener('pointerup',up);if(hot)hot.classList.remove('hot');d.style.zIndex='';d.style.cursor='grab';d.classList.add('idle');const rr=board.getBoundingClientRect();
+      if(ev.clientX<rr.left||ev.clientX>rr.right||ev.clientY<rr.top||ev.clientY>rr.bottom){d.remove();return;}if(hot)combine(d,hot);};
     addEventListener('pointermove',mv);addEventListener('pointerup',up);}
-  function combine(d,o){const res=CR_R[[d.dataset.n,o.dataset.n].sort().join('+')];if(!res){$('crMsg').innerHTML=`<span style="color:#ff8a7a">${d.dataset.n} + ${o.dataset.n}：沒有反應…試試別的組合！</span>`;d.style.left=(d.offsetLeft+30)+'px';sfx('hit');return;}
-    const x=o.offsetLeft,y=o.offsetTop;d.remove();o.remove();const it=place(res,x,y);it.animate([{transform:'scale(1.5)'},{transform:'scale(1)'}],{duration:300});
-    if(!CR_FOUND.includes(res)){CR_FOUND.push(res);list();$('crMsg').innerHTML=`<span style="color:#ffe36a">✨ 新發現：${CR_E[res]||''} ${res}！</span>`;tone(880,0.12);setTimeout(()=>tone(1320,0.2),110);
+  function burst(x,y,col,big){for(let i=0;i<(big?60:28);i++){const a=Math.random()*6.28,v=(big?4:2.5)*(0.4+Math.random());parts.push({x,y,vx:Math.cos(a)*v,vy:Math.sin(a)*v,t:1,c:i%3?col:'#fff',r:1.5+Math.random()*(big?4:2.5)});}parts.push({ring:1,x,y,t:1,c:col,big});}
+  function combine(d,o){const res=CR_R[[d.dataset.n,o.dataset.n].sort().join('+')];if(!res){msg(`<span style="color:#ff9a8a">${d.dataset.n} + ${o.dataset.n}：沒有反應…試試別的組合！</span>`);d.style.left=(d.offsetLeft+34)+'px';d.animate([{translate:'-6px 0'},{translate:'6px 0'},{translate:'0 0'}],{duration:220});sfx('hit');return;}
+    const x=o.offsetLeft,y=o.offsetTop,cx=x+o.offsetWidth/2,cy=y+o.offsetHeight/2;d.remove();o.remove();const it=place(res,x,y);it.animate([{transform:'scale(0.2) rotate(-20deg)',filter:'brightness(3)'},{transform:'scale(1.35)',filter:'brightness(1.6)'},{transform:'scale(1)',filter:'brightness(1)'}],{duration:500,easing:'cubic-bezier(.2,1.4,.4,1)'});
+    const isNew=!CR_FOUND.includes(res);burst(cx,cy,glow(res),isNew);
+    if(isNew){CR_FOUND.push(res);list();msg(`<span style="color:#ffe36a">✨ 新發現：${CR_E[res]||''} ${res}！</span>`);tone(880,0.12);setTimeout(()=>tone(1175,0.12),100);setTimeout(()=>tone(1568,0.25),200);
+      const nw=$('crNew');nw.innerHTML=`<div style="font:900 13px 'Noto Sans TC',sans-serif;color:#a07af0;letter-spacing:4px">NEW DISCOVERY</div><div style="font-size:64px;line-height:1.2">${CR_E[res]||'✨'}</div><div style="font:900 28px 'Noto Sans TC',sans-serif">${res}</div><div style="font:700 13px 'Noto Sans TC',sans-serif;color:#8a7ab0">第 ${CR_FOUND.length} 個發現</div>`;
+      nw.style.opacity=1;nw.style.transform='translate(-50%,-50%) scale(1)';clearTimeout(nw._t);nw._t=setTimeout(()=>{nw.style.opacity=0;nw.style.transform='translate(-50%,-50%) scale(.6)';},1500);
       if(res==='宇宙'||res==='大元國小'||res==='人工智慧')reward({gem:1},`合成出「${res}」！`);if(CR_FOUND.length%15===0)reward({iron:2},`發現 ${CR_FOUND.length} 種元素！`);}
-    else{$('crMsg').textContent=`${CR_E[res]||''} ${res}`;sfx('talk');}}
-  [['水',60,60],['火',180,60],['土',60,150],['風',180,150]].forEach(a=>place(...a));list();
-  $('crClear').onclick=()=>board.querySelectorAll('div[data-n]').forEach(e=>e.remove());$('crQuit').onclick=closeMini;}
+    else{msg(`${CR_E[res]||''} ${res}`);tone(660,0.08);}}
+  const resize=()=>{const r=board.getBoundingClientRect();fx.width=r.width*(devicePixelRatio||1);fx.height=r.height*(devicePixelRatio||1);};resize();addEventListener('resize',resize);
+  miniFrame=dt=>{const k=devicePixelRatio||1;fg.setTransform(k,0,0,k,0,0);fg.clearRect(0,0,fx.width,fx.height);
+    for(const p of parts){p.t-=dt*(p.ring?1.6:1.2);if(p.ring){const rr=(1-p.t)*(p.big?160:90);fg.strokeStyle=p.c;fg.globalAlpha=Math.max(0,p.t);fg.lineWidth=p.big?6:4;fg.beginPath();fg.arc(p.x,p.y,rr,0,7);fg.stroke();continue;}
+      p.x+=p.vx;p.y+=p.vy;p.vy+=0.05;p.vx*=0.98;fg.globalAlpha=Math.max(0,p.t);fg.fillStyle=p.c;fg.beginPath();fg.arc(p.x,p.y,p.r,0,7);fg.fill();}
+    fg.globalAlpha=1;for(let i=parts.length-1;i>=0;i--)if(parts[i].t<=0)parts.splice(i,1);};
+  const r0=board.getBoundingClientRect(),mx=r0.width/2,my=r0.height/2;[['水',-130,-70],['火',30,-70],['土',-130,20],['風',30,20]].forEach(([n,dx,dy])=>place(n,mx+dx,my+dy));list();
+  $('crClear').onclick=()=>board.querySelectorAll('.crT').forEach(e=>e.remove());$('crQuit').onclick=closeMini;
+  miniCleanup=()=>{removeEventListener('resize',resize);};}
 
 // ---- puzzle room: 2048 + fruit merge ----
 function startPuzzle(){openMini(`<div class="mtitle">🧩 益智教室</div><div class="mrow"><button class="gbtn" id="pz1" style="min-width:220px">🔢 2048<small>滑動方塊，相同數字合起來</small></button><button class="gbtn alt" id="pz2" style="min-width:220px">🍉 合成大西瓜<small>丟水果，一樣的會合成更大的</small></button></div><div class="mrow"><button class="mbtn" id="pzQ">離開</button></div>`);
