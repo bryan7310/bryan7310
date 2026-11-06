@@ -1500,7 +1500,7 @@ const FRIENDS=[
   ['千綺',[300,300],{sleeve:0xf08a24,pants:0xf08a24,longHair:true},'我會接球！有我在，大家就不會被打中！'],
 ];
 for(const [name,pos,o,line] of FRIENDS){if(o.pants===0xf08a24)o.capRed=true;const n=addNPC('friend',name,pos,Object.assign({tex:TEX.uniform,shirt:0xffffff,cap:true,shoe:pick([0x1e7a3c,0x222222,0xe86d8a,0x2f6fd0])},o));n.joinLine=line;}
-{const u=Object.assign({tex:TEX.uniform,shirt:0xffffff,cap:true,shoe:0x1e7a3c},{sleeve:0x2e8b3e,pants:0x2e8b3e,flag:true,skin:0xf3d3b5});addNPC('dodge','佑俊',[440,250],u);}
+{const u=Object.assign({tex:TEX.uniform,shirt:0xffffff,cap:true,shoe:0x1e7a3c},{sleeve:0x2e8b3e,pants:0x2e8b3e,flag:true,skin:0xf3d3b5});addNPC('dodge','侑俊',[440,250],u);}
 addNPC('runner','宇德',trackLocalToPx(-14,79),{tex:TEX.uniform,shirt:0xffffff,cap:true,shoe:0x222222,sleeve:0x2e8b3e,pants:0x2e8b3e,skin:0xa8754e,cool:true,ball:true,hair:0x0d0b0a});
 // security guard sitting at the desk in the home lobby
 if(HOME_LOT.H){const H=HOME_LOT.H,gx=H.x0+3.2,gz=H.z1-3.4;const n=addNPC('guard','保全叔叔',[gx/S+CX,gz/S+CY],{shirt:0xffffff,sleeve:0xffffff,longSleeve:true,pants:0x2a2f3a,longPants:true,thin:true,glasses:true,scale:1.32,hair:0x1b1b1b,skin:0xe8c09a,shoe:0x111111});n.sit=true;n.p.root.rotation.y=Math.PI*0.5;
@@ -1584,7 +1584,7 @@ function popText(text,x,y,z,color){const d=document.createElement('div');d.class
 const $=id=>document.getElementById(id);
 let dlg=null;
 function say(lines,done){dlg={lines,i:0,done};showDlg();sfx('talk');}
-function artFor(who){const m={'校長':'principal','嘉亨':'jiaheng','昀蔚':'yunwei','千綺':'qianqi','宇德':'yude','佑俊':'youjun','大元蛙':'frog','仲仲':'boy','心心':'girl','妤墨':'yumo','搗蛋鬼':'imp'};return ART[m[who]]||null;}
+function artFor(who){const m={'校長':'principal','嘉亨':'jiaheng','昀蔚':'yunwei','千綺':'qianqi','宇德':'yude','侑俊':'youjun','大元蛙':'frog','仲仲':'boy','心心':'girl','妤墨':'yumo','搗蛋鬼':'imp'};return ART[m[who]]||null;}
 function showDlg(){const [who,txt]=dlg.lines[dlg.i];const D=$('dlg');D.style.display='block';D.querySelector('.who').textContent=who;D.querySelector('.txt').textContent=txt;const a=artFor(who),av=D.querySelector('.ava');if(a){av.src=a;av.style.display='block';D.classList.add('hasAva');}else{av.style.display='none';D.classList.remove('hasAva');}}
 function advance(){if(!dlg)return;dlg.i++;sfx('talk');if(dlg.i>=dlg.lines.length){const d=dlg.done;dlg=null;$('dlg').style.display='none';d&&d();}else showDlg();}
 let bannerT=0;function banner(t,dur=2.6){$('banner').textContent=t;$('banner').style.opacity=1;bannerT=dur;}
@@ -1615,7 +1615,7 @@ function interact(n){
   if(n.kind==='sci'){if(!n.done)say([['自然老師','我在生態池觀察青蛙的時候，發現了一種神奇的泡泡！'],['自然老師','這個「泡泡護盾」可以讓你受到的傷害減半，拿去用吧！']],()=>{n.done=true;G.shield=true;G.hp=G.maxHp;sfx('power');banner('獲得：泡泡護盾！');});else say([['自然老師','科學的力量就是觀察和勇氣！加油！']]);return;}
   if(n.kind==='guard'){const me=SET.gender==='girl'?'心心':'仲仲';say([['保全叔叔',pick([`${me}回來啦！今天在學校好玩嗎？`,`${me}早！上學路上小心車子喔！`,'有你的包裹，我先幫你收著～','電梯在後面，回家記得先洗手喔！'])],['保全叔叔','累的話走進大廳就可以回家休息，體力會補滿！']]);return;}
   if(n.kind==='runner'){say([['宇德','嘿！聽說你跑很快？'],['宇德','來比一場 200 公尺跨欄！體育老師當裁判，嘉亨和昀蔚也要一起跑！'],['宇德','輸的人要請喝養樂多喔～預備！']],()=>startRun());return;}
-  if(n.kind==='dodge'){say([['佑俊','안녕！我是佑俊！要不要一起玩躲避球？大元隊對搗蛋鬼隊！'],['佑俊','準備好了嗎？開始！']],()=>startDodge({special:n.dodgeSp||(n.dodgeSp={label:'操場躲避球',type:'dodge'})}));return;}
+  if(n.kind==='dodge'){say([['侑俊','안녕！我是侑俊！要不要一起玩躲避球？大元隊對搗蛋鬼隊！'],['侑俊','準備好了嗎？開始！']],()=>startDodge({special:n.dodgeSp||(n.dodgeSp={label:'操場躲避球',type:'dodge'})}));return;}
   if(n.kind==='band'){say([[n.name,pick(['我們正在練木琴合奏！','你也來敲敲看！','跟著落下的音符敲琴鍵喔！'])],[n.name,'來，這兩支琴槌給你！']],()=>startMarimba());return;}
   if(n.kind==='frog'){if(!n.done)say([['大元蛙','呱呱！歡迎來到大元國小！我是站在大門口迎接大家的大元蛙！'],['大元蛙','送你一雙「跳跳鞋」，走路跑步都會變快喔！呱！']],()=>{n.done=true;G.fast=true;sfx('power');banner('獲得：跳跳鞋！');});else say([['大元蛙','呱呱！加油加油！']]);return;}
   if(n.kind==='homeroom'){if(!n.done)say([[n.name,'同學好！打怪獸之前，老師幫你們全班加油打氣！'],[n.name,'吃飽睡好、身體健康，體力上限 +20！']],()=>{n.done=true;G.maxHp+=20;G.hp=G.maxHp;sfx('power');banner('體力上限 +20！');});else{G.hp=Math.min(G.maxHp,G.hp+30);say([[n.name,'記得要互相幫忙喔！（體力 +30）']]);}return;}
@@ -2114,12 +2114,12 @@ function vStick(el,cb){if(!el)return;const kn=el.querySelector('.vknob');let id=
 // ---- dodgeball on the playground (3D, one ball, Switch-party style) ----
 let DB=null;
 const DBW=5.6,DBL=9.6,DBG=9.8;
-function dbOpts(name){const f=FRIENDS.find(q=>q[0]===name);if(name==='佑俊')return {tex:TEX.uniform,shirt:0xffffff,cap:true,shoe:0x1e7a3c,sleeve:0x2e8b3e,pants:0x2e8b3e,flag:true,skin:0xf3d3b5};
+function dbOpts(name){const f=FRIENDS.find(q=>q[0]===name);if(name==='侑俊')return {tex:TEX.uniform,shirt:0xffffff,cap:true,shoe:0x1e7a3c,sleeve:0x2e8b3e,pants:0x2e8b3e,flag:true,skin:0xf3d3b5};
   const o=Object.assign({tex:TEX.uniform,shirt:0xffffff,cap:true,shoe:0x1e7a3c},f?f[2]:{sleeve:0x2e8b3e,pants:0x2e8b3e});if(o.pants===0xf08a24)o.capRed=true;delete o.ball;return o;}
 function dbBallTex(){const [c,g]=cv(128,64);g.fillStyle='#e8402a';g.fillRect(0,0,128,64);g.fillStyle='#fff';g.fillRect(0,28,128,8);g.fillStyle='rgba(255,255,255,.25)';for(let i=0;i<40;i++){g.beginPath();g.arc(Math.random()*128,Math.random()*64,1.2,0,7);g.fill();}g.fillStyle='#ffd23a';g.font='900 18px sans-serif';g.textAlign='center';g.fillText('大元',32,22);g.fillText('大元',96,58);return tex(c);}
 function startDodge(r){
-  const pool=friendsOf().map(f=>f.name).filter(n=>n!=='佑俊');for(const n of['嘉亨','凱翔','千綺','品岑','妤墨','昀蔚'])if(pool.length<2&&!pool.includes(n))pool.push(n);
-  const mates=['佑俊',...pool.slice(0,2)],foes=['搗蛋鬼','皮皮','鬧鬧','亂亂'];
+  const pool=friendsOf().map(f=>f.name).filter(n=>n!=='侑俊');for(const n of['嘉亨','凱翔','千綺','品岑','妤墨','昀蔚'])if(pool.length<2&&!pool.includes(n))pool.push(n);
+  const mates=['侑俊',...pool.slice(0,2)],foes=['搗蛋鬼','皮皮','鬧鬧','亂亂'];
   openMini(`<div id="dbWrap" style="position:fixed;inset:0;z-index:25;overflow:hidden;background:#7fd0ff;user-select:none;font-family:'Noto Sans TC',sans-serif">
     <canvas id="dbCv" style="width:100%;height:100%;display:block;touch-action:none"></canvas>
     <div style="position:absolute;left:0;right:0;top:8px;display:flex;justify-content:center;align-items:center;gap:10px;pointer-events:none">
@@ -2906,19 +2906,49 @@ function startCraft(){
 function startPuzzle(){openMini(`<div class="mtitle">🧩 益智教室</div><div class="mrow"><button class="gbtn" id="pz1" style="min-width:220px">🔢 2048<small>滑動方塊，相同數字合起來</small></button><button class="gbtn alt" id="pz2" style="min-width:220px">🍉 合成大西瓜<small>丟水果，一樣的會合成更大的</small></button></div><div class="mrow"><button class="mbtn" id="pzQ">離開</button></div>`);
   $('pz1').onclick=start2048;$('pz2').onclick=startSuika;$('pzQ').onclick=closeMini;}
 let BEST2048=0;
-function start2048(){let B=Array(16).fill(0),score=0,over=false;const add=()=>{const e=B.map((v,i)=>v?-1:i).filter(i=>i>=0);if(e.length)B[pick(e)]=Math.random()<0.9?2:4;};add();add();
-  const COL={2:'#eee4da',4:'#ede0c8',8:'#f2b179',16:'#f59563',32:'#f67c5f',64:'#f65e3b',128:'#edcf72',256:'#edcc61',512:'#edc850',1024:'#edc53f',2048:'#edc22e'};
-  openMini(`<div class="mhead"><div class="mtitle">🔢 2048</div><div>分數 <b id="g2S">0</b>・最高 <b>${BEST2048}</b></div></div><div id="g2B" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;padding:10px;width:min(420px,92vw);aspect-ratio:1;background:#bbada0;border-radius:12px;touch-action:none"></div>
-    <div id="g2M" style="font-weight:900;min-height:24px"></div><div class="mrow"><button class="mbtn" id="g2R">重新開始</button><button class="mbtn" id="g2Q">回到益智教室</button></div><div style="color:var(--muted);font-size:12px">方向鍵 / WASD 或在棋盤上滑動</div>`);
-  const draw=()=>{$('g2B').innerHTML=B.map(v=>`<div style="border-radius:8px;display:flex;align-items:center;justify-content:center;font:900 ${v>=1024?26:v>=128?32:38}px sans-serif;background:${v?(COL[v]||'#3c3a32'):'#cdc1b4'};color:${v>4?'#fff':'#776e65'}">${v||''}</div>`).join('');$('g2S').textContent=score;};
-  const move=dir=>{if(over)return;let moved=false;for(let a=0;a<4;a++){const idx=[0,1,2,3].map(b=>dir==='L'?a*4+b:dir==='R'?a*4+3-b:dir==='U'?b*4+a:(3-b)*4+a);
-      let row=idx.map(i=>B[i]).filter(v=>v);for(let k=0;k<row.length-1;k++)if(row[k]===row[k+1]){row[k]*=2;score+=row[k];if(row[k]===2048)$('g2M').textContent='🎉 合成 2048！';row.splice(k+1,1);}
-      while(row.length<4)row.push(0);idx.forEach((i,k)=>{if(B[i]!==row[k])moved=true;B[i]=row[k];});}
-    if(moved){add();sfx('talk');}draw();const can=B.some(v=>!v)||B.some((v,i)=>(i%4<3&&v===B[i+1])||(i<12&&v===B[i+4]));
-    if(!can){over=true;BEST2048=Math.max(BEST2048,score);$('g2M').textContent=`遊戲結束！分數 ${score}`;if(score>=1000){const l={stone:3,log:2};if(score>=4000)l.iron=2;if(score>=10000)l.gem=1;reward(l,`2048 拿到 ${score} 分！`);}}};
+function start2048(){if(miniCleanup){const f=miniCleanup;miniCleanup=null;f();}let B=Array(16).fill(0),score=0,over=false,won=false;
+  const COL={2:0xfff1d6,4:0xffe0a8,8:0xffb35a,16:0xff8a3c,32:0xff5a4a,64:0xe8304a,128:0xffd84a,256:0xffc21a,512:0x5ad66a,1024:0x3aa8ff,2048:0xb06aff,4096:0x2a2a4a};
+  openMini(`<div class="mhead"><div class="mtitle">🔢 2048</div><div>分數 <b id="g2S">0</b>・最高 <b id="g2Best">${BEST2048}</b></div></div>
+    <div id="g2W" style="position:relative;width:min(460px,92vw,62vh);aspect-ratio:1;border-radius:20px;overflow:hidden;box-shadow:0 10px 26px rgba(0,0,0,.4);touch-action:none"><canvas id="g2C" style="width:100%;height:100%;display:block"></canvas>
+      <div id="g2M" style="position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;background:rgba(30,20,60,.55);color:#fff;font:900 30px 'Noto Sans TC',sans-serif;text-align:center"></div></div>
+    <div class="mrow"><button class="mbtn" id="g2R">重新開始</button><button class="mbtn" id="g2Q">回到益智教室</button></div><div style="color:var(--muted);font-size:12px">方向鍵 / WASD 或在棋盤上滑動</div>`);
+  const cvs=$('g2C'),R=new THREE.WebGLRenderer({canvas:cvs,antialias:true});R.setPixelRatio(Math.min(devicePixelRatio||1,2.5));const sc=new THREE.Scene();sc.background=new THREE.Color(0x2a2058);
+  const cam=new THREE.PerspectiveCamera(34,1,0.1,100);cam.position.set(0,-5.0,8.4);cam.lookAt(0,-0.2,0);
+  const sz=()=>{const r=cvs.getBoundingClientRect();R.setSize(Math.max(1,r.width),Math.max(1,r.height),false);};sz();addEventListener('resize',sz);
+  sc.add(new THREE.HemisphereLight(0xffffff,0x5a4aa0,0.6));const sun=new THREE.DirectionalLight(0xffffff,0.8);sun.position.set(-4,-5,9);sc.add(sun);const pl=new THREE.PointLight(0xffb0e0,0.6,20);pl.position.set(4,4,4);sc.add(pl);
+  const C=1.18;const P=i=>[((i%4)-1.5)*C,(1.5-Math.floor(i/4))*C];
+  const base=new THREE.Mesh(new THREE.BoxGeometry(C*4+0.4,C*4+0.4,0.5),new THREE.MeshPhongMaterial({color:0x8a7ad8,shininess:60}));base.position.z=-0.3;sc.add(base);
+  const slotM=new THREE.MeshPhongMaterial({color:0x5a4aa8,shininess:20});for(let i=0;i<16;i++){const s2=new THREE.Mesh(new THREE.BoxGeometry(C*0.92,C*0.92,0.1),slotM);const [x,y]=P(i);s2.position.set(x,y,-0.02);sc.add(s2);}
+  const rb=(()=>{const w=C*0.88,r=0.18,s2=new THREE.Shape(),h=w/2-r;s2.moveTo(-h,-w/2);s2.lineTo(h,-w/2);s2.quadraticCurveTo(w/2,-w/2,w/2,-h);s2.lineTo(w/2,h);s2.quadraticCurveTo(w/2,w/2,h,w/2);s2.lineTo(-h,w/2);s2.quadraticCurveTo(-w/2,w/2,-w/2,h);s2.lineTo(-w/2,-h);s2.quadraticCurveTo(-w/2,-w/2,-h,-w/2);
+    const g=new THREE.ExtrudeGeometry(s2,{depth:0.3,bevelEnabled:true,bevelThickness:0.1,bevelSize:0.08,bevelSegments:4,curveSegments:6});return g;})();
+  const faceT={};const face=v=>faceT[v]||(faceT[v]=(()=>{const [c,g]=cv(256,256);g.clearRect(0,0,256,256);const s=String(v),fs=s.length>=4?92:s.length===3?118:150;g.font=`900 ${fs}px "Noto Sans TC",sans-serif`;g.textAlign='center';g.textBaseline='middle';
+    g.fillStyle='rgba(0,0,0,.25)';g.fillText(s,132,140);g.fillStyle=v<=4?'#7a5a3a':'#ffffff';g.fillText(s,128,134);if(v>=128){g.strokeStyle='rgba(255,255,255,.6)';g.lineWidth=3;g.strokeText(s,128,134);}return tex(c);})());
+  const tiles=[];
+  const mkTile=(v,i)=>{const g=new THREE.Group(),m=new THREE.MeshPhongMaterial({color:COL[v]||0x2a2a4a,shininess:110,specular:0xffffff,emissive:v>=128?COL[v]:0,emissiveIntensity:v>=128?0.25:0});
+    const b=new THREE.Mesh(rb,m);b.position.z=0;g.add(b);const f=new THREE.Mesh(new THREE.PlaneGeometry(C*0.86,C*0.86),new THREE.MeshBasicMaterial({map:face(v),transparent:true}));f.position.z=0.42;g.add(f);
+    const [x,y]=P(i);g.position.set(x,y,0);sc.add(g);return {g,v,i,tx:x,ty:y,s:0.2,ts:1};};
+  const parts=[];const burst=(i,col)=>{const [x,y]=P(i);for(let k=0;k<14;k++){const m=new THREE.Mesh(new THREE.SphereGeometry(0.06,6,5),new THREE.MeshBasicMaterial({color:k%3?col:0xffffff,transparent:true}));m.position.set(x,y,0.6);sc.add(m);const a=Math.random()*6.28,v=rand(2,5);parts.push({m,vx:Math.cos(a)*v,vy:Math.sin(a)*v,vz:rand(1,4),t:0.5});}};
+  const sync=(moves,merged)=>{for(const t of tiles)sc.remove(t.g);tiles.length=0;
+    for(let i=0;i<16;i++)if(B[i]){const t=mkTile(B[i],i);const mv=moves&&moves[i];if(mv!==undefined){const [fx,fy]=P(mv);t.g.position.set(fx,fy,0);t.s=1;}if(merged&&merged.includes(i)){t.s=1.35;burst(i,COL[B[i]]);}else if(mv===undefined&&moves)t.s=0.1;tiles.push(t);}
+    $('g2S').textContent=score;};
+  const add=()=>{const e=B.map((v,i)=>v?-1:i).filter(i=>i>=0);if(e.length){const i=pick(e);B[i]=Math.random()<0.9?2:4;return i;}return -1;};
+  add();add();sync({},[]);for(const t of tiles)t.s=0.1;
+  const move=dir=>{if(over)return;let moved=false;const moves={},merged=[];
+    for(let a=0;a<4;a++){const idx=[0,1,2,3].map(b=>dir==='L'?a*4+b:dir==='R'?a*4+3-b:dir==='U'?b*4+a:(3-b)*4+a);
+      const src=idx.filter(i=>B[i]);const out=[];let k=0;while(k<src.length){const i=src[k];if(k+1<src.length&&B[src[k+1]]===B[i]){out.push({v:B[i]*2,from:src[k+1],m:true});score+=B[i]*2;if(B[i]*2===2048&&!won){won=true;reward({gem:3},'合成 2048！');}k+=2;}else{out.push({v:B[i],from:i});k++;}}
+      const nb=idx.map((i,p)=>out[p]?out[p].v:0);idx.forEach((i,p)=>{if(B[i]!==nb[p])moved=true;if(out[p]){moves[i]=out[p].from;if(out[p].m)merged.push(i);}});idx.forEach((i,p)=>B[i]=nb[p]);}
+    if(!moved)return;const ni=add();sync(moves,merged);if(ni>=0){const t=tiles.find(q=>q.i===ni);if(t){t.s=0.05;const [x,y]=P(ni);t.g.position.set(x,y,0);}}sfx('talk');if(merged.length)tone(500+Math.log2(Math.max(...merged.map(i=>B[i])))*60,0.1);
+    const can=B.some(v=>!v)||B.some((v,i)=>(i%4<3&&v===B[i+1])||(i<12&&v===B[i+4]));
+    if(!can){over=true;BEST2048=Math.max(BEST2048,score);$('g2Best').textContent=BEST2048;const M=$('g2M');M.style.display='flex';M.innerHTML=`遊戲結束<div style="font-size:18px;margin-top:6px">分數 ${score}</div>`;if(score>=1000){const l={stone:3,log:2};if(score>=4000)l.iron=2;if(score>=10000)l.gem=1;reward(l,`2048 拿到 ${score} 分！`);}}};
   miniKey=(e,d)=>{if(!d)return;const m={ArrowLeft:'L',KeyA:'L',ArrowRight:'R',KeyD:'R',ArrowUp:'U',KeyW:'U',ArrowDown:'D',KeyS:'D'}[e.code];if(m){e.preventDefault();move(m);}};
-  let sw=null;$('g2B').onpointerdown=e=>{sw=[e.clientX,e.clientY];};$('g2B').onpointerup=e=>{if(!sw)return;const dx=e.clientX-sw[0],dy=e.clientY-sw[1];sw=null;if(Math.max(Math.abs(dx),Math.abs(dy))<25)return;move(Math.abs(dx)>Math.abs(dy)?(dx>0?'R':'L'):(dy>0?'D':'U'));};
-  $('g2R').onclick=start2048;$('g2Q').onclick=startPuzzle;draw();}
+  let sw=null;const W2=$('g2W');W2.onpointerdown=e=>{sw=[e.clientX,e.clientY];};W2.onpointerup=e=>{if(!sw)return;const dx=e.clientX-sw[0],dy=e.clientY-sw[1];sw=null;if(Math.max(Math.abs(dx),Math.abs(dy))<25)return;move(Math.abs(dx)>Math.abs(dy)?(dx>0?'R':'L'):(dy>0?'D':'U'));};
+  miniCleanup=()=>{removeEventListener('resize',sz);R.dispose();try{R.forceContextLoss();}catch(e){}};
+  $('g2R').onclick=start2048;$('g2Q').onclick=()=>{if(miniCleanup){const f=miniCleanup;miniCleanup=null;f();}startPuzzle();};
+  const t0=performance.now();
+  miniFrame=dt=>{dt=Math.min(dt,0.05);const k=1-Math.exp(-dt*18);for(const t of tiles){t.g.position.x+=(t.tx-t.g.position.x)*k;t.g.position.y+=(t.ty-t.g.position.y)*k;t.s+=(t.ts-t.s)*Math.min(1,dt*12);t.g.scale.setScalar(t.s);
+      if(t.v>=128)t.g.children[0].material.emissiveIntensity=0.2+0.12*Math.sin(performance.now()/250+t.i);}
+    for(const q of parts){q.t-=dt;q.vz-=12*dt;q.m.position.x+=q.vx*dt;q.m.position.y+=q.vy*dt;q.m.position.z+=q.vz*dt;q.m.material.opacity=Math.max(0,q.t*2);if(q.t<=0)sc.remove(q.m);}for(let i=parts.length-1;i>=0;i--)if(parts[i].t<=0)parts.splice(i,1);
+    const tt=(performance.now()-t0)/1000;base.rotation.z=Math.sin(tt*0.4)*0.01;R.render(sc,cam);};}
 const FRUITS=[['櫻桃','#d0233a',14],['草莓','#ff4a5a',19],['葡萄','#8e44ad',25],['橘子','#f39c12',31],['柿子','#ff7a1a',38],['蘋果','#e23a2c',46],['水梨','#e8e070',54],['桃子','#ffb3a8',63],['鳳梨','#f2c230',73],['哈密瓜','#a8d86a',84],['西瓜','#2fa84f',96]];
 let BESTSUIKA=0;
 function startSuika(){if(miniCleanup){const f=miniCleanup;miniCleanup=null;f();}const W=400,H=560,TOP=90,U=40;
@@ -3406,14 +3436,14 @@ const BB_CH=[
   {id:'昀蔚',n:()=>'昀蔚',ic:'💨',role:'飛毛腿',desc:'跑最快，帶球突破',tough:0.8,spd:1.2,dmg:10,shots:[-0.05,0.05],ss:17,life:0.5,kick:1,look:()=>dbOpts('昀蔚')},
   {id:'千綺',n:()=>'千綺',ic:'🎯',role:'狙擊手',desc:'單發長射程，一發超痛',tough:0.85,spd:0.95,dmg:30,shots:[0],ss:22,life:0.85,kick:0.95,look:()=>dbOpts('千綺')},
   {id:'宇德',n:()=>'宇德',ic:'⚽',role:'前鋒',desc:'射門最大力，遠射也進得了',tough:1.1,spd:1.05,dmg:11,shots:[-0.1,0,0.1],ss:16,life:0.5,kick:1.4,look:()=>Object.assign(dbOpts('宇德'),{ball:false})},
-  {id:'佑俊',n:()=>'佑俊',ic:'🇰🇷',role:'中場',desc:'射程中等、傷害穩定',tough:1,spd:1,dmg:14,shots:[-0.08,0,0.08],ss:17,life:0.6,kick:1.1,look:()=>dbOpts('佑俊')},
+  {id:'侑俊',n:()=>'侑俊',ic:'🇰🇷',role:'中場',desc:'射程中等、傷害穩定',tough:1,spd:1,dmg:14,shots:[-0.08,0,0.08],ss:17,life:0.6,kick:1.1,look:()=>dbOpts('侑俊')},
   {id:'imp',n:()=>'搗蛋鬼',ic:'😈',role:'搗蛋王',desc:'神出鬼沒，三發大範圍亂射',tough:0.9,spd:1.12,dmg:13,shots:[-0.25,0,0.25],ss:16,life:0.45,kick:1.1,imp:true,look:()=>({shirt:0x7a34b8,sleeve:0x7a34b8,pants:0x2a1a3a,hair:0x2a1a12})},
   {id:'frog',n:()=>'大元蛙',ic:'🐸',role:'跳跳怪',desc:'速度快，雙發大範圍',tough:0.95,spd:1.1,dmg:16,shots:[-0.2,0.2],ss:15,life:0.4,kick:1,frog:true}];
 function bbSelect(){openMini(`<div style="position:fixed;inset:0;z-index:25;overflow:auto;background:radial-gradient(circle at 50% 30%,#2a5ad8,#0c1a4a);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:16px;font-family:'Noto Sans TC',sans-serif;color:#fff">
   <div style="font:italic 900 clamp(28px,5vw,46px) 'Noto Sans TC',sans-serif;text-shadow:0 4px 0 #12307a">⚽ 選擇你的角色</div>
   <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;width:min(720px,96vw)">${BB_CH.map((c,i)=>{const bar=(v,mx)=>`<div style="height:6px;border-radius:3px;background:rgba(0,0,0,.35);overflow:hidden"><div style="width:${Math.min(100,v/mx*100)}%;height:100%;background:#ffd23a"></div></div>`;
     return `<button data-c="${i}" style="appearance:none;cursor:pointer;text-align:left;padding:10px 12px;border-radius:16px;border:3px solid ${c.id===BB_LAST?'#ffd23a':'rgba(255,255,255,.6)'};background:linear-gradient(160deg,#3a7aff,#1f3a9a);color:#fff;box-shadow:0 5px 0 #0c1a4a">
-      <div style="display:flex;align-items:center;gap:8px">${(()=>{const a=ART[{me:SET.gender==='girl'?'girl':'boy','嘉亨':'jiaheng','昀蔚':'yunwei','千綺':'qianqi','宇德':'yude','佑俊':'youjun',frog:'frog',imp:'imp'}[c.id]];return a?`<img src="${a}" style="width:64px;height:64px;object-fit:contain;filter:drop-shadow(0 3px 3px rgba(0,0,0,.4))">`:`<span style="font-size:30px;width:64px;text-align:center">${c.ic}</span>`;})()}<div><div style="font:900 18px 'Noto Sans TC',sans-serif">${c.n()}</div><div style="font:800 12px 'Noto Sans TC',sans-serif;color:#ffd23a">${c.role}</div></div></div>
+      <div style="display:flex;align-items:center;gap:8px">${(()=>{const a=ART[{me:SET.gender==='girl'?'girl':'boy','嘉亨':'jiaheng','昀蔚':'yunwei','千綺':'qianqi','宇德':'yude','侑俊':'youjun',frog:'frog',imp:'imp'}[c.id]];return a?`<img src="${a}" style="width:64px;height:64px;object-fit:contain;filter:drop-shadow(0 3px 3px rgba(0,0,0,.4))">`:`<span style="font-size:30px;width:64px;text-align:center">${c.ic}</span>`;})()}<div><div style="font:900 18px 'Noto Sans TC',sans-serif">${c.n()}</div><div style="font:800 12px 'Noto Sans TC',sans-serif;color:#ffd23a">${c.role}</div></div></div>
       <div style="font:700 11px/1.4 'Noto Sans TC',sans-serif;margin:6px 0;opacity:.9">${c.desc}</div>
       <div style="font:700 10px sans-serif;display:grid;grid-template-columns:30px 1fr;gap:3px 6px;align-items:center"><span>血量</span>${bar(c.tough,1.5)}<span>速度</span>${bar(c.spd,1.2)}<span>攻擊</span>${bar(c.dmg*c.shots.length,45)}<span>射程</span>${bar(c.ss*c.life,19)}<span>射門</span>${bar(c.kick,1.4)}</div></button>`;}).join('')}</div>
   <button class="mbtn" id="bbSelQ" style="background:rgba(0,0,0,.35)">✕ 離開</button></div>`);
@@ -3809,7 +3839,7 @@ let KR=null;
 const KITEMS=[{k:'ball',n:'躲避球飛彈',ic:'🔴',art:'i_ball'},{k:'banana',n:'香蕉皮',ic:'🍌',art:'i_banana'},{k:'boost',n:'火箭加速',ic:'🚀',art:'i_rocket'},{k:'shield',n:'泡泡護盾',ic:'🫧',art:'i_shield'},{k:'bomb',n:'考卷炸彈',ic:'💣',art:'i_bomb'},{k:'triple',n:'三連躲避球',ic:'🔴',art:'i_ball',x3:true}];
 const kIcon=it=>{if(!it)return '';const a=ART[it.art];if(!a)return it.ic;const im=`<img src="${a}" style="width:64px;height:64px;object-fit:contain">`;return it.x3?`<div style="position:relative;width:70px;height:64px">${[0,1,2].map(k=>`<img src="${a}" style="position:absolute;width:40px;left:${k*15}px;top:${k%2*14+4}px">`).join('')}</div>`:im;};
 const KEXITS=['大里交流道','太平交流道','東山路','北屯交流道','西屯','台中港路','南屯','烏日','五權南路','大里'];
-const KCAST=[['你',null,'電動休旅・珍珠白'],['嘉亨',0x2e8b3e,'不鏽鋼皮卡・銀'],['昀蔚',0xf08a24,'流線轎跑・紅'],['佑俊',0x2f6fd0,'流線轎跑・黑'],['搗蛋鬼',0x4b2a6b,'電動休旅・紫'],['大元蛙',0x6cc24a,'流線轎跑・綠']];
+const KCAST=[['你',null,'電動休旅・珍珠白'],['嘉亨',0x2e8b3e,'不鏽鋼皮卡・銀'],['昀蔚',0xf08a24,'流線轎跑・紅'],['侑俊',0x2f6fd0,'流線轎跑・黑'],['搗蛋鬼',0x4b2a6b,'電動休旅・紫'],['大元蛙',0x6cc24a,'流線轎跑・綠']];
 let KR_PICK=0;
 const kArt=n=>n==='你'?ART[SET.gender==='girl'?'girl':'boy']:artFor(n);
 function kartSelect(){openMini(`<div style="position:fixed;inset:0;z-index:25;overflow:auto;background:#0c1a4a ${ART.k_cover?`url(${ART.k_cover}) center/cover`:''};font-family:'Noto Sans TC',sans-serif;color:#fff">
@@ -3887,7 +3917,7 @@ function startKart(kpick){if(kpick===undefined)return kartSelect();
   const CAST=[KCAST[kpick],...KCAST.filter((c,i)=>i!==kpick)];
   function mkKart(i){const [name,col]=CAST[i],me=i===0,g=new THREE.Group(),body=new THREE.Group();g.add(body);
     // body style per racer: crossover (Y-like), fastback sedan (3-like), angular stainless pickup
-    const STY={'你':['suv',0xf4f4f6],'嘉亨':['truck',0xb8bcc2],'昀蔚':['sedan',0xd8202a],'佑俊':['sedan',0x1a1c22],'搗蛋鬼':['suv',0x7a34c8],'大元蛙':['sedan',0x3ab84a]}[name],type=STY[0],c=STY[1];
+    const STY={'你':['suv',0xf4f4f6],'嘉亨':['truck',0xb8bcc2],'昀蔚':['sedan',0xd8202a],'侑俊':['sedan',0x1a1c22],'搗蛋鬼':['suv',0x7a34c8],'大元蛙':['sedan',0x3ab84a]}[name],type=STY[0],c=STY[1];
     const paint=type==='truck'?new THREE.MeshPhongMaterial({color:c,shininess:140,specular:0xffffff,flatShading:true}):new THREE.MeshPhongMaterial({color:c,shininess:110,specular:0xaaaaaa}),
       glass=new THREE.MeshPhongMaterial({color:0x22324a,shininess:160,specular:0xffffff}),dark=toonM(0x1c1c22),trim=new THREE.MeshPhongMaterial({color:0x111114,shininess:60});
     const W=2.0,ext=(pts,depth,mat,bev,x0,y0)=>{const sh=new THREE.Shape();sh.moveTo(pts[0][0],pts[0][1]);for(let k=1;k<pts.length;k++){const q=pts[k];if(q.length===4)sh.quadraticCurveTo(q[0],q[1],q[2],q[3]);else sh.lineTo(q[0],q[1]);}
@@ -3928,7 +3958,7 @@ function startKart(kpick){if(kpick===undefined)return kartSelect();
         else{const cap=new THREE.Mesh(new THREE.SphereGeometry(0.5,16,10,0,Math.PI*2,0,Math.PI/2),toonM(0xe8e8e8));cap.position.set(0,roofY,roofZ);body.add(cap);const bill=box(0.7,0.05,0.5,toonM(0xd0d0d0));bill.position.set(0,roofY+0.02,roofZ+0.6);body.add(bill);}}
       else if(name==='嘉亨'){const lb=box(1.5,0.16,0.3,dark);lb.position.set(0,roofY+0.1,0.3);body.add(lb);for(let k=0;k<5;k++){const l=new THREE.Mesh(new THREE.CylinderGeometry(0.09,0.09,0.06,10),new THREE.MeshBasicMaterial({color:0xfff2a0}));l.rotation.x=Math.PI/2;l.position.set(-0.6+k*0.3,roofY+0.1,0.47);body.add(l);}}
       else if(name==='昀蔚'){const wg=box(1.9,0.08,0.45,paint);wg.position.set(0,1.28,-1.85);body.add(wg);for(const sx of[-0.6,0.6]){const st=box(0.08,0.4,0.1,dark);st.position.set(sx,1.05,-1.8);body.add(st);}}
-      else if(name==='佑俊'){const ant=new THREE.Mesh(new THREE.CylinderGeometry(0.02,0.02,1.1,6),dark);ant.position.set(0.7,roofY+0.4,-1.0);body.add(ant);const [fc,fg]=cv(96,64);fg.fillStyle='#fff';fg.fillRect(0,0,96,64);fg.fillStyle='#cd2e3a';fg.beginPath();fg.arc(48,32,14,Math.PI,0);fg.fill();fg.fillStyle='#0047a0';fg.beginPath();fg.arc(48,32,14,0,Math.PI);fg.fill();fg.fillStyle='#111';for(const [x,y] of[[14,12],[82,12],[14,52],[82,52]])fg.fillRect(x-6,y-3,12,6);
+      else if(name==='侑俊'){const ant=new THREE.Mesh(new THREE.CylinderGeometry(0.02,0.02,1.1,6),dark);ant.position.set(0.7,roofY+0.4,-1.0);body.add(ant);const [fc,fg]=cv(96,64);fg.fillStyle='#fff';fg.fillRect(0,0,96,64);fg.fillStyle='#cd2e3a';fg.beginPath();fg.arc(48,32,14,Math.PI,0);fg.fill();fg.fillStyle='#0047a0';fg.beginPath();fg.arc(48,32,14,0,Math.PI);fg.fill();fg.fillStyle='#111';for(const [x,y] of[[14,12],[82,12],[14,52],[82,52]])fg.fillRect(x-6,y-3,12,6);
         const fl=new THREE.Mesh(new THREE.PlaneGeometry(0.6,0.4),new THREE.MeshBasicMaterial({map:tex(fc),side:THREE.DoubleSide}));fl.position.set(0.7,roofY+0.75,-1.3);fl.rotation.y=Math.PI/2;body.add(fl);}
       else if(name==='搗蛋鬼'){const hM=toonM(0xff2a2a);for(const sx of[-1,1]){const hn=new THREE.Mesh(new THREE.ConeGeometry(0.16,0.55,10),hM);hn.position.set(sx*0.55,roofY+0.2,0.1);hn.rotation.set(0.2,0,-sx*0.35);body.add(hn);
           const wsh=new THREE.Shape();wsh.moveTo(0,0);wsh.lineTo(1.1,0.5);wsh.lineTo(0.85,0.1);wsh.lineTo(0.7,0.3);wsh.lineTo(0.5,0.0);wsh.lineTo(0.3,0.2);wsh.lineTo(0,0);const wing=new THREE.Mesh(new THREE.ShapeGeometry(wsh),new THREE.MeshLambertMaterial({color:0x2a1a3a,side:THREE.DoubleSide}));wing.scale.set(sx,1,1);wing.position.set(sx*(W/2-0.05),0.95,-0.6);wing.rotation.y=sx>0?-0.2:0.2;body.add(wing);}}}
