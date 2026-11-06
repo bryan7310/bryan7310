@@ -3578,9 +3578,9 @@ function bbFire(q,ang){if(!BB||BB.state!=='play'||q.dead)return;if(ang===null)an
   if(q.ammo<1||q.cd>0)return;q.ammo-=1;q.cd=0.38;q.p.throwT=0.3;const C=q.ch;for(const da of C.shots)BB.shots.push({x:q.x+Math.sin(ang)*0.6,z:q.z+Math.cos(ang)*0.6,vx:Math.sin(ang+da)*C.ss,vz:Math.cos(ang+da)*C.ss,life:C.life,team:q.team,owner:q,dmg:C.dmg,m:null});if(q.me)fpsBeep(700,0.05,'square',0.03);}
 function bbSuper(q,ang){if(!BB||BB.state!=='play'||q.dead||q.sup<1)return;q.sup=0;if(ang===null)ang=bbAutoAim(q);q.face=ang;const B=BB.ball;if(B.carrier===q)B.carrier=null;
   BB.shots.push({x:q.x+Math.sin(ang)*0.6,z:q.z+Math.cos(ang)*0.6,vx:Math.sin(ang)*14,vz:Math.cos(ang)*14,life:0.9,team:q.team,owner:q,dmg:40,big:true,hit:new Set(),m:null});sfx('power');if(q.me)bbBig('大絕招！',0.6);}
-function bbHurt(o,dmg,by){if(o.dead)return;o.hp-=dmg/o.ch.tough;o.hitT=3;if(by&&!by.me)by.sup=Math.min(1,by.sup+0.12);else if(by)by.sup=Math.min(1,by.sup+0.2);
+function bbHurt(o,dmg,by){if(o.dead||o.inv>0)return;o.hp-=dmg/o.ch.tough;o.hitT=3;if(by&&!by.me)by.sup=Math.min(1,by.sup+0.12);else if(by)by.sup=Math.min(1,by.sup+0.2);
   if(o.hp<=0){o.dead=3;o.hp=0;o.g.visible=false;if(BB.ball.carrier===o){BB.ball.carrier=null;BB.ball.vx=BB.ball.vz=0;}if(by){by.hits++;}BB.fx.push({t:0,x:o.x,z:o.z,txt:'💫'});if(o.me)bbBig('倒下了…',1.2);}}
-function bbResetKick(){const B=BB.ball;Object.assign(B,{x:0,z:0,vx:0,vz:0,y:0.32,vy:0,carrier:null,kickT:0});for(const q of BB.P){q.x=q.sx;q.z=q.sz;q.hp=100;q.dead=0;q.g.visible=true;q.ammo=3;q.path=null;q.face=q.team===0?Math.PI:0;}BB.shots.forEach(s=>s.m&&BB.sc.remove(s.m));BB.shots=[];}
+function bbResetKick(){const B=BB.ball;Object.assign(B,{x:0,z:0,vx:0,vz:0,y:0.32,vy:0,carrier:null,kickT:0});for(const q of BB.P){q.x=q.sx;q.z=q.sz;q.hp=100;q.dead=0;q.inv=0;q.g.visible=true;q.ammo=3;q.path=null;q.face=q.team===0?Math.PI:0;}BB.shots.forEach(s=>s.m&&BB.sc.remove(s.m));BB.shots=[];}
 function bbPath(q,tx,tz){const W=BBW,L=BBL+4,ox=W/2,oz=L/2,cell=(x,z)=>[Math.floor(x+ox),Math.floor(z+oz)],ok=(cx,cz)=>cx>=0&&cz>=0&&cx<W&&cz<L&&!bbBlocked(cx-ox+0.5,cz-oz+0.5,0.35);
   const [sx,sz]=cell(q.x,q.z),[gx,gz]=cell(tx,tz),prev=new Map(),key=(a,b)=>a*100+b,qq=[[sx,sz]];prev.set(key(sx,sz),null);let found=null,best=null,bd=1e9;
   for(let i=0;i<qq.length&&i<900;i++){const [x,z]=qq[i];const d=Math.abs(x-gx)+Math.abs(z-gz);if(d<bd){bd=d;best=[x,z];}if(x===gx&&z===gz){found=[x,z];break;}for(const [dx,dz] of[[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]]){const nx=x+dx,nz=z+dz,k=key(nx,nz);if(prev.has(k)||!ok(nx,nz))continue;if(dx&&dz&&(!ok(x+dx,z)||!ok(x,z+dz)))continue;prev.set(k,[x,z]);qq.push([nx,nz]);}}
@@ -3592,7 +3592,8 @@ function bbFrame(dt){const D=BB;if(!D)return;dt=Math.min(dt,0.04);const B=D.ball
   else if(D.state==='play'){D.t-=dt;if(D.t<=0&&!D.ot){if(D.score[0]===D.score[1]){D.ot=true;D.t=60;bbBig('延長賽！',1.5);}else return bbEnd();}else if(D.t<=0&&D.ot)return bbEnd();}
   const play=D.state==='play';
   // people
-  for(const q of D.P){if(q.dead){q.dead-=dt;if(q.dead<=0){q.dead=0;q.hp=100;q.x=q.sx;q.z=q.sz;q.g.visible=true;q.ammo=3;}continue;}
+  for(const q of D.P){if(q.dead){q.dead-=dt;if(q.dead<=0){q.dead=0;q.hp=100;const gz=(q.team===0?1:-1)*(BBL/2-0.9),side=(q.role%2?1:-1)*(q.me?-1:1),cand=[[side*(BBGW/2+1.2),gz],[-side*(BBGW/2+1.2),gz],[side*(BBGW/2+2.4),gz]];const c=cand.find(([x,z])=>!bbBlocked(x,z,0.45))||cand[0];q.x=c[0];q.z=c[1];q.g.visible=true;q.ammo=3;q.inv=3;q.face=q.team===0?Math.PI:0;if(q.me)bbBig('復活！3 秒無敵',1);}continue;}
+    if(q.inv>0)q.inv-=dt;
     q.cd-=dt;q.rl+=dt;if(q.ammo<3&&q.rl>1.1){q.ammo++;q.rl=0;}if(q.ammo>=3)q.rl=0;if(q.hitT>0)q.hitT-=dt;else q.hp=Math.min(100,q.hp+dt*8);
     let mx=0,mz=0;const sp=(q.me?5:4.6)*0.9*q.ch.spd;
     if(q.me){const f=new THREE.Vector3();D.cam.getWorldDirection(f);f.y=0;f.normalize();const r=new THREE.Vector3(-f.z,0,f.x);let jx=(D.in.R?1:0)-(D.in.L?1:0)+D.joy.x,jy=(D.in.D?1:0)-(D.in.U?1:0)-D.joy.y;mx=r.x*jx-f.x*jy;mz=r.z*jx-f.z*jy;const l=Math.hypot(mx,mz);if(l>1){mx/=l;mz/=l;}
@@ -3613,14 +3614,15 @@ function bbFrame(dt){const D=BB;if(!D)return;dt=Math.min(dt,0.04);const B=D.ball
     const ox=q.x,oz=q.z,nx=q.x+mx*sp*dt,nz=q.z+mz*sp*dt;if(!bbBlocked(nx,q.z,0.42))q.x=nx;if(!bbBlocked(q.x,nz,0.42))q.z=nz;
     for(const o of D.P)if(o!==q&&!o.dead){const dx=q.x-o.x,dz=q.z-o.z,d=Math.hypot(dx,dz);if(d<0.8&&d>0.01){const px=q.x+dx/d*(0.8-d)*0.5,pz=q.z+dz/d*(0.8-d)*0.5;if(!bbBlocked(px,pz,0.42)){q.x=px;q.z=pz;}}}
     q.vx=(q.x-ox)/dt;q.vz=(q.z-oz)/dt;const moving=Math.hypot(q.vx,q.vz)>0.5;
-    q.g.position.set(q.x,0,q.z);let da=((q.face-q.p.root.rotation.y+Math.PI*3)%(Math.PI*2))-Math.PI;q.p.root.rotation.y+=da*Math.min(1,dt*14);animPerson(q.p,moving?4:0,dt);
+    q.g.position.set(q.x,0,q.z);if(!q.halo){const h=new THREE.Group(),c=q.team===0?0x7affd8:0xffb0f0;const sp=new THREE.Mesh(new THREE.SphereGeometry(1.15,20,14),new THREE.MeshBasicMaterial({color:c,transparent:true,opacity:0.22,depthWrite:false}));sp.position.y=1.1;sp.scale.y=1.35;h.add(sp);for(const y of[0.15,1.2,2.3]){const r=new THREE.Mesh(new THREE.TorusGeometry(0.95,0.05,8,32),new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:0.8}));r.rotation.x=Math.PI/2;r.position.y=y;h.add(r);}h.visible=false;q.g.add(h);q.halo=h;}
+    if(q.inv>0){q.halo.visible=true;const k=performance.now()/1000;q.halo.rotation.y=k*3;q.halo.children.forEach((c,i)=>{if(i){c.position.y=((k*1.2+i/3)%1)*2.4;c.material.opacity=0.8*(1-Math.abs(c.position.y-1.2)/1.2)+0.1;}});q.halo.children[0].material.opacity=0.15+0.1*Math.sin(k*10);q.p.root.visible=q.inv>0.6||Math.floor(k*12)%2===0;}else if(q.halo.visible){q.halo.visible=false;q.p.root.visible=true;}let da=((q.face-q.p.root.rotation.y+Math.PI*3)%(Math.PI*2))-Math.PI;q.p.root.rotation.y+=da*Math.min(1,dt*14);animPerson(q.p,moving?4:0,dt);
     const hide=q.team===1&&bbInBush(q.x,q.z)&&!D.P.some(o=>o.team===0&&!o.dead&&Math.hypot(o.x-q.x,o.z-q.z)<2.6);q.g.visible=!hide;q.hidden=hide;
     if(play&&!B.carrier&&B.kickT<=0&&B.y<1.2&&Math.hypot(B.x-q.x,B.z-q.z)<0.75){B.carrier=q;B.last=q;}
     if(play&&!B.carrier&&B.kickT>0&&B.last!==q&&B.y<1.2&&Math.hypot(B.x-q.x,B.z-q.z)<0.6){B.carrier=q;B.last=q;}}
   // projectiles
   for(const s of D.shots.slice()){s.life-=dt;s.x+=s.vx*dt;s.z+=s.vz*dt;if(!s.m){s.m=new THREE.Mesh(D.shotGeo,D.shotM[s.team]);if(s.big)s.m.scale.setScalar(3.2);D.sc.add(s.m);}s.m.position.set(s.x,0.9,s.z);
     let dead=s.life<=0||(!s.big&&bbBlocked(s.x,s.z,0.05));
-    for(const o of D.P){if(dead||o.team===s.team||o.dead)continue;if(Math.hypot(o.x-s.x,o.z-s.z)<(s.big?1.1:0.55)){if(s.big){if(s.hit.has(o))continue;s.hit.add(o);const d=Math.hypot(s.vx,s.vz);for(let k=0;k<6;k++){const nx=o.x+s.vx/d*0.4,nz=o.z+s.vz/d*0.4;if(!bbBlocked(nx,nz,0.42)){o.x=nx;o.z=nz;}}}else dead=true;bbHurt(o,s.dmg,s.owner);o.lastHit=D.t;D.fx.push({t:0,x:o.x,z:o.z,txt:'-'+s.dmg});}}
+    for(const o of D.P){if(dead||o.team===s.team||o.dead)continue;if(Math.hypot(o.x-s.x,o.z-s.z)<(s.big?1.1:0.55)){if(s.big){if(s.hit.has(o))continue;s.hit.add(o);const d=Math.hypot(s.vx,s.vz);for(let k=0;k<6;k++){const nx=o.x+s.vx/d*0.4,nz=o.z+s.vz/d*0.4;if(!bbBlocked(nx,nz,0.42)){o.x=nx;o.z=nz;}}}else dead=true;bbHurt(o,s.dmg,s.owner);o.lastHit=D.t;D.fx.push({t:0,x:o.x,z:o.z,txt:o.inv>0?'無敵！':'-'+s.dmg});}}
     if(s.big&&!B.carrier&&Math.hypot(B.x-s.x,B.z-s.z)<1.1){B.vx=s.vx*1.2;B.vz=s.vz*1.2;B.vy=3;B.kickT=0.3;B.last=s.owner;}
     if(dead){D.sc.remove(s.m);D.shots.splice(D.shots.indexOf(s),1);}}
   // ball
