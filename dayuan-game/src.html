@@ -2883,37 +2883,88 @@ function start2048(){let B=Array(16).fill(0),score=0,over=false;const add=()=>{c
   $('g2R').onclick=start2048;$('g2Q').onclick=startPuzzle;draw();}
 const FRUITS=[['櫻桃','#d0233a',14],['草莓','#ff4a5a',19],['葡萄','#8e44ad',25],['橘子','#f39c12',31],['柿子','#ff7a1a',38],['蘋果','#e23a2c',46],['水梨','#e8e070',54],['桃子','#ffb3a8',63],['鳳梨','#f2c230',73],['哈密瓜','#a8d86a',84],['西瓜','#2fa84f',96]];
 let BESTSUIKA=0;
-function startSuika(){const W=400,H=560,TOP=90;
-  openMini(`<div class="mhead"><div class="mtitle">🍉 合成大西瓜</div><div>分數 <b id="skS">0</b>・最高 <b>${BESTSUIKA}</b></div></div><canvas id="skCv" width="${W}" height="${H}" style="width:min(380px,90vw);height:auto;border-radius:14px;touch-action:none;cursor:pointer"></canvas>
+function startSuika(){if(miniCleanup){const f=miniCleanup;miniCleanup=null;f();}const W=400,H=560,TOP=90,U=40;
+  openMini(`<div class="mhead"><div class="mtitle">🍉 合成大西瓜</div><div>分數 <b id="skS">0</b>・最高 <b>${BESTSUIKA}</b>・下一個 <b id="skN"></b></div></div>
+    <div id="skWrap" style="position:relative;width:min(400px,90vw,calc(68vh * 400 / 560));aspect-ratio:400/560;border-radius:18px;overflow:hidden;box-shadow:0 8px 24px rgba(0,0,0,.35)"><canvas id="skCv" style="width:100%;height:100%;display:block;touch-action:none;cursor:pointer"></canvas><div id="skOver" style="position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;background:rgba(40,20,10,.55);color:#fff;text-align:center"></div></div>
     <div class="mrow"><button class="mbtn" id="skR">重新開始</button><button class="mbtn" id="skQ">回到益智教室</button></div><div style="color:var(--muted);font-size:12px">移動滑鼠（或拖曳）選位置，點一下放水果・← → 移動、空白鍵放下</div>`);
-  const g=$('skCv').getContext('2d'),S={b:[],aim:W/2,cur:Math.floor(Math.random()*4),next:Math.floor(Math.random()*4),cd:0,score:0,over:false,danger:0,pops:[]};
-  const cvs=$('skCv');const px=e=>{const r=cvs.getBoundingClientRect();return (e.clientX-r.left)*W/r.width;};
+  const cvs=$('skCv'),R=new THREE.WebGLRenderer({canvas:cvs,antialias:true});R.setPixelRatio(Math.min(devicePixelRatio||1,2.5));const sc=new THREE.Scene(),cam=new THREE.PerspectiveCamera(27,W/H,1,100);cam.position.set(0,0.4,32);cam.lookAt(0,0.1,0);
+  const sz=()=>{const r=cvs.getBoundingClientRect();R.setSize(Math.max(1,r.width),Math.max(1,r.height),false);};sz();addEventListener('resize',sz);
+  sc.add(new THREE.HemisphereLight(0xffffff,0xffd8a8,0.62));const sun=new THREE.DirectionalLight(0xffffff,0.75);sun.position.set(-6,10,14);sc.add(sun);const rim=new THREE.DirectionalLight(0xfff0d0,0.35);rim.position.set(8,4,-6);sc.add(rim);
+  // backdrop + wooden crate
+  {const [c,g]=cv(256,360);const gr=g.createLinearGradient(0,0,0,360);gr.addColorStop(0,'#ffe9f4');gr.addColorStop(0.55,'#fff4d6');gr.addColorStop(1,'#ffd8a0');g.fillStyle=gr;g.fillRect(0,0,256,360);
+    for(let i=0;i<26;i++){g.fillStyle=pick(['rgba(255,150,190,.25)','rgba(255,200,80,.25)','rgba(120,200,255,.22)','rgba(140,220,120,.22)']);const x=Math.random()*256,y=Math.random()*360,r=6+Math.random()*16;g.beginPath();g.arc(x,y,r,0,7);g.fill();}
+    const bk=new THREE.Mesh(new THREE.PlaneGeometry(W/U+2,H/U+2),new THREE.MeshBasicMaterial({map:tex(c)}));bk.position.z=-3;sc.add(bk);}
+  const [wc,wgx]=cv(64,256);wgx.fillStyle='#c98a4a';wgx.fillRect(0,0,64,256);for(let i=0;i<30;i++){wgx.strokeStyle=`rgba(110,60,20,${Math.random()*0.35})`;wgx.lineWidth=1+Math.random()*2;const x=Math.random()*64;wgx.beginPath();wgx.moveTo(x,0);wgx.bezierCurveTo(x+6,80,x-6,170,x+3,256);wgx.stroke();}
+  const woodM=new THREE.MeshPhongMaterial({map:tex(wc),shininess:30}),woodT=new THREE.MeshPhongMaterial({color:0xe8b070,shininess:40});
+  const X=x=>(x-W/2)/U,Y=y=>(H/2-y)/U;
+  for(const sx of[-1,1]){const w=box(12/U+0.2,H/U+0.2,2.6,woodM);w.position.set(sx*(W/2-6)/U,0,-1.2);sc.add(w);const t=box(12/U+0.3,0.18,2.7,woodT);t.position.set(sx*(W/2-6)/U,H/U/2+0.1,-1.2);sc.add(t);}
+  const fl=box(W/U,12/U+0.15,2.6,woodM);fl.position.set(0,Y(H-6),-1.2);sc.add(fl);const back=new THREE.Mesh(new THREE.PlaneGeometry(W/U-0.6,H/U),new THREE.MeshPhongMaterial({color:0xfff6e4,transparent:true,opacity:0.55}));back.position.set(0,0,-2.4);sc.add(back);
+  const dl=new THREE.Mesh(new THREE.PlaneGeometry(W/U-0.6,0.07),new THREE.MeshBasicMaterial({color:0xe85a3a,transparent:true,opacity:0.5}));dl.position.set(0,Y(TOP+10),0.2);sc.add(dl);
+  const aimL=new THREE.Mesh(new THREE.PlaneGeometry(0.05,1),new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:0.6}));sc.add(aimL);
+  // fruit models (built at radius 1)
+  const tx=(fn)=>{const [c,g]=cv(256,128);fn(g,256,128);return tex(c);};
+  const dots=(g,W2,H2,n,col,sz2)=>{g.fillStyle=col;for(let i=0;i<n;i++){g.beginPath();g.arc(Math.random()*W2,Math.random()*H2,sz2*(0.6+Math.random()*0.6),0,7);g.fill();}};
+  const SKIN=[
+    {c:0xd0102e},{map:tx((g,w,h)=>{g.fillStyle='#ff3348';g.fillRect(0,0,w,h);g.fillStyle='#ffe066';for(let y=10;y<h-8;y+=14)for(let x=(y/14%2)*8;x<w;x+=16){g.beginPath();g.ellipse(x,y,2.2,3.2,0,0,7);g.fill();}}),shape:'berry'},
+    {c:0x8a3ad0,shape:'grape'},
+    {map:tx((g,w,h)=>{g.fillStyle='#ff9a1a';g.fillRect(0,0,w,h);dots(g,w,h,900,'rgba(200,90,0,.35)',1.4);dots(g,w,h,500,'rgba(255,220,120,.35)',1.2);})},
+    {map:tx((g,w,h)=>{const gr=g.createLinearGradient(0,0,0,h);gr.addColorStop(0,'#ff8a20');gr.addColorStop(1,'#ff6a10');g.fillStyle=gr;g.fillRect(0,0,w,h);}),shape:'flat',calyx:true},
+    {map:tx((g,w,h)=>{g.fillStyle='#e8202a';g.fillRect(0,0,w,h);for(let i=0;i<60;i++){g.strokeStyle='rgba(255,210,80,.35)';g.lineWidth=2;const x=Math.random()*w;g.beginPath();g.moveTo(x,0);g.lineTo(x+Math.random()*6-3,h*0.45);g.stroke();}dots(g,w,h,120,'rgba(255,240,160,.5)',1);}),shape:'apple',stem:true,leaf:true},
+    {map:tx((g,w,h)=>{g.fillStyle='#e6e060';g.fillRect(0,0,w,h);dots(g,w,h,350,'rgba(150,110,40,.45)',1.1);}),shape:'pear',stem:true},
+    {map:tx((g,w,h)=>{const gr=g.createLinearGradient(0,0,0,h);gr.addColorStop(0,'#ff8aa0');gr.addColorStop(0.6,'#ffb8a0');gr.addColorStop(1,'#ffe0a0');g.fillStyle=gr;g.fillRect(0,0,w,h);g.strokeStyle='rgba(220,90,110,.5)';g.lineWidth=4;g.beginPath();g.moveTo(w*0.25,0);g.lineTo(w*0.25,h);g.stroke();}),leaf:true},
+    {map:tx((g,w,h)=>{g.fillStyle='#f6b81e';g.fillRect(0,0,w,h);g.strokeStyle='#c07a10';g.lineWidth=2.5;for(let i=-h;i<w+h;i+=16){g.beginPath();g.moveTo(i,0);g.lineTo(i+h,h);g.stroke();g.beginPath();g.moveTo(i+h,0);g.lineTo(i,h);g.stroke();}dots(g,w,h,200,'rgba(255,240,150,.6)',1.2);}),crown:true},
+    {map:tx((g,w,h)=>{g.fillStyle='#a8d86a';g.fillRect(0,0,w,h);g.strokeStyle='rgba(250,255,230,.85)';g.lineWidth=1.6;for(let i=0;i<220;i++){const x=Math.random()*w,y=Math.random()*h;g.beginPath();g.moveTo(x,y);g.lineTo(x+(Math.random()-0.5)*18,y+(Math.random()-0.5)*14);g.stroke();}})},
+    {map:tx((g,w,h)=>{g.fillStyle='#38b048';g.fillRect(0,0,w,h);g.fillStyle='#15602a';for(let i=0;i<10;i++){const x0=i*w/10+6;g.beginPath();g.moveTo(x0,0);for(let y=0;y<=h;y+=8)g.lineTo(x0+Math.sin(y*0.25+i)*4,y);for(let y=h;y>=0;y-=8)g.lineTo(x0+10+Math.sin(y*0.25+i+1)*4,y);g.fill();}}),stem:true}];
+  const leafG=(()=>{const s2=new THREE.Shape();s2.moveTo(0,0);s2.quadraticCurveTo(0.35,0.25,0,0.75);s2.quadraticCurveTo(-0.35,0.25,0,0);return new THREE.ShapeGeometry(s2,6);})();
+  const leafM=new THREE.MeshPhongMaterial({color:0x3fbf3a,shininess:40,side:THREE.DoubleSide}),stemM=toonM(0x6a4220),eyeM=toonM(0x2a1a14),whiteM=toonM(0xffffff),blushM=new THREE.MeshBasicMaterial({color:0xff7a9a,transparent:true,opacity:0.55});
+  const shapeGeo=sh=>{const geo=new THREE.SphereGeometry(1,40,28),P=geo.attributes.position;for(let i=0;i<P.count;i++){let x=P.getX(i),y=P.getY(i),z=P.getZ(i),f=1;
+      if(sh==='berry'){f=0.5+0.55*Math.pow((y+1)/2,0.7);y*=1.08;}else if(sh==='pear'){f=y>0?1-0.42*y:1;y*=1.12;y-=0.06;}else if(sh==='apple'){y*=0.9;if(y>0.75)y-=(y-0.75)*0.9;}else if(sh==='flat'){y*=0.8;}
+      P.setXYZ(i,x*f,y,z*f);}geo.computeVertexNormals();return geo;};
+  const GEO={};const fruitModel=k=>{const S2=SKIN[k],g=new THREE.Group(),m=new THREE.MeshPhongMaterial({color:S2.map?0xffffff:S2.c,map:S2.map||null,shininess:90,specular:0x666666});
+    if(S2.shape==='grape'){for(const [x,y,r] of[[0,-0.45,0.48],[-0.42,-0.05,0.46],[0.42,-0.05,0.46],[0,0.35,0.5],[-0.36,0.55,0.38],[0.36,0.55,0.38],[0,-0.05,0.5]]){const b=new THREE.Mesh(GEO.s||(GEO.s=new THREE.SphereGeometry(1,20,14)),m);b.scale.setScalar(r);b.position.set(x,y,(1-Math.hypot(x,y))*0.3);g.add(b);}const st=new THREE.Mesh(new THREE.CylinderGeometry(0.05,0.06,0.4,6),stemM);st.position.y=1.0;g.add(st);}
+    else{const geo=GEO[S2.shape||'ball']||(GEO[S2.shape||'ball']=shapeGeo(S2.shape));g.add(new THREE.Mesh(geo,m));}
+    const topY=S2.shape==='berry'?1.08:S2.shape==='pear'?1.06:S2.shape==='apple'?0.82:S2.shape==='flat'?0.8:1;
+    if(k===0){const st=new THREE.Mesh(new THREE.CylinderGeometry(0.04,0.05,0.9,6),new THREE.MeshPhongMaterial({color:0x3a8a2a}));st.position.set(0.15,1.3,0);st.rotation.z=-0.3;g.add(st);}
+    if(S2.stem){const st=new THREE.Mesh(new THREE.CylinderGeometry(0.05,0.07,0.35,6),stemM);st.position.y=topY+0.1;g.add(st);}
+    if(S2.leaf||k===0){const lf=new THREE.Mesh(leafG,leafM);lf.position.set(0.05,topY+0.1,0.05);lf.rotation.set(0.3,0,-0.9);g.add(lf);}
+    if(S2.shape==='berry'||S2.calyx){for(let i=0;i<(S2.calyx?4:6);i++){const lf=new THREE.Mesh(leafG,leafM);lf.scale.setScalar(S2.calyx?0.8:0.7);lf.position.y=topY-0.05;lf.rotation.set(Math.PI/2-0.35,0,0);const p2=new THREE.Group();p2.rotation.y=i*Math.PI*2/(S2.calyx?4:6);p2.add(lf);g.add(p2);}}
+    if(S2.crown){for(let i=0;i<9;i++){const c=new THREE.Mesh(new THREE.ConeGeometry(0.12,0.85,4),leafM);const a=i/9*Math.PI*2;c.position.set(Math.cos(a)*0.18,topY+0.35,Math.sin(a)*0.18);c.rotation.set(Math.sin(a)*0.5,0,-Math.cos(a)*0.5);g.add(c);}const mid=new THREE.Mesh(new THREE.ConeGeometry(0.14,1.1,4),leafM);mid.position.y=topY+0.5;g.add(mid);}
+    // face
+    const fz=S2.shape==='grape'?0.82:0.94,fy=S2.shape==='berry'?0.25:S2.shape==='flat'?0.0:0.08;
+    for(const sx of[-1,1]){const e=new THREE.Mesh(GEO.s||(GEO.s=new THREE.SphereGeometry(1,20,14)),eyeM);e.scale.set(0.1,0.13,0.06);e.position.set(sx*0.3,fy,fz);g.add(e);const h2=new THREE.Mesh(GEO.s,whiteM);h2.scale.setScalar(0.035);h2.position.set(sx*0.3+0.03,fy+0.05,fz+0.05);g.add(h2);
+      const bl=new THREE.Mesh(new THREE.CircleGeometry(0.11,14),blushM);bl.position.set(sx*0.5,fy-0.17,fz-0.12);bl.rotation.y=sx*0.5;g.add(bl);}
+    const mo=new THREE.Mesh(new THREE.TorusGeometry(0.1,0.025,6,12,Math.PI),eyeM);mo.rotation.z=Math.PI;mo.position.set(0,fy-0.15,fz+0.02);g.add(mo);
+    return g;};
+  const pool=[];const getModel=k=>{const i=pool.findIndex(q=>q.k===k&&!q.used);if(i>=0){pool[i].used=true;pool[i].g.visible=true;return pool[i];}const o={k,g:fruitModel(k),used:true};sc.add(o.g);pool.push(o);return o;};
+  const S={b:[],aim:W/2,cur:Math.floor(Math.random()*4),next:Math.floor(Math.random()*4),cd:0,score:0,over:false,danger:0,parts:[]};
+  const px=e=>{const r=cvs.getBoundingClientRect();return (e.clientX-r.left)*W/r.width;};
   cvs.onpointermove=e=>{S.aim=px(e);};cvs.onpointerdown=e=>{S.aim=px(e);};cvs.onpointerup=()=>drop();
   miniKey=(e,d)=>{if(e.code==='ArrowLeft'||e.code==='KeyA')S.l=d;if(e.code==='ArrowRight'||e.code==='KeyD')S.r=d;if(d&&!e.repeat&&(e.code==='Space'||e.code==='Enter')){e.preventDefault();drop();}};
-  function drop(){if(S.over||S.cd>0)return;const r=FRUITS[S.cur][2];S.b.push({x:clamp(S.aim,r+12,W-r-12)+rand(-1.5,1.5),y:TOP-20,vx:rand(-6,6),vy:0,k:S.cur,r,t:0});S.cur=S.next;S.next=Math.floor(Math.random()*5);S.cd=0.55;sfx('throw');}
-  $('skR').onclick=startSuika;$('skQ').onclick=startPuzzle;
+  function drop(){if(S.over||S.cd>0)return;const r=FRUITS[S.cur][2];S.b.push({x:clamp(S.aim,r+12,W-r-12)+rand(-1.5,1.5),y:TOP-20,vx:rand(-6,6),vy:0,k:S.cur,r,t:0,rot:0});S.cur=S.next;S.next=Math.floor(Math.random()*5);S.cd=0.55;sfx('throw');}
+  const partG=new THREE.SphereGeometry(0.12,8,6);
+  const burst=(x,y,col)=>{for(let i=0;i<18;i++){const m=new THREE.Mesh(partG,new THREE.MeshBasicMaterial({color:i%3?col:0xffffff,transparent:true}));const a=Math.random()*6.28,v=rand(3,8);m.position.set(X(x),Y(y),0.8);sc.add(m);S.parts.push({m,vx:Math.cos(a)*v,vy:Math.sin(a)*v,t:0.6});}};
+  const cleanup=()=>{removeEventListener('resize',sz);R.dispose();try{R.forceContextLoss();}catch(e){}};miniCleanup=cleanup;
+  $('skR').onclick=startSuika;$('skQ').onclick=()=>{if(miniCleanup){const f=miniCleanup;miniCleanup=null;f();}startPuzzle();};
+  let curModel=null,curK=-1;
   miniFrame=dt=>{dt=Math.min(dt,0.033);if(S.l)S.aim-=320*dt;if(S.r)S.aim+=320*dt;S.cd-=dt;
-    if(!S.over)for(let it=0;it<4;it++){const h=dt/4;for(const b of S.b){b.vy+=900*h;b.x+=b.vx*h;b.y+=b.vy*h;b.t+=h;
+    if(!S.over)for(let it=0;it<4;it++){const h=dt/4;for(const b of S.b){b.vy+=900*h;b.x+=b.vx*h;b.y+=b.vy*h;b.t+=h;b.rot+=b.vx*h/b.r;
         if(b.x<b.r+12){b.x=b.r+12;b.vx*=-0.3;}if(b.x>W-b.r-12){b.x=W-b.r-12;b.vx*=-0.3;}if(b.y>H-12-b.r){b.y=H-12-b.r;b.vy*=-0.2;b.vx*=0.96;}}
       for(let i=0;i<S.b.length;i++)for(let j=i+1;j<S.b.length;j++){const a=S.b[i],c=S.b[j];if(!a||!c)continue;const dx=c.x-a.x,dy=c.y-a.y,d=Math.hypot(dx,dy)||0.01,ov=a.r+c.r-d;if(ov<=0)continue;
-        if(a.k===c.k&&a.k<FRUITS.length-1&&!a.dead&&!c.dead){a.dead=c.dead=true;const k=a.k+1;S.b.push({x:(a.x+c.x)/2,y:(a.y+c.y)/2,vx:0,vy:-60,k,r:FRUITS[k][2],t:0});S.score+=(k+1)*(k+2)/2*2;S.pops.push({x:(a.x+c.x)/2,y:(a.y+c.y)/2,t:0,c:FRUITS[k][1]});tone(400+k*80,0.12);if(k===FRUITS.length-1){reward({gem:2},'合成大西瓜！');}continue;}
+        if(a.k===c.k&&a.k<FRUITS.length-1&&!a.dead&&!c.dead){a.dead=c.dead=true;const k=a.k+1;S.b.push({x:(a.x+c.x)/2,y:(a.y+c.y)/2,vx:0,vy:-60,k,r:FRUITS[k][2],t:0,rot:0,pop:0.18});S.score+=(k+1)*(k+2)/2*2;burst((a.x+c.x)/2,(a.y+c.y)/2,new THREE.Color(FRUITS[k][1]).getHex());tone(400+k*80,0.12);if(k===FRUITS.length-1){reward({gem:2},'合成大西瓜！');}continue;}
         const nx=dx/d,ny=dy/d,ma=a.r*a.r,mc=c.r*c.r,tot=ma+mc;a.x-=nx*ov*mc/tot;a.y-=ny*ov*mc/tot;c.x+=nx*ov*ma/tot;c.y+=ny*ov*ma/tot;
-        if(Math.abs(nx)<0.08){const j=(Math.random()<.5?-1:1)*12*h;a.vx-=j;c.vx+=j;}const rv=(c.vx-a.vx)*nx+(c.vy-a.vy)*ny;if(rv<0){const im=-1.2*rv/tot;a.vx-=im*mc*nx;a.vy-=im*mc*ny;c.vx+=im*ma*nx;c.vy+=im*ma*ny;}}
-      S.b=S.b.filter(b=>!b.dead);}
+        if(Math.abs(nx)<0.08){const jj=(Math.random()<.5?-1:1)*12*h;a.vx-=jj;c.vx+=jj;}const rv=(c.vx-a.vx)*nx+(c.vy-a.vy)*ny;if(rv<0){const im=-1.2*rv/tot;a.vx-=im*mc*nx;a.vy-=im*mc*ny;c.vx+=im*ma*nx;c.vy+=im*ma*ny;}}
+      for(const b of S.b)if(b.dead&&b.mo){b.mo.used=false;b.mo.g.visible=false;}S.b=S.b.filter(b=>!b.dead);}
     const high=S.b.some(b=>b.t>1.5&&b.y-b.r<TOP+10&&Math.abs(b.vy)<40);S.danger=high?S.danger+dt:0;
-    if(S.danger>2&&!S.over){S.over=true;BESTSUIKA=Math.max(BESTSUIKA,S.score);sfx('hurt');if(S.score>=200){const l={log:3};if(S.score>=600)l.iron=2;reward(l,`合成大西瓜 ${S.score} 分！`);}}
-    $('skS').textContent=S.score;
-    g.fillStyle='#ffe9b8';g.fillRect(0,0,W,H);g.fillStyle='#f6d58c';g.fillRect(0,H-12,W,12);g.fillRect(0,0,12,H);g.fillRect(W-12,0,12,H);
-    g.strokeStyle=S.danger>0?'#e23a2c':'rgba(200,120,60,.5)';g.setLineDash([8,6]);g.lineWidth=2;g.beginPath();g.moveTo(12,TOP+10);g.lineTo(W-12,TOP+10);g.stroke();g.setLineDash([]);
-    const fruit=(x,y,k,r,a)=>{const [n,c]=FRUITS[k];g.globalAlpha=a||1;const gr=g.createRadialGradient(x-r*0.35,y-r*0.35,r*0.1,x,y,r);gr.addColorStop(0,'#fff8');gr.addColorStop(0.25,c);gr.addColorStop(1,shade(c,0.7));g.fillStyle=gr;g.beginPath();g.arc(x,y,r,0,7);g.fill();
-      if(k===10){g.strokeStyle='#1d6f33';g.lineWidth=4;for(let q=-2;q<=2;q++){g.beginPath();g.ellipse(x+q*r*0.3,y,r*0.12,r*0.95,0,0,7);g.stroke();}}
-      g.fillStyle='#3a2a1a';g.beginPath();g.arc(x-r*0.28,y-r*0.05,Math.max(2,r*0.08),0,7);g.arc(x+r*0.28,y-r*0.05,Math.max(2,r*0.08),0,7);g.fill();g.strokeStyle='#3a2a1a';g.lineWidth=2;g.beginPath();g.arc(x,y+r*0.12,r*0.18,0.2,Math.PI-0.2);g.stroke();
-      if(r>30){g.fillStyle='#fff';g.font=`900 ${Math.round(r*0.32)}px "Noto Sans TC",sans-serif`;g.textAlign='center';g.fillText(n,x,y+r*0.62);}g.globalAlpha=1;};
-    for(const b of S.b)fruit(b.x,b.y,b.k,b.r);
-    if(!S.over){const r=FRUITS[S.cur][2],x=clamp(S.aim,r+12,W-r-12);g.strokeStyle='rgba(0,0,0,.15)';g.beginPath();g.moveTo(x,TOP);g.lineTo(x,H);g.stroke();fruit(x,TOP-26,S.cur,r,S.cd>0?0.4:1);}
-    g.fillStyle='#7a5a2a';g.font='900 13px "Noto Sans TC",sans-serif';g.textAlign='left';g.fillText('下一個',W-80,24);fruit(W-40,50,S.next,Math.min(18,FRUITS[S.next][2]));
-    for(const q of S.pops){q.t+=dt;g.strokeStyle=q.c;g.globalAlpha=Math.max(0,1-q.t*2);g.lineWidth=4;g.beginPath();g.arc(q.x,q.y,20+q.t*80,0,7);g.stroke();g.globalAlpha=1;}S.pops=S.pops.filter(q=>q.t<0.5);
-    if(S.over){g.fillStyle='rgba(0,0,0,.55)';g.fillRect(0,0,W,H);g.fillStyle='#fff';g.font='900 34px "Noto Sans TC",sans-serif';g.textAlign='center';g.fillText('遊戲結束',W/2,H/2-10);g.font='700 18px "Noto Sans TC",sans-serif';g.fillText(`分數 ${S.score}・按「重新開始」再玩`,W/2,H/2+24);}};}
+    if(S.danger>2&&!S.over){S.over=true;BESTSUIKA=Math.max(BESTSUIKA,S.score);sfx('hurt');const o=$('skOver');o.style.display='flex';o.innerHTML=`<div style="font:900 34px 'Noto Sans TC',sans-serif">遊戲結束</div><div style="font:700 18px 'Noto Sans TC',sans-serif;margin-top:6px">分數 ${S.score}・按「重新開始」再玩</div>`;if(S.score>=200){const l={log:3};if(S.score>=600)l.iron=2;reward(l,`合成大西瓜 ${S.score} 分！`);}}
+    $('skS').textContent=S.score;$('skN').textContent=FRUITS[S.next][0];
+    // sync 3D
+    for(const b of S.b){if(!b.mo)b.mo=getModel(b.k);const sc2=b.r/U*(b.pop>0?1-b.pop*2:1);if(b.pop>0)b.pop-=dt;b.mo.g.scale.setScalar(Math.max(0.3,sc2));b.mo.g.position.set(X(b.x),Y(b.y),0);b.mo.g.rotation.set(0,Math.sin(b.t*1.3+b.k)*0.12,-b.rot);}
+    if(curK!==S.cur||!curModel){if(curModel){curModel.used=false;curModel.g.visible=false;}curModel=getModel(S.cur);curK=S.cur;}
+    const r=FRUITS[S.cur][2],ax=clamp(S.aim,r+12,W-r-12);curModel.g.visible=!S.over;curModel.g.position.set(X(ax),Y(TOP-26),0);curModel.g.scale.setScalar(r/U*(S.cd>0?0.7:1));curModel.g.rotation.set(0,Math.sin(performance.now()/500)*0.2,0);
+    aimL.visible=!S.over;const top=Y(TOP-26)-r/U,bot=Y(H-12);aimL.scale.y=top-bot;aimL.position.set(X(ax),(top+bot)/2,-0.5);
+    dl.material.opacity=S.danger>0?0.5+0.4*Math.sin(performance.now()/90):0.35;
+    for(const q of S.parts){q.t-=dt;q.vy-=14*dt;q.m.position.x+=q.vx*dt;q.m.position.y+=q.vy*dt;q.m.material.opacity=Math.max(0,q.t/0.6);if(q.t<=0)sc.remove(q.m);}S.parts=S.parts.filter(q=>q.t>0);
+    R.render(sc,cam);};}
 
 // ---- 麥米倫幼兒園大冒險 (original kid-friendly exploration game, 5 levels) ----
 let KD=null,kdMem=0;
