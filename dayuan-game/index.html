@@ -2134,27 +2134,48 @@ function startDodge(r){
     <div class="dpad" style="position:absolute;left:0;right:0;bottom:16px;padding:0 14px"><div class="vstick"><div class="vknob"></div></div><div class="mrow"><button data-k="C" style="width:70px;height:70px;background:rgba(40,140,255,.6)">接</button><button data-k="T" style="width:86px;height:86px;background:rgba(232,64,42,.7);font-size:18px">丟</button></div></div>
     <div id="dbEnd" style="position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;gap:12px;background:radial-gradient(circle,rgba(255,255,255,.15),rgba(0,30,60,.75));color:#fff;text-align:center;padding:16px"></div>
   </div>`);
-  const cvs=$('dbCv'),wrap=$('dbWrap'),R=new THREE.WebGLRenderer({canvas:cvs,antialias:true});R.setPixelRatio(Math.min(devicePixelRatio,SET.quality==='low'?1:1.5));R.shadowMap.enabled=SET.quality!=='low';R.shadowMap.type=THREE.PCFSoftShadowMap;
-  const sc=new THREE.Scene();sc.background=new THREE.Color(0x8fd8ff);sc.fog=new THREE.Fog(0x8fd8ff,40,90);const cam=new THREE.PerspectiveCamera(40,16/9,0.1,200);
-  sc.add(new THREE.HemisphereLight(0xffffff,0x6aa060,0.7));const sun=new THREE.DirectionalLight(0xfff2d8,0.8);sun.position.set(-8,20,10);sun.castShadow=true;sun.shadow.mapSize.set(1024,1024);const sca=sun.shadow.camera;sca.left=sca.bottom=-16;sca.right=sca.top=16;sc.add(sun);
-  // ground: grass + red running track + blue court
-  const gr=new THREE.Mesh(new THREE.PlaneGeometry(200,200),toonM(0x7ccf5a));gr.rotation.x=-Math.PI/2;gr.receiveShadow=true;sc.add(gr);
-  const trk=new THREE.Mesh(new THREE.RingGeometry(14,19,64),toonM(0xd0563a));trk.rotation.x=-Math.PI/2;trk.position.y=0.01;trk.scale.set(1.3,1,1);trk.receiveShadow=true;sc.add(trk);
-  const [cc,cg]=cv(512,880);cg.fillStyle='#2f8fe0';cg.fillRect(0,0,512,880);cg.fillStyle='#3aa0f0';cg.fillRect(24,24,464,832);cg.strokeStyle='#fff';cg.lineWidth=10;cg.strokeRect(24,24,464,832);cg.beginPath();cg.moveTo(24,440);cg.lineTo(488,440);cg.stroke();
-  cg.beginPath();cg.arc(256,440,70,0,7);cg.stroke();cg.fillStyle='rgba(255,255,255,.9)';cg.font='900 46px "Noto Sans TC",sans-serif';cg.textAlign='center';cg.save();cg.translate(256,452);cg.fillText('大元',0,0);cg.restore();
-  cg.fillStyle='rgba(255,255,255,.18)';cg.font='900 60px "Noto Sans TC",sans-serif';cg.fillText('DAYUAN',256,250);cg.save();cg.translate(256,660);cg.rotate(Math.PI);cg.fillText('DAYUAN',0,20);cg.restore();
-  const court=new THREE.Mesh(new THREE.PlaneGeometry(DBW*2+1.2,DBL*2+1.2),new THREE.MeshLambertMaterial({map:tex(cc)}));court.rotation.x=-Math.PI/2;court.position.y=0.02;court.receiveShadow=true;sc.add(court);
-  // bleachers with cheering crowd
-  const crowd=[];for(const sx of[-1,1]){for(let t=0;t<3;t++){const st=box(1.4,0.5,22,toonM([0xf2c230,0xe8402a,0x2fa84f][t]));st.position.set(sx*(DBW+4.2+t*1.4),0.25+t*0.5,0);st.receiveShadow=true;sc.add(st);
-      for(let k=0;k<11;k++){const h=new THREE.Group(),bd=sph(0.32,toonM(pick([0xffffff,0xff7eb6,0x3ccf6a,0x4aa8ff,0xffd23a,0xb06ae8])),8,6);bd.scale.y=1.2;bd.position.y=0.35;h.add(bd);const hd=sph(0.22,toonM(0xf0c8a0),8,6);hd.position.y=0.85;h.add(hd);h.position.set(sx*(DBW+4.2+t*1.4),0.5+t*0.5,-10+k*2+rand(-0.3,0.3));h.userData.ph=rand(0,6);sc.add(h);crowd.push(h);}}}
-  const ban=signPlane('大元國小 躲避球大賽',8,1,'#e8402a','#fff');ban.position.set(0,2.4,-DBL-4.5);sc.add(ban);for(const sx of[-1,1]){const p=box(0.15,3,0.15,toonM(0xffffff));p.position.set(sx*4,1.5,-DBL-4.55);sc.add(p);}
-  const bld=box(60,9,6,toonM(0xf4ead8));bld.position.set(0,4.5,-34);sc.add(bld);for(let x=-27;x<=27;x+=3)for(let y=0;y<3;y++){const w=box(1.6,1.4,0.1,toonM(0x6ab8e8));w.position.set(x,2+y*2.6,-30.95);sc.add(w);}
-  for(const [x,z] of[[-22,-20],[22,-22],[-26,4],[26,6],[-20,22],[24,24]]){const t=new THREE.Group(),tr=new THREE.Mesh(new THREE.CylinderGeometry(0.3,0.4,2,8),toonM(0x8a5a32));tr.position.y=1;t.add(tr);for(const [dx,dy,r2] of[[0,3,1.8],[1,2.4,1.2],[-1,2.5,1.2]]){const c=sph(r2,toonM(0x3f9a3a),12,10);c.position.set(dx,dy,0);t.add(c);}t.position.set(x,0,z);sc.add(t);}
-  for(const [sx,sz] of[[1,1],[1,-1]]){const bench=box(0.6,0.45,5,toonM(0x8a5a32));bench.position.set(sx*(DBW+1.6),0.22,sz*5);sc.add(bench);}
+  const cvs=$('dbCv'),wrap=$('dbWrap'),R=new THREE.WebGLRenderer({canvas:cvs,antialias:true});R.setPixelRatio(Math.min(devicePixelRatio||1,SET.quality==='low'?1:2));R.shadowMap.enabled=SET.quality!=='low';R.shadowMap.type=THREE.PCFSoftShadowMap;
+  const sc=new THREE.Scene();sc.background=new THREE.Color(0x2a2440);const cam=new THREE.PerspectiveCamera(40,16/9,0.1,200);
+  sc.add(new THREE.HemisphereLight(0xfff6e8,0x8a5a3a,0.62));const sun=new THREE.DirectionalLight(0xfff2d8,0.85);sun.position.set(-6,22,8);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);for(const [x,z,c] of[[-7,-6,0xffd0f0],[7,6,0xc0e0ff]]){const pl=new THREE.PointLight(c,0.45,30);pl.position.set(x,9,z);sc.add(pl);}const sca=sun.shadow.camera;sca.left=sca.bottom=-16;sca.right=sca.top=16;sc.add(sun);
+  // indoor gym: parquet floor, painted court, padded walls, windows, banners, hoops, scoreboard
+  const [fc,fg]=cv(512,512);for(let y=0;y<16;y++)for(let x=0;x<5;x++){fg.fillStyle=shade('#d99a52',0.86+((x*7+y*3)%5)*0.05);fg.fillRect(x*128+((y%2)*64)-64,y*32,128,32);fg.strokeStyle='rgba(110,60,20,.35)';fg.lineWidth=2;fg.strokeRect(x*128+((y%2)*64)-64,y*32,128,32);}
+  for(let i=0;i<220;i++){fg.strokeStyle=`rgba(120,70,20,${Math.random()*0.15})`;fg.beginPath();const x=Math.random()*512,y=Math.random()*512;fg.moveTo(x,y);fg.lineTo(x+20+Math.random()*30,y+Math.random()*2);fg.stroke();}
+  const ft=tex(fc,true);ft.repeat.set(5,5);const floor=new THREE.Mesh(new THREE.PlaneGeometry(60,60),new THREE.MeshPhongMaterial({map:ft,shininess:30,specular:0x332211}));floor.rotation.x=-Math.PI/2;floor.receiveShadow=true;sc.add(floor);
+  const [cc,cg]=cv(512,880);cg.fillStyle='rgba(0,0,0,0)';cg.clearRect(0,0,512,880);cg.fillStyle='rgba(40,110,230,.92)';cg.fillRect(0,0,512,880);cg.fillStyle='rgba(60,140,255,.92)';cg.fillRect(24,24,464,832);
+  cg.fillStyle='rgba(255,90,90,.85)';cg.fillRect(24,24,464,120);cg.fillStyle='rgba(60,200,110,.85)';cg.fillRect(24,736,464,120);
+  cg.strokeStyle='#fff';cg.lineWidth=10;cg.strokeRect(24,24,464,832);cg.beginPath();cg.moveTo(24,440);cg.lineTo(488,440);cg.stroke();cg.beginPath();cg.arc(256,440,72,0,7);cg.stroke();
+  cg.fillStyle='#ffd23a';cg.beginPath();cg.arc(256,440,58,0,7);cg.fill();cg.fillStyle='#1a3a8a';cg.font='900 46px "Noto Sans TC",sans-serif';cg.textAlign='center';cg.fillText('大元',256,456);
+  cg.fillStyle='rgba(255,255,255,.22)';cg.font='italic 900 64px "Noto Sans TC",sans-serif';cg.fillText('DAYUAN',256,280);cg.save();cg.translate(256,600);cg.rotate(Math.PI);cg.fillText('DAYUAN',0,20);cg.restore();
+  const court=new THREE.Mesh(new THREE.PlaneGeometry(DBW*2+1.2,DBL*2+1.2),new THREE.MeshPhongMaterial({map:tex(cc),shininess:25,specular:0x223344}));court.rotation.x=-Math.PI/2;court.position.y=0.02;court.receiveShadow=true;sc.add(court);
+  const padM=new THREE.MeshPhongMaterial({color:0x2a3a8a,shininess:30}),padT=new THREE.MeshPhongMaterial({color:0xffd23a,shininess:50});
+  const wallM=new THREE.MeshLambertMaterial({color:0xf2ead8}),beamM=toonM(0x8a5a32),winM=new THREE.MeshBasicMaterial({color:0xbfe8ff});
+  const GW=34,GL=40;
+  for(const sz of[-1,1]){const w=box(GW*2,18,0.6,wallM);w.position.set(0,9,sz*GL);sc.add(w);const pd=box(GW*2,1.6,0.5,padM);pd.position.set(0,0.8,sz*(GL-0.5));sc.add(pd);const pt=box(GW*2,0.12,0.55,padT);pt.position.set(0,1.62,sz*(GL-0.5));sc.add(pt);
+    for(let x=-GW+4;x<=GW-4;x+=6){const wn=box(3.6,2.6,0.1,winM);wn.position.set(x,8.5,sz*(GL-0.35));sc.add(wn);const fr=box(3.9,0.18,0.15,beamM);fr.position.set(x,7.15,sz*(GL-0.32));sc.add(fr);}}
+  for(const sx of[-1,1]){const w=box(0.6,18,GL*2,wallM);w.position.set(sx*GW,9,0);sc.add(w);for(let z=-GL+5;z<=GL-5;z+=7){const wn=box(0.1,2.6,4.2,winM);wn.position.set(sx*(GW-0.35),9.2,z);sc.add(wn);}}
+  for(let z=-GL;z<=GL;z+=8){const bm=box(GW*2,0.5,0.5,beamM);bm.position.set(0,18,z);sc.add(bm);}
+  const lights=[];for(const z of[-8,0,8])for(const x of[-6,6]){const l=new THREE.Mesh(new THREE.CylinderGeometry(0.7,0.9,0.4,12),new THREE.MeshBasicMaterial({color:0xfff6d8}));l.position.set(x,17.6,z);sc.add(l);lights.push(l);}
+  // hoops on the end walls
+  for(const sz of[-1,1]){const g=new THREE.Group();g.position.set(0,0,sz*(GL-0.8));g.rotation.y=sz>0?Math.PI:0;const bb=box(3,1.9,0.12,new THREE.MeshPhongMaterial({color:0xffffff,shininess:90}));bb.position.y=6.2;g.add(bb);const sq=box(1.2,0.9,0.13,toonM(0xe8402a));sq.position.set(0,5.9,0.01);sq.scale.z=0.5;g.add(sq);
+    const rim=new THREE.Mesh(new THREE.TorusGeometry(0.45,0.05,8,20),toonM(0xff6a1a));rim.rotation.x=Math.PI/2;rim.position.set(0,5.4,0.65);g.add(rim);const arm=box(0.15,0.15,1.2,toonM(0x555a66));arm.position.set(0,6.6,-0.5);g.add(arm);sc.add(g);}
+  // big banners and scoreboard
+  for(const [sx,txt,bg] of[[-1,'大元國小 躲避球大賽','#e8402a'],[1,'GO! 大元隊 ⭐','#2f6fd0']]){const bt=textTex(1024,192,(g,W,H)=>{const gr=g.createLinearGradient(0,0,0,H);gr.addColorStop(0,bg);gr.addColorStop(1,shade(bg,0.7));g.fillStyle=gr;g.fillRect(0,0,W,H);g.strokeStyle='#ffd23a';g.lineWidth=12;g.strokeRect(6,6,W-12,H-12);g.fillStyle='#fff';g.font='italic 900 96px "Noto Sans TC",sans-serif';g.textAlign='center';g.textBaseline='middle';g.fillText(txt,W/2,H/2+6);});
+    const bn=new THREE.Mesh(new THREE.PlaneGeometry(14,2.6),new THREE.MeshBasicMaterial({map:bt}));bn.position.set(sx*(GW-0.4),6.2,0);bn.rotation.y=-sx*Math.PI/2;sc.add(bn);}
+  const sbC=document.createElement('canvas');sbC.width=1024;sbC.height=320;const sbT=new THREE.CanvasTexture(sbC);const sb=new THREE.Mesh(new THREE.BoxGeometry(9,2.8,0.4),[toonM(0x1a1a24),toonM(0x1a1a24),toonM(0x1a1a24),toonM(0x1a1a24),new THREE.MeshBasicMaterial({map:sbT}),toonM(0x1a1a24)]);sb.position.set(0,9.6,-GL+0.8);sc.add(sb);
+  // bleachers with seated crowd
+  const crowd=[];const stepM=[new THREE.MeshPhongMaterial({color:0x3a4a9a}),new THREE.MeshPhongMaterial({color:0x4a5ab0})];
+  for(const sx of[-1,1]){for(let t=0;t<5;t++){const st=box(1.5,0.55,30,stepM[t%2]);st.position.set(sx*(DBW+3.6+t*1.5),0.27+t*0.55,0);st.receiveShadow=true;sc.add(st);
+      for(let k=0;k<16;k++){if(Math.random()<0.12)continue;const c2=pick([0xff4a5a,0x3a8aff,0xffd23a,0x5ad66a,0xff8ac0,0xffffff,0x9a6aff]),h=new THREE.Group(),bd=sph(0.34,toonM(c2),10,8);bd.scale.set(1,1.15,0.9);bd.position.y=0.42;h.add(bd);
+        const hd=sph(0.25,toonM(pick([0xf0c8a0,0xe0b088,0xd9a77f])),10,8);hd.position.y=0.98;h.add(hd);const hr=sph(0.26,toonM(pick([0x1b1310,0x3a2a1a,0x6a4a2a])),10,6,);hr.scale.set(1,0.6,1);hr.position.y=1.08;h.add(hr);
+        if(Math.random()<0.3){const f=box(0.14,0.45,0.06,toonM(sx<0?0x2fa84f:0xff4a5a));f.position.set(0.3,1.25,0);h.add(f);}
+        h.position.set(sx*(DBW+3.6+t*1.5),0.55+t*0.55,-14+k*1.85+rand(-0.25,0.25));h.rotation.y=sx<0?Math.PI/2:-Math.PI/2;h.userData.ph=rand(0,6);h.userData.by=h.position.y;sc.add(h);crowd.push(h);}}}
+  for(const [sx,sz] of[[1,1],[1,-1],[-1,1],[-1,-1]]){const bench=box(0.6,0.45,4,new THREE.MeshPhongMaterial({color:0xc8843a,shininess:40}));bench.position.set(sx*(DBW+1.5),0.22,sz*6);sc.add(bench);}
+  const drawSB=(a,b2)=>{const g=sbC.getContext('2d');g.fillStyle='#08080e';g.fillRect(0,0,1024,320);g.font='bold 44px "Noto Sans TC",sans-serif';g.textAlign='center';g.fillStyle='#5aff8a';g.fillText('大元隊',230,70);g.fillStyle='#d08aff';g.fillText('搗蛋鬼隊',794,70);
+    g.font='160px "Press Start 2P",monospace';g.shadowBlur=24;g.shadowColor='#ffcc1a';g.fillStyle='#ffcc1a';g.fillText(String(a),230,270);g.fillText(String(b2),794,270);g.shadowBlur=0;g.font='bold 60px sans-serif';g.fillStyle='#fff';g.fillText('VS',512,200);sbT.needsUpdate=true;};drawSB(4,4);
   // people
   const mkP=(name,team,i,me)=>{const o=me?playerOpts(SET.gender):team===0?dbOpts(name):{tex:TEX.uniform,shirt:0x7a34b8,sleeve:0x7a34b8,pants:0x2a1a3a,cap:false,hair:0x2a1a12,skin:pick([0xf0c8a0,0xe0b088,0xd9a77f])};
     const p=makePerson(o);if(team===1){for(const sx of[-1,1]){const hn=new THREE.Mesh(new THREE.ConeGeometry(0.07,0.2,8),toonM(0xff3a3a));hn.position.set(sx*0.12,0.3,0);hn.rotation.z=-sx*0.3;p.head.add(hn);}}
-    sc.add(p.root);const lb=makeLabel(me?(SET.gender==='girl'?'心心':'仲仲'):name,me?'rgba(255,210,58,.95)':team===0?'rgba(31,154,72,.9)':'rgba(122,52,184,.9)',me?'#222':'#fff');lb.position.y=p.top+0.35;lb.scale.multiplyScalar(0.8);p.root.add(lb);
+    p.root.scale.setScalar(1.18);const disc=new THREE.Mesh(new THREE.CircleGeometry(0.55,24),new THREE.MeshBasicMaterial({color:me?0xffd23a:team===0?0x2fd86a:0xb05aff,transparent:true,opacity:0.35,depthWrite:false}));disc.rotation.x=-Math.PI/2;disc.position.y=0.03;p.root.add(disc);sc.add(p.root);const lb=makeLabel(me?(SET.gender==='girl'?'心心':'仲仲'):name,me?'rgba(255,210,58,.95)':team===0?'rgba(31,154,72,.9)':'rgba(122,52,184,.9)',me?'#222':'#fff');lb.position.y=p.top+0.35;lb.scale.multiplyScalar(0.8);p.root.add(lb);
     const zs=team===0?1:-1,x=[0,-3,3,0][i]+rand(-0.3,0.3),z=zs*[4.5,6.5,6.5,8][i];p.root.position.set(x,0,z);
     return {name:me?'你':name,team,me:!!me,p,x,z,vx:0,vz:0,hx:x,hz:z,out:false,st:'play',fall:0,cd:rand(0.6,1.2),catchT:0,ccd:0,tx:x,tz:z,wt:0,throwA:0,face:team===0?Math.PI:0,hits:0,catches:0,decided:null};};
   const P=[mkP('你',0,0,true),...mates.map((n,i)=>mkP(n,0,i+1)),...foes.map((n,i)=>mkP(n,1,i))];
@@ -2164,7 +2185,7 @@ function startDodge(r){
   const ringM=(c)=>{const m=new THREE.Mesh(new THREE.RingGeometry(0.5,0.62,32),new THREE.MeshBasicMaterial({color:c,transparent:true,opacity:0.9,depthWrite:false}));m.rotation.x=-Math.PI/2;m.position.y=0.04;sc.add(m);return m;};
   const meRing=ringM(0xffd23a),tgtRing=ringM(0xff3a3a),chRing=ringM(0xff7a2a);const arrow=new THREE.Mesh(new THREE.ConeGeometry(0.18,0.36,4),new THREE.MeshBasicMaterial({color:0xff3a3a}));arrow.rotation.x=Math.PI;sc.add(arrow);
   const conf=[];for(let i=0;i<90;i++){const m=new THREE.Mesh(new THREE.PlaneGeometry(0.16,0.1),new THREE.MeshBasicMaterial({color:pick([0xffd23a,0xff5a8a,0x4aa8ff,0x5ad66a,0xffffff]),side:THREE.DoubleSide}));m.visible=false;sc.add(m);conf.push({m,v:new THREE.Vector3(),r:new THREE.Vector3()});}
-  DB={r,R,sc,cam,P,ball,bsh,trail,trailPts:[],meRing,tgtRing,chRing,arrow,crowd,conf,B:{st:'loose',x:0,y:0.22,z:2,vx:0,vy:0,vz:0,holder:null,team:-1,thrower:null,power:false,pass:null,bounced:false},
+  DB={r,R,sc,cam,P,ball,bsh,drawSB,trail,trailPts:[],meRing,tgtRing,chRing,arrow,crowd,conf,B:{st:'loose',x:0,y:0.22,z:2,vx:0,vy:0,vz:0,holder:null,team:-1,thrower:null,power:false,pass:null,bounced:false},
     in:{},press:{},rel:{},joy:{x:0,y:0},state:'ready',rt:0,big:'',bigT:0,slow:0,camShake:0,camP:new THREE.Vector3(0,13,17),camL:new THREE.Vector3(0,0,-0.5),charge:0,ask:0,t:0};
   const resize=()=>{const w=wrap.clientWidth,h=wrap.clientHeight;R.setSize(w,h,false);cam.aspect=w/h;cam.fov=w/h<1.5?50:40;cam.updateProjectionMatrix();};resize();addEventListener('resize',resize);
   const map={KeyA:'L',ArrowLeft:'L',KeyD:'R',ArrowRight:'R',KeyW:'U',ArrowUp:'U',KeyS:'D',ArrowDown:'D',KeyJ:'T',Space:'T',KeyK:'C',ShiftLeft:'C'};
@@ -2243,15 +2264,15 @@ function dodgeFrame(rdt){const D=DB;if(!D)return;rdt=Math.min(rdt,0.04);if(D.slo
   D.tgtRing.visible=D.arrow.visible=!!D.tgt;if(D.tgt){D.tgtRing.position.set(D.tgt.x,0.04,D.tgt.z);D.arrow.position.set(D.tgt.x,D.tgt.p.top+0.95+Math.sin(D.t*8)*0.1,D.tgt.z);D.arrow.rotation.y+=rdt*3;}
   D.chRing.visible=D.charge>0.05;if(D.chRing.visible){const s=0.6+D.charge*0.9;D.chRing.position.set(me.x,0.05,me.z);D.chRing.scale.set(s,s,1);D.chRing.material.color.set(D.charge>0.65?0xff3a1a:0xffb03a);}
   const cbar=$('dbCharge');cbar.style.display=D.charge>0.05?'block':'none';cbar.firstElementChild.style.width=(D.charge*100)+'%';
-  for(const c of D.crowd){const u=c.userData;u.cheer=Math.max(0,(u.cheer||0)-rdt*0.8);c.position.y=Math.floor(c.position.y*2)/2+Math.abs(Math.sin(D.t*(4+u.cheer*8)+u.ph))*(0.05+u.cheer*0.35)+0.0;}
+  for(const c of D.crowd){const u=c.userData;u.cheer=Math.max(0,(u.cheer||0)-rdt*0.8);c.position.y=u.by+Math.abs(Math.sin(D.t*(4+u.cheer*8)+u.ph))*(0.05+u.cheer*0.35)+0.0;}
   for(const c of D.conf){if(!c.m.visible)continue;c.m.position.addScaledVector(c.v,rdt);c.v.y=Math.max(-1.6,c.v.y-rdt*1.2);c.m.rotation.x+=c.r.x*rdt;c.m.rotation.y+=c.r.y*rdt;if(c.m.position.y<0)c.m.position.y=rand(8,10);}
   // camera: broadcast view from our side, gently following the ball
   D.camShake=Math.max(0,D.camShake-rdt);const sh=D.camShake*0.6;const cp=new THREE.Vector3(B.x*0.25+rand(-sh,sh),12.5+rand(-sh,sh),16.5),cl=new THREE.Vector3(B.x*0.35,0,-0.6+B.z*0.15);
   if(D.slow>0){cp.set(B.x*0.6,7,B.z+9);cl.set(B.x,1,B.z);}const k=1-Math.exp(-rdt*(D.slow>0?6:3));D.camP.lerp(cp,k);D.camL.lerp(cl,k);D.cam.position.copy(D.camP);D.cam.lookAt(D.camL);
   // team HUD
-  const chip=(q)=>`<div style="min-width:46px;padding:3px 6px;border-radius:12px;background:${q.out?'rgba(0,0,0,.35)':'rgba(255,255,255,.95)'};color:${q.out?'rgba(255,255,255,.6)':q.team===0?'#136a30':'#52207e'};font:900 12px 'Noto Sans TC',sans-serif;text-align:center;${q.out?'text-decoration:line-through':''}">${q.me?'⭐'+(SET.gender==='girl'?'心心':'仲仲'):q.name}${B.holder===q?' 🔴':''}</div>`;
+  const chip=(q)=>{const a=q.me?ART[SET.gender==='girl'?'girl':'boy']:q.team===0?artFor(q.name):ART.imp;return `<div style="display:flex;align-items:center;gap:3px;min-width:46px;padding:2px 8px 2px 2px;border-radius:14px;background:${q.out?'rgba(0,0,0,.35)':'rgba(255,255,255,.95)'};color:${q.out?'rgba(255,255,255,.6)':q.team===0?'#136a30':'#52207e'};font:900 12px 'Noto Sans TC',sans-serif;text-align:center;${q.out?'text-decoration:line-through;filter:grayscale(1)':''}">${a?`<img src="${a}" style="width:26px;height:26px;object-fit:contain;border-radius:50%;background:rgba(0,0,0,.08)">`:''}${q.me?(SET.gender==='girl'?'心心':'仲仲'):q.name}${B.holder===q?' 🔴':''}</div>`;};
   const h0=D.P.filter(q=>q.team===0).map(chip).join(''),h1=D.P.filter(q=>q.team===1).map(chip).join('');if(h0+h1!==D.hud){D.hud=h0+h1;$('dbT0').innerHTML=h0;$('dbT1').innerHTML=h1;}
-  D.R.render(D.sc,D.cam);}
+  {const a=D.P.filter(q=>q.team===0&&!q.out).length,b2=D.P.filter(q=>q.team===1&&!q.out).length;if(D.sbKey!==a+'-'+b2){D.sbKey=a+'-'+b2;D.drawSB(a,b2);}}D.R.render(D.sc,D.cam);}
 function finishDodge(){const D=DB;const me=D.P[0],el=$('dbEnd');el.style.display='flex';$('dbBig').textContent='';$('dbSub').textContent='';D.bigT=0;
   const mvp=D.P.filter(q=>q.team===0).sort((a,b)=>(b.hits+b.catches*1.5)-(a.hits+a.catches*1.5))[0];
   el.innerHTML=`<div style="height:50px;flex:none"></div><div style="font:900 clamp(40px,8vw,72px) 'Noto Sans TC',sans-serif;font-style:italic;color:${D.win?'#ffd23a':'#fff'};text-shadow:0 6px 0 ${D.win?'#e8402a':'#3a5a8a'},0 12px 22px rgba(0,0,0,.35)">${D.win?'🏆 VICTORY!':'GAME SET'}</div>
