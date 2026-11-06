@@ -1517,7 +1517,7 @@ const BAND=[];
   addSolid(gx,gz,L/2,D/2,0,0,1.1);
   const lbl=makeLabel('🎵 木琴合奏','rgba(139,58,36,.95)','#fff');lbl.position.set(gx,3.4,gz);lbl.scale.set(2.6,0.65,1);scene.add(lbl);
   const base={tex:TEX.uniform,shirt:0xffffff,cap:true,shoe:0x222222};
-  for(const [name,pos,o] of [['阿輝',[242,410],{sleeve:0x2e8b3e,pants:0x2e8b3e,scale:1.15,cool:true}],['家樂',[248,409],{sleeve:0x2e8b3e,pants:0x2e8b3e}],['品昊',[254,409],{sleeve:0x2e8b3e,pants:0x2e8b3e,glasses:true,bag:true}],
+  for(const [name,pos,o] of [['阿暉',[242,410],{sleeve:0x2e8b3e,pants:0x2e8b3e,scale:1.15,cool:true}],['家樂',[248,409],{sleeve:0x2e8b3e,pants:0x2e8b3e}],['品昊',[254,409],{sleeve:0x2e8b3e,pants:0x2e8b3e,glasses:true,bag:true}],
       ['硯筠',[259,410],{sleeve:0xf08a24,pants:0xf08a24,capRed:true,longHair:true,scale:1.1,thin:true}],['柏豪',[263,412],{sleeve:0x2e8b3e,pants:0x2e8b3e,thin:true}]]){
     const n=addNPC('band',name,pos,Object.assign({},base,o));n.p.root.rotation.y=Math.atan2(gx-n.x,gz-n.z);BAND.push(n);}}
 {const d=addNPC('friend','恐龍',[515,150],{make:makeDino});d.joinLine='吼——！恐龍也來幫忙！我的躲避球特別大顆！';d.power=2;}
@@ -3690,7 +3690,7 @@ function startMarimba(si){
   miniFrame=mbFrame;}
 function mbMenu(){const M=MB;M.state='menu';const el=$('mbMenu');el.style.display='flex';
   el.innerHTML=`<div style="font:900 clamp(26px,4.6vw,44px) 'Noto Sans TC',sans-serif;background:linear-gradient(#fff3c0,#ffb84a);-webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 3px 0 #6a2a10)">🎵 新元館木琴音樂會</div>
-    <div style="font:700 14px 'Noto Sans TC',sans-serif;color:#e8d0f0">選一首歌，跟阿輝、家樂、品昊、硯筠、柏豪一起合奏！</div>
+    <div style="font:700 14px 'Noto Sans TC',sans-serif;color:#e8d0f0">選一首歌，跟阿暉、家樂、品昊、硯筠、柏豪一起合奏！</div>
     <div style="display:flex;gap:14px;flex-wrap:wrap;justify-content:center">${MSONGS.map((s,i)=>`<button data-s="${i}" style="appearance:none;cursor:pointer;width:190px;padding:16px 12px;border-radius:18px;border:2px solid rgba(255,214,120,.55);background:linear-gradient(160deg,rgba(120,50,30,.95),rgba(60,20,40,.95));color:#fff;box-shadow:0 8px 20px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.25);font-family:'Noto Sans TC',sans-serif">
       <div style="font-size:42px">${s.ic}</div><div style="font-weight:900;font-size:22px;margin:4px 0">${s.n}</div><div style="color:#ffd23a;letter-spacing:2px">${'★'.repeat(s.lv)}<span style="opacity:.3">${'★'.repeat(3-s.lv)}</span></div>
       <div style="font-size:12px;opacity:.8;margin-top:4px">BPM ${s.bpm}・${s.notes.split(' ').filter(x=>x!=='-').length} 個音符</div><div style="font-size:12px;color:#9fe8ff;margin-top:4px">${MB_BEST[s.n]?'最佳 '+MB_BEST[s.n].score+' 分・'+MB_BEST[s.n].rank:'尚未挑戰'}</div></button>`).join('')}</div>
@@ -3768,7 +3768,7 @@ function mbResult(){const M=MB;M.state='result';const tot=M.seq.length,acc=Math.
         <div style="font-size:24px;letter-spacing:4px">${'⭐'.repeat(stars)}<span style="opacity:.25">${'⭐'.repeat(3-stars)}</span></div>
         <div><span style="color:#ffe066">PERFECT</span> ${M.hits.p}・<span style="color:#7dffb0">GOOD</span> ${M.hits.g}・<span style="color:#ff8a7a">MISS</span> ${M.hits.m}</div>
         <div>最高連擊 ${M.max}・正確率 ${acc}%</div></div></div>
-    <div style="font:700 15px 'Noto Sans TC',sans-serif;color:#f2e0f0">${acc>=95?'阿輝：「太神了！你可以當樂團隊長！」':acc>=80?'硯筠：「好好聽！我們合奏得超整齊！」':acc>=60?'家樂：「不錯喔！再練習一次會更棒！」':'品昊：「沒關係，看著音符慢慢來！」'}</div>
+    <div style="font:700 15px 'Noto Sans TC',sans-serif;color:#f2e0f0">${acc>=95?'阿暉：「太神了！你可以當樂團隊長！」':acc>=80?'硯筠：「好好聽！我們合奏得超整齊！」':acc>=60?'家樂：「不錯喔！再練習一次會更棒！」':'品昊：「沒關係，看著音符慢慢來！」'}</div>
     <div class="mrow"><button class="gbtn" id="mbAgain">再演奏一次</button><button class="gbtn alt" id="mbSel">換一首歌</button><button class="gbtn ghost" id="mbOut">離開</button></div>`;
   $('mbAgain').onclick=()=>mbBegin(M.si);$('mbSel').onclick=mbMenu;$('mbOut').onclick=closeMini;
   if(loot)reward(loot,`木琴合奏正確率 ${acc}%！`);}
