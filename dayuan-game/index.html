@@ -1384,6 +1384,27 @@ function playerOpts(gd){const girl=gd==='girl';return {tex:TEX.uniform,shirt:0xf
 const GATE_START=(()=>{const a=BOUNDW[GATE_SEG],b=BOUNDW[GATE_SEG+1],dx=b[0]-a[0],dz=b[1]-a[1],L=Math.hypot(dx,dz);let nx=-dz/L,nz=dx/L;if(pip(GATE_PT[0]+nx*3,GATE_PT[1]+nz*3,BOUNDW)){nx=-nx;nz=-nz;}return {x:GATE_PT[0]+nx*5,z:GATE_PT[1]+nz*5,face:Math.atan2(-nx,-nz),camYaw:Math.atan2(nx,nz)};})();
 function toGate(){player.x=GATE_START.x;player.z=GATE_START.z;player.y=0;player.vy=0;player.facing=GATE_START.face;}
 const player={x:GATE_START.x,y:0,vy:0,z:GATE_START.z,facing:GATE_START.face,cd:0,inv:0,speed:0,p:makePerson(playerOpts(START_GENDER))};
+// ---- bicycles parked at the main gate (ride = 2x speed) ----
+function makeBike(col,basket){const g=new THREE.Group(),fm=new THREE.MeshPhongMaterial({color:col,shininess:80}),dk=lam(0x1c1c20),ch=new THREE.MeshPhongMaterial({color:0xd8d8e0,shininess:120});
+  const wheels=[];for(const z of[0.62,-0.62]){const w=new THREE.Group();w.position.set(0,0.34,z);const tire=new THREE.Mesh(new THREE.TorusGeometry(0.31,0.045,8,22),dk);tire.rotation.y=Math.PI/2;w.add(tire);
+    for(let k=0;k<4;k++){const sp=new THREE.Mesh(new THREE.CylinderGeometry(0.008,0.008,0.6,4),ch);sp.rotation.x=k*Math.PI/4;w.add(sp);}const hub=new THREE.Mesh(new THREE.CylinderGeometry(0.05,0.05,0.1,8),ch);hub.rotation.z=Math.PI/2;w.add(hub);g.add(w);wheels.push(w);}
+  const tube=(a,b,r,mt)=>{const A=new THREE.Vector3(...a),B=new THREE.Vector3(...b),L=A.distanceTo(B),m=new THREE.Mesh(new THREE.CylinderGeometry(r,r,L,8),mt||fm);m.position.copy(A).add(B).multiplyScalar(0.5);m.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),B.clone().sub(A).normalize());g.add(m);return m;};
+  tube([0,0.34,-0.62],[0,0.42,-0.05],0.035);tube([0,0.42,-0.05],[0,0.82,-0.2],0.04);tube([0,0.82,-0.2],[0,0.8,0.42],0.035);tube([0,0.42,-0.05],[0,0.8,0.42],0.04);tube([0,0.34,0.62],[0,0.98,0.48],0.035,ch);
+  tube([0,0.82,-0.2],[0,0.34,-0.62],0.03);const seat=box(0.16,0.06,0.3,dk);seat.position.set(0,0.9,-0.24);g.add(seat);tube([0,0.82,-0.2],[0,0.9,-0.24],0.02,ch);
+  const bar=new THREE.Mesh(new THREE.CylinderGeometry(0.022,0.022,0.6,8),ch);bar.rotation.z=Math.PI/2;bar.position.set(0,1.0,0.46);g.add(bar);for(const sx of[-0.3,0.3]){const gp=new THREE.Mesh(new THREE.CylinderGeometry(0.035,0.035,0.12,8),dk);gp.rotation.z=Math.PI/2;gp.position.set(sx,1.0,0.46);g.add(gp);}
+  const crank=new THREE.Group();crank.position.set(0,0.42,-0.05);for(const sx of[-1,1]){const arm=box(0.03,0.18,0.03,ch);arm.position.set(sx*0.09,-0.08*sx,0);crank.add(arm);const ped=box(0.1,0.03,0.06,dk);ped.position.set(sx*0.13,-0.17*sx,0);crank.add(ped);}g.add(crank);
+  const fend=new THREE.Mesh(new THREE.TorusGeometry(0.36,0.02,6,14,Math.PI*0.6),fm);fend.rotation.y=Math.PI/2;fend.rotation.x=0;fend.position.set(0,0.34,-0.62);fend.rotation.z=Math.PI*0.25;g.add(fend);
+  if(basket){const bm=lam(0xffffff),bk=new THREE.Group();bk.position.set(0,0.98,0.7);for(const [w,h,d,x,y,z] of[[0.36,0.02,0.26,0,-0.12,0],[0.36,0.24,0.02,0,0,0.13],[0.36,0.24,0.02,0,0,-0.13],[0.02,0.24,0.26,0.18,0,0],[0.02,0.24,0.26,-0.18,0,0]]){const b=box(w,h,d,bm);b.position.set(x,y,z);bk.add(b);}for(let k=-1;k<=1;k++){const r=box(0.37,0.015,0.27,lam(0xe8e8e8));r.position.y=k*0.07;bk.add(r);}g.add(bk);}
+  const lamp=sph(0.05,new THREE.MeshBasicMaterial({color:0xfff6c0}),8,6);lamp.position.set(0,0.9,0.58);g.add(lamp);
+  g.traverse(o=>{if(o.isMesh)o.castShadow=true;});return {g,wheels,crank};}
+const BIKES=[];
+{const a=BOUNDW[GATE_SEG],b=BOUNDW[GATE_SEG+1],L=Math.hypot(b[0]-a[0],b[1]-a[1]),ux=(b[0]-a[0])/L,uz=(b[1]-a[1])/L;
+  [['橘色腳踏車',0xff8a1a,true,-3.4],['紅色腳踏車',0xe02a2a,false,-4.6]].forEach(([name,col,bk,off])=>{const B=makeBike(col,bk);const x=GATE_START.x+ux*off,z=GATE_START.z+uz*off,face=GATE_START.face+Math.PI/2;
+    B.g.position.set(x,0,z);B.g.rotation.y=face;B.g.rotation.z=0.12;scene.add(B.g);const lb=makeLabel('🚲 '+name,'rgba(255,138,26,.92)','#fff');lb.position.y=1.5;lb.scale.set(1.7,0.42,1);B.g.add(lb);B.lbl=lb;
+    BIKES.push(Object.assign(B,{kind:'bike',name,x,z,face}));});}
+function rideBike(B){G.bike=B;scene.remove(B.g);B.g.rotation.set(0,0,0);B.g.position.set(0,0,0);B.lbl.visible=false;player.p.root.add(B.g);sfx('power');banner(`騎上${B.name}！速度快一倍（按 E 下車）`);}
+function leaveBike(){const B=G.bike;if(!B)return;G.bike=null;player.p.root.remove(B.g);B.x=player.x+Math.cos(player.facing)*0.9;B.z=player.z-Math.sin(player.facing)*0.9;B.face=player.facing;B.g.position.set(B.x,Math.max(0,player.y),B.z);B.g.rotation.set(0,B.face,0.12);B.lbl.visible=true;scene.add(B.g);
+  player.p.body.position.y=0;sfx('talk');}
 function addPlayerRing(){const ring=new THREE.Mesh(new THREE.RingGeometry(0.42,0.52,24),new THREE.MeshBasicMaterial({color:0xf2c230,transparent:true,opacity:.8}));ring.rotation.x=-Math.PI/2;ring.position.y=0.03;player.p.root.add(ring);}
 scene.add(player.p.root);
 addPlayerRing();
@@ -1575,6 +1596,8 @@ function hint(){const f=friendsOf().length;
   if(G.kills<G.killGoal)return `體力補滿了！再打倒 ${G.killGoal-G.kills} 隻怪獸，大魔王就會出現！`;
   return '體力補滿了，加油！';}
 function interact(n){
+  if(n.kind==='bike'){rideBike(n);return;}
+  if(G.bike)leaveBike();
   if(n.kind==='chest'){openChest(n);return;}
   if(n.kind==='room'){enterRoom(n.room);return;}
   faceTo(n.p.root,n.x,n.z,player.x,player.z);
@@ -1626,7 +1649,7 @@ addEventListener('keydown',e=>{keys[e.code]=true;
   if(e.code==='KeyM'){SET.mute=!SET.mute;saveSet();applyAudio();syncToolbar();banner(SET.mute?'已靜音':'聲音開啟',1);}
   if(e.code==='Space')e.preventDefault();
   if(bagOpen){if(['KeyC','KeyI','Escape'].includes(e.code))toggleBag(false);return;}
-  if(e.code==='KeyE'||e.code==='Enter'){if(dlg)advance();else if(nearNPC)interact(nearNPC);return;}
+  if(e.code==='KeyE'||e.code==='Enter'){if(dlg)advance();else if(nearNPC)interact(nearNPC);else if(G.bike)leaveBike();return;}
   if(dlg){if(e.code==='Space'&&!e.repeat)advance();return;}
   if(e.code.startsWith('Digit')){const n=+e.code.slice(5);if(n>=1&&n<=9)selectSlot(n-1);}
   if(e.code==='KeyC'||e.code==='KeyI')toggleBag(true);
@@ -1665,7 +1688,7 @@ function joyMove(e){const r=$('joy').getBoundingClientRect();let dx=e.clientX-(r
   $('knob').style.transform=`translate(${dx}px,${dy}px)`;joy.x=dx/m;joy.y=-dy/m;}
 const tb=(id,down,up)=>{const el=$(id);el.addEventListener('pointerdown',e=>{e.stopPropagation();e.preventDefault();down();});if(up)['pointerup','pointercancel','pointerleave'].forEach(t=>el.addEventListener(t,up));};
 tb('bThrow',()=>{if(dlg){advance();return;}leftDown=true;leftT=0.2;},()=>{leftDown=false;});
-tb('bTalk',()=>{if(dlg)advance();else if(nearNPC)interact(nearNPC);});
+tb('bTalk',()=>{if(dlg)advance();else if(nearNPC)interact(nearNPC);else if(G.bike)leaveBike();});
 tb('bJump',()=>{jumpHeld=true;},()=>{jumpHeld=false;});
 tb('bPlace',()=>{placeReq=true;});
 tb('bBag',()=>toggleBag(!bagOpen));
@@ -1691,7 +1714,7 @@ function updatePlayer(dt){
   const fx=-Math.sin(yaw),fz=-Math.cos(yaw),rx=Math.cos(yaw),rz=-Math.sin(yaw);
   const dx=fx*iz+rx*ix,dz=fz*iz+rz*ix,mag=Math.min(1,Math.hypot(dx,dz));
   const inWater=getV(Math.floor(player.x),Math.floor(player.y+0.4),Math.floor(player.z))===BID.water;
-  const run=keys.ShiftLeft||keys.ShiftRight||Math.hypot(joy.x,joy.y)>0.9;const sp=(run?8:5.2)*(G.fast?1.3:1)*(PKS?1.25:1)*(inWater?0.6:1)*mag;
+  const run=keys.ShiftLeft||keys.ShiftRight||Math.hypot(joy.x,joy.y)>0.9;const sp=(run?8:5.2)*(G.bike?2:1)*(G.fast?1.3:1)*(PKS?1.25:1)*(inWater?0.6:1)*mag;
   if(mag>0.05){moveEntity(player,dx/mag*sp*dt,dz/mag*sp*dt,0.33);const tgt=Math.atan2(dx,dz);let d=((tgt-player.facing+Math.PI*3)%(Math.PI*2))-Math.PI;player.facing+=d*Math.min(1,dt*12);}
   if(player.onGround)player.lastGround=T;const jumpNow=keys.Space||jumpHeld;if(jumpNow&&!player.jumpWas)player.jumpReq=T;player.jumpWas=jumpNow;
   if(G.creative&&jumpNow)player.vy=Math.max(player.vy,6.5);
@@ -1708,6 +1731,7 @@ function updatePlayer(dt){
   if((wantShot||keys.KeyF||keys.KeyJ||(leftDown&&leftT>0.15&&(!onBlock||closeEnemy)))&&player.cd<=0)doAttack();
   wantShot=false;
   player.p.root.position.set(player.x,player.y,player.z);player.p.root.rotation.y=player.facing;animPerson(player.p,player.onGround?player.speed:0,dt);
+  if(G.bike){const B=G.bike,P2=player.p;if(B.g.parent!==P2.root)P2.root.add(B.g);B.ph=(B.ph||0)+player.speed*dt*2.2;P2.body.position.y=0.36;P2.body.position.z=-0.22;P2.legL.rotation.x=-1.0+Math.sin(B.ph)*0.55;P2.legR.rotation.x=-1.0-Math.sin(B.ph)*0.55;P2.armL.rotation.set(-1.25,0,0.12);P2.armR.rotation.set(-1.25,0,-0.12);B.crank.rotation.x=-B.ph;for(const w of B.wheels)w.rotation.x-=player.speed*dt/0.34;}
   player.p.root.visible=!firstPerson&&!(player.inv>0&&Math.floor(T*16)%2===0&&G.hp<G.maxHp);
 }
 // ---- dig & build ----
@@ -1778,6 +1802,7 @@ function updateNPCs(dt){
     n.p.root.position.set(n.x,n.y,n.z);animPerson(n.p,speed,dt);if(n.sit){n.p.legL.rotation.x=n.p.legR.rotation.x=-1.45;n.p.body.position.y=-0.3;n.p.armL.rotation.x=n.p.armR.rotation.x=-0.9;}
     if(!n.recruited)n.p.body.position.y=Math.abs(Math.sin(T*2+n.p.phase))*0.02;
   }
+  if(!G.bike&&player.y<2)for(const b2 of BIKES){const d=Math.hypot(player.x-b2.x,player.z-b2.z);if(d<Math.min(bd,2.2)){bd=d;nearNPC=b2;}}
   for(const c of CHESTS){c.mk.position.y=1.3+Math.sin(T*4)*0.1;const d=Math.hypot(player.x-c.x,player.z-c.z);if(d<Math.min(bd,2.4)&&Math.abs(player.y-c.y)<1.3){bd=d;nearNPC=c;}}
   if(!nearNPC){const r=roomAt(player.x,player.y,player.z);if(r)nearNPC={kind:'room',name:r.special.label,room:r};}
   if(!nearNPC&&player.y<2&&Math.hypot(player.x-BB_PT.x,player.z-BB_PT.z)<4)nearNPC={kind:'room',name:'足球大亂鬥',room:{special:{type:'ballbrawl',label:'足球大亂鬥'}}};
@@ -1895,7 +1920,7 @@ function updateHUD(){
   const html=qs.map(([d,t],i)=>`<li class="${d?'done':isCur(i)?'cur':''}">${d?'☑':'☐'} ${t}</li>`).join('');
   const buffs=(G.dmg>1?'<span>💪 攻擊加倍</span>':'')+(G.rapid?'<span>⚡ 躲避球連發</span>':'')+(G.shield?'<span>🫧 泡泡護盾</span>':'')+(G.fast?'<span>👟 跳跳鞋</span>':'');
   const key=html+buffs;if(key!==hudCache){hudCache=key;$('quests').innerHTML=html;$('buffs').innerHTML=buffs;}
-  const pr=$('prompt');if(nearNPC&&!isPaused()){pr.style.display='block';const verb=nearNPC.kind==='chest'?'打開寶箱':nearNPC.kind==='room'?(nearNPC.room.special.type==='home'?'回家休息':`進入「${nearNPC.name}」挑戰`):`和 ${nearNPC.name} 說話`;pr.textContent=(isTouch?'點「對話」':'按 E ')+verb;$('bTalk').classList.add('hot');}else{pr.style.display='none';$('bTalk').classList.remove('hot');}
+  const pr=$('prompt');if(nearNPC&&!isPaused()){pr.style.display='block';const verb=nearNPC.kind==='bike'?`騎上${nearNPC.name}`:nearNPC.kind==='chest'?'打開寶箱':nearNPC.kind==='room'?(nearNPC.room.special.type==='home'?'回家休息':`進入「${nearNPC.name}」挑戰`):`和 ${nearNPC.name} 說話`;pr.textContent=(isTouch?'點「對話」':'按 E ')+verb;$('bTalk').classList.add('hot');}else if(G.bike&&!isPaused()){pr.style.display='block';pr.textContent=(isTouch?'點「對話」':'按 E ')+'下車';$('bTalk').classList.remove('hot');}else{pr.style.display='none';$('bTalk').classList.remove('hot');}
   $('modeChip').textContent=G.creative?'🛠 創造模式':'⚔ 冒險模式';
   $('where').textContent=player.y>60?'跑酷關卡':colKind(player.x,player.z)!==K_SCHOOL&&colKind(player.x,player.z)!==K_DIG&&player.y>-0.5&&player.y<1.5?'校外':player.y<-0.5?`地下 ${Math.ceil(-player.y)} 公尺`:player.y>12.6?'屋頂':player.y>1.5?`${Math.floor((player.y+0.5)/3.3)+1}F`:'';
   if(invDirty)renderHotbar();
