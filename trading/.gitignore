@@ -1,0 +1,4 @@
+.env
+trade_log.jsonl
+__pycache__/
+.pytest_cache/
