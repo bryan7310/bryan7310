@@ -6,6 +6,7 @@ ALPACA_LIVE=1 且執行時加 --i-understand-real-money。
 from __future__ import annotations
 
 import os
+import time
 from datetime import datetime, timedelta, timezone
 
 import pandas as pd
@@ -14,6 +15,7 @@ import requests
 PAPER_URL = "https://paper-api.alpaca.markets"
 LIVE_URL = "https://api.alpaca.markets"
 DATA_URL = "https://data.alpaca.markets"
+RETRY_STATUS = {429, 500, 502, 503, 504}
 
 
 class AlpacaClient:
@@ -30,10 +32,23 @@ class AlpacaClient:
         self.s = requests.Session()
         self.s.headers.update({"APCA-API-KEY-ID": key, "APCA-API-SECRET-KEY": secret})
 
-    def _get(self, url, **params):
-        r = self.s.get(url, params=params, timeout=30)
-        r.raise_for_status()
-        return r.json()
+    def _get(self, url, retries: int = 4, **params):
+        """GET 遇到 Alpaca 暫時性錯誤（5xx、429、連線中斷）會等一下再試。
+        只用在讀取，不會重送訂單。"""
+        for attempt in range(retries + 1):
+            try:
+                r = self.s.get(url, params=params, timeout=30)
+                if r.status_code in RETRY_STATUS and attempt < retries:
+                    raise requests.HTTPError(f"{r.status_code}", response=r)
+                r.raise_for_status()
+                return r.json()
+            except (requests.ConnectionError, requests.Timeout, requests.HTTPError) as e:
+                status = getattr(getattr(e, "response", None), "status_code", None)
+                if attempt >= retries or (status is not None and status not in RETRY_STATUS):
+                    raise
+                wait = 5 * 2 ** attempt
+                print(f"Alpaca 暫時無法連線（{status or type(e).__name__}），{wait} 秒後重試…")
+                time.sleep(wait)
 
     def account(self) -> dict:
         return self._get(f"{self.base}/v2/account")

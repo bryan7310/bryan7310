@@ -54,3 +54,30 @@ def test_get_config_reads_env(monkeypatch):
     assert get_config() is PRESETS["aggressive"]
     monkeypatch.delenv("STRATEGY")
     assert get_config() is PRESETS["conservative"]
+
+
+def test_get_retries_on_503(monkeypatch):
+    import alpaca_client
+
+    class Resp:
+        def __init__(self, code):
+            self.status_code = code
+        def raise_for_status(self):
+            if self.status_code >= 400:
+                raise alpaca_client.requests.HTTPError(str(self.status_code), response=self)
+        def json(self):
+            return {"ok": True}
+
+    monkeypatch.setenv("ALPACA_API_KEY", "x")
+    monkeypatch.setenv("ALPACA_API_SECRET", "y")
+    monkeypatch.setattr(alpaca_client.time, "sleep", lambda s: None)
+    api = alpaca_client.AlpacaClient()
+    codes = iter([503, 503, 200])
+    monkeypatch.setattr(api.s, "get", lambda *a, **k: Resp(next(codes)))
+    assert api._get("u") == {"ok": True}
+
+    api2 = alpaca_client.AlpacaClient()
+    monkeypatch.setattr(api2.s, "get", lambda *a, **k: Resp(401))
+    import pytest
+    with pytest.raises(alpaca_client.requests.HTTPError):
+        api2._get("u")  # 401 金鑰錯誤不重試
