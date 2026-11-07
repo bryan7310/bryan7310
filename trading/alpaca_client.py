@@ -48,6 +48,9 @@ class AlpacaClient:
     def open_orders(self) -> list:
         return self._get(f"{self.base}/v2/orders", status="open")
 
+    def orders_since(self, after_iso: str) -> list:
+        return self._get(f"{self.base}/v2/orders", status="all", after=after_iso, limit=500)
+
     def submit_notional(self, symbol: str, side: str, notional: float) -> dict:
         body = {"symbol": symbol, "side": side, "type": "market",
                 "time_in_force": "day", "notional": f"{notional:.2f}"}

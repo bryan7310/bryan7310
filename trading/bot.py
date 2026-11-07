@@ -10,7 +10,7 @@ from __future__ import annotations
 import argparse
 import json
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 from alpaca_client import AlpacaClient
@@ -24,6 +24,8 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--execute", action="store_true", help="實際送出訂單")
     ap.add_argument("--i-understand-real-money", action="store_true")
+    ap.add_argument("--monthly", action="store_true",
+                    help="排程用：本月已交易過、或今天休市就直接略過（不算失敗）")
     ap.add_argument("--force", action="store_true", help="市場未開盤也照樣送單（會排隊到開盤）")
     args = ap.parse_args()
 
@@ -36,6 +38,19 @@ def main():
         raise SystemExit("帳戶被限制交易，停止。")
     equity = float(acct["equity"])
     print(f"總資產：${equity:,.2f}　可用現金：${float(acct['cash']):,.2f}")
+
+    if args.monthly:
+        clock = api.clock()
+        if not clock["is_open"]:
+            print(f"今天沒開盤（下次開盤 {clock['next_open']}），略過。")
+            return
+        month_start = datetime.now(timezone.utc).strftime("%Y-%m-01T00:00:00Z")
+        traded = [o for o in api.orders_since(month_start)
+                  if o["symbol"] in set(cfg.universe) | {cfg.safe_asset}
+                  and o["status"] not in ("canceled", "expired", "rejected")]
+        if traded:
+            print(f"本月已調整過（{len(traded)} 筆訂單），略過。")
+            return
 
     if api.open_orders():
         raise SystemExit("還有未成交訂單，為避免重複下單先停止。請到 Alpaca 後台確認。")
