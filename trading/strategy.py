@@ -26,6 +26,29 @@ class StrategyConfig:
     cash_buffer: float = 0.02  # 保留 2% 現金，避免下單金額不足
 
 
+PRESETS = {
+    # 穩健型：大類資產輪動，6 個月動能，持有 3 檔
+    "conservative": StrategyConfig(),
+    # 積極型：產業／成長型 ETF，3 個月動能，集中持有 2 檔
+    "aggressive": StrategyConfig(
+        universe=["QQQ", "SMH", "XLK", "XLC", "XLY", "XLF", "XLE", "XLV", "XLI", "IWM", "GLD"],
+        lookback_days=63,
+        top_n=2,
+        max_weight=0.50,
+    ),
+}
+PRESET_NAMES = {"conservative": "穩健型", "aggressive": "積極型"}
+
+
+def get_config(name: str | None = None) -> StrategyConfig:
+    """依名稱取策略設定；沒指定時讀環境變數 STRATEGY，預設穩健型。"""
+    import os
+    name = (name or os.environ.get("STRATEGY") or "conservative").strip().lower()
+    if name not in PRESETS:
+        raise SystemExit(f"未知策略 {name!r}，可用：{', '.join(PRESETS)}")
+    return PRESETS[name]
+
+
 def momentum_scores(closes: pd.DataFrame, cfg: StrategyConfig) -> pd.Series:
     """回傳每檔標的最新的動能分數；未通過過濾的為 NaN。"""
     need = max(cfg.lookback_days, cfg.sma_days) + 1

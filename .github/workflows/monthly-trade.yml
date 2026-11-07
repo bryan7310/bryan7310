@@ -11,6 +11,11 @@ on:
         description: "實際送單（否則只試算）"
         type: boolean
         default: false
+      strategy:
+        description: "策略（預設用 repo 變數 STRATEGY，沒設就是穩健型）"
+        type: choice
+        options: [預設, conservative, aggressive]
+        default: 預設
 
 concurrency:
   group: monthly-trade
@@ -25,6 +30,8 @@ jobs:
     env:
       ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
       ALPACA_API_SECRET: ${{ secrets.ALPACA_API_SECRET }}
+      # 每月自動執行用的策略：到 Settings → Secrets and variables → Actions → Variables 設 STRATEGY
+      STRATEGY: ${{ (inputs.strategy && inputs.strategy != '預設') && inputs.strategy || vars.STRATEGY || 'conservative' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
