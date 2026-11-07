@@ -14,14 +14,15 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from alpaca_client import AlpacaClient
-from strategy import StrategyConfig, plan_orders, target_weights
+from strategy import PRESET_NAMES, get_config, plan_orders, target_weights
 
 LOG = Path(__file__).with_name("trade_log.jsonl")
-MAX_ORDER_PCT = 0.45  # 防呆：單筆訂單不得超過總資產 45%
 
 
 def main():
     ap = argparse.ArgumentParser()
+    ap.add_argument("--strategy", choices=list(PRESET_NAMES),
+                    help="conservative=穩健型、aggressive=積極型（預設讀環境變數 STRATEGY，否則穩健型）")
     ap.add_argument("--execute", action="store_true", help="實際送出訂單")
     ap.add_argument("--i-understand-real-money", action="store_true")
     ap.add_argument("--monthly", action="store_true",
@@ -29,8 +30,11 @@ def main():
     ap.add_argument("--force", action="store_true", help="市場未開盤也照樣送單（會排隊到開盤）")
     args = ap.parse_args()
 
-    cfg = StrategyConfig()
+    cfg = get_config(args.strategy)
+    strategy_name = args.strategy or __import__("os").environ.get("STRATEGY") or "conservative"
+    max_order_pct = cfg.max_weight + 0.05  # 防呆：單筆訂單不得明顯超過單檔上限
     api = AlpacaClient(allow_live=args.i_understand_real_money)
+    print(f"策略：{PRESET_NAMES[strategy_name.strip().lower()]}")
     print(f"帳戶模式：{'⚠️ 真實帳戶' if api.live else '模擬帳戶 (paper)'}")
 
     acct = api.account()
@@ -46,8 +50,7 @@ def main():
             return
         month_start = datetime.now(timezone.utc).strftime("%Y-%m-01T00:00:00Z")
         traded = [o for o in api.orders_since(month_start)
-                  if o["symbol"] in set(cfg.universe) | {cfg.safe_asset}
-                  and o["status"] not in ("canceled", "expired", "rejected")]
+                  if o["status"] not in ("canceled", "expired", "rejected")]
         if traded:
             print(f"本月已調整過（{len(traded)} 筆訂單），略過。")
             return
@@ -71,8 +74,8 @@ def main():
         return
     print("\n預計訂單：")
     for o in orders:
-        if o["notional"] > equity * MAX_ORDER_PCT and not o["close_all"]:
-            raise SystemExit(f"防呆觸發：{o} 超過總資產 {MAX_ORDER_PCT:.0%}，停止。")
+        if o["notional"] > equity * max_order_pct and not o["close_all"]:
+            raise SystemExit(f"防呆觸發：{o} 超過總資產 {max_order_pct:.0%}，停止。")
         print(f"  {o['side'].upper():4} {o['symbol']:5} ${o['notional']:,.2f}{'（全部出清）' if o['close_all'] else ''}")
 
     if not args.execute:
@@ -92,7 +95,7 @@ def main():
             if o["side"] == "sell":
                 time.sleep(2)  # 讓賣單先成交釋出現金
             rec = {"time": datetime.now().isoformat(), "order": o, "id": res.get("id"),
-                   "status": res.get("status"), "live": api.live}
+                   "status": res.get("status"), "live": api.live, "strategy": strategy_name}
             f.write(json.dumps(rec, ensure_ascii=False) + "\n")
             print("  已送出", o["symbol"], res.get("status"))
     print(f"\n完成，紀錄寫入 {LOG.name}")

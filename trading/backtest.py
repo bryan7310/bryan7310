@@ -11,7 +11,7 @@ import argparse
 import numpy as np
 import pandas as pd
 
-from strategy import StrategyConfig, target_weights
+from strategy import PRESET_NAMES, PRESETS, StrategyConfig, target_weights
 
 
 def run(closes: pd.DataFrame, cfg: StrategyConfig, cost_bps: float = 5.0) -> pd.DataFrame:
@@ -48,18 +48,25 @@ def main():
     ap.add_argument("--csv")
     ap.add_argument("--days", type=int, default=2500)
     args = ap.parse_args()
-    cfg = StrategyConfig()
-    symbols = sorted(set(cfg.universe) | {cfg.safe_asset})
+    symbols = sorted({"SPY", "QQQ"} | {s for c in PRESETS.values() for s in c.universe + [c.safe_asset]})
     if args.csv:
         closes = pd.read_csv(args.csv, index_col=0, parse_dates=True)
     else:
         from alpaca_client import AlpacaClient
         closes = AlpacaClient().daily_closes(symbols, days=args.days)
-    closes = closes.dropna()
-    eq = run(closes, cfg)["equity"]
-    spy = closes["SPY"].loc[eq.index]
-    print(f"期間：{eq.index[0].date()} ~ {eq.index[-1].date()}")
-    print(pd.DataFrame({"動能輪動": stats(eq), "買進持有 SPY": stats(spy)}).to_string())
+    closes = closes.dropna()  # 從所有標的都有資料的那天開始，比較才公平
+    curves = {PRESET_NAMES[k]: run(closes, c)["equity"] for k, c in PRESETS.items()}
+    idx = next(iter(curves.values())).index
+    curves["買進持有 SPY"] = closes["SPY"].loc[idx]
+    curves["買進持有 QQQ"] = closes["QQQ"].loc[idx]
+    print(f"期間：{idx[0].date()} ~ {idx[-1].date()}（含每次換股 0.05% 成本）\n")
+    table = pd.DataFrame({k: stats(v.loc[idx]) for k, v in curves.items()})
+    print(table.to_string())
+    yearly = pd.DataFrame({k: v.loc[idx].resample("YE").last().pct_change().fillna(
+        v.loc[idx].resample("YE").last().iloc[0] / v.loc[idx].iloc[0] - 1) for k, v in curves.items()})
+    yearly.index = yearly.index.year
+    print("\n各年度報酬：")
+    print(yearly.map(lambda x: f"{x:.1%}").to_string())
 
 
 if __name__ == "__main__":

@@ -14,6 +14,22 @@
 
 參數在 `strategy.py` 的 `StrategyConfig`。
 
+### 積極型（aggressive）
+| 項目 | 設定 |
+|---|---|
+| 候選標的 | QQQ（那斯達克）、SMH（半導體）、XLK（科技）、XLC（通訊）、XLY（非必需消費）、XLF（金融）、XLE（能源）、XLV（醫療）、XLI（工業）、IWM（小型股）、GLD（黃金） |
+| 動能 | 過去 63 個交易日（約 3 個月） |
+| 持有 | 最強 2 檔，各約 49%（單檔上限 50%） |
+| 煞車 | 同樣保留 200 日均線過濾，都不符合就放 SHY |
+
+報酬潛力較高，但集中在 2 檔產業 ETF，波動與回撤通常比穩健型大。
+
+### 切換策略
+- **每月自動執行用哪一套**：GitHub repo → Settings → Secrets and variables → Actions → **Variables** 分頁 → New repository variable，Name 填 `STRATEGY`，Value 填 `aggressive`（積極型）或 `conservative`（穩健型）。沒設就是穩健型。
+- **手動執行**：Run workflow 時可從「策略」選單挑選，只影響這一次。
+- **本機**：`python3 bot.py --strategy aggressive`
+- 切換後下個月調整時，程式會自動賣出不在新策略裡的持股。
+
 ## 安全機制
 - 預設 **試算模式**：只列出會下的單，加 `--execute` 才送出。
 - 預設連 **模擬帳戶**；真實帳戶需同時設定 `ALPACA_LIVE=1` 並加 `--i-understand-real-money`。
@@ -29,7 +45,7 @@
    export ALPACA_API_KEY=你的Key
    export ALPACA_API_SECRET=你的Secret
    ```
-4. 回測（約 10 年資料，和買進持有 SPY 比較）：`python3 backtest.py`
+4. 回測（兩種策略 + 買進持有 SPY／QQQ 比較）：`python3 backtest.py`，或在 GitHub **Actions → 策略回測比較 → Run workflow**，結果顯示在執行頁面的 Summary
 5. 試算本月要下的單：`python3 bot.py`
 6. 確認沒問題後送單（美股開盤時間，台灣約晚上 9:30／冬令 10:30 之後）：`python3 bot.py --execute`
 7. 每月第一個交易日執行一次即可（可用 cron 或 GitHub Actions 排程）。

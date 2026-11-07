@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 
 from backtest import run
-from strategy import StrategyConfig, plan_orders, target_weights
+from strategy import PRESETS, StrategyConfig, get_config, plan_orders, target_weights
 
 
 def make_prices(drifts, n=300, seed=0):
@@ -38,3 +38,19 @@ def test_backtest_runs():
     px = make_prices({"A": 0.001, "B": 0.0005, "C": -0.0005, "S": 0.0001}, n=600)
     eq = run(px, cfg)["equity"]
     assert len(eq) > 300 and eq.iloc[-1] > 0
+
+
+def test_aggressive_preset_concentrates_in_two():
+    cfg = PRESETS["aggressive"]
+    drifts = {s: -0.001 for s in cfg.universe}
+    drifts.update({"SMH": 0.003, "QQQ": 0.002, "XLK": 0.001, cfg.safe_asset: 0.0001})
+    w = target_weights(make_prices(drifts), cfg)
+    assert set(w) == {"SMH", "QQQ"}
+    assert abs(w["SMH"] - 0.49) < 1e-9
+
+
+def test_get_config_reads_env(monkeypatch):
+    monkeypatch.setenv("STRATEGY", "aggressive")
+    assert get_config() is PRESETS["aggressive"]
+    monkeypatch.delenv("STRATEGY")
+    assert get_config() is PRESETS["conservative"]
