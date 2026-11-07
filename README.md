@@ -39,3 +39,6 @@
 ## 查價專用版
 `readonly.html` 只能查價、加入報價單、複製報價文字，沒有「牌價管理」，資料固定用內建牌價。
 更新 `index.html` 或內建牌價後執行 `python3 data/build_readonly.py` 重新產生。
+
+## 其他
+- [`trading/`](trading/README.md)：美股 ETF 動能輪動自動交易程式（Alpaca 模擬帳戶）。

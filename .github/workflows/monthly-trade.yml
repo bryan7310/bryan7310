@@ -1,0 +1,50 @@
+name: 美股每月再平衡
+
+on:
+  schedule:
+    # 每月 1~7 日 15:30 UTC（美東 10:30 或 11:30，已開盤）
+    # 程式會自動略過週末與休市日，且每月只交易一次
+    - cron: "30 15 1-7 * *"
+  workflow_dispatch:
+    inputs:
+      execute:
+        description: "實際送單（否則只試算）"
+        type: boolean
+        default: false
+
+concurrency:
+  group: monthly-trade
+  cancel-in-progress: false
+
+jobs:
+  rebalance:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: trading
+    env:
+      ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
+      ALPACA_API_SECRET: ${{ secrets.ALPACA_API_SECRET }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt
+      - name: 測試
+        run: python -m pytest -q
+      - name: 再平衡
+        run: |
+          if [ "${{ github.event_name }}" = "schedule" ] || [ "${{ inputs.execute }}" = "true" ]; then
+            python bot.py --monthly --execute
+          else
+            python bot.py
+          fi
+      - name: 保存交易紀錄
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: trade-log-${{ github.run_id }}
+          path: trading/trade_log.jsonl
+          if-no-files-found: ignore
+          retention-days: 400
