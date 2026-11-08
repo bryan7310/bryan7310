@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""檢查進項發票並輸出 Excel。
+"""辨識整理發票：檢查統一編號、核對金額，輸出 Excel。
 
 用法：python3 check_invoices.py invoices.json 輸出.xlsx [--no-lookup]
 
