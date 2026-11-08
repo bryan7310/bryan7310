@@ -43,7 +43,7 @@ description: 檢查台灣統一發票（進項發票）並整理成 Excel 表單
 
 ### 3. 執行檢查
 ```bash
-python3 -I <本 skill 目錄>/scripts/check_invoices.py <invoices.json> <輸出.xlsx>
+python3 -I .claude/skills/invoice-check/scripts/check_invoices.py <invoices.json> <輸出.xlsx>
 ```
 - 會印出 JSON：張數、合計、`problems`（每個問題的發票號碼、類別、說明）、`registry`（每個統編的經濟部登記資料）。
 - 統編查詢使用 `data.gcis.nat.gov.tw`（經濟部商工登記開放 API）。若連線被擋（403 / CONNECT tunnel failed），在雲端環境用 `get_environment` 確認後，以 `update_environment` 把 `data.gcis.nat.gov.tw` 加入白名單；無法加入就改用 `--no-lookup`，並告訴使用者統編沒有上網核對。
