@@ -1,13 +1,13 @@
 ---
-name: 辨識整理發票
-description: 辨識整理發票：把發票 PDF 或照片（電子發票證明聯、三聯式手開發票、收銀機發票）辨識成 Excel 表單（序號、發票日期、發票號碼、發票類型、賣方名稱、賣方統編、品名摘要、銷售額、營業稅、總計、備註），再上網查經濟部登記核對賣方統一編號與名稱，並核對銷售額、營業稅、總計與品項金額。使用者上傳發票並說「整理發票」「辨識發票」「檢查發票」「核對統編」「核對金額」「做成表單」時使用。
+name: invoice-organizer
+description: 辨識整理發票（invoice-organizer）：把發票 PDF 或照片（電子發票證明聯、三聯式手開發票、收銀機發票）辨識成 Excel 表單（序號、發票日期、發票號碼、發票類型、賣方名稱、賣方統編、品名摘要、銷售額、營業稅、總計、備註），再上網查經濟部登記核對賣方統一編號與名稱，並核對銷售額、營業稅、總計與品項金額。使用者上傳發票並說「整理發票」「辨識發票」「檢查發票」「核對統編」「核對金額」「做成表單」時使用。
 ---
 
 # 辨識整理發票
 
 四個步驟：**辨識 PDF → 整理成表 → 檢查統一編號 → 核對金額**，最後交付 Excel 並回報。
 
-腳本：`.claude/skills/辨識整理發票/scripts/check_invoices.py`（以下簡稱「腳本」）。
+腳本：`.claude/skills/invoice-organizer/scripts/check_invoices.py`（以下簡稱「腳本」）。
 
 ---
 
@@ -79,7 +79,7 @@ description: 辨識整理發票：把發票 PDF 或照片（電子發票證明�
 執行腳本：
 
 ```bash
-python3 -I .claude/skills/辨識整理發票/scripts/check_invoices.py invoices.json 輸出.xlsx
+python3 -I .claude/skills/invoice-organizer/scripts/check_invoices.py invoices.json 輸出.xlsx
 ```
 
 腳本對每個賣方統編做以下檢查：
