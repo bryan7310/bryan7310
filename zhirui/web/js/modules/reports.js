@@ -14,7 +14,7 @@ let arSel = (() => { const v = ls.get('rp-ar-sel'); return Array.isArray(v) ? ne
 const arSave = () => ls.set('rp-ar-sel', arSel ? [...arSel] : null);
 const arHas = id => !arSel || arSel.has(id);
 export default {
-  id: 'reports', name: '報表', group: '管理', icon: 'reports',
+  id: 'reports', name: '報表明細', group: '管理', icon: 'reports',
   render(el) { this.el = el; draw(el); },
   onChange(ch) { if (this.el?.isConnected && (ch.has('bills') || ch.has('goods') || ch.has('contacts'))) draw(this.el); },
 };

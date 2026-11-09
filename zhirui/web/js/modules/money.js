@@ -6,7 +6,7 @@ import { calc } from '../core/calc.js';
 
 const ui = {};
 export default {
-  id: 'money', name: '收付款', group: '財務', icon: 'money',
+  id: 'money', name: '收款登記', group: '財務', icon: 'money',
   render(el, { params }) { this.el = el; draw(el); if (params.open) openBill(null, params.open); },
   onChange(ch) { if (this.el?.isConnected && (ch.has('bills') || ch.has('accounts') || ch.has('contacts'))) draw(this.el); },
 };

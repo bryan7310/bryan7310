@@ -1,12 +1,14 @@
 // 單據共用：清單、編輯器、列印（銷貨、進貨、報價、採購、出入庫、調撥、收付款）
-import { $, $$, esc, fmt, fmtQ, fp4, today, uid, matchQ, qTerms, roc, slash, thisMonth, money, isoOf, downloadText } from '../core/util.js';
+import { $, $$, esc, fmt, fmtQ, fp4, today, uid, matchQ, qTerms, roc, slash, thisMonth, money, isoOf, downloadText, ls } from '../core/util.js';
 import { store } from '../core/store.js';
 import { toast, modal, confirm, combo, pager, tabs, printHTML } from '../core/ui.js';
-import { TYPES, totals, lineAmt, calc, nextNo, cname, cshort, wname, gname, goodsLabel, customers, suppliers, defWh, qtyAt, bqty, uRate, lastSale, unitPrice, unitFactor, setHistPur } from '../core/calc.js';
+import { TYPES, totals, lineAmt, calc, nextNo, cname, cshort, wname, gname, goodsLabel, customers, suppliers, defWh, qtyAt, bqty, uRate, lastSale, unitPrice, unitFactor, setHistPur, costOf } from '../core/calc.js';
 import { api } from '../core/api.js';
 import { printName } from '../core/names.js';
 import { labelPicker } from './labels.js';
 import { faxDialog } from './faxes.js';
+import { openMaster } from './master.js';
+import { printShip, shipFormat, shipImportLines, shipTemplateXlsx, stockAdjust, specView, billKg, kgText } from './ship.js';
 
 export const billText = b => { const C = calc(); const c = C.ct[b.cid]; return [b.no, c?.code, c?.name, c?.short, b.cn, b.note, ...(b.lines || []).flatMap(l => { const g = C.g[l.gid]; return [g?.code, g?.name, g?.spec, l.n, l.memo]; })].filter(Boolean).join(' '); };
 export const partyLabel = b => { const C = calc(); const c = C.ct[b.cid]; return c ? (c.short || c.name) : (b.cn || '—'); };
@@ -166,62 +168,117 @@ export function openBill(type, id, onSaved, preset) {
 }
 function drawBill() {
   const e = edit, T = TYPES[e.type], C = calc();
-  const party = T.party ? (T.party === 'C' ? customers() : suppliers()) : [];
+  const ship = e.type === 'SALE' || e.type === 'SALE_RET';
+  const priced = !T.transfer && e.type !== 'OUT';
+  const showCost = ['SALE', 'SALE_RET', 'QUO'].includes(e.type);
   const whs = store.list('warehouses'), accts = store.list('accounts');
+  const balHint = T.party && e.cid && C.bal[e.cid] != null && !T.doc ? `<div class="hint muted small">目前${T.party === 'C' ? '應收' : '應付'} ${fmt(C.bal[e.cid])} 元</div>` : '';
   const body = `
     ${e.hist ? '<div class="banner">這是舊系統搬來的歷史單據，不計入現在的庫存與應收應付。</div>' : ''}
     <div class="grid">
-      <div class="f"><label for="b-date">日期</label><input type="date" id="b-date" value="${esc(e.date)}"></div>
+      <div class="f"><label for="b-date">單據日期</label><input type="date" id="b-date" value="${esc(e.date)}"></div>
       <div class="f"><label for="b-no">單號</label><input id="b-no" value="${esc(e.no)}" class="mono"></div>
-      ${T.party ? `<div class="f" style="grid-column:span 2"><label for="b-cid">${T.party === 'C' ? '客戶' : '供應商'}</label><div class="combo"><input id="b-cid" placeholder="輸入編號、名稱或簡稱搜尋" value="${esc(partyLabel(e) === '—' ? '' : partyLabel(e))}"></div></div>` : ''}
-      ${T.lines && !T.doc ? `<div class="f"><label for="b-wid">${T.transfer ? '調出倉庫' : '倉庫'}</label><select id="b-wid">${whs.map(w => `<option value="${w.id}" ${w.id === e.wid ? 'selected' : ''}>${esc(w.name)}</option>`).join('')}</select></div>` : ''}
+      ${T.party ? `<div class="f" style="grid-column:span 2"><label for="b-cid">${T.party === 'C' ? '客戶' : '供應商'}</label><div class="combo"><input id="b-cid" placeholder="打代號、名稱或簡稱的任何字" value="${esc(partyLabel(e) === '—' ? '' : partyLabel(e))}"></div>${balHint}</div>` : ''}
+      ${T.lines && !T.doc && !(ship && whs.length <= 1) ? `<div class="f"><label for="b-wid">${T.transfer ? '調出倉庫' : '倉庫'}</label><select id="b-wid">${whs.map(w => `<option value="${w.id}" ${w.id === e.wid ? 'selected' : ''}>${esc(w.name)}</option>`).join('')}</select></div>` : ''}
       ${T.transfer ? `<div class="f"><label for="b-toWid">調入倉庫</label><select id="b-toWid">${whs.map(w => `<option value="${w.id}" ${w.id === e.toWid ? 'selected' : ''}>${esc(w.name)}</option>`).join('')}</select></div>` : ''}
       ${T.money && !T.lines ? `<div class="f"><label for="b-amount">金額</label><input id="b-amount" class="num" inputmode="decimal" value="${esc(e.amount)}"></div><div class="f"><label for="b-aid">結算帳戶</label><select id="b-aid">${accts.map(a => `<option value="${a.id}" ${a.id === e.aid ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}</select></div>` : ''}
       ${!T.lines && !T.party ? `<div class="f"><label for="b-cat">項目</label><input id="b-cat" value="${esc(e.cat || '')}" placeholder="例如：運費、水電"></div>` : ''}
       ${T.doc ? `<div class="f"><label for="b-valid">${e.type === 'PO' ? '交期' : '有效期限'}</label><input type="date" id="b-valid" value="${esc(e.valid || e.deliv || '')}"></div><div class="f"><label for="b-attn">聯絡人</label><input id="b-attn" value="${esc(e.attn || '')}"></div>` : ''}
     </div>
-    ${T.lines ? `<div class="tw"><table class="lines" id="lines"><thead><tr><th style="width:38%">商品</th><th style="width:70px">單位</th><th style="width:110px" class="r">數量</th><th style="width:110px" class="r">單價</th><th style="width:110px" class="r">小計</th><th style="width:140px">備註</th><th style="width:30px"></th></tr></thead><tbody>${e.lines.map((l, i) => lineRow(l, i)).join('')}</tbody></table></div>
-      <div class="tools"><button class="btn sm" id="addLine">＋ 加一行</button><button class="btn sm" id="addTxt">＋ 文字列</button><span class="sp"></span>${T.party ? `<label class="check"><input type="checkbox" id="b-tax" ${e.tax ? 'checked' : ''}> 加 5% 營業稅</label><div class="f" style="width:120px"><input id="b-disc" class="num" placeholder="折讓" value="${e.disc || ''}" title="整單折讓金額"></div>` : ''}</div>
-      ${T.party ? `<div class="totals"><div><span>小計</span> <b id="t-sub"></b></div><div><span>稅額</span> <b id="t-tax"></b></div><div class="big"><span>總額</span> <b id="t-total"></b></div>${!T.doc ? `<div><span>${T.party === 'C' ? '已收' : '已付'}</span> <input id="b-paid" class="num" style="width:110px;border:1px solid var(--line);border-radius:6px;padding:5px 8px;text-align:right" value="${e.paid || ''}"></div><div><span>結算帳戶</span> <select id="b-aid" style="border:1px solid var(--line);border-radius:6px;padding:5px 8px">${accts.map(a => `<option value="${a.id}" ${a.id === e.aid ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}</select></div><div><span>尚欠</span> <b id="t-due"></b></div>` : ''}</div>` : ''}` : ''}
-    <div class="f"><label for="b-note">備註</label><textarea id="b-note" style="min-height:48px">${esc(e.note || '')}</textarea></div>
+    ${T.lines ? `<div class="tw"><table class="lines" id="lines"><thead><tr><th style="min-width:260px">商品</th><th style="width:100px" class="r">數量</th><th style="width:96px">單位</th>${priced ? '<th style="width:100px" class="r">單價</th><th style="width:90px" class="r">小計</th>' : ''}<th style="width:170px">${ship ? '備註（印在出貨單最後一欄）' : '備註'}</th>${showCost ? '<th style="width:90px" class="r">成本單價</th><th style="width:170px">成本來源</th>' : ''}<th style="width:30px"></th></tr></thead><tbody>${e.lines.map((l, i) => lineRow(l, i)).join('')}</tbody></table></div>
+      <div class="tools"><button class="btn sm" id="addLine">＋ 加一行</button><button class="btn sm" id="addTxt">＋ 加備註</button><button class="btn sm" id="newGoods">＋ 新增商品</button>${ship ? '<button class="btn sm" id="xlLines">從 Excel 匯入明細</button><button class="btn sm" id="xlTpl">下載匯入範本</button><span class="muted small">Excel 欄位：客料號、數量、採購單號</span>' : ''}</div>
+      ${ship ? `<div class="sumbox"><div><span>總重（約）</span><b id="t-wt" title="依商品單重計算；沒填單重的用規格估算"></b></div><div><span>商品小計</span><b id="t-sub"></b></div><div><label class="check"><input type="checkbox" id="b-tax" ${e.tax ? 'checked' : ''}> 加 5% 營業稅</label><b id="t-tax"></b></div><div class="big"><span>合計</span><b id="t-total"></b></div></div>`
+      : T.party ? `<div class="tools" style="justify-content:flex-end"><label class="check"><input type="checkbox" id="b-tax" ${e.tax ? 'checked' : ''}> 加 5% 營業稅</label><div class="f" style="width:120px"><input id="b-disc" class="num" placeholder="折讓" value="${e.disc || ''}" title="整單折讓金額"></div></div>
+        <div class="totals"><div><span>總重（約）</span> <b id="t-wt"></b></div><div><span>小計</span> <b id="t-sub"></b></div><div><span>稅額</span> <b id="t-tax"></b></div><div class="big"><span>總額</span> <b id="t-total"></b></div>${!T.doc ? `<div><span>${T.party === 'C' ? '已收' : '已付'}</span> <input id="b-paid" class="num" style="width:110px;border:1px solid var(--line);border-radius:6px;padding:5px 8px;text-align:right" value="${e.paid || ''}"></div><div><span>結算帳戶</span> <select id="b-aid" style="border:1px solid var(--line);border-radius:6px;padding:5px 8px">${accts.map(a => `<option value="${a.id}" ${a.id === e.aid ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}</select></div><div><span>尚欠</span> <b id="t-due"></b></div>` : ''}</div>` : ''}` : ''}
+    <div class="f"><label for="b-note">${ship ? '整張單備註（各行都沒填備註時，印在出貨單第一行最後一欄）' : '備註'}</label><textarea id="b-note" style="min-height:44px">${esc(e.note || '')}</textarea></div>
     ${e._err ? `<div class="err">${esc(e._err)}</div>` : ''}`;
-  const footer = `${e.id ? `<button class="btn danger" id="delBill">刪除</button>` : ''}${e.id && e.type === 'SALE' ? `<button class="btn" id="lblBill">標籤</button>` : ''}${e.id && T.doc ? `<button class="btn" id="faxBill">傳真</button>` : ''}${e.id && (e.type === 'SALE' || e.type === 'QUO' || e.type === 'PO' || e.type === 'PUR') ? `<button class="btn" id="printBill">列印</button>` : ''}${e.id && e.type === 'QUO' && !e.toBill ? `<button class="btn" id="toSale">轉成銷貨單</button>` : ''}${e.id && e.type === 'PO' && !e.received ? `<button class="btn" id="toPur">轉成進貨單</button>` : ''}<span class="sp"></span><button class="btn" data-close>取消</button><button class="btn pri" id="saveBill">儲存</button>`;
+  const footer = ship
+    ? `${e.id ? '<button class="btn" id="printShip">列印出貨單</button><button class="btn" id="printShipPn" title="品名前加印客料號">料號列印</button><button class="btn" id="printShipNa">列印（不含金額）</button><button class="btn sm" id="shipFmt" title="調整出貨單格式">格式</button>' : ''}${e.id ? '<button class="btn" id="lblBill">標籤</button>' : ''}${e.id && e.type === 'SALE' ? '<button class="btn" id="stkAdj">調整即時庫存</button>' : ''}${e.id ? '<button class="btn danger" id="delBill">刪除單據</button>' : ''}<span class="sp"></span><button class="btn" data-close>取消</button><button class="btn pri" id="saveBill">儲存</button>`
+    : `${e.id ? `<button class="btn danger" id="delBill">刪除</button>` : ''}${e.id && T.doc ? `<button class="btn" id="faxBill">傳真</button>` : ''}${e.id && (e.type === 'QUO' || e.type === 'PO' || e.type === 'PUR') ? `<button class="btn" id="printBill">列印</button>` : ''}${e.id && e.type === 'QUO' && !e.toBill ? `<button class="btn" id="toSale">轉成銷貨單</button>` : ''}${e.id && e.type === 'PO' && !e.received ? `<button class="btn" id="toPur">轉成進貨單</button>` : ''}<span class="sp"></span><button class="btn" data-close>取消</button><button class="btn pri" id="saveBill">儲存</button>`;
+  const nav = navList(e.type); const pos = e.id ? nav.findIndex(b => b.id === e.id) : nav.length;
+  const headExtra = T.lines ? `<button class="btn sm" id="navPrev" ${pos > 0 ? '' : 'disabled'} title="Alt+←">◀ 上一張</button><button class="btn sm" id="navNext" ${e.id && pos < nav.length - 1 ? '' : 'disabled'} title="Alt+→">下一張 ▶</button><button class="btn sm pri" id="saveBill2" title="Ctrl+S">儲存</button><button class="btn sm" id="dlgMax">${ls.get('zr.billMax', false) ? '還原' : '放大'}</button>` : '';
   if (dlg) dlg.close();
-  dlg = modal({ title: `${T.name}${e.id ? ' ' + e.no : ''}`, width: 980, body, footer, closeOnBg: false, onOpen: bindBill, onClose: () => { dlg = null; } });
+  dlg = modal({ title: `${e.id ? '' : '新增'}${T.name}${e.id ? ' ' + e.no : ''}`, width: T.lines ? 1240 : 760, body, footer, headExtra, closeOnBg: false, onOpen: bindBill, onClose: () => { dlg = null; } });
+  if (T.lines && ls.get('zr.billMax', false)) dlg.el.classList.add('max');
 }
+function navList(type) { return store.list('bills').filter(b => b.type === type && !b.hist).sort((a, b) => (a.date || '').localeCompare(b.date || '') || String(a.no).localeCompare(String(b.no))); }
 function lineRow(l, i) {
-  const C = calc(); const g = C.g[l.gid];
-  if (l.txt !== undefined) return `<tr data-i="${i}"><td colspan="6"><input data-f="txt" value="${esc(l.txt)}" placeholder="文字說明（不計價）"></td><td><button class="icon-btn" data-del="${i}" aria-label="刪除"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button></td></tr>`;
+  const C = calc(); const g = C.g[l.gid]; const T = TYPES[edit.type];
+  const priced = !T.transfer && edit.type !== 'OUT'; const showCost = ['SALE', 'SALE_RET', 'QUO'].includes(edit.type);
+  const span = 3 + (priced ? 2 : 0) + 1 + (showCost ? 2 : 0);
+  const del = `<td><button class="icon-btn" data-del="${i}" aria-label="刪除這行"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button></td>`;
+  if (l.txt !== undefined) return `<tr data-i="${i}" class="noteln"><td colspan="${span}"><div style="display:flex;align-items:center;gap:6px"><span class="pill" style="flex:none">備註</span><input data-f="txt" value="${esc(l.txt)}" placeholder="這一行備註，會印在單據上（例如：以上請分兩包裝、急件）"></div></td>${del}</tr>`;
   const have = lineHave(l);
-  const units = g ? [[g.unit || 'PCS', g.unit || 'PCS'], ...(g.aunit ? [['a', g.aunit]] : []), ['H', 'H（百支）'], ['K', 'K（千支）'], ['KG', 'KG']] : [];
-  return `<tr data-i="${i}"><td><div class="combo"><input data-f="gid" value="${esc(g ? goodsLabel(g) : l.n || '')}" placeholder="輸入料號、品名、規格搜尋"></div>${have != null ? `<div class="have ${(TYPES[edit.type].stock === -1 || TYPES[edit.type].transfer) && bqty(l, g) > have ? 'bad' : ''}">庫存 ${fmtQ(have)} ${esc(g?.unit || '')}</div>` : ''}${l._lp ? `<div class="lp">${esc(l._lp)}</div>` : ''}</td>
-    <td>${g ? `<select data-f="unit">${units.map(([v, lb]) => `<option value="${v}" ${(l.unit === 'a' ? 'a' : l.u || g.unit || 'PCS') === v ? 'selected' : ''}>${esc(lb)}</option>`).join('')}</select>` : `<input data-f="nu" value="${esc(l.unit || '')}" placeholder="單位">`}</td>
+  const units = g ? [[g.unit || 'PCS', g.unit || 'PCS'], ...(g.aunit ? [['a', `${g.aunit}（${fmtQ(g.arate || 1)}）`]] : []), ['H', 'H（百支）'], ['K', 'K（千支）'], ['KG', 'KG']].filter((x, k, a) => a.findIndex(y => y[0] === x[0]) === k) : [];
+  let cost = '';
+  if (showCost) {
+    const r = l.gid ? costOf(l, edit.date) : null; const base = !l.u && l.unit !== 'a';
+    cost = `<td class="n small">${l.gid && (!r || r.manual) && base ? `<input class="num" data-gcost="${i}" inputmode="decimal" value="${r ? Math.round(r.c * 10000) / 10000 : ''}" placeholder="填成本" title="查無成本時可自行填入，會存到商品資料的手動成本">` : r ? fp4(r.c) : ''}</td><td class="muted small csrc" title="${r ? esc(r.src) : '查無成本'}">${r ? esc(r.src) : l.gid ? '—' : ''}</td>`;
+  }
+  return `<tr data-i="${i}"><td><div class="combo"><input data-f="gid" value="${esc(g ? goodsLabel(g) : l.n || '')}" placeholder="打料號、品名、客料號搜尋"></div>${have != null ? `<div class="have ${(T.stock === -1 || T.transfer) && bqty(l, g) > have ? 'bad' : ''}">${esc(wname(edit.wid))}庫存 ${fmtQ(have)} ${esc(g?.unit || '')}</div>` : ''}${l._lp ? `<div class="lp">${esc(l._lp)}</div>` : ''}${g ? `<div class="glinks"><a href="#" data-spec="${i}">規格・圖面${g.dwg ? '（附客戶圖）' : ''}</a><a href="#" data-gedit="${i}">修改商品</a></div>` : ''}</td>
     <td><input data-f="qty" class="num" inputmode="decimal" value="${esc(l.qty)}"></td>
-    <td><input data-f="price" class="num" inputmode="decimal" value="${esc(l.price)}"></td>
-    <td class="n" id="ls-${i}">${fmt(lineAmt(l))}</td>
-    <td><input data-f="memo" value="${esc(l.memo || '')}"></td>
-    <td><button class="icon-btn" data-del="${i}" aria-label="刪除"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button></td></tr>`;
+    <td>${g ? `<select data-f="unit">${units.map(([v, lb]) => `<option value="${v}" ${(l.unit === 'a' ? 'a' : l.u || g.unit || 'PCS') === v ? 'selected' : ''}>${esc(lb)}</option>`).join('')}</select>` : `<input data-f="nu" value="${esc(l.unit || '')}" placeholder="單位">`}</td>
+    ${priced ? `<td><input data-f="price" class="num" inputmode="decimal" value="${esc(l.price)}"></td><td class="n" id="ls-${i}">${fmt(lineAmt(l))}</td>` : ''}
+    <td><input data-f="memo" value="${esc(l.memo || '')}" placeholder="${edit.type === 'SALE' || edit.type === 'SALE_RET' ? '例如採購單號' : ''}"></td>
+    ${cost}${del}</tr>`;
 }
 function lineHave(l) { if (!l.gid || !edit || !edit.wid || TYPES[edit.type].doc) return null; return qtyAt(l.gid, edit.wid); }
 function bindBill(el, close) {
   const e = edit, T = TYPES[e.type], C = calc();
-  const v = (id, f) => { const x = el.querySelector('#' + id); if (x) x.addEventListener('input', () => { f(x.value); updateTotals(el); }); };
+  const v = (id, f) => { const x = el.querySelector('#' + id); if (x) x.addEventListener('input', () => { f(x.value); e._dirty = true; updateTotals(el); }); };
   v('b-date', x => e.date = x); v('b-no', x => e.no = x); v('b-note', x => e.note = x); v('b-amount', x => e.amount = x); v('b-cat', x => e.cat = x); v('b-paid', x => e.paid = x); v('b-disc', x => e.disc = x); v('b-valid', x => { if (e.type === 'PO') e.deliv = x; else e.valid = x; }); v('b-attn', x => e.attn = x);
   ['b-wid', 'b-toWid', 'b-aid'].forEach(id => { const x = el.querySelector('#' + id); if (x) x.addEventListener('change', () => { e[id.slice(2)] = x.value; if (id === 'b-wid') redrawLines(el); }); });
   const tax = el.querySelector('#b-tax'); if (tax) tax.addEventListener('change', () => { e.tax = tax.checked; updateTotals(el); });
   const cid = el.querySelector('#b-cid');
-  if (cid) combo(cid, { items: () => (T.party === 'C' ? customers() : suppliers()).map(c => ({ id: c.id, label: c.short || c.name, sub: [c.code, c.short ? c.name : ''].filter(Boolean).join(' '), text: [c.code, c.name, c.short, ...(c.aliases || [])].join(' ') })), onPick: it => { e.cid = it.id; e.lines.forEach((l, i) => { if (l.gid && !l.price && C.g[l.gid]) applyLast(l, C.g[l.gid]); }); redrawLines(el); }, onClear: () => { e.cid = ''; } });
+  if (cid) combo(cid, { items: () => (T.party === 'C' ? customers() : suppliers()).map(c => ({ id: c.id, label: c.short || c.name, sub: [c.code, c.short ? c.name : ''].filter(Boolean).join(' '), text: [c.code, c.name, c.short, ...(c.aliases || [])].join(' ') })), onPick: it => { e.cid = it.id; e._dirty = true; e.lines.forEach((l, i) => { if (l.gid && !l.price && C.g[l.gid]) applyLast(l, C.g[l.gid]); }); redrawLines(el); const h = el.querySelector('#b-cid').closest('.f').querySelector('.hint'); const bal = calc().bal[e.cid]; if (!T.doc && bal != null) { const t = `目前${T.party === 'C' ? '應收' : '應付'} ${fmt(bal)} 元`; if (h) h.textContent = t; else el.querySelector('#b-cid').closest('.f').insertAdjacentHTML('beforeend', `<div class="hint muted small">${esc(t)}</div>`); } }, onClear: () => { e.cid = ''; } });
   bindLines(el);
   el.querySelector('#addLine')?.addEventListener('click', () => { e.lines.push({ gid: '', qty: '', price: '' }); redrawLines(el); setTimeout(() => el.querySelector(`tr[data-i="${e.lines.length - 1}"] input`)?.focus(), 0); });
-  el.querySelector('#addTxt')?.addEventListener('click', () => { e.lines.push({ txt: '' }); redrawLines(el); });
+  el.querySelector('#addTxt')?.addEventListener('click', () => { e.lines.push({ txt: '' }); redrawLines(el); setTimeout(() => el.querySelector(`tr[data-i="${e.lines.length - 1}"] input`)?.focus(), 0); });
+  el.querySelector('#newGoods')?.addEventListener('click', () => openMaster('goods', null, null, gid => {
+    // 新商品放到最後一個空白行，沒有就加一行
+    let l = e.lines.find(x => x.txt === undefined && !x.gid && !x.n && !+x.qty); if (!l) { l = { gid: '', qty: '', price: '' }; e.lines.push(l); }
+    const g = calc().g[gid]; l.gid = gid; if (g) { const p = unitPrice(g, e.type); if (p !== '') l.price = p; } redrawLines(el);
+  }));
+  const xf = document.createElement('input'); xf.type = 'file'; xf.accept = '.xlsx,.xls,.csv';
+  xf.onchange = async () => {
+    const f = xf.files[0]; xf.value = ''; if (!f) return;
+    try {
+      const r = await shipImportLines(f, e);
+      e.lines = e.lines.filter(l => l.gid || +l.qty || (l.txt !== undefined && String(l.txt).trim())).concat(r.add); e.lines.push({ gid: '', qty: '', price: '' });
+      redrawLines(el);
+      toast(`已加入 ${r.add.length} 項${r.miss.length ? `；找不到 ${r.miss.length} 個客料號：${r.miss.slice(0, 5).join('、')}${r.miss.length > 5 ? '…' : ''}` : ''}${r.multi.length ? `；${r.multi.length} 個客料號對到多個商品，已選上次賣過的` : ''}`);
+    } catch (err) { toast('匯入失敗：' + (err.message || err)); }
+  };
+  el.querySelector('#xlLines')?.addEventListener('click', () => { if (!e.cid) toast('建議先選客戶，才能帶入上次單價'); xf.click(); });
+  el.querySelector('#xlTpl')?.addEventListener('click', () => shipTemplateXlsx().catch(err => toast('下載失敗：' + (err.message || err))));
   el.querySelector('#saveBill').addEventListener('click', () => saveBill(close));
+  el.querySelector('#saveBill2')?.addEventListener('click', () => saveBill(close));
   el.querySelector('#delBill')?.addEventListener('click', async () => { if (await confirm(`確定刪除 ${T.name} ${e.no}？`, { danger: true, ok: '刪除' })) { await store.remove('bills', e.id); store.log('刪除', `${T.name} ${e.no}`); close(); toast('已刪除'); onSavedCb && onSavedCb(); } });
   el.querySelector('#printBill')?.addEventListener('click', () => printBill(e));
+  el.querySelector('#printShip')?.addEventListener('click', () => printShip(e));
+  el.querySelector('#printShipPn')?.addEventListener('click', () => printShip(e, { pn: true }));
+  el.querySelector('#printShipNa')?.addEventListener('click', () => printShip(e, { noAmt: true }));
+  el.querySelector('#shipFmt')?.addEventListener('click', () => shipFormat(e));
+  el.querySelector('#stkAdj')?.addEventListener('click', () => stockAdjust(e));
   el.querySelector('#lblBill')?.addEventListener('click', () => labelPicker(e));
   el.querySelector('#faxBill')?.addEventListener('click', () => faxDialog(e, () => drawBill()));
   el.querySelector('#toSale')?.addEventListener('click', () => convertBill(e, 'SALE', close));
   el.querySelector('#toPur')?.addEventListener('click', () => convertBill(e, 'PUR', close));
-  el.addEventListener('keydown', ev => { if (ev.key === 'Enter' && ev.ctrlKey) saveBill(close); });
+  // 上一張／下一張、放大
+  const go = async d => {
+    const nav = navList(e.type); const i = e.id ? nav.findIndex(b => b.id === e.id) : nav.length; const j = i + d;
+    if (j < 0 || j >= nav.length) return toast(d < 0 ? '已經是第一張' : '已經是最後一張');
+    if (e._dirty && !await confirm('這張單有修改還沒儲存，要放棄修改嗎？', { ok: '放棄修改' })) return;
+    openBill(null, nav[j].id, onSavedCb);
+  };
+  el.querySelector('#navPrev')?.addEventListener('click', () => go(-1));
+  el.querySelector('#navNext')?.addEventListener('click', () => go(1));
+  el.querySelector('#dlgMax')?.addEventListener('click', ev => { const on = el.classList.toggle('max'); ev.target.textContent = on ? '還原' : '放大'; ls.set('zr.billMax', on); });
+  el.addEventListener('keydown', ev => {
+    if (ev.key === 'Enter' && ev.ctrlKey) saveBill(close);
+    if ((ev.ctrlKey || ev.metaKey) && (ev.key === 's' || ev.key === 'S')) { ev.preventDefault(); document.activeElement?.blur?.(); setTimeout(() => saveBill(close), 0); }
+    if (ev.altKey && (ev.key === 'ArrowLeft' || ev.key === 'ArrowRight')) { ev.preventDefault(); go(ev.key === 'ArrowLeft' ? -1 : 1); }
+  });
   updateTotals(el);
 }
 function redrawLines(el) { const tb = el.querySelector('#lines tbody'); if (!tb) return; tb.innerHTML = edit.lines.map((l, i) => lineRow(l, i)).join(''); bindLines(el); updateTotals(el); }
@@ -246,8 +303,11 @@ function bindLines(el) {
           onBlur: val => { if (!l.gid && TYPES[edit.type].doc) { l.n = val; } },
         });
       } else if (f === 'unit') inp.addEventListener('change', () => { const g = C.g[l.gid]; if (inp.value === 'a') { l.unit = 'a'; l.rate = +g.arate || 1; l.u = ''; } else { l.unit = ''; delete l.rate; l.u = inp.value === (g.unit || 'PCS') ? '' : inp.value; } redrawLines(el); });
-      else inp.addEventListener('input', () => { l[f === 'nu' ? 'unit' : f] = inp.value; if (f === 'qty' || f === 'price') { delete l._lp; } updateTotals(el); });
+      else inp.addEventListener('input', () => { edit._dirty = true; l[f === 'nu' ? 'unit' : f] = inp.value; if (f === 'qty' || f === 'price') { delete l._lp; } updateTotals(el); });
     });
+    tr.querySelector('[data-spec]')?.addEventListener('click', ev => { ev.preventDefault(); const g = calc().g[l.gid]; if (g) specView(g); });
+    tr.querySelector('[data-gedit]')?.addEventListener('click', ev => { ev.preventDefault(); const g = store.get('goods', l.gid); if (g) openMaster('goods', g, null, () => redrawLines(el)); });
+    tr.querySelector('[data-gcost]')?.addEventListener('change', async ev => { const v = +String(ev.target.value).replace(/,/g, ''); const g = store.get('goods', l.gid); if (!g || !(v > 0)) return; const { id, ...rest } = g; await store.save('goods', id, { ...rest, cost: v }); toast(`已存到商品「${g.name}」的手動成本`); redrawLines(el); });
     tr.querySelector('[data-del]')?.addEventListener('click', () => { edit.lines.splice(i, 1); if (!edit.lines.length) edit.lines.push({ gid: '', qty: '', price: '' }); redrawLines(el); });
     tr.querySelectorAll('input').forEach(inp => inp.addEventListener('keydown', ev => {
       if (ev.key === 'Enter' && !ev.ctrlKey && !ev.isComposing && inp.dataset.f !== 'gid') { ev.preventDefault(); if (i === edit.lines.length - 1 && inp.dataset.f === 'price') { el.querySelector('#addLine').click(); } else { const next = tr.nextElementSibling?.querySelector('input'); next?.focus(); } }
@@ -259,6 +319,7 @@ function updateTotals(el) {
   e.lines.forEach((l, i) => { const s = el.querySelector('#ls-' + i); if (s) s.textContent = fmt(lineAmt(l)); });
   if (!T.party) return;
   const t = totals(e); const st = (id, v) => { const x = el.querySelector(id); if (x) x.textContent = v; };
+  st('#t-wt', kgText(billKg(e)));
   st('#t-sub', fmt(t.sub)); st('#t-tax', e.tax ? fmt(t.tax) : '—'); st('#t-total', fmt(t.total)); st('#t-due', fmt(t.total - (+e.paid || 0)));
 }
 async function saveBill(close) {

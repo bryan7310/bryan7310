@@ -21,7 +21,7 @@ export function modal(opts) {
     ${opts.footer != null ? `<div class="mf">${opts.footer}</div>` : ''}</div>`;
   host.append(bg);
   const el = bg.firstElementChild;
-  const close = v => { bg.remove(); document.removeEventListener('keydown', onKey); opts.onClose && opts.onClose(v); };
+  const close = v => { bg.remove(); document.querySelectorAll('.combo-list').forEach(x => x.remove()); document.removeEventListener('keydown', onKey); opts.onClose && opts.onClose(v); };
   const onKey = e => { if (e.key === 'Escape' && host.lastElementChild === bg) { e.preventDefault(); close(); } };
   document.addEventListener('keydown', onKey);
   bg.addEventListener('mousedown', e => { if (e.target === bg && opts.closeOnBg !== false) close(); });
@@ -72,12 +72,24 @@ export function pager(key, n, page, size = 100) {
 export function combo(input, opts) {
   let list = null, idx = -1, cur = [];
   const wrap = input.parentElement.classList.contains('combo') ? input.parentElement : (() => { const w = document.createElement('div'); w.className = 'combo'; input.replaceWith(w); w.append(input); return w; })();
-  const close = () => { if (list) { list.remove(); list = null; } idx = -1; };
+  // 下拉清單浮在整個畫面最上層（position:fixed 掛在 body），不會被表格外框、對話框捲動區裁掉
+  const place = () => {
+    if (!list) return; if (!input.isConnected) return close();
+    const r = input.getBoundingClientRect(); const vh = window.innerHeight, vw = window.innerWidth;
+    const below = vh - r.bottom - 8, above = r.top - 8; const up = below < 180 && above > below;
+    const w = Math.min(Math.max(r.width, opts.minWidth || 300), vw - 16);
+    list.style.left = Math.max(8, Math.min(r.left, vw - w - 8)) + 'px'; list.style.width = w + 'px';
+    list.style.maxHeight = Math.max(120, Math.min(320, up ? above : below)) + 'px';
+    if (up) { list.style.top = ''; list.style.bottom = (vh - r.top + 4) + 'px'; } else { list.style.bottom = ''; list.style.top = (r.bottom + 4) + 'px'; }
+  };
+  const onMove = () => place();
+  const close = () => { if (list) { list.remove(); list = null; window.removeEventListener('scroll', onMove, true); window.removeEventListener('resize', onMove); } idx = -1; };
   const render = () => {
     const q = qTerms(input.value);
     const all = opts.items();
     cur = (q.length ? all.filter(it => matchQ(it.text || it.label + ' ' + (it.sub || ''), q)) : all).slice(0, 60);
-    if (!list) { list = document.createElement('div'); list.className = 'list'; wrap.append(list); }
+    if (!list) { list = document.createElement('div'); list.className = 'combo-list'; document.body.append(list); window.addEventListener('scroll', onMove, true); window.addEventListener('resize', onMove); }
+    place();
     list.innerHTML = cur.length ? cur.map((it, i) => `<div data-i="${i}" class="${i === idx ? 'on' : ''}"><span>${esc(it.label)}</span>${it.sub ? `<small>${esc(it.sub)}</small>` : ''}</div>`).join('')
       : `<div class="none">${opts.allowFree ? '找不到，直接使用輸入的文字' : '找不到符合的資料'}</div>`;
     list.querySelectorAll('[data-i]').forEach(d => d.addEventListener('mousedown', e => { e.preventDefault(); pick(cur[+d.dataset.i]); }));

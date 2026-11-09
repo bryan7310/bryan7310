@@ -10,7 +10,7 @@ import { printName } from '../core/names.js';
 
 const ui = { view: 'list' };
 export default {
-  id: 'quotes', name: '報價／詢價', group: '業務', icon: 'quotes',
+  id: 'quotes', name: '報價詢價', group: '業務', icon: 'quotes',
   render(el, { sub, params }) { this.el = el; ui.view = sub === 'draft' ? 'draft' : 'list'; draw(el); if (params.open) openBill(null, params.open); },
   onChange(ch) { if (this.el?.isConnected && (ch.has('bills') || ch.has('contacts'))) draw(this.el); },
 };

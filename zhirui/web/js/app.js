@@ -47,7 +47,7 @@ function showSetup() {
   $('#app').hidden = true;
   const el = document.createElement('div'); el.className = 'login'; el.id = 'login';
   el.innerHTML = `<form class="card" id="setupForm"><h1><span class="logo"></span>第一次使用</h1>
-    <p class="muted" style="margin:0">伺服器還沒有任何帳號。請建立第一個帳號（管理者），之後可在「設定 → 帳號」新增其他人。</p>
+    <p class="muted" style="margin:0">伺服器還沒有任何帳號。請建立第一個帳號（管理者），之後可在「設定備份 → 帳號」新增其他人。</p>
     <div class="f"><label for="sn">姓名</label><input id="sn" name="name" required autofocus></div>
     <div class="f"><label for="sl">帳號（登入用，英數字）</label><input id="sl" name="login" autocomplete="username" required></div>
     <div class="f"><label for="sp">密碼（至少 4 碼）</label><input id="sp" name="pw" type="password" autocomplete="new-password" required minlength="4"></div>
@@ -111,7 +111,7 @@ function route() {
   if (currentMod && currentMod.destroy) { try { currentMod.destroy(); } catch (e) {} }
   current = m.id; currentMod = m;
   document.body.classList.remove('open');
-  $('#modals').innerHTML = '';
+  $('#modals').innerHTML = ''; document.querySelectorAll('.combo-list').forEach(x => x.remove());
   $('#crumb').innerHTML = `${esc(m.name)}${m.sub ? `<small>${esc(m.sub)}</small>` : ''}`;
   document.title = m.name + '｜志瑞螺絲作業平台';
   $('#topActions').innerHTML = '';

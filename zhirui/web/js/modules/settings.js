@@ -8,7 +8,7 @@ import { setTheme, getTheme } from '../app.js';
 const ui = { tab: 'company' };
 const TABS = [['company', '公司資料'], ['users', '帳號'], ['backup', '備份'], ['print', '套印與顯示'], ['logs', '操作日誌']];
 export default {
-  id: 'settings', name: '設定', group: '管理', icon: 'settings',
+  id: 'settings', name: '設定備份', group: '管理', icon: 'settings',
   render(el, { sub }) { this.el = el; if (sub && TABS.some(t => t[0] === sub)) ui.tab = sub; draw(el); },
   onChange(ch) { if (this.el?.isConnected && (ch.has('settings') || ch.has('logs'))) draw(this.el); },
 };

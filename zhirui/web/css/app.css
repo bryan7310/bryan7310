@@ -225,11 +225,11 @@ td .sub { display: block; color: var(--muted); font-size: 12px; }
 
 /* 下拉搜尋（客戶、商品） */
 .combo { position: relative; }
-.combo .list { position: absolute; top: 100%; left: 0; right: 0; z-index: 40; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow); max-height: 280px; overflow: auto; margin-top: 4px; min-width: 280px; }
-.combo .list div { padding: 7px 12px; cursor: pointer; display: flex; gap: 8px; align-items: baseline; }
-.combo .list div small { color: var(--muted); margin-left: auto; white-space: nowrap; }
-.combo .list div.on, .combo .list div:hover { background: var(--sunken); }
-.combo .list .none { color: var(--muted); cursor: default; }
+.combo-list { position: fixed; z-index: 300; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow); max-height: 320px; overflow: auto; }
+.combo-list div { padding: 7px 12px; cursor: pointer; display: flex; gap: 8px; align-items: baseline; }
+.combo-list div small { color: var(--muted); margin-left: auto; white-space: nowrap; }
+.combo-list div.on, .combo-list div:hover { background: var(--sunken); }
+.combo-list .none { color: var(--muted); cursor: default; }
 
 /* 對話框 */
 .modal-host:empty { display: none; }
@@ -263,6 +263,24 @@ td .sub { display: block; color: var(--muted); font-size: 12px; }
 .lines .have { font-size: 11.5px; color: var(--muted); white-space: nowrap; }
 .lines .have.bad { color: var(--bad); font-weight: 600; }
 .lines .lp { font-size: 11px; color: var(--muted); padding-left: 8px; }
+.lines .glinks { display: flex; gap: 12px; padding-left: 8px; font-size: 11.5px; }
+.lines .csrc { max-width: 190px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lines .noteln input { flex: 1; }
+.sumbox { display: flex; flex-wrap: wrap; gap: 10px 40px; align-items: center; background: var(--sunken); border-radius: var(--r); padding: 12px 18px; }
+.sumbox > div { display: grid; gap: 2px; }
+.sumbox span, .sumbox label { color: var(--muted); font-size: 13px; }
+.sumbox b { font-family: var(--mono); font-size: 18px; }
+.sumbox .big b { font-size: 22px; }
+.hint { margin-top: 2px; }
+.modal.max { width: calc(100vw - 24px) !important; max-width: none; height: calc(100vh - 24px); height: calc(100dvh - 24px); }
+.modal.max .mb { flex: 1; }
+.stwrap { display: flex; gap: 12px; min-height: 0; height: 100%; }
+.stform { width: 540px; flex: none; overflow-y: auto; padding-right: 6px; }
+.stpv { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.stpvbox { flex: 1; overflow: auto; background: #e9edf2; border-radius: 8px; padding: 12px; }
+.sttbl input, .sttbl select { padding: 4px 6px; }
+.chks { display: flex; flex-wrap: wrap; gap: 4px 14px; }
+@media (max-width: 900px) { .stwrap { flex-direction: column; } .stform { width: auto; } }
 .totals { display: flex; flex-wrap: wrap; gap: 8px 22px; justify-content: flex-end; align-items: baseline; }
 .totals span { color: var(--muted); font-size: 13px; }
 .totals b { font-family: var(--mono); font-size: 16px; }

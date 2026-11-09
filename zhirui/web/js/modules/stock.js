@@ -8,7 +8,7 @@ import { openMaster } from './master.js';
 
 const ui = { tab: 'qty', q: '', page: 0, bills: {} };
 export default {
-  id: 'stock', name: '庫存', group: '倉儲', icon: 'stock',
+  id: 'stock', name: '庫存數量', group: '倉儲', icon: 'stock',
   render(el, { sub, params }) { this.el = el; if (sub === 'low') ui.tab = 'low'; if (sub === 'moves') ui.tab = 'moves'; draw(el); if (params.open) openBill(null, params.open); },
   onChange(ch) { if (this.el?.isConnected && (ch.has('bills') || ch.has('goods') || ch.has('warehouses'))) draw(this.el); },
 };

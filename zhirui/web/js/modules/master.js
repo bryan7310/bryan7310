@@ -58,7 +58,7 @@ const FIELDS = {
   accounts: [['name', '帳戶名稱', 'req'], ['bank', '銀行／帳號'], ['init', '期初餘額', 'num']],
 };
 const LABEL = { goods: '商品', C: '客戶', S: '供應商', warehouses: '倉庫', accounts: '結算帳戶' };
-export function openMaster(col, doc, kind) {
+export function openMaster(col, doc, kind, onSaved) {
   const k = col === 'contacts' ? (doc ? doc.kind : kind) : col;
   const fs = FIELDS[k]; const d = doc || {};
   const C = calc();
@@ -98,7 +98,7 @@ export function openMaster(col, doc, kind) {
         delete out.id;
         await store.save(col, id, out);
         if (col === 'warehouses' && f.isDefault) await store.saveSetting('prefs', { ...store.setting('prefs'), defaultWh: id });
-        store.log(doc ? '修改' : '新增', `${LABEL[k]} ${out.name}`); close(); toast('已儲存');
+        store.log(doc ? '修改' : '新增', `${LABEL[k]} ${out.name}`); close(); toast('已儲存'); onSaved && onSaved(id);
       };
       el.querySelector('#mDel')?.addEventListener('click', async () => { if (await confirm(`確定刪除${LABEL[k]}「${d.name}」？`, { danger: true, ok: '刪除' })) { await store.remove(col, d.id); store.log('刪除', `${LABEL[k]} ${d.name}`); close(); toast('已刪除'); } });
       el.querySelector('#histBtn')?.addEventListener('click', async ev => {

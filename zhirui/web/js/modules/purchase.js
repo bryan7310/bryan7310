@@ -6,7 +6,7 @@ import { importPurchase } from './purchase_import.js';
 
 const ui = {};
 export default {
-  id: 'purchase', name: '進貨／採購', group: '倉儲', icon: 'purchase',
+  id: 'purchase', name: '進貨採購', group: '倉儲', icon: 'purchase',
   render(el, { params }) { this.el = el; draw(el); if (params.open) openBill(null, params.open); },
   onChange(ch) { if (this.el?.isConnected && (ch.has('bills') || ch.has('contacts') || ch.has('goods'))) draw(this.el); },
 };

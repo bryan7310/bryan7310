@@ -66,6 +66,15 @@ export function lineUnit(l, g) {
   return unitFactor(g?.unit || '');
 }
 export const bqty = (l, g) => (+l.qty || 0) * (+l.rate || (l.u && g ? uRate(l.u, g) || 1 : 1));
+/** 一行明細的重量 kg（單位是 KG 就是數量；支數 × 單重，沒填單重用規格估算） */
+export function lineKg(l, g) {
+  if (!g) return 0;
+  if (l.u && unitFactor(l.u)[0] === 'kg') return +l.qty || 0;
+  const [c, f] = unitFactor(g.unit || 'PCS');
+  if (c === 'kg') return bqty(l, g);
+  if (c !== 'p') return 0;
+  return bqty(l, g) * f * goodsWt(g) / 1000;
+}
 
 // ---------- 單號 ----------
 export function nextNo(type, date, bills) {
