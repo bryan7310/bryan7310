@@ -14,7 +14,7 @@ export default {
 };
 function draw(el) {
   billList(el, {
-    key: 'sales', title: '銷貨', types: ['SALE', 'SALE_RET'], tabList: [['all', '全部'], ['SALE', '銷貨單'], ['SALE_RET', '銷貨退回']], newTypes: ['SALE', 'SALE_RET'],
+    key: 'sales', title: '銷貨', types: ['SALE', 'SALE_RET'], tabList: [['all', '全部'], ['SALE', '銷貨單'], ['SALE_RET', '銷貨退回'], ['hist', '歷史（舊系統）']], histTypes: ['SALE', 'SALE_RET'], newTypes: ['SALE', 'SALE_RET'],
     actions: b => `<button class="btn xs" data-print="${b.id}">列印</button>${b.type === 'SALE' && !b.invNo && !b.hist ? ` <button class="btn xs" data-inv="${b.id}">開發票</button>` : ''}`,
     bind(el2) {
       el2.querySelectorAll('[data-print]').forEach(x => x.addEventListener('click', () => printBill(store.get('bills', x.dataset.print))));

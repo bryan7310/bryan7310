@@ -15,7 +15,7 @@ export default {
 };
 function draw(el) {
   if (ui.view === 'draft') return drawDraft(el);
-  billList(el, { key: 'quotes', title: '報價／詢價', types: ['QUO', 'RFQ'], tabList: [['all', '全部'], ['QUO', '報價單'], ['RFQ', '詢價單']], newTypes: ['QUO', 'RFQ'], extraHead: `<a class="btn" href="#quotes/draft">報價單草稿（查價加入）<span class="pill blue">${cart.get().lines.length || 0}</span></a>` }, ui);
+  billList(el, { key: 'quotes', title: '報價／詢價', types: ['QUO', 'RFQ'], tabList: [['all', '全部'], ['QUO', '報價單'], ['RFQ', '詢價單'], ['hist', '歷史（舊系統）']], histTypes: ['QUO', 'RFQ'], newTypes: ['QUO', 'RFQ'], extraHead: `<a class="btn" href="#quotes/draft">報價單草稿（查價加入）<span class="pill blue">${cart.get().lines.length || 0}</span></a>` }, ui);
 }
 function drawDraft(el) {
   const c = cart.get(); const C = calc();

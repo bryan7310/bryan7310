@@ -1,5 +1,5 @@
 // 單據共用：清單、編輯器、列印（銷貨、進貨、報價、採購、出入庫、調撥、收付款）
-import { $, $$, esc, fmt, fmtQ, fp4, today, uid, matchQ, qTerms, roc, slash, thisMonth, money } from '../core/util.js';
+import { $, $$, esc, fmt, fmtQ, fp4, today, uid, matchQ, qTerms, roc, slash, thisMonth, money, isoOf, downloadText } from '../core/util.js';
 import { store } from '../core/store.js';
 import { toast, modal, confirm, combo, pager, tabs, printHTML } from '../core/ui.js';
 import { TYPES, totals, lineAmt, calc, nextNo, cname, cshort, wname, gname, goodsLabel, customers, suppliers, defWh, qtyAt, bqty, uRate, lastSale, unitPrice, unitFactor } from '../core/calc.js';
@@ -14,29 +14,80 @@ export const partyLabel = b => { const C = calc(); const c = C.ct[b.cid]; return
  * 單據清單頁。opts: {key, title, types:[...], tabList:[[k,label]], newTypes:[type...], extraHead(html), extraRow(b)->html, actions(b)->html}
  * state 由呼叫端保存（ui 物件），以便切換頁面後保留。
  */
+// ---------- 期間快捷鍵（全部、本月、上月、上月 25 結帳）與日期區間 ----------
+const monthEnd = ym => { const [y, m] = ym.split('-').map(Number); return isoOf(new Date(y, m, 0)); };
+function quickPeriods() {
+  const d = new Date(), y = d.getFullYear(), m = d.getMonth();
+  return [
+    { label: '全部', from: '', to: '' },
+    { label: `${m + 1}月`, from: isoOf(new Date(y, m, 1)), to: isoOf(new Date(y, m + 1, 0)) },
+    { label: `${m === 0 ? 12 : m}月`, from: isoOf(new Date(y, m - 1, 1)), to: isoOf(new Date(y, m, 0)) },
+    { label: '上月25結', from: isoOf(new Date(y, m - 2, 26)), to: isoOf(new Date(y, m - 1, 25)) },
+  ];
+}
+const inPeriod = (b, f, t) => (!f || (b.date || '') >= f) && (!t || (b.date || '') <= t);
+/** 期間列：快捷鍵（附張數）、其他月份、日期區間 */
+function periodBar(ui, count) {
+  const ps = quickPeriods();
+  return `<div class="tools" style="margin-top:8px;align-items:center"><span class="muted small">期間</span>${ps.map(p => `<button type="button" class="btn sm ${p.from === ui.from && p.to === ui.to ? 'pri' : ''}" data-per="${p.from}|${p.to}">${p.label}${count ? `（${count(p)}）` : ''}</button>`).join('')}<input type="month" id="bmon" title="其他月份" aria-label="其他月份"><span class="muted small">日期區間</span><input type="date" id="bfrom" value="${esc(ui.from)}"><span class="muted">～</span><input type="date" id="bto" value="${esc(ui.to)}"></div>`;
+}
+function bindPeriod(el, ui, redraw) {
+  el.querySelectorAll('[data-per]').forEach(b => b.addEventListener('click', () => { [ui.from, ui.to] = b.dataset.per.split('|'); ui.page = 0; redraw(); }));
+  $('#bmon', el)?.addEventListener('change', e2 => { if (!e2.target.value) return; ui.from = e2.target.value + '-01'; ui.to = monthEnd(e2.target.value); ui.page = 0; redraw(); });
+  $('#bfrom', el)?.addEventListener('change', e2 => { ui.from = e2.target.value; ui.page = 0; redraw(); });
+  $('#bto', el)?.addEventListener('change', e2 => { ui.to = e2.target.value; ui.page = 0; redraw(); });
+}
+/** 搜尋框：中文輸入法組字中不重畫（否則打不出中文），組字完成或一般輸入才重畫 */
+function bindSearch(el, ui, redraw, delay = 0) {
+  const inp = $('#bq', el); if (!inp) return; let timer = null;
+  const go = () => { ui.q = inp.value; ui.page = 0; clearTimeout(timer); timer = setTimeout(() => { if (!el.isConnected) return; redraw(); setTimeout(() => { const i = $('#bq', el); if (i) { i.focus(); i.setSelectionRange(i.value.length, i.value.length); } }, 0); }, delay); };
+  inp.addEventListener('input', e2 => { if (e2.isComposing) return; go(); });
+  inp.addEventListener('compositionend', go);
+}
+const csvOf = (name, head, rows) => downloadText(name + '.csv', '﻿' + [head, ...rows].map(r => r.map(c => '"' + String(c ?? '').replace(/"/g, '""') + '"').join(',')).join('\r\n'), 'text/csv');
+function billsCsv(title, list, C) {
+  const rows = list.map(b => { const T = TYPES[b.type] || {}; const t = C ? (C.tot[b.id] || totals(b)) : totals(b); const ls = (b.lines || []).filter(l => l.txt === undefined); return [slash(b.date), T.name || b.type, b.no, partyLabel(b), ls.map(l => `${l.gid ? gname(l.gid) : l.n || ''} ×${fmtQ(l.qty)}`).join('；'), b.hist && b.oamt != null ? Math.round(b.oamt) : (T.lines ? Math.round(t.total) : +b.amount || 0), T.lines && T.party && !T.doc && !b.hist ? +b.paid || 0 : '', b.note || '']; });
+  csvOf(`${title}_${today()}`, ['日期', '類型', '單號', '對象', '內容', '金額', '已收付', '備註'], rows);
+}
 export function billList(el, opts, ui) {
-  ui.tab ??= 'all'; ui.q ??= ''; ui.mon ??= ''; ui.page ??= 0;
+  ui.tab ??= 'all'; ui.q ??= ''; ui.from ??= ''; ui.to ??= ''; ui.page ??= 0;
+  if (ui.tab === 'hist' && opts.histTypes) return histList(el, opts, ui);
   const C = calc();
   const types = opts.types;
-  const typeOk = b => ui.tab === 'all' ? types.includes(b.type) : b.type === ui.tab;
+  const typeOk = b => ui.tab === 'all' ? types.includes(b.type) : ui.tab.split(',').includes(b.type);
   const q = qTerms(ui.q);
-  let list = C.bills.filter(b => typeOk(b) && (!ui.mon || (b.date || '').startsWith(ui.mon)) && (!q.length || matchQ(billText(b), q)));
+  const base = C.bills.filter(b => typeOk(b) && (!q.length || matchQ(billText(b), q)));
+  let list = base.filter(b => inPeriod(b, ui.from, ui.to));
+  // 選了期間或搜尋時，把舊系統的歷史單據（伺服器另一表）一起列出；沒選期間時只列新平台的單，歷史的在「歷史（舊系統）」分頁
+  const wantHist = opts.histTypes && (ui.from || ui.to || ui.q.trim());
+  let histNote = '';
+  if (wantHist) {
+    const hkey = opts.histTypes.join(',') + '|' + ui.q.trim() + '|' + ui.from + '|' + ui.to;
+    const cached = histCache.get(hkey);
+    if (cached) { list = [...list, ...cached.filter(b => typeOk(b)).map(b => ({ ...b, hist: true }))]; }
+    else { histNote = '<span class="muted small">載入舊系統歷史單據…</span>'; const snap = JSON.stringify([ui.tab, ui.q, ui.from, ui.to]); histFetch(opts.histTypes, ui.q.trim(), ui.from, ui.to).then(() => { if (el.isConnected && snap === JSON.stringify([ui.tab, ui.q, ui.from, ui.to])) billList(el, opts, ui); }).catch(e2 => toast('歷史單據載入失敗：' + (e2.message || e2))); }
+  } else if (opts.histTypes && !list.length) histNote = '<span class="muted small">舊系統的歷史單據請選期間、搜尋，或切到「歷史（舊系統）」分頁</span>';
   list = list.sort((a, b) => (b.date || '').localeCompare(a.date || '') || String(b.no).localeCompare(String(a.no)));
   const [s, e, pg] = pager(opts.key, list.length, ui.page);
-  const sumT = list.reduce((a, b) => a + (TYPES[b.type].ps || 1) * (C.tot[b.id]?.total || 0), 0);
+  const sumT = list.reduce((a, b) => a + (TYPES[b.type].ps || 1) * (b.hist ? (+b.oamt || 0) : (C.tot[b.id]?.total || 0)), 0);
+  const byId = new Map(list.map(b => [b.id, b]));
   el.innerHTML = `
-    <div class="head"><h1>${esc(opts.title)}</h1><span class="sp"></span>${(opts.newTypes || []).map(t => `<button class="btn ${t === opts.newTypes[0] ? 'pri' : ''}" data-new="${t}">＋ ${TYPES[t].name}</button>`).join('')}${opts.extraHead || ''}</div>
+    <div class="head"><h1>${esc(opts.title)}</h1><span class="sp"></span><button class="btn" id="bcsv" ${list.length ? '' : 'disabled'}>匯出 Excel (CSV)</button>${(opts.newTypes || []).map(t => `<button class="btn ${t === opts.newTypes[0] ? 'pri' : ''}" data-new="${t}">＋ ${TYPES[t].name}</button>`).join('')}${opts.extraHead || ''}</div>
     <div class="panel">
-      <div class="tools">${opts.tabList ? tabs('t', opts.tabList, ui.tab) : ''}<input type="search" id="bq" placeholder="搜尋單號、客戶／廠商、商品、備註" value="${esc(ui.q)}"><input type="month" id="bmon" value="${esc(ui.mon)}" title="月份"><span class="muted small">${list.length} 張・合計 ${fmt(sumT)}</span></div>
+      <div class="tools">${opts.tabList ? tabs('t', opts.tabList, ui.tab) : ''}<input type="search" id="bq" placeholder="搜尋單號、客戶／廠商、商品、備註" value="${esc(ui.q)}"><span class="muted small">${list.length} 張・合計 ${fmt(sumT)}</span>${histNote}</div>
+      ${periodBar(ui, p => base.filter(b => inPeriod(b, p.from, p.to)).length)}
       <div class="tw" style="margin-top:10px"><table><thead><tr><th>日期</th><th>單號</th><th>${types.some(t => TYPES[t].party === 'S') ? '廠商' : types.some(t => TYPES[t].party === 'C') ? '客戶' : '倉庫'}</th><th>內容</th>${opts.cols ? opts.cols.map(c => `<th class="${c.cls || ''}">${c.label}</th>`).join('') : ''}<th class="n">金額</th><th>狀態</th><th></th></tr></thead>
-      <tbody>${list.length ? list.slice(s, e).map(b => billRow(b, opts, C)).join('') : `<tr><td colspan="9"><div class="empty"><b>沒有單據</b>${ui.q || ui.mon ? '試試清除搜尋或月份' : '按右上角的按鈕新增'}</div></td></tr>`}</tbody></table></div>${pg}
+      <tbody>${list.length ? list.slice(s, e).map(b => billRow(b, opts, C)).join('') : `<tr><td colspan="9"><div class="empty"><b>沒有單據</b>${ui.q || ui.from || ui.to ? '試試清除搜尋或期間' : '按右上角的按鈕新增'}</div></td></tr>`}</tbody></table></div>${pg}
     </div>`;
-  $('#bq', el).addEventListener('input', e2 => { ui.q = e2.target.value; ui.page = 0; billList(el, opts, ui); setTimeout(() => { const i = $('#bq', el); i.focus(); i.setSelectionRange(i.value.length, i.value.length); }, 0); });
-  $('#bmon', el).addEventListener('change', e2 => { ui.mon = e2.target.value; ui.page = 0; billList(el, opts, ui); });
-  el.addEventListener('tab', e2 => { ui.tab = e2.detail.val; ui.page = 0; billList(el, opts, ui); }, { once: true });
-  el.querySelectorAll('[data-page]').forEach(b => b.addEventListener('click', () => { ui.page = +b.dataset.to; billList(el, opts, ui); }));
+  const redraw = () => billList(el, opts, ui);
+  bindSearch(el, ui, redraw);
+  bindPeriod(el, ui, redraw);
+  $('#bcsv', el).addEventListener('click', () => billsCsv(opts.title, list, C));
+  el.addEventListener('tab', e2 => { ui.tab = e2.detail.val; ui.page = 0; redraw(); }, { once: true });
+  el.querySelectorAll('[data-page]').forEach(b => b.addEventListener('click', () => { ui.page = +b.dataset.to; redraw(); }));
   el.querySelectorAll('[data-new]').forEach(b => b.addEventListener('click', () => openBill(b.dataset.new, null, opts.onSaved)));
-  el.querySelectorAll('tr.row').forEach(tr => tr.addEventListener('click', e2 => { if (e2.target.closest('button,a')) return; openBill(null, tr.dataset.id, opts.onSaved); }));
+  el.querySelectorAll('tr.row').forEach(tr => tr.addEventListener('click', e2 => { if (e2.target.closest('button,a')) return; if (tr.dataset.hist) return histView(byId.get(tr.dataset.id)); openBill(null, tr.dataset.id, opts.onSaved); }));
+  el.querySelectorAll('[data-hprint]').forEach(b => b.addEventListener('click', () => printBill(byId.get(b.dataset.hprint))));
   opts.bind && opts.bind(el);
 }
 function billRow(b, opts, C) {
@@ -49,7 +100,61 @@ function billRow(b, opts, C) {
   if (b.type === 'QUO' && b.toBill) status += ' <span class="pill ok">已轉銷貨</span>';
   if (b.type === 'PO' && b.received) status += ' <span class="pill ok">已進貨</span>';
   if (opts.status) status += opts.status(b);
-  return `<tr class="row" data-id="${b.id}"><td class="nowrap">${esc(slash(b.date))}</td><td class="mono nowrap">${esc(b.no)}${opts.tabList && opts.tabList.length > 2 ? `<span class="sub">${T.name}</span>` : ''}</td><td>${esc(T.party ? partyLabel(b) : T.transfer ? wname(b.wid) + ' → ' + wname(b.toWid) : wname(b.wid))}</td><td class="muted">${content}</td>${opts.cols ? opts.cols.map(c => `<td class="${c.cls || ''}">${c.cell(b)}</td>`).join('') : ''}<td class="n">${fmt(T.lines ? t.total : b.amount)}</td><td>${status}</td><td class="r nowrap">${opts.actions ? opts.actions(b) : ''}</td></tr>`;
+  if (b.hist) status = '<span class="pill">舊系統</span>';
+  return `<tr class="row" data-id="${b.id}" ${b.hist ? 'data-hist="1"' : ''}><td class="nowrap">${esc(slash(b.date))}</td><td class="mono nowrap">${esc(b.no)}${opts.tabList && opts.tabList.length > 2 ? `<span class="sub">${T.name}</span>` : ''}</td><td>${esc(T.party ? partyLabel(b) : T.transfer ? wname(b.wid) + ' → ' + wname(b.toWid) : wname(b.wid))}</td><td class="muted">${content}</td>${opts.cols ? opts.cols.map(c => `<td class="${c.cls || ''}">${c.cell(b)}</td>`).join('') : ''}<td class="n">${fmt(b.hist ? b.oamt : T.lines ? t.total : b.amount)}</td><td>${status}</td><td class="r nowrap">${b.hist ? `<button class="btn xs" data-hprint="${b.id}">列印</button>` : opts.actions ? opts.actions(b) : ''}</td></tr>`;
+}
+
+// ---------- 舊系統歷史單據（唯讀，存在伺服器另一個表，向伺服器查） ----------
+const histCache = new Map();
+async function histFetch(types, q, from, to) {
+  const key = types.join(',') + '|' + q + '|' + from + '|' + to;
+  if (histCache.has(key)) return histCache.get(key);
+  const out = [];
+  for (const type of types) {
+    let offset = 0;
+    for (;;) { const r = await api.hist({ type, q, from, to, limit: 1000, offset }); out.push(...r.rows); offset += r.rows.length; if (!r.rows.length || offset >= r.total) break; }
+  }
+  out.sort((a, b) => (b.date || '').localeCompare(a.date || '') || String(b.no).localeCompare(String(a.no)));
+  histCache.set(key, out);
+  return out;
+}
+async function histList(el, opts, ui) {
+  const types = opts.histTypes;
+  el.innerHTML = `
+    <div class="head"><h1>${esc(opts.title)}</h1><span class="sp"></span><button class="btn" id="bcsv" disabled>匯出 Excel (CSV)</button>${(opts.newTypes || []).map(t => `<button class="btn ${t === opts.newTypes[0] ? 'pri' : ''}" data-new="${t}">＋ ${TYPES[t].name}</button>`).join('')}${opts.extraHead || ''}</div>
+    <div class="panel">
+      <div class="tools">${opts.tabList ? tabs('t', opts.tabList, ui.tab) : ''}<input type="search" id="bq" placeholder="搜尋單號、客戶／廠商、商品" value="${esc(ui.q)}"><span class="muted small" id="bcnt">載入中…</span></div>
+      ${periodBar(ui)}
+      <div id="bhist" style="margin-top:10px"><div class="muted">載入舊系統的歷史單據…</div></div>
+    </div>`;
+  const redraw = () => billList(el, opts, ui);
+  bindSearch(el, ui, redraw, 350);
+  bindPeriod(el, ui, redraw);
+  el.addEventListener('tab', e2 => { ui.tab = e2.detail.val; ui.page = 0; redraw(); }, { once: true });
+  el.querySelectorAll('[data-new]').forEach(b => b.addEventListener('click', () => openBill(b.dataset.new, null, opts.onSaved)));
+  const box = $('#bhist', el); let list;
+  try { list = await histFetch(types, ui.q.trim(), ui.from, ui.to); } catch (e) { box.innerHTML = `<div class="empty"><b>載入失敗</b>${esc(e.message || e)}</div>`; return; }
+  if (!el.isConnected || ui.tab !== 'hist' || $('#bhist', el) !== box) return;
+  const [s, e, pg] = pager(opts.key + 'h', list.length, ui.page);
+  const sumT = list.reduce((a, b) => a + (TYPES[b.type]?.ps || 1) * (+b.oamt || 0), 0);
+  $('#bcnt', el).textContent = `${list.length.toLocaleString('zh-TW')} 張・合計 ${fmt(sumT)}`;
+  const csv = $('#bcsv', el); csv.disabled = !list.length; csv.addEventListener('click', () => billsCsv(opts.title + '_歷史', list.map(b => ({ ...b, hist: true })), null));
+  const content = b => { const ls = (b.lines || []).filter(l => l.txt === undefined); return `${ls.slice(0, 2).map(l => esc(l.gid ? gname(l.gid) : l.n || '')).join('、')}${ls.length > 2 ? `…等 ${ls.length} 項` : ''}`; };
+  box.innerHTML = `<div class="tw"><table><thead><tr><th>日期</th><th>單號</th><th>${types.some(t => TYPES[t].party === 'S') ? '廠商' : '客戶'}</th><th>內容</th><th class="n">金額</th><th>狀態</th><th></th></tr></thead>
+    <tbody>${list.length ? list.slice(s, e).map((b, i) => `<tr class="row" data-h="${s + i}"><td class="nowrap">${esc(slash(b.date))}</td><td class="mono nowrap">${esc(b.no)}<span class="sub">${TYPES[b.type]?.name || b.type}</span></td><td>${esc(partyLabel(b))}</td><td class="muted">${content(b)}</td><td class="n">${fmt(b.oamt)}</td><td><span class="pill">舊系統</span></td><td class="r nowrap"><button class="btn xs" data-hp="${s + i}">列印</button></td></tr>`).join('') : `<tr><td colspan="7"><div class="empty"><b>沒有歷史單據</b>${ui.q || ui.from || ui.to ? '試試清除搜尋或期間' : ''}</div></td></tr>`}</tbody></table></div>${pg}`;
+  box.querySelectorAll('[data-page]').forEach(b => b.addEventListener('click', () => { ui.page = +b.dataset.to; redraw(); }));
+  box.querySelectorAll('[data-hp]').forEach(b => b.addEventListener('click', () => printBill(list[+b.dataset.hp])));
+  box.querySelectorAll('tr.row').forEach(tr => tr.addEventListener('click', e2 => { if (e2.target.closest('button,a')) return; histView(list[+tr.dataset.h]); }));
+}
+/** 歷史單據檢視（唯讀） */
+export function histView(b) {
+  const C = calc(); const T = TYPES[b.type] || {}; const c = C.ct[b.cid]; const lines = b.lines || [];
+  const body = `<div class="banner">舊系統搬來的歷史單據，只能查看和列印，不計入現在的庫存與應收應付。</div>
+    <div class="grid" style="margin-bottom:10px"><div><span class="muted small">${T.party === 'S' ? '廠商' : '客戶'}</span><div>${esc(c ? c.name : b.cn || '—')}</div></div><div><span class="muted small">日期</span><div>${esc(slash(b.date))}</div></div><div><span class="muted small">單號</span><div class="mono">${esc(b.no)}</div></div>${b.valid ? `<div><span class="muted small">有效期限</span><div>${esc(slash(b.valid))}</div></div>` : ''}${b.deliv ? `<div><span class="muted small">交期</span><div>${esc(slash(b.deliv))}</div></div>` : ''}</div>
+    <div class="tw"><table><thead><tr><th>#</th><th>品名規格</th><th class="n">數量</th><th>單位</th><th class="n">單價</th><th class="n">金額</th></tr></thead><tbody>
+    ${lines.map((l, i) => l.txt !== undefined ? `<tr><td></td><td colspan="5" class="muted">${esc(l.txt)}</td></tr>` : `<tr><td class="muted">${i + 1}</td><td>${esc(l.gid ? gname(l.gid) : l.n || '')}${l.memo ? `<span class="sub">${esc(l.memo)}</span>` : ''}</td><td class="n">${fmtQ(l.qty)}</td><td class="muted">${esc(l.u || C.g[l.gid]?.unit || '')}</td><td class="n">${fp4(l.price)}</td><td class="n">${fmt(lineAmt(l))}</td></tr>`).join('') || '<tr><td colspan="6" class="muted">沒有明細</td></tr>'}</tbody>
+    <tfoot><tr><td colspan="5" class="n">總計</td><td class="n"><b>${fmt(b.oamt != null ? b.oamt : totals(b).total)}</b></td></tr></tfoot></table></div>${b.note ? `<p class="muted small">備註：${esc(b.note)}</p>` : ''}`;
+  modal({ title: `${T.name || b.type} ${b.no}`, width: 760, body, footer: '<button class="btn" data-print>列印</button><span class="sp"></span><button class="btn" data-close>關閉</button>', onOpen(m) { m.querySelector('[data-print]').onclick = () => printBill(b); } });
 }
 
 // ---------- 編輯器 ----------

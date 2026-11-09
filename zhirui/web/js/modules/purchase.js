@@ -13,7 +13,7 @@ export default {
 };
 function draw(el) {
   billList(el, {
-    key: 'purchase', title: '進貨／採購', types: ['PUR', 'PUR_RET', 'PO'], tabList: [['all', '全部'], ['PUR', '進貨單'], ['PUR_RET', '進貨退出'], ['PO', '採購單']], newTypes: ['PUR', 'PO', 'PUR_RET'],
+    key: 'purchase', title: '進貨／採購', types: ['PUR', 'PUR_RET', 'PO'], tabList: [['all', '全部'], ['PUR', '進貨單'], ['PUR_RET', '進貨退出'], ['PUR,PUR_RET', '進貨＋進貨退出'], ['PO', '採購單'], ['hist', '歷史（舊系統）']], histTypes: ['PUR', 'PUR_RET', 'PO'], newTypes: ['PUR', 'PO', 'PUR_RET'],
     actions: b => `<button class="btn xs" data-print="${b.id}">列印</button>`,
     bind(el2) { el2.querySelectorAll('[data-print]').forEach(x => x.addEventListener('click', () => printBill(store.get('bills', x.dataset.print)))); },
   }, ui);
