@@ -150,8 +150,26 @@ class DB:
             except Exception:
                 self.conn.execute('ROLLBACK')
                 raise
+            # 歷史單據版本：瀏覽器用它判斷本機快取還能不能用
+            self.conn.execute("INSERT OR REPLACE INTO meta(key,value) VALUES('hist_ver',?)", (str(int(time.time() * 1000)),))
+
+    def hist_stamp(self):
+        row = self.conn.execute("SELECT value FROM meta WHERE key='hist_ver'").fetchone()
+        return row[0] if row else 'c%d' % self.hist_count()
+
+    def hist_raw(self, type=None, limit=10000, offset=0):
+        """整批取歷史單據：直接回傳資料庫裡的 JSON 字串，不解開重包（給清單整批載入用）。"""
+        with self.lock:
+            where, args = ('WHERE b.type=?', [type]) if type else ('', [])
+            rows = self.conn.execute(f'SELECT b.data FROM hist_bills b {where} ORDER BY b.date DESC, b.no DESC LIMIT ? OFFSET ?', args + [int(limit), int(offset)]).fetchall()
+            total = self.conn.execute(f'SELECT COUNT(*) FROM hist_bills b {where}', args).fetchone()[0]
+            return total, [r[0] for r in rows]
 
     def hist_query(self, cid=None, gid=None, type=None, q=None, frm=None, to=None, limit=200, offset=0):
+        with self.lock:
+            return self._hist_query(cid, gid, type, q, frm, to, limit, offset)
+
+    def _hist_query(self, cid, gid, type, q, frm, to, limit, offset):
         where, args = [], []
         if cid:
             where.append('b.cid=?'); args.append(cid)

@@ -5,6 +5,7 @@ import { store } from './core/store.js';
 import { toast, icon, ICONS, modal } from './core/ui.js';
 import { MODULES } from './modules/index.js';
 import { calc, goodsLabel } from './core/calc.js';
+import { preloadHist } from './modules/_bills.js';
 
 const view = $('#view');
 let current = null, currentMod = null, unsub = null;
@@ -24,6 +25,7 @@ async function boot() {
   store.subscribe(onChange);
   window.addEventListener('hashchange', route);
   route();
+  setTimeout(() => preloadHist(), 1500);
 }
 function showLogin(msg) {
   $('#app').hidden = true;

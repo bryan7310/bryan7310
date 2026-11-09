@@ -37,7 +37,7 @@ class Store {
     let cached = null;
     try { cached = await idb('readonly', s => s.get(CACHE_KEY)); } catch (e) {}
     const me = await api.get('/api/me');
-    this.user = me.user;
+    this.user = me.user; this.histVer = (me.status && me.status.histVer) || '';
     if (cached && cached.ver && cached.ver <= me.ver && cached.uid === me.user.id) {
       for (const [c, arr] of Object.entries(cached.cols)) this.cols[c] = new Map(arr.map(d => [d.id, d]));
       this.ver = cached.ver; this.users = cached.users || []; this.hist = cached.hist || 0;
@@ -62,6 +62,9 @@ class Store {
     }, 1500);
   }
   async clearCache() { try { await idb('readwrite', s => s.delete(CACHE_KEY)); } catch (e) {} }
+  /** 其他要留在這台瀏覽器的大資料（例如舊系統歷史單據），讀不到就回 null */
+  async cacheGet(key) { try { return (await idb('readonly', s => s.get(key))) ?? null; } catch (e) { return null; } }
+  async cachePut(key, val) { try { await idb('readwrite', s => s.put(val, key)); } catch (e) {} }
 
   // ---------- 即時同步 ----------
   async loop() {

@@ -222,6 +222,11 @@ class Handler(BaseHTTPRequestHandler):
             r = db.hist_query(cid=q('cid'), gid=q('gid'), type=q('type'), q=q('q'), frm=q('from'), to=q('to'),
                               limit=min(int(q('limit', 200)), 1000), offset=int(q('offset', 0)))
             return self.send_json(r)
+        if path == '/api/hist/all':
+            # 整批載入：資料庫裡的 JSON 原樣送出（省掉解開重包），一次最多 10000 張，gzip 由 send_bytes 處理
+            total, raws = db.hist_raw(type=q('type'), limit=min(int(q('limit', 10000)), 10000), offset=int(q('offset', 0)))
+            body = ('{"total":%d,"stamp":%s,"rows":[' % (total, json.dumps(db.hist_stamp()))).encode('utf-8') + ','.join(raws).encode('utf-8') + b']}'
+            return self.send_bytes(body, 'application/json; charset=utf-8')
         if path == '/api/hist/prices':
             return self.send_json({'rows': db.hist_prices(q('gid', ''), int(q('limit', 50)))})
         if path == '/api/users' and method == 'GET':
@@ -257,7 +262,7 @@ class Handler(BaseHTTPRequestHandler):
         db = self.state.db
         return {'ver': db.ver, 'users': db.user_count(), 'needSetup': db.user_count() == 0,
                 'counts': {c: db.count(c) for c in ('goods', 'contacts', 'bills', 'pricing', 'checks_in')},
-                'hist': db.hist_count(), 'backup': self.state.backup, 'time': int(time.time() * 1000)}
+                'hist': db.hist_count(), 'histVer': db.hist_stamp(), 'backup': self.state.backup, 'time': int(time.time() * 1000)}
 
 
 # ---------- 每日自動備份 ----------

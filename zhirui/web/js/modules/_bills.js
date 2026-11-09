@@ -103,17 +103,23 @@ function billRow(b, opts, C) {
 
 // ---------- 舊系統歷史單據（唯讀，存在伺服器另一個表，向伺服器查） ----------
 const histCache = new Map(), histPending = new Map();
-/** 整批載入這幾種單據的歷史資料（每次 1000 張，其餘並行抓），載過就留在記憶體 */
+/** 整批載入這幾種單據的歷史資料：先看這台瀏覽器的快取（版本相同就直接用），否則向伺服器一次抓 10000 張；載過留在記憶體與快取 */
 function histFetch(types) {
   const key = types.join(',');
   if (histCache.has(key)) return Promise.resolve(histCache.get(key));
   if (histPending.has(key)) return histPending.get(key);
   const p = (async () => {
-    const out = [];
-    // 伺服器一次只能處理一個查詢，所以逐批依序抓（同時抓會出錯）
-    for (const type of types) {
-      let offset = 0;
-      for (;;) { const r = await api.hist({ type, limit: 1000, offset }); out.push(...r.rows); offset += r.rows.length; if (!r.rows.length || offset >= r.total) break; }
+    const stamp = store.histVer || ''; let out = null;
+    const c = await store.cacheGet('hist:' + key);
+    if (c && c.stamp === stamp && Array.isArray(c.rows)) out = c.rows;
+    if (!out) {
+      out = [];
+      // 伺服器一次只能處理一個查詢，所以逐批依序抓
+      for (const type of types) {
+        let offset = 0;
+        for (;;) { const r = await api.get(`/api/hist/all?type=${encodeURIComponent(type)}&limit=10000&offset=${offset}`); out.push(...r.rows); offset += r.rows.length; if (!r.rows.length || offset >= r.total) break; }
+      }
+      store.cachePut('hist:' + key, { stamp, rows: out });
     }
     for (const b of out) b.hist = true;
     histCache.set(key, out); histPending.delete(key);
@@ -122,6 +128,13 @@ function histFetch(types) {
   histPending.set(key, p);
   p.catch(() => histPending.delete(key));
   return p;
+}
+/** 登入後在背景先把各種歷史單據載好，打開清單時就不用等 */
+export async function preloadHist() {
+  for (const types of [['SALE', 'SALE_RET'], ['PUR', 'PUR_RET', 'PO'], ['QUO', 'RFQ']]) {
+    try { await histFetch(types); } catch (e) { break; }
+    await new Promise(r => setTimeout(r, 300));
+  }
 }
 /** 歷史單據檢視（唯讀） */
 export function histView(b) {
