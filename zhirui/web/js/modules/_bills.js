@@ -2,7 +2,7 @@
 import { $, $$, esc, fmt, fmtQ, fp4, today, uid, matchQ, qTerms, roc, slash, thisMonth, money, isoOf, downloadText, ls } from '../core/util.js';
 import { store } from '../core/store.js';
 import { toast, modal, confirm, combo, pager, tabs, printHTML } from '../core/ui.js';
-import { TYPES, totals, lineAmt, calc, nextNo, cname, cshort, wname, gname, goodsLabel, customers, suppliers, defWh, qtyAt, bqty, uRate, lastSale, unitPrice, unitFactor, setHistPur, costOf } from '../core/calc.js';
+import { TYPES, totals, lineAmt, calc, nextNo, cname, cshort, wname, gname, goodsLabel, customers, suppliers, defWh, qtyAt, bqty, uRate, lastSale, unitPrice, unitFactor, setHistPur, setHistSale, histSaleReady, costOf } from '../core/calc.js';
 import { api } from '../core/api.js';
 import { printName } from '../core/names.js';
 import { labelPicker } from './labels.js';
@@ -127,6 +127,7 @@ function histFetch(types) {
     for (const b of out) b.hist = true;
     histCache.set(key, out); histPending.delete(key);
     if (types.includes('PUR')) setHistPur(out.filter(b => b.type === 'PUR'));   // 成本推算也用舊系統進貨單
+    if (types.includes('SALE')) setHistSale(out.filter(b => b.type === 'SALE'));   // 上次單價也查舊系統銷貨單
     return out;
   })();
   histPending.set(key, p);
@@ -165,6 +166,15 @@ export function openBill(type, id, onSaved, preset) {
   }
   edit._err = '';
   drawBill();
+  // 舊系統歷史銷貨單還沒載入時先載，載好後幫還沒有單價的明細補上「上次單價」
+  if (['SALE', 'SALE_RET', 'QUO'].includes(edit.type) && !histSaleReady()) {
+    const cur = edit;
+    histFetch(['SALE', 'SALE_RET']).then(() => {
+      if (edit !== cur || !dlg) return; const C = calc(); let n = 0;
+      cur.lines.forEach(l => { if (l.gid && !(+l.price) && C.g[l.gid] && applyLast(l, C.g[l.gid])) n++; });
+      if (n) redrawLines(dlg.el);
+    }).catch(() => {});
+  }
 }
 function drawBill() {
   const e = edit, T = TYPES[e.type], C = calc();
@@ -193,7 +203,7 @@ function drawBill() {
     <div class="f"><label for="b-note">${ship ? '整張單備註（各行都沒填備註時，印在出貨單第一行最後一欄）' : '備註'}</label><textarea id="b-note" style="min-height:44px">${esc(e.note || '')}</textarea></div>
     ${e._err ? `<div class="err">${esc(e._err)}</div>` : ''}`;
   const footer = ship
-    ? `${e.id ? '<button class="btn" id="printShip">列印出貨單</button><button class="btn" id="printShipPn" title="品名前加印客料號">料號列印</button><button class="btn" id="printShipNa">列印（不含金額）</button><button class="btn sm" id="shipFmt" title="調整出貨單格式">格式</button>' : ''}${e.id ? '<button class="btn" id="lblBill">標籤</button>' : ''}${e.id && e.type === 'SALE' ? '<button class="btn" id="stkAdj">調整即時庫存</button>' : ''}${e.id ? '<button class="btn danger" id="delBill">刪除單據</button>' : ''}<span class="sp"></span><button class="btn" data-close>取消</button><button class="btn pri" id="saveBill">儲存</button>`
+    ? `<button class="btn" id="printShip">列印出貨單</button><button class="btn" id="printShipPn" title="品名前加印客料號">料號列印</button><button class="btn" id="printShipNa">列印（不含金額）</button><button class="btn sm" id="shipFmt" title="調整出貨單格式">格式</button><button class="btn" id="lblBill" ${e.id ? '' : 'title="會先儲存這張單"'}>標籤</button>${e.type === 'SALE' ? `<button class="btn" id="stkAdj" ${e.id ? '' : 'title="會先儲存這張單"'}>調整即時庫存</button>` : ''}<button class="btn danger" id="delBill" ${e.id ? '' : 'disabled title="還沒儲存的單據不用刪除"'}>刪除單據</button><span class="sp"></span><button class="btn" data-close>取消</button><button class="btn pri" id="saveBill">儲存</button>`
     : `${e.id ? `<button class="btn danger" id="delBill">刪除</button>` : ''}${e.id && T.doc ? `<button class="btn" id="faxBill">傳真</button>` : ''}${e.id && (e.type === 'QUO' || e.type === 'PO' || e.type === 'PUR') ? `<button class="btn" id="printBill">列印</button>` : ''}${e.id && e.type === 'QUO' && !e.toBill ? `<button class="btn" id="toSale">轉成銷貨單</button>` : ''}${e.id && e.type === 'PO' && !e.received ? `<button class="btn" id="toPur">轉成進貨單</button>` : ''}<span class="sp"></span><button class="btn" data-close>取消</button><button class="btn pri" id="saveBill">儲存</button>`;
   const nav = navList(e.type); const pos = e.id ? nav.findIndex(b => b.id === e.id) : nav.length;
   const headExtra = T.lines ? `<button class="btn sm" id="navPrev" ${pos > 0 ? '' : 'disabled'} title="Alt+←">◀ 上一張</button><button class="btn sm" id="navNext" ${e.id && pos < nav.length - 1 ? '' : 'disabled'} title="Alt+→">下一張 ▶</button><button class="btn sm pri" id="saveBill2" title="Ctrl+S">儲存</button><button class="btn sm" id="dlgMax">${ls.get('zr.billMax', false) ? '還原' : '放大'}</button>` : '';
@@ -255,12 +265,15 @@ function bindBill(el, close) {
   el.querySelector('#saveBill2')?.addEventListener('click', () => saveBill(close));
   el.querySelector('#delBill')?.addEventListener('click', async () => { if (await confirm(`確定刪除 ${T.name} ${e.no}？`, { danger: true, ok: '刪除' })) { await store.remove('bills', e.id); store.log('刪除', `${T.name} ${e.no}`); close(); toast('已刪除'); onSavedCb && onSavedCb(); } });
   el.querySelector('#printBill')?.addEventListener('click', () => printBill(e));
-  el.querySelector('#printShip')?.addEventListener('click', () => printShip(e));
-  el.querySelector('#printShipPn')?.addEventListener('click', () => printShip(e, { pn: true }));
-  el.querySelector('#printShipNa')?.addEventListener('click', () => printShip(e, { noAmt: true }));
+  // 還沒儲存的單：列印直接用畫面上的內容；標籤、調整即時庫存要先儲存
+  const hasLines = () => e.lines.some(l => l.txt === undefined && (l.gid || l.n) && +l.qty > 0) || (toast('請先輸入商品和數量'), false);
+  const afterSave = fn => () => e.id ? fn(e) : saveBill(close, fn);
+  el.querySelector('#printShip')?.addEventListener('click', () => hasLines() && printShip(e));
+  el.querySelector('#printShipPn')?.addEventListener('click', () => hasLines() && printShip(e, { pn: true }));
+  el.querySelector('#printShipNa')?.addEventListener('click', () => hasLines() && printShip(e, { noAmt: true }));
   el.querySelector('#shipFmt')?.addEventListener('click', () => shipFormat(e));
-  el.querySelector('#stkAdj')?.addEventListener('click', () => stockAdjust(e));
-  el.querySelector('#lblBill')?.addEventListener('click', () => labelPicker(e));
+  el.querySelector('#stkAdj')?.addEventListener('click', afterSave(b => stockAdjust(b)));
+  el.querySelector('#lblBill')?.addEventListener('click', afterSave(b => labelPicker(b)));
   el.querySelector('#faxBill')?.addEventListener('click', () => faxDialog(e, () => drawBill()));
   el.querySelector('#toSale')?.addEventListener('click', () => convertBill(e, 'SALE', close));
   el.querySelector('#toPur')?.addEventListener('click', () => convertBill(e, 'PUR', close));
@@ -322,7 +335,7 @@ function updateTotals(el) {
   st('#t-wt', kgText(billKg(e)));
   st('#t-sub', fmt(t.sub)); st('#t-tax', e.tax ? fmt(t.tax) : '—'); st('#t-total', fmt(t.total)); st('#t-due', fmt(t.total - (+e.paid || 0)));
 }
-async function saveBill(close) {
+async function saveBill(close, then) {
   const e = edit, T = TYPES[e.type]; let err = '';
   const C = calc();
   if (!e.date) err = '請填單據日期';
@@ -354,6 +367,7 @@ async function saveBill(close) {
   store.log(e.id ? '修改' : '新增', `${T.name} ${doc.no}${T.party ? '｜' + cname(doc.cid) : ''}｜${fmt(T.lines ? totals(doc).total : doc.amount)} 元`);
   close(); toast(`${T.name} ${doc.no} 已儲存`);
   onSavedCb && onSavedCb({ ...doc, id });
+  if (then) { openBill(null, id, onSavedCb); setTimeout(() => edit && edit.id === id && then(edit), 50); }   // 儲存後重新打開這張單，再做標籤／調整庫存
 }
 // 報價單 → 銷貨單、採購單 → 進貨單
 async function convertBill(src, type, close) {

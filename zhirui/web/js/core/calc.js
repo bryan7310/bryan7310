@@ -175,13 +175,15 @@ export function costOf(l, date, purIdx, gm, poIdx, loose) {
   return costG(g, l.gid, cls, f, date, purIdx, poIdx, sane);
 }
 
-// 同一客戶上一次銷貨單價
-let LSP = null, LSPgen = -1;
+// 同一客戶上一次銷貨單價（新平台＋舊系統歷史銷貨單）
+let LSP = null, LSPgen = -1, HIST_SALE = [];
+export function setHistSale(bills) { HIST_SALE = bills || []; LSP = null; }
+export const histSaleReady = () => HIST_SALE.length > 0;
 export function lastSale(cid, gid, date, exclude) {
   if (!cid || !gid) return null;
   if (!LSP || LSPgen !== store.gen) {
     LSP = new Map(); LSPgen = store.gen;
-    for (const b of store.list('bills')) { if (b.type !== 'SALE' || !b.cid) continue; (b.lines || []).forEach(l => { if (!l.gid || !(+l.price > 0)) return; const k = b.cid + '|' + l.gid; let a = LSP.get(k); if (!a) LSP.set(k, a = []); a.push({ date: b.date || '', no: b.no, id: b.id, price: +l.price, u: l.u, unit: l.unit, rate: l.rate }); }); }
+    for (const b of [...store.list('bills'), ...HIST_SALE]) { if (b.type !== 'SALE' || !b.cid) continue; (b.lines || []).forEach(l => { if (!l.gid || !(+l.price > 0)) return; const k = b.cid + '|' + l.gid; let a = LSP.get(k); if (!a) LSP.set(k, a = []); a.push({ date: b.date || '', no: b.no, id: b.id, price: +l.price, u: l.u, unit: l.unit, rate: l.rate }); }); }
     for (const a of LSP.values()) a.sort((x, y) => y.date.localeCompare(x.date) || String(y.no).localeCompare(String(x.no)));
   }
   const a = LSP.get(cid + '|' + gid) || []; return a.find(x => x.id !== exclude && (!date || x.date <= date)) || a.find(x => x.id !== exclude) || null;
