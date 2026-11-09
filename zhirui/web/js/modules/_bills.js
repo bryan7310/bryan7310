@@ -4,6 +4,8 @@ import { store } from '../core/store.js';
 import { toast, modal, confirm, combo, pager, tabs, printHTML } from '../core/ui.js';
 import { TYPES, totals, lineAmt, calc, nextNo, cname, cshort, wname, gname, goodsLabel, customers, suppliers, defWh, qtyAt, bqty, uRate, lastSale, unitPrice, unitFactor } from '../core/calc.js';
 import { api } from '../core/api.js';
+import { labelPicker } from './labels.js';
+import { faxDialog } from './faxes.js';
 
 export const billText = b => { const C = calc(); const c = C.ct[b.cid]; return [b.no, c?.code, c?.name, c?.short, b.cn, b.note, ...(b.lines || []).flatMap(l => { const g = C.g[l.gid]; return [g?.code, g?.name, g?.spec, l.n, l.memo]; })].filter(Boolean).join(' '); };
 export const partyLabel = b => { const C = calc(); const c = C.ct[b.cid]; return c ? (c.short || c.name) : (b.cn || '—'); };
@@ -85,7 +87,7 @@ function drawBill() {
       ${T.party ? `<div class="totals"><div><span>小計</span> <b id="t-sub"></b></div><div><span>稅額</span> <b id="t-tax"></b></div><div class="big"><span>總額</span> <b id="t-total"></b></div>${!T.doc ? `<div><span>${T.party === 'C' ? '已收' : '已付'}</span> <input id="b-paid" class="num" style="width:110px;border:1px solid var(--line);border-radius:6px;padding:5px 8px;text-align:right" value="${e.paid || ''}"></div><div><span>結算帳戶</span> <select id="b-aid" style="border:1px solid var(--line);border-radius:6px;padding:5px 8px">${accts.map(a => `<option value="${a.id}" ${a.id === e.aid ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}</select></div><div><span>尚欠</span> <b id="t-due"></b></div>` : ''}</div>` : ''}` : ''}
     <div class="f"><label for="b-note">備註</label><textarea id="b-note" style="min-height:48px">${esc(e.note || '')}</textarea></div>
     ${e._err ? `<div class="err">${esc(e._err)}</div>` : ''}`;
-  const footer = `${e.id ? `<button class="btn danger" id="delBill">刪除</button>` : ''}${e.id && (e.type === 'SALE' || e.type === 'QUO' || e.type === 'PO' || e.type === 'PUR') ? `<button class="btn" id="printBill">列印</button>` : ''}${e.id && e.type === 'QUO' && !e.toBill ? `<button class="btn" id="toSale">轉成銷貨單</button>` : ''}${e.id && e.type === 'PO' && !e.received ? `<button class="btn" id="toPur">轉成進貨單</button>` : ''}<span class="sp"></span><button class="btn" data-close>取消</button><button class="btn pri" id="saveBill">儲存</button>`;
+  const footer = `${e.id ? `<button class="btn danger" id="delBill">刪除</button>` : ''}${e.id && e.type === 'SALE' ? `<button class="btn" id="lblBill">標籤</button>` : ''}${e.id && T.doc ? `<button class="btn" id="faxBill">傳真</button>` : ''}${e.id && (e.type === 'SALE' || e.type === 'QUO' || e.type === 'PO' || e.type === 'PUR') ? `<button class="btn" id="printBill">列印</button>` : ''}${e.id && e.type === 'QUO' && !e.toBill ? `<button class="btn" id="toSale">轉成銷貨單</button>` : ''}${e.id && e.type === 'PO' && !e.received ? `<button class="btn" id="toPur">轉成進貨單</button>` : ''}<span class="sp"></span><button class="btn" data-close>取消</button><button class="btn pri" id="saveBill">儲存</button>`;
   if (dlg) dlg.close();
   dlg = modal({ title: `${T.name}${e.id ? ' ' + e.no : ''}`, width: 980, body, footer, closeOnBg: false, onOpen: bindBill, onClose: () => { dlg = null; } });
 }
@@ -117,6 +119,8 @@ function bindBill(el, close) {
   el.querySelector('#saveBill').addEventListener('click', () => saveBill(close));
   el.querySelector('#delBill')?.addEventListener('click', async () => { if (await confirm(`確定刪除 ${T.name} ${e.no}？`, { danger: true, ok: '刪除' })) { await store.remove('bills', e.id); store.log('刪除', `${T.name} ${e.no}`); close(); toast('已刪除'); onSavedCb && onSavedCb(); } });
   el.querySelector('#printBill')?.addEventListener('click', () => printBill(e));
+  el.querySelector('#lblBill')?.addEventListener('click', () => labelPicker(e));
+  el.querySelector('#faxBill')?.addEventListener('click', () => faxDialog(e, () => drawBill()));
   el.querySelector('#toSale')?.addEventListener('click', () => convertBill(e, 'SALE', close));
   el.querySelector('#toPur')?.addEventListener('click', () => convertBill(e, 'PUR', close));
   el.addEventListener('keydown', ev => { if (ev.key === 'Enter' && ev.ctrlKey) saveBill(close); });
@@ -212,7 +216,8 @@ async function convertBill(src, type, close) {
 }
 
 // ---------- 列印 ----------
-export function printBill(b) {
+export function printBill(b) { const d = billDoc(b); printHTML(`${d.title} ${b.no}`, d.css, d.html, { tip: '按 Ctrl+P 列印，紙張 A4。' }); }
+export function billDoc(b) {
   const C = calc(); const T = TYPES[b.type]; const co = store.setting('company'); const c = C.ct[b.cid] || {};
   const t = totals(b);
   const title = { SALE: '出貨單', QUO: '報價單', PO: '採購單', PUR: '進貨單', SALE_RET: '銷貨退回單', PUR_RET: '進貨退出單' }[b.type] || T.name;
@@ -225,5 +230,5 @@ export function printBill(b) {
     <tfoot><tr><td colspan="5" class="n">小計</td><td class="n">${fmt(t.sub)}</td></tr>${b.disc ? `<tr><td colspan="5" class="n">折讓</td><td class="n">-${fmt(b.disc)}</td></tr>` : ''}${b.tax ? `<tr><td colspan="5" class="n">營業稅 5%</td><td class="n">${fmt(t.tax)}</td></tr>` : ''}<tr><td colspan="5" class="n">總計</td><td class="n">${fmt(t.total)}</td></tr></tfoot></table>
     ${b.note ? `<p>備註：${esc(b.note)}</p>` : ''}
     <div class="sig"><span>經辦：</span><span>${T.party === 'C' ? '客戶簽收' : '廠商確認'}：</span></div>`;
-  printHTML(`${title} ${b.no}`, css, html, { tip: '按 Ctrl+P 列印，紙張 A4。' });
+  return { title, css, html, lines: lines.length };
 }

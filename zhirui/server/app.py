@@ -43,7 +43,7 @@ WEB = os.path.normpath(os.path.join(HERE, '..', 'web'))
 # 用戶端一開始就整批載入、之後即時同步的集合
 LIVE_COLS = ['settings', 'contacts', 'goods', 'warehouses', 'accounts', 'bills',
              'pricing_cats', 'pricing', 'discounts', 'receivables', 'payables', 'invoices', 'purch_invoices',
-             'checks_out', 'checks_in', 'orders', 'drawings', 'logs']
+             'checks_out', 'checks_in', 'orders', 'drawings', 'labels', 'mail', 'logs']
 COOKIE = 'zr_session'
 LONG_POLL = 25
 

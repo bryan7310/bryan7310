@@ -4,8 +4,10 @@ import { store } from '../core/store.js';
 import { toast, modal, confirm, tabs, combo } from '../core/ui.js';
 import { calc, customers, cshort, TYPES } from '../core/calc.js';
 import { openBill } from './_bills.js';
+import { mailImport } from './mail.js';
 
 const ui = { ym: thisMonth(), tab: 'month', filter: 'all' };
+const picked = new Set();
 export default {
   id: 'receivables', name: '應收帳款', group: '財務', icon: 'receivables',
   render(el, { sub }) { this.el = el; if (sub === 'open') ui.tab = 'open'; draw(el); },
@@ -52,7 +54,7 @@ function draw(el) {
   const tot = f => rows.reduce((s, r) => s + f(r), 0);
   const done = rows.filter(r => r.rec), open = rows.filter(r => !r.rec);
   const list = ui.tab === 'open' ? allOpen() : rows.filter(r => ui.filter === 'all' || (ui.filter === 'open' ? !r.rec : r.rec));
-  el.innerHTML = `<div class="head"><h1>應收帳款</h1><span class="sp"></span>${tabs('ar', [['month', '本月'], ['open', '未收款']], ui.tab)}<button class="btn pri" id="arAdd">＋ 手動新增</button></div>
+  el.innerHTML = `<div class="head"><h1>應收帳款</h1><span class="sp"></span>${tabs('ar', [['month', '本月'], ['open', '未收款']], ui.tab)}<button class="btn" id="arMail" ${picked.size ? '' : 'disabled'}>導入郵寄掛號${picked.size ? `（${picked.size}）` : ''}</button><button class="btn pri" id="arAdd">＋ 手動新增</button></div>
     ${ui.tab === 'month' ? `<div class="panel" style="display:grid;gap:12px">
       <div class="tools"><button class="btn sm" id="prevM">‹</button><input type="month" id="ym" value="${ym}" style="font-weight:600"><button class="btn sm" id="nextM">›</button><span class="muted">${ymLabel(ym)}</span><span class="sp"></span>${tabs('f', [['all', '全部'], ['open', '未收'], ['done', '已收']], ui.filter)}</div>
       <div class="kpis"><div class="kpi"><span>貨款</span><b>${money(tot(r => r.amt))}</b></div><div class="kpi"><span>稅額</span><b>${money(tot(r => r.tax))}</b></div><div class="kpi"><span>總額</span><b>${money(tot(r => r.total))}</b></div><div class="kpi"><span>門市收入</span><b>${money(st.amt || 0)}</b><small>${esc(st.note || '')}</small></div><div class="kpi ok"><span>已收 ${done.length} 筆</span><b>${money(done.reduce((s, r) => s + (r.recAmt ?? r.total), 0))}</b></div><div class="kpi ${open.length ? 'alert' : ''}"><span>未收 ${open.length} 筆</span><b>${money(open.reduce((s, r) => s + r.total, 0))}</b></div></div>
@@ -68,6 +70,9 @@ function draw(el) {
   $('#stAmt', el)?.addEventListener('change', saveStore); $('#stNote', el)?.addEventListener('change', saveStore);
   $('#arAdd', el).addEventListener('click', () => editRow({ ym, manual: true }));
   bindRows(el, list);
+  el.querySelectorAll('[data-pk]').forEach(cb => cb.addEventListener('change', () => { cb.checked ? picked.add(cb.dataset.pk) : picked.delete(cb.dataset.pk); draw(el); }));
+  $('#arPkAll', el)?.addEventListener('change', ev => { list.forEach(r => { if (r.cid) ev.target.checked ? picked.add(r.cid) : picked.delete(r.cid); }); draw(el); });
+  $('#arMail', el).addEventListener('click', async () => { const r = await mailImport([...picked]); picked.clear(); toast(`已導入 ${r.add} 家到郵寄掛號${r.miss.length ? `；找不到地址：${r.miss.join('、')}` : ''}`); location.hash = '#mail'; });
 }
 function allOpen() {
   const months = new Set([...store.list('receivables').map(r => r.ym), ...calc().bills.filter(b => b.type === 'SALE' && b.cid).map(b => (b.date || '').slice(0, 7))].filter(Boolean));
@@ -75,9 +80,9 @@ function allOpen() {
 }
 function table(list, ym, showYm) {
   if (!list.length) return `<div class="empty"><b>${showYm ? '全部都收齊了 ✓' : '這個月沒有應收帳款'}</b>${showYm ? '' : '開銷貨單後會自動出現，或按「手動新增」'}</div>`;
-  return `<div class="tw"><table><thead><tr><th>已收</th>${showYm ? '<th>月份</th>' : ''}<th>客戶</th><th class="n">貨款</th><th class="n">稅額</th><th class="n">總額</th><th>付款方式</th><th>到期</th><th class="n">實收</th><th>收款日</th><th></th></tr></thead><tbody>
-    ${list.map((r, i) => `<tr class="${r.rec ? 'muted' : ''}" data-i="${i}"><td><input type="checkbox" data-rec="${i}" ${r.rec ? 'checked' : ''} aria-label="已收款"></td>${showYm ? `<td class="nowrap">${esc(ymLabel(r.ym))}</td>` : ''}<td><b>${esc(r.name)}</b>${r.manual ? ' <span class="pill zinc">手調</span>' : r.src === 'platform' && !r.auto ? ' <span class="pill">舊資料</span>' : ''}${isLate(r) ? ' <span class="pill bad">逾期</span>' : ''}${r.note ? `<span class="sub">${esc(r.note)}</span>` : ''}${r.auto ? `<span class="sub">${r.auto.bills.length} 張銷貨單</span>` : ''}</td><td class="n"><a href="#" data-edit="${i}">${money(r.amt)}</a></td><td class="n">${r.tax ? money(r.tax) : '—'}</td><td class="n"><b>${money(r.total)}</b></td><td>${esc(r.method || '')}</td><td class="nowrap">${r.due ? esc(roc(r.due)) : ''}</td><td class="n">${r.rec ? money(r.recAmt ?? r.total) : ''}</td><td class="nowrap">${r.rec && r.recDate ? esc(roc(r.recDate)) : ''}</td><td class="nowrap"><button class="btn xs" data-edit="${i}">修改</button>${r.auto ? ` <button class="btn xs ghost" data-bills="${i}">單據</button>` : ''}</td></tr>`).join('')}
-    </tbody><tfoot><tr><td></td>${showYm ? '<td></td>' : ''}<td>合計 ${list.length} 筆</td><td class="n">${money(list.reduce((s, r) => s + r.amt, 0))}</td><td class="n">${money(list.reduce((s, r) => s + r.tax, 0))}</td><td class="n">${money(list.reduce((s, r) => s + r.total, 0))}</td><td colspan="2"></td><td class="n">${money(list.filter(r => r.rec).reduce((s, r) => s + (r.recAmt ?? r.total), 0))}</td><td colspan="2"></td></tr></tfoot></table></div>`;
+  return `<div class="tw"><table><thead><tr><th><input type="checkbox" id="arPkAll" title="全選（導入郵寄掛號）"></th><th>已收</th>${showYm ? '<th>月份</th>' : ''}<th>客戶</th><th class="n">貨款</th><th class="n">稅額</th><th class="n">總額</th><th>付款方式</th><th>到期</th><th class="n">實收</th><th>收款日</th><th></th></tr></thead><tbody>
+    ${list.map((r, i) => `<tr class="${r.rec ? 'muted' : ''}" data-i="${i}"><td><input type="checkbox" data-pk="${r.cid || ''}" ${r.cid && picked.has(r.cid) ? 'checked' : ''} ${r.cid ? '' : 'disabled'} title="導入郵寄掛號"></td><td><input type="checkbox" data-rec="${i}" ${r.rec ? 'checked' : ''} aria-label="已收款"></td>${showYm ? `<td class="nowrap">${esc(ymLabel(r.ym))}</td>` : ''}<td><b>${esc(r.name)}</b>${r.manual ? ' <span class="pill zinc">手調</span>' : r.src === 'platform' && !r.auto ? ' <span class="pill">舊資料</span>' : ''}${isLate(r) ? ' <span class="pill bad">逾期</span>' : ''}${r.note ? `<span class="sub">${esc(r.note)}</span>` : ''}${r.auto ? `<span class="sub">${r.auto.bills.length} 張銷貨單</span>` : ''}</td><td class="n"><a href="#" data-edit="${i}">${money(r.amt)}</a></td><td class="n">${r.tax ? money(r.tax) : '—'}</td><td class="n"><b>${money(r.total)}</b></td><td>${esc(r.method || '')}</td><td class="nowrap">${r.due ? esc(roc(r.due)) : ''}</td><td class="n">${r.rec ? money(r.recAmt ?? r.total) : ''}</td><td class="nowrap">${r.rec && r.recDate ? esc(roc(r.recDate)) : ''}</td><td class="nowrap"><button class="btn xs" data-edit="${i}">修改</button>${r.auto ? ` <button class="btn xs ghost" data-bills="${i}">單據</button>` : ''}</td></tr>`).join('')}
+    </tbody><tfoot><tr><td></td><td></td>${showYm ? '<td></td>' : ''}<td>合計 ${list.length} 筆</td><td class="n">${money(list.reduce((s, r) => s + r.amt, 0))}</td><td class="n">${money(list.reduce((s, r) => s + r.tax, 0))}</td><td class="n">${money(list.reduce((s, r) => s + r.total, 0))}</td><td colspan="2"></td><td class="n">${money(list.filter(r => r.rec).reduce((s, r) => s + (r.recAmt ?? r.total), 0))}</td><td colspan="2"></td></tr></tfoot></table></div>`;
 }
 function bindRows(el, list) {
   el.querySelectorAll('[data-rec]').forEach(cb => cb.addEventListener('change', async () => {

@@ -109,6 +109,7 @@ function route() {
   if (currentMod && currentMod.destroy) { try { currentMod.destroy(); } catch (e) {} }
   current = m.id; currentMod = m;
   document.body.classList.remove('open');
+  $('#modals').innerHTML = '';
   $('#crumb').innerHTML = `${esc(m.name)}${m.sub ? `<small>${esc(m.sub)}</small>` : ''}`;
   document.title = m.name + '｜志瑞螺絲作業平台';
   $('#topActions').innerHTML = '';

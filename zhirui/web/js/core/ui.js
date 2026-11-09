@@ -140,4 +140,7 @@ export const ICONS = {
   search: '<circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.3-4.3"/>',
   x: '<path d="M6 6l12 12M18 6 6 18"/>',
   log: '<path d="M4 6h16M4 12h10M4 18h7"/>',
+  fax: '<path d="M6 9V3h9l3 3v3"/><rect x="3" y="9" width="18" height="9" rx="2"/><path d="M7 18v3h10v-3M17 13h.01"/>',
+  labels: '<path d="M3 12.6V4.5A1.5 1.5 0 0 1 4.5 3h8.1a1.5 1.5 0 0 1 1 .4l7 7a1.5 1.5 0 0 1 0 2.1l-8.1 8.1a1.5 1.5 0 0 1-2.1 0l-7-7a1.5 1.5 0 0 1-.4-1z"/><circle cx="8" cy="8" r="1.6"/>',
+  mail: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/>',
 };
