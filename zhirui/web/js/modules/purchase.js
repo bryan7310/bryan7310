@@ -12,7 +12,7 @@ export default {
 };
 function draw(el) {
   billList(el, {
-    key: 'purchase', title: '進貨／採購', types: ['PUR', 'PUR_RET', 'PO'], tabList: [['all', '全部'], ['PUR', '進貨單'], ['PUR_RET', '進貨退出'], ['PUR,PUR_RET', '進貨＋進貨退出'], ['PO', '採購單'], ['hist', '歷史（舊系統）']], histTypes: ['PUR', 'PUR_RET', 'PO'], newTypes: ['PUR', 'PO', 'PUR_RET'],
+    key: 'purchase', title: '進貨／採購', types: ['PUR', 'PUR_RET', 'PO'], tabList: [['all', '全部'], ['PUR', '進貨單'], ['PUR_RET', '進貨退出'], ['PUR,PUR_RET', '進貨＋進貨退出'], ['PO', '採購單']], histTypes: ['PUR', 'PUR_RET', 'PO'], newTypes: ['PUR', 'PO', 'PUR_RET'],
     extraHead: '<button class="btn" id="piImport" title="匯入廠商出貨單 Excel，自動配對商品">匯入進貨單</button>',
     actions: b => `<button class="btn xs" data-print="${b.id}">列印</button>`,
     bind(el2) {

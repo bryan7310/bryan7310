@@ -51,22 +51,19 @@ function billsCsv(title, list, C) {
 }
 export function billList(el, opts, ui) {
   ui.tab ??= 'all'; ui.q ??= ''; ui.from ??= ''; ui.to ??= ''; ui.page ??= 0;
-  if (ui.tab === 'hist' && opts.histTypes) return histList(el, opts, ui);
   const C = calc();
   const types = opts.types;
   const typeOk = b => ui.tab === 'all' ? types.includes(b.type) : ui.tab.split(',').includes(b.type);
   const q = qTerms(ui.q);
-  const base = C.bills.filter(b => typeOk(b) && (!q.length || matchQ(billText(b), q)));
+  // 舊系統搬來的歷史單據（伺服器另一表）第一次用到時整批載入，之後和新平台的單一起列、一起搜尋
+  let histNote = '', hist = [];
+  if (opts.histTypes) {
+    const cached = histCache.get(opts.histTypes.join(','));
+    if (cached) hist = cached;
+    else { histNote = '<span class="muted small">載入舊系統的單據…</span>'; histFetch(opts.histTypes).then(() => { if (el.isConnected) billList(el, opts, ui); }).catch(e2 => toast('歷史單據載入失敗：' + (e2.message || e2))); }
+  }
+  const base = [...C.bills, ...hist].filter(b => typeOk(b) && (!q.length || matchQ(billText(b), q)));
   let list = base.filter(b => inPeriod(b, ui.from, ui.to));
-  // 選了期間或搜尋時，把舊系統的歷史單據（伺服器另一表）一起列出；沒選期間時只列新平台的單，歷史的在「歷史（舊系統）」分頁
-  const wantHist = opts.histTypes && (ui.from || ui.to || ui.q.trim());
-  let histNote = '';
-  if (wantHist) {
-    const hkey = opts.histTypes.join(',') + '|' + ui.q.trim() + '|' + ui.from + '|' + ui.to;
-    const cached = histCache.get(hkey);
-    if (cached) { list = [...list, ...cached.filter(b => typeOk(b)).map(b => ({ ...b, hist: true }))]; }
-    else { histNote = '<span class="muted small">載入舊系統歷史單據…</span>'; const snap = JSON.stringify([ui.tab, ui.q, ui.from, ui.to]); histFetch(opts.histTypes, ui.q.trim(), ui.from, ui.to).then(() => { if (el.isConnected && snap === JSON.stringify([ui.tab, ui.q, ui.from, ui.to])) billList(el, opts, ui); }).catch(e2 => toast('歷史單據載入失敗：' + (e2.message || e2))); }
-  } else if (opts.histTypes && !list.length) histNote = '<span class="muted small">舊系統的歷史單據請選期間、搜尋，或切到「歷史（舊系統）」分頁</span>';
   list = list.sort((a, b) => (b.date || '').localeCompare(a.date || '') || String(b.no).localeCompare(String(a.no)));
   const [s, e, pg] = pager(opts.key, list.length, ui.page);
   const sumT = list.reduce((a, b) => a + (TYPES[b.type].ps || 1) * (b.hist ? (+b.oamt || 0) : (C.tot[b.id]?.total || 0)), 0);
@@ -77,7 +74,7 @@ export function billList(el, opts, ui) {
       <div class="tools">${opts.tabList ? tabs('t', opts.tabList, ui.tab) : ''}<input type="search" id="bq" placeholder="搜尋單號、客戶／廠商、商品、備註" value="${esc(ui.q)}"><span class="muted small">${list.length} 張・合計 ${fmt(sumT)}</span>${histNote}</div>
       ${periodBar(ui, p => base.filter(b => inPeriod(b, p.from, p.to)).length)}
       <div class="tw" style="margin-top:10px"><table><thead><tr><th>日期</th><th>單號</th><th>${types.some(t => TYPES[t].party === 'S') ? '廠商' : types.some(t => TYPES[t].party === 'C') ? '客戶' : '倉庫'}</th><th>內容</th>${opts.cols ? opts.cols.map(c => `<th class="${c.cls || ''}">${c.label}</th>`).join('') : ''}<th class="n">金額</th><th>狀態</th><th></th></tr></thead>
-      <tbody>${list.length ? list.slice(s, e).map(b => billRow(b, opts, C)).join('') : `<tr><td colspan="9"><div class="empty"><b>沒有單據</b>${ui.q || ui.from || ui.to ? '試試清除搜尋或期間' : '按右上角的按鈕新增'}</div></td></tr>`}</tbody></table></div>${pg}
+      <tbody>${list.length ? list.slice(s, e).map(b => billRow(b, opts, C)).join('') : `<tr><td colspan="9"><div class="empty"><b>沒有單據</b>${histNote ? '舊系統的單據載入中…' : ui.q || ui.from || ui.to ? '試試清除搜尋或期間' : '按右上角的按鈕新增'}</div></td></tr>`}</tbody></table></div>${pg}
     </div>`;
   const redraw = () => billList(el, opts, ui);
   bindSearch(el, ui, redraw);
@@ -100,51 +97,31 @@ function billRow(b, opts, C) {
   if (b.type === 'QUO' && b.toBill) status += ' <span class="pill ok">已轉銷貨</span>';
   if (b.type === 'PO' && b.received) status += ' <span class="pill ok">已進貨</span>';
   if (opts.status) status += opts.status(b);
-  if (b.hist) status = '<span class="pill">舊系統</span>';
+  if (b.hist) status = '';
   return `<tr class="row" data-id="${b.id}" ${b.hist ? 'data-hist="1"' : ''}><td class="nowrap">${esc(slash(b.date))}</td><td class="mono nowrap">${esc(b.no)}${opts.tabList && opts.tabList.length > 2 ? `<span class="sub">${T.name}</span>` : ''}</td><td>${esc(T.party ? partyLabel(b) : T.transfer ? wname(b.wid) + ' → ' + wname(b.toWid) : wname(b.wid))}</td><td class="muted">${content}</td>${opts.cols ? opts.cols.map(c => `<td class="${c.cls || ''}">${c.cell(b)}</td>`).join('') : ''}<td class="n">${fmt(b.hist ? b.oamt : T.lines ? t.total : b.amount)}</td><td>${status}</td><td class="r nowrap">${b.hist ? `<button class="btn xs" data-hprint="${b.id}">列印</button>` : opts.actions ? opts.actions(b) : ''}</td></tr>`;
 }
 
 // ---------- 舊系統歷史單據（唯讀，存在伺服器另一個表，向伺服器查） ----------
-const histCache = new Map();
-async function histFetch(types, q, from, to) {
-  const key = types.join(',') + '|' + q + '|' + from + '|' + to;
-  if (histCache.has(key)) return histCache.get(key);
-  const out = [];
-  for (const type of types) {
-    let offset = 0;
-    for (;;) { const r = await api.hist({ type, q, from, to, limit: 1000, offset }); out.push(...r.rows); offset += r.rows.length; if (!r.rows.length || offset >= r.total) break; }
-  }
-  out.sort((a, b) => (b.date || '').localeCompare(a.date || '') || String(b.no).localeCompare(String(a.no)));
-  histCache.set(key, out);
-  return out;
-}
-async function histList(el, opts, ui) {
-  const types = opts.histTypes;
-  el.innerHTML = `
-    <div class="head"><h1>${esc(opts.title)}</h1><span class="sp"></span><button class="btn" id="bcsv" disabled>匯出 Excel (CSV)</button>${(opts.newTypes || []).map(t => `<button class="btn ${t === opts.newTypes[0] ? 'pri' : ''}" data-new="${t}">＋ ${TYPES[t].name}</button>`).join('')}${opts.extraHead || ''}</div>
-    <div class="panel">
-      <div class="tools">${opts.tabList ? tabs('t', opts.tabList, ui.tab) : ''}<input type="search" id="bq" placeholder="搜尋單號、客戶／廠商、商品" value="${esc(ui.q)}"><span class="muted small" id="bcnt">載入中…</span></div>
-      ${periodBar(ui)}
-      <div id="bhist" style="margin-top:10px"><div class="muted">載入舊系統的歷史單據…</div></div>
-    </div>`;
-  const redraw = () => billList(el, opts, ui);
-  bindSearch(el, ui, redraw, 350);
-  bindPeriod(el, ui, redraw);
-  el.addEventListener('tab', e2 => { ui.tab = e2.detail.val; ui.page = 0; redraw(); }, { once: true });
-  el.querySelectorAll('[data-new]').forEach(b => b.addEventListener('click', () => openBill(b.dataset.new, null, opts.onSaved)));
-  const box = $('#bhist', el); let list;
-  try { list = await histFetch(types, ui.q.trim(), ui.from, ui.to); } catch (e) { box.innerHTML = `<div class="empty"><b>載入失敗</b>${esc(e.message || e)}</div>`; return; }
-  if (!el.isConnected || ui.tab !== 'hist' || $('#bhist', el) !== box) return;
-  const [s, e, pg] = pager(opts.key + 'h', list.length, ui.page);
-  const sumT = list.reduce((a, b) => a + (TYPES[b.type]?.ps || 1) * (+b.oamt || 0), 0);
-  $('#bcnt', el).textContent = `${list.length.toLocaleString('zh-TW')} 張・合計 ${fmt(sumT)}`;
-  const csv = $('#bcsv', el); csv.disabled = !list.length; csv.addEventListener('click', () => billsCsv(opts.title + '_歷史', list.map(b => ({ ...b, hist: true })), null));
-  const content = b => { const ls = (b.lines || []).filter(l => l.txt === undefined); return `${ls.slice(0, 2).map(l => esc(l.gid ? gname(l.gid) : l.n || '')).join('、')}${ls.length > 2 ? `…等 ${ls.length} 項` : ''}`; };
-  box.innerHTML = `<div class="tw"><table><thead><tr><th>日期</th><th>單號</th><th>${types.some(t => TYPES[t].party === 'S') ? '廠商' : '客戶'}</th><th>內容</th><th class="n">金額</th><th>狀態</th><th></th></tr></thead>
-    <tbody>${list.length ? list.slice(s, e).map((b, i) => `<tr class="row" data-h="${s + i}"><td class="nowrap">${esc(slash(b.date))}</td><td class="mono nowrap">${esc(b.no)}<span class="sub">${TYPES[b.type]?.name || b.type}</span></td><td>${esc(partyLabel(b))}</td><td class="muted">${content(b)}</td><td class="n">${fmt(b.oamt)}</td><td><span class="pill">舊系統</span></td><td class="r nowrap"><button class="btn xs" data-hp="${s + i}">列印</button></td></tr>`).join('') : `<tr><td colspan="7"><div class="empty"><b>沒有歷史單據</b>${ui.q || ui.from || ui.to ? '試試清除搜尋或期間' : ''}</div></td></tr>`}</tbody></table></div>${pg}`;
-  box.querySelectorAll('[data-page]').forEach(b => b.addEventListener('click', () => { ui.page = +b.dataset.to; redraw(); }));
-  box.querySelectorAll('[data-hp]').forEach(b => b.addEventListener('click', () => printBill(list[+b.dataset.hp])));
-  box.querySelectorAll('tr.row').forEach(tr => tr.addEventListener('click', e2 => { if (e2.target.closest('button,a')) return; histView(list[+tr.dataset.h]); }));
+const histCache = new Map(), histPending = new Map();
+/** 整批載入這幾種單據的歷史資料（每次 1000 張，其餘並行抓），載過就留在記憶體 */
+function histFetch(types) {
+  const key = types.join(',');
+  if (histCache.has(key)) return Promise.resolve(histCache.get(key));
+  if (histPending.has(key)) return histPending.get(key);
+  const p = (async () => {
+    const out = [];
+    // 伺服器一次只能處理一個查詢，所以逐批依序抓（同時抓會出錯）
+    for (const type of types) {
+      let offset = 0;
+      for (;;) { const r = await api.hist({ type, limit: 1000, offset }); out.push(...r.rows); offset += r.rows.length; if (!r.rows.length || offset >= r.total) break; }
+    }
+    for (const b of out) b.hist = true;
+    histCache.set(key, out); histPending.delete(key);
+    return out;
+  })();
+  histPending.set(key, p);
+  p.catch(() => histPending.delete(key));
+  return p;
 }
 /** 歷史單據檢視（唯讀） */
 export function histView(b) {
