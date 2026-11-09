@@ -12,7 +12,7 @@ const PI_COLS = {
   qty: ['數量', '出貨數量'], unit: ['單位'], price: ['單價', '價格'], amt: ['金額', '小計'], date: ['貨單日期', '日期', '出貨日期', '單據日期'], no: ['貨單編號', '單號', '出貨單號', '單據編號'], memo: ['備註'],
 };
 let xlsxP = null;
-const loadXlsx = () => xlsxP ||= new Promise((res, rej) => { if (window.XLSX) return res(window.XLSX); const s = document.createElement('script'); s.src = '/vendor/xlsx.full.min.js'; s.onload = () => res(window.XLSX); s.onerror = () => { xlsxP = null; rej(new Error('Excel 元件載入失敗（web/vendor/xlsx.full.min.js）')); }; document.head.appendChild(s); });
+export const loadXlsx = () => xlsxP ||= new Promise((res, rej) => { if (window.XLSX) return res(window.XLSX); const s = document.createElement('script'); s.src = '/vendor/xlsx.full.min.js'; s.onload = () => res(window.XLSX); s.onerror = () => { xlsxP = null; rej(new Error('Excel 元件載入失敗（web/vendor/xlsx.full.min.js）')); }; document.head.appendChild(s); });
 
 // ---------- 文字正規化與分類 ----------
 const piNorm = t => String(t || '').replace(/\s+/g, ' ').replace(/[（]/g, '(').replace(/[）]/g, ')').replace(/[×xX＊]/g, '*').replace(/\(皿圓\)|皿圓/g, '皿頭').replace(/\(半圓\)/g, '半圓').replace(/\(皿頭\)/g, '皿頭').replace(/六角華司(?!面)/g, '六角華司面').replace(/TP牙/g, '快速牙').replace(/皿\+喇叭頭?/g, '喇叭').replace(/有頭內六角/g, 'CAP內六角').replace(/六角帽/g, '六角螺帽').replace(/無\s*MARK|無標/gi, '無字').replace(/(\d)\s*邊\s*\*?/g, '$1*').replace(/(\d)\s*厚/g, '$1').replace(/-(六角|螺帽|平華司|彈簧|拉釘|止付|安全|C型|PT)/g, '$1');
@@ -136,7 +136,7 @@ export async function importFromBuffer(buf, fname, onDone) {
   }
   if (!items.length) return toast('表單裡沒有可匯入的明細');
   const txt = allText.join(' '); let sup = null, len = 0;
-  for (const c of suppliers()) for (const n of [c.name, c.short]) { const v = String(n || '').trim(); if (v.length >= 2 && v.length > len && txt.includes(v)) { sup = c; len = v.length; } }
+  for (const c of suppliers(true)) for (const n of [c.name, c.short]) { const v = String(n || '').trim(); if (v.length >= 2 && v.length > len && txt.includes(v)) { sup = c; len = v.length; } }
   const PI = { items, cid: sup?.id || '', fname, wid: store.list('warehouses')[0]?.id || '', f: 'all', q: '' };
   piRun(PI); piOpen(PI, onDone);
 }

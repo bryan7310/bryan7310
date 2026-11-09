@@ -131,8 +131,9 @@ export const wname = id => calc().wh[id]?.name || '—';
 export const gname = id => { const x = calc().g[id]; return x ? `${x.name}${x.spec ? ' ' + x.spec : ''}` : '（已刪除商品）'; };
 export const goodsLabel = x => [x.code, x.name, x.spec].filter(Boolean).join(' ');
 export const billAmt = b => TYPES[b.type]?.lines ? (calc().tot[b.id]?.total || 0) : +b.amount || 0;
-export const customers = () => store.list('contacts').filter(c => c.kind === 'C').sort((a, b) => String(a.code || a.name).localeCompare(String(b.code || b.name)));
-export const suppliers = () => store.list('contacts').filter(c => c.kind === 'S').sort((a, b) => String(a.code || a.name).localeCompare(String(b.code || b.name)));
+// 客戶／供應商清單：預設不含「停用」的（開單、挑選用）；all=true 含停用（基本資料、報表、名稱比對用）
+export const customers = all => store.list('contacts').filter(c => c.kind === 'C' && (all || !c.inactive)).sort((a, b) => String(a.code || a.name).localeCompare(String(b.code || b.name)));
+export const suppliers = all => store.list('contacts').filter(c => c.kind === 'S' && (all || !c.inactive)).sort((a, b) => String(a.code || a.name).localeCompare(String(b.code || b.name)));
 export const defWh = () => { const id = store.setting('prefs').defaultWh; const ws = store.list('warehouses'); return ws.find(w => w.id === id) || ws[0] || null; };
 
 // ---------- 每件成本：最接近日期的進貨單 → 採購單 → 查價牌價 → 手動 ----------

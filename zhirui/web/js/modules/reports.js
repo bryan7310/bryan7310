@@ -33,7 +33,7 @@ function draw(el) {
     else { ui.from = dstr(new Date(y, m - 1, 1)); ui.to = dstr(new Date(y, m, 0)); }
     draw(el);
   }));
-  if ($('#rpC', el)) combo($('#rpC', el), { items: () => customers().map(c => ({ id: c.id, label: c.name, sub: c.short || '', text: [c.code, c.name, c.short, ...(c.aliases || [])].join(' ') })), onPick: it => { ui.cid = it.id; body(el); }, onClear: () => { ui.cid = ''; body(el); } });
+  if ($('#rpC', el)) combo($('#rpC', el), { items: () => customers(true).map(c => ({ id: c.id, label: c.name, sub: c.short || '', text: [c.code, c.name, c.short, ...(c.aliases || [])].join(' ') })), onPick: it => { ui.cid = it.id; body(el); }, onClear: () => { ui.cid = ''; body(el); } });
   body(el);
 }
 let last = { title: '', head: [], rows: [], foot: [] };
@@ -69,7 +69,7 @@ async function body(el) {
     const totOf = b => b.hist ? histTot(b) : (C.tot[b.id] || totals(b));
     if (ui.tab === 'ar') {
       // 期間內各客戶出貨金額加總
-      const cs = customers(); const m = new Map();
+      const cs = customers(true); const m = new Map();
       for (const b of sales) {
         if (!b.cid || !arHas(b.cid)) continue;
         const s = b.type === 'SALE' ? 1 : -1; const t = totOf(b);
@@ -93,16 +93,16 @@ async function body(el) {
           <tfoot><tr><td></td><td colspan="2">合計（${rows.length} 家）</td><td class="n">${tot.n}</td><td class="n">${fmt(tot.net)}</td><td class="n">${fmt(tot.tax)}</td><td class="n">${fmt(tot.total)}</td></tr></tfoot></table></div>` : '<div class="empty"><b>期間內沒有出貨</b>調整日期或勾選的客戶。</div>'}</div></div>`;
       $('#arQ', box).addEventListener('input', ev => { ui.q = ev.target.value; const q = ui.q.trim(); box.querySelectorAll('#arList .ar-it').forEach(x => { x.style.display = !q || matchQ(x.dataset.k, q) ? 'flex' : 'none'; }); });
       box.querySelectorAll('[data-arc]').forEach(cb => cb.addEventListener('change', () => {
-        if (!arSel) arSel = new Set(customers().map(c => c.id));
+        if (!arSel) arSel = new Set(customers(true).map(c => c.id));
         cb.checked ? arSel.add(cb.dataset.arc) : arSel.delete(cb.dataset.arc);
-        if (arSel.size === customers().length) arSel = null;
+        if (arSel.size === customers(true).length) arSel = null;
         arSave(); const sc = $('#arList', box).scrollTop; body(el).then(() => { const l = $('#arList', box); if (l) l.scrollTop = sc; });
       }));
       box.querySelectorAll('[data-ar]').forEach(b => b.addEventListener('click', () => {
         const a = b.dataset.ar;
         if (a === 'all') arSel = null;
         else if (a === 'none') arSel = new Set();
-        else { arSel = new Set([...box.querySelectorAll('#arList .ar-it')].filter(x => x.style.display !== 'none').map(x => x.querySelector('input').dataset.arc)); if (arSel.size === customers().length) arSel = null; }
+        else { arSel = new Set([...box.querySelectorAll('#arList .ar-it')].filter(x => x.style.display !== 'none').map(x => x.querySelector('input').dataset.arc)); if (arSel.size === customers(true).length) arSel = null; }
         arSave(); body(el);
       }));
       const syncMail = () => { $('#rpMailN', el).textContent = ui.mail.size; $('#rpMail', el).disabled = !ui.mail.size; const all = $('#arAll', box); if (all) all.checked = rows.length && rows.every(r => ui.mail.has(r.c.id)); };
