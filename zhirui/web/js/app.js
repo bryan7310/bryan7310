@@ -7,7 +7,7 @@ import { MODULES } from './modules/index.js';
 import { calc, goodsLabel } from './core/calc.js';
 import { preloadHist } from './modules/_bills.js';
 
-const view = $('#view');
+let view = $('#view');
 let current = null, currentMod = null, unsub = null;
 
 // ---------- 主題 ----------
@@ -115,7 +115,8 @@ function route() {
   $('#crumb').innerHTML = `${esc(m.name)}${m.sub ? `<small>${esc(m.sub)}</small>` : ''}`;
   document.title = m.name + '｜志瑞螺絲作業平台';
   $('#topActions').innerHTML = '';
-  view.innerHTML = '';
+  // 換一個全新的畫面容器：上一頁掛在容器上的事件（例如分頁按鍵）不會留到這一頁
+  const fresh = view.cloneNode(false); view.replaceWith(fresh); view = fresh; view.addEventListener('click', tabClick);
   view.scrollTop = 0; window.scrollTo(0, 0);
   try { m.render(view, { sub, params, go }); }
   catch (e) { console.error(e); view.innerHTML = `<div class="banner">這個頁面發生錯誤：${esc(e.message)}</div>`; }
@@ -127,10 +128,11 @@ function onChange(changed) {
   if (currentMod && currentMod.onChange) { try { currentMod.onChange(changed); } catch (e) { console.error(e); } }
 }
 // 畫面內的分頁按鈕、tabs 等共用事件
-view.addEventListener('click', e => {
+function tabClick(e) {
   const t = e.target.closest('[data-tabs] button');
   if (t) { const box = t.closest('[data-tabs]'); box.querySelectorAll('button').forEach(b => b.classList.toggle('on', b === t)); box.dispatchEvent(new CustomEvent('tab', { bubbles: true, detail: { key: box.dataset.tabs, val: t.dataset.val } })); }
-});
+}
+view.addEventListener('click', tabClick);
 
 // ---------- 全站搜尋 ----------
 const gq = $('#gq'), gres = $('#gres');
