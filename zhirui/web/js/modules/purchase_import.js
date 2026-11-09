@@ -15,28 +15,35 @@ let xlsxP = null;
 const loadXlsx = () => xlsxP ||= new Promise((res, rej) => { if (window.XLSX) return res(window.XLSX); const s = document.createElement('script'); s.src = '/vendor/xlsx.full.min.js'; s.onload = () => res(window.XLSX); s.onerror = () => { xlsxP = null; rej(new Error('Excel 元件載入失敗（web/vendor/xlsx.full.min.js）')); }; document.head.appendChild(s); });
 
 // ---------- 文字正規化與分類 ----------
-const piNorm = t => String(t || '').replace(/\s+/g, ' ').replace(/[（]/g, '(').replace(/[）]/g, ')').replace(/[×xX＊]/g, '*').replace(/\(皿圓\)|皿圓/g, '皿頭').replace(/\(半圓\)/g, '半圓').replace(/六角華司(?!面)/g, '六角華司面').replace(/TP牙/g, '快速牙').replace(/皿\+喇叭頭?/g, '喇叭').replace(/有頭內六角/g, 'CAP內六角').replace(/六角帽/g, '六角螺帽').replace(/(\d)\s*邊/g, '$1').replace(/(\d)\s*厚/g, '$1').replace(/-(六角|螺帽|平華司|彈簧)/g, '$1');
+const piNorm = t => String(t || '').replace(/\s+/g, ' ').replace(/[（]/g, '(').replace(/[）]/g, ')').replace(/[×xX＊]/g, '*').replace(/\(皿圓\)|皿圓/g, '皿頭').replace(/\(半圓\)/g, '半圓').replace(/\(皿頭\)/g, '皿頭').replace(/六角華司(?!面)/g, '六角華司面').replace(/TP牙/g, '快速牙').replace(/皿\+喇叭頭?/g, '喇叭').replace(/有頭內六角/g, 'CAP內六角').replace(/六角帽/g, '六角螺帽').replace(/無\s*MARK|無標/gi, '無字').replace(/(\d)\s*邊\s*\*?/g, '$1*').replace(/(\d)\s*厚/g, '$1').replace(/-(六角|螺帽|平華司|彈簧|拉釘|止付|安全|C型|PT)/g, '$1');
 function piText(r) { let t = [r.mat, r.name, r.spec, r.fin].filter(Boolean).join(' '); t = piNorm(t); if (/內六角/.test(t) && !/螺絲|螺栓|止付|螺帽/.test(t)) t += ' 螺絲'; return t; }
 function matCls(t) { t = String(t || '').replace(/(紅|青)?古銅|鍍銅|銅底/g, ''); return /白鐵|不鏽|不銹|SUS/i.test(t) ? '不鏽鋼' : /合金|SCM/i.test(t) ? '合金鋼' : /中碳/.test(t) ? '中碳鋼' : /銅/.test(t) ? '銅' : /鋁/.test(t) ? '鋁' : /塑膠|尼龍(?!螺帽)|PVC/i.test(t) ? '塑膠' : /彈簧鋼/.test(t) ? '彈簧鋼' : '鐵'; }
 function finCls(t) { t = String(t || ''); return /黑鎳/.test(t) ? '黑鎳' : /鎳/.test(t) ? '鍍鎳' : /五彩/.test(t) ? '五彩' : /三價|白鋅|鍍鋅|電鋅|錏(?!黑)/.test(t) ? '鍍鋅' : /黑身|白皮/.test(t) ? '黑身' : /錏黑/.test(t) ? '錏黑' : /染黑|發黑/.test(t) ? '染黑' : /鉻/.test(t) ? '鍍鉻' : ''; }
-const PI_FEAT = [['nyl', /尼龍|DIN.?985/], ['fl', /法蘭|突緣/], ['thin', /薄/], ['cap', /蓋|袋帽|圓型長帽/], ['half', /半牙/], ['wf', /華司面|附墊/], ['tap', /鐵板|自攻|尖尾|割尾|鑽尾|木螺絲|快速牙|TP牙/], ['lock', /耐落|防鬆/]];
+// 特徵：兩邊只有一邊有的就扣分（尼龍、法蘭、薄、蓋帽、半牙、華司面、鐵板牙、耐落、蝶型、拉帽、四角、U型、帽扣、無字）
+const PI_FEAT = [['nyl', /尼龍|DIN.?985/], ['fl', /法蘭|突緣/], ['thin', /薄/], ['cap', /蓋|袋帽|圓型長帽/], ['half', /半牙/], ['wf', /華司面|附墊/], ['tap', /鐵板|自攻|尖尾|割尾|鑽尾|木螺絲|快速牙|TP牙/], ['lock', /耐落|防鬆/], ['wing', /蝶/], ['rivnut', /拉帽/], ['sq', /四角/], ['u', /U型/], ['clip', /帽扣/], ['nomark', /無字/]];
 const piFeat = t => { const r = new Set(); for (const [k, re] of PI_FEAT) if (re.test(t)) r.add(k); return r; };
-const TYPE_RE = [['nut', /螺帽|螺母|帽/], ['sw', /彈簧華司|彈簧墊/], ['fw', /華司|墊片|墊圈/], ['set', /止付|無頭/], ['cap', /CAP|內六角|杯頭|有頭/i], ['hex', /六角/], ['pan', /圓頭|盤頭|傘頭|半圓/], ['flat', /皿頭|大扁|平頭|沉頭/], ['truss', /喇叭|大圓/], ['rivet', /鉚/], ['pin', /梢|銷|針/]];
+// 類型（先列特定的，再列通用的）；頭型另外用 HEAD_RE 判斷
+const TYPE_RE = [['nut', /螺帽|螺母|帽(?!扣)/], ['sw', /彈簧華司|彈簧墊/], ['fw', /(?<!六角)華司(?!面)|墊片|墊圈/], ['set', /止付|無頭/], ['anchor', /壁虎|膨脹/], ['eye', /吊環|眼環/], ['rivet', /拉釘|鉚釘|鉚/], ['stud', /牙條|牙棒/], ['ring', /扣環|C型/], ['plug', /塞頭/], ['cap', /CAP|內六角|杯頭|有頭/i], ['hex', /六角/], ['screw', /螺絲|螺栓|牙|釘/], ['pin', /梢|銷|針/]];
+const HEAD_RE = [['flat', /皿頭|沉頭|平頭/], ['ban', /大扁/], ['pan', /半圓|圓頭|盤頭|傘頭|鈕頭|扁圓/], ['truss', /喇叭|大圓/]];
 const DRIVE_RE = [['ph', /⊕|十字|PH/i], ['sl', /Θ|一字/], ['tx', /星型|梅花|T\d{2}|TX/i], ['hs', /內六角/]];
-/** 從文字解析規格：直徑（mm）、長度（mm）、類型、驅動、牙系、華司外徑／厚度 */
+/** 從文字解析規格：直徑（mm）、長度（mm）、類型、頭型、驅動、牙系、華司外徑／厚度 */
 function spParse(t) {
-  const s = piNorm(t); const sp = { type: 'other', D: 0, L: 0, drive: '', th: '', s: 0, k: 0 };
+  const s = piNorm(t); const sp = { type: 'other', head: '', D: 0, L: 0, drive: '', th: '', s: 0, k: 0 };
   for (const [k, re] of TYPE_RE) if (re.test(s)) { sp.type = k; break; }
+  for (const [k, re] of HEAD_RE) if (re.test(s)) { sp.head = k; break; }
   for (const [k, re] of DRIVE_RE) if (re.test(s)) { sp.drive = k; break; }
   let m, rest = '';
   if ((m = s.match(/(?:^|[^A-Z0-9])(?:M|ST)(\d+(?:\.\d+)?)/i))) { sp.D = +m[1]; sp.th = 'M'; rest = s.slice(m.index + m[0].length); }
   else if ((m = s.match(/(\d+)#/))) { sp.D = diaValue(m[1] + '#'); sp.th = 'W'; rest = s.slice(m.index + m[0].length); }
-  else if ((m = s.match(/(?:^|[^\d.\/])((?:\d+-)?\d+\/\d+)(?=["*\s]|$)/))) { sp.D = diaValue(m[1]); sp.th = 'W'; rest = s.slice(m.index + m[0].length); }
+  else if ((m = s.match(/(?:^|[^\d.\/])((?:\d+-)?\d+\/\d+)(?=["*\s(]|$)/))) { sp.D = diaValue(m[1]); sp.th = 'W'; rest = s.slice(m.index + m[0].length); }
   else if ((m = s.match(/(?:^|[^A-Z0-9.])W?(\d+(?:\.\d+)?)\s*\*/i)) && sp.type !== 'other') { sp.D = +m[1]; sp.th = /W\d/.test(m[0]) ? 'W' : 'M'; rest = s.slice(m.index + m[0].length - 1); }
   if (!sp.th) sp.th = /英制|UNC|UNF|W粗牙|"/.test(s) ? 'W' : 'M';
-  const nums = []; const re = /\*\s*((?:\d+-)?\d+(?:\.\d+)?(?:\/\d+)?"?)(?:\s*(mm|L|m\/m))?/gi; let x;
+  // 直徑後面的數字：「*25」「*13*1.5」，也接受「(13*6.5)」「 13」這種寫法（螺帽邊寬、華司外徑）
+  const nums = []; const re = /(?:\*|\(|^\s)\s*((?:\d+-)?\d+(?:\.\d+)?(?:\/\d+)?"?)(?:\s*(mm|L|m\/m))?/gi; let x;
   while ((x = re.exec(rest))) nums.push(x[1]);
   const val = v => { const n = lenValue(v); return isFinite(n) ? n : 0; };
+  // 「5/16(8*25)」：括號第一個數字只是直徑換算，跳過
+  if (nums.length >= 2 && sp.D && /^\s*\(/.test(rest) && Math.abs(val(nums[0]) - sp.D) < 0.15) nums.shift();
   if (sp.type === 'fw' || sp.type === 'sw' || sp.type === 'nut') { if (nums[0]) sp.s = val(nums[0]); if (nums[1]) sp.k = val(nums[1]); }
   else if (nums[0]) sp.L = val(nums[0]);
   return sp;
@@ -45,10 +52,13 @@ function piScore(sp, D, L, m, f, o) {
   let s = 0; const ft = sp._ft || new Set();
   for (const [k] of PI_FEAT) if (ft.has(k) !== o.ft.has(k)) s -= (k === 'half' ? 8 : 14);
   if (sp.type && sp.type !== 'other' && o.sp.type !== 'other') { if (sp.type === o.sp.type) s += 30; else s -= 25; }
-  if (D && o.D) { if (Math.abs(D - o.D) < 0.06) s += 30; else return -999; }
+  // 頭型：皿頭／大扁／半圓／喇叭；兩邊都有寫就要一樣，只有一邊寫的小扣分（例如表單「有頭內六角」對「半圓內六角」）
+  if (sp.head && o.sp.head) s += sp.head === o.sp.head ? 12 : -20; else if (sp.head || o.sp.head) s -= 10;
+  if (D && o.D) { if (Math.abs(D - o.D) < 0.1) s += 30; else return -999; }
   if (L && o.L) { if (Math.abs(L - o.L) < 0.06) s += 22; else if (Math.abs(L - o.L) <= 0.6) s += 6; else s -= 18; } else if (L || o.L) s -= 4;
   if (m === o.m) s += 15; else s -= 18;
-  if (f && o.f) { if (f === o.f) s += 10; else s -= 6; } else if (f || o.f) s -= 2;
+  if (f && o.f) { if (f === o.f) s += 10; else s -= 12; } else if (f || o.f) s -= 2;
+  if (!f && o.f === '染黑' && m === '合金鋼' && o.m === '合金鋼') s += 4;   // 合金螺絲沒寫電鍍，預設是染黑
   if (sp.drive && o.sp.drive && sp.type === o.sp.type && sp.drive === o.sp.drive) s += 4;
   if (sp.th && o.sp.th && (sp.th === 'W') !== (o.sp.th === 'W')) s -= 10;
   const wsh = sp.type === 'fw' || sp.type === 'sw' || sp.type === 'nut';
@@ -73,7 +83,8 @@ function piMatch(r, cid) {
   const t = piText(r); const sp = spParse(t); sp._ft = piFeat(t);
   const D = sp.D, L = sp.L, m = matCls(t), f = finCls(t); const vm = (vmap()[cid] || {})[r.code];
   const X = piIndex(); const out = [];
-  const pool = D ? (X.by.get(Math.round(D * 10)) || []) : X.all.filter(o => o.sp.type === sp.type);
+  const k0 = Math.round(D * 10);
+  const pool = D ? [...(X.by.get(k0 - 1) || []), ...(X.by.get(k0) || []), ...(X.by.get(k0 + 1) || [])] : X.all.filter(o => o.sp.type === sp.type);
   for (const o of pool) { const s = piScore(sp, D, L, m, f, o); if (s > 20) out.push({ o, s }); }
   if (r.code) for (const o of X.all) if ((o.g.code === r.code || o.g.vcode === r.code) && !out.some(x => x.o === o)) out.push({ o, s: 60 });
   for (const x of out) { if (r.code && x.o.g.vcode === r.code) x.s += 60; if (r.code && x.o.g.code === r.code) x.s += 40; if (r.code && String(x.o.g.name).includes(r.code)) x.s += 25; if (vm && x.o.g.id === vm) x.s += 100; }
