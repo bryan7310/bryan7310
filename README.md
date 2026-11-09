@@ -41,4 +41,5 @@
 更新 `index.html` 或內建牌價後執行 `python3 data/build_readonly.py` 重新產生。
 
 ## 其他
+- [`zhirui/`](zhirui/README.md)：**志瑞螺絲作業平台（伺服器版）**，整合進銷存與作業平台的新系統（公司 Windows 電腦當伺服器）。規劃見 [`docs/整合規劃.md`](docs/整合規劃.md)。
 - [`trading/`](trading/README.md)：美股 ETF 動能輪動自動交易程式（Alpaca 模擬帳戶）。
