@@ -3,6 +3,7 @@ import { $, esc, money, today, roc, rocLong, parseNum, uid, cnMoney, slash, qTer
 import { store } from '../core/store.js';
 import { toast, modal, confirm, tabs, combo, printHTML, pager } from '../core/ui.js';
 import { suppliers } from '../core/calc.js';
+import { printName } from '../core/names.js';
 
 const ui = { tab: 'pending', q: '', page: 0 };
 export default {
@@ -51,7 +52,7 @@ export function newCheckOut(preset, cb) {
     footer: `${!isNew ? '<button class="btn danger" id="co-del">刪除</button>' : ''}<span class="sp"></span><button class="btn" data-close>取消</button><button class="btn pri" id="co-ok">儲存</button>`,
     onOpen(el, close) {
       let cid = d.cid;
-      combo($('#co-payee', el), { items: () => suppliers().map(c => ({ id: c.id, label: c.name, sub: c.short || '', text: [c.code, c.name, c.short, ...(c.aliases || [])].join(' ') })), allowFree: true, onPick: it => { cid = it.id; } });
+      combo($('#co-payee', el), { items: () => suppliers().map(c => ({ id: c.id, label: printName(c.name), sub: c.short || '', text: [c.code, c.name, c.short, ...(c.aliases || [])].join(' ') })), allowFree: true, onPick: it => { cid = it.id; } });
       $('#co-amount', el).addEventListener('input', () => { $('#co-cn', el).textContent = cnMoney(parseNum($('#co-amount', el).value) || 0); });
       $('#co-ok', el).onclick = async () => {
         const amount = parseNum($('#co-amount', el).value); const payee = $('#co-payee', el).value.trim();
@@ -64,6 +65,8 @@ export function newCheckOut(preset, cb) {
     onClose: v => { if (!v) cb && cb(null); },
   });
 }
+// 支票抬頭印全名：抬頭寫的是該供應商的簡稱／別名時，換成全名（拿掉備註括號）；自己打的其他抬頭照印
+function payeeOut(c) { const s = c.cid && store.get('contacts', c.cid); const p = String(c.payee || '').trim(); if (s && (p === s.short || p === s.name || (s.aliases || []).includes(p))) return printName(s.name); return p; }
 async function printChecks(list) {
   // 沒票號的先補：從上一張 +1
   const need = list.filter(c => !c.no);
@@ -74,7 +77,7 @@ async function printChecks(list) {
   }
   const L = layout(); const fl = fmtList(); const W = L.pageW - L.mL - L.mR, H = L.pageH - L.mT - L.mB;
   const html = list.map(c => {
-    const dt = rocDate(c.date); const vals = { year: dt.y, month: dt.m, day: dt.d, payee: c.payee, words: cnMoney(c.amount), num: money(c.amount), no: c.no || '', note: c.note || '' };
+    const dt = rocDate(c.date); const vals = { year: dt.y, month: dt.m, day: dt.d, payee: payeeOut(c), words: cnMoney(c.amount), num: money(c.amount), no: c.no || '', note: c.note || '' };
     let h = `<div class="check" style="width:${L.pageW}mm;height:${L.pageH}mm">`;
     for (const f of fl) { if (!f.on) continue; let v = f.custom ? (f.txt || '') : (vals[f.k] ?? ''); if (v !== '' && v != null) v = (f.pre || '') + v + (f.suf || ''); h += `<div class="f ${f.v || 'vc'}${f.al === 'c' ? ' ha-c' : f.al === 'r' ? ' ha-r' : ''}" style="left:${+L.mL + f.x + +L.offX}mm;top:${+L.mT + f.y + +L.offY}mm;width:${f.w}mm;height:${f.h}mm;font-size:${f.pt}pt;${f.font ? `font-family:${esc(f.font)};` : ''}font-weight:${f.bold ? 700 : 400};${+f.ls ? `letter-spacing:${+f.ls}mm;` : ''}"><span>${esc(v)}</span></div>`; }
     return h + '</div>';

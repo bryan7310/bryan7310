@@ -112,7 +112,7 @@ function editRow(r) {
     footer: `${r.id && !isNew ? `<button class="btn danger" id="ar-del">刪除</button>` : ''}${r.manual && r.auto ? '<button class="btn" id="ar-auto">恢復自動</button>' : ''}<span class="sp"></span><button class="btn" data-close>取消</button><button class="btn pri" id="ar-ok">儲存</button>`,
     onOpen(el, close) {
       let cid = r.cid;
-      if (isNew) combo($('#ar-c', el), { items: () => customers().map(c => ({ id: c.id, label: c.name, sub: [c.code, c.short].filter(Boolean).join(' '), text: [c.code, c.name, c.short, ...(c.aliases || [])].join(' ') })), onPick: it => { cid = it.id; const c = store.get('contacts', cid); if (c?.payMethod && !$('#ar-method', el).value) $('#ar-method', el).value = c.payMethod; } });
+      if (isNew) combo($('#ar-c', el), { items: () => customers().map(c => ({ id: c.id, label: c.short || c.name, sub: [c.code, c.short ? c.name : ''].filter(Boolean).join(' '), text: [c.code, c.name, c.short, ...(c.aliases || [])].join(' ') })), onPick: it => { cid = it.id; const c = store.get('contacts', cid); if (c?.payMethod && !$('#ar-method', el).value) $('#ar-method', el).value = c.payMethod; } });
       $('#ar-ok', el).onclick = async () => {
         if (!cid) return toast('請選客戶');
         const amt = parseNum($('#ar-amt', el).value) || 0, tax = parseNum($('#ar-tax', el).value) || 0;

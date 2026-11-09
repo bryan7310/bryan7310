@@ -4,6 +4,7 @@ import { store } from '../core/store.js';
 import { toast, modal, confirm, tabs, combo, printHTML, pager } from '../core/ui.js';
 import { calc, customers, suppliers, cshort, totals, gname } from '../core/calc.js';
 import { openBill } from './_bills.js';
+import { printName } from '../core/names.js';
 
 const ui = { tab: 'list', ym: thisMonth(), q: '', page: 0, pq: '', pPeriod: '' };
 export default {
@@ -52,7 +53,7 @@ function drawPending(el) {
 export function makeInvoiceFromBill(b) {
   const C = calc(); const c = C.ct[b.cid] || {}; const t = totals(b);
   const items = (b.lines || []).filter(l => l.txt === undefined).map(l => ({ name: l.gid ? gname(l.gid) : l.n || '', qty: +l.qty || 0, price: +l.price || 0, amount: Math.round((+l.qty || 0) * (+l.price || 0)) }));
-  editInvoice({ no: nextInvNo(), date: b.date, buyer: c.taxId || '', name: c.name || '', cid: b.cid, items, untaxed: t.net, tax: b.tax ? t.tax : Math.round(t.net * 0.05), billId: b.id, billNo: b.no }, true);
+  editInvoice({ no: nextInvNo(), date: b.date, buyer: c.taxId || '', name: c.name ? printName(c.name) : '', cid: b.cid, items, untaxed: t.net, tax: b.tax ? t.tax : Math.round(t.net * 0.05), billId: b.id, billNo: b.no }, true);
 }
 function editInvoice(inv, isNew) {
   const d = inv || { no: nextInvNo(), date: today(), buyer: '', name: '', items: [{ name: '螺絲', qty: '', price: '', amount: '' }], untaxed: 0, tax: 0 };
@@ -86,7 +87,7 @@ function editInvoice(inv, isNew) {
         $('#iv-incl', el).onchange = () => { d.taxMode = $('#iv-incl', el).checked ? 'in' : 'ex'; d.items.forEach(it => { if (it.qty !== '' && it.price !== '') it.amount = ''; }); recalc(); };
         $('#iv-untaxed', el).addEventListener('change', () => { d.untaxed = parseNum($('#iv-untaxed', el).value) || 0; d.tax = Math.round(d.untaxed * 0.05); $('#iv-tax', el).value = money(d.tax); $('#iv-total', el).textContent = money(total(d)); });
         $('#iv-tax', el).addEventListener('change', () => { d.tax = parseNum($('#iv-tax', el).value) || 0; $('#iv-total', el).textContent = money(total(d)); });
-        combo($('#iv-name', el), { items: () => customers().map(c => ({ id: c.id, label: c.name, sub: c.taxId || '', text: [c.code, c.name, c.short, c.taxId, ...(c.aliases || [])].join(' ') })), allowFree: true, onPick: it => { const c = store.get('contacts', it.id); d.cid = c.id; d.name = c.name; if (c.taxId) $('#iv-buyer', el).value = c.taxId; }, onBlur: v => { d.name = v; } });
+        combo($('#iv-name', el), { items: () => customers().map(c => ({ id: c.id, label: c.name, sub: c.taxId || '', text: [c.code, c.name, c.short, c.taxId, ...(c.aliases || [])].join(' ') })), allowFree: true, onPick: it => { const c = store.get('contacts', it.id); d.cid = c.id; d.name = printName(c.name); if (c.taxId) $('#iv-buyer', el).value = c.taxId; }, onBlur: v => { d.name = v; } });
       };
       bind();
       $('#iv-ok', el).onclick = async () => {

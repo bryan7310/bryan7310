@@ -4,6 +4,7 @@ import { store } from '../core/store.js';
 import { toast, modal, confirm, combo, pager, tabs, printHTML } from '../core/ui.js';
 import { TYPES, totals, lineAmt, calc, nextNo, cname, cshort, wname, gname, goodsLabel, customers, suppliers, defWh, qtyAt, bqty, uRate, lastSale, unitPrice, unitFactor, setHistPur } from '../core/calc.js';
 import { api } from '../core/api.js';
+import { printName } from '../core/names.js';
 import { labelPicker } from './labels.js';
 import { faxDialog } from './faxes.js';
 
@@ -209,7 +210,7 @@ function bindBill(el, close) {
   ['b-wid', 'b-toWid', 'b-aid'].forEach(id => { const x = el.querySelector('#' + id); if (x) x.addEventListener('change', () => { e[id.slice(2)] = x.value; if (id === 'b-wid') redrawLines(el); }); });
   const tax = el.querySelector('#b-tax'); if (tax) tax.addEventListener('change', () => { e.tax = tax.checked; updateTotals(el); });
   const cid = el.querySelector('#b-cid');
-  if (cid) combo(cid, { items: () => (T.party === 'C' ? customers() : suppliers()).map(c => ({ id: c.id, label: c.name, sub: [c.code, c.short].filter(Boolean).join(' '), text: [c.code, c.name, c.short, ...(c.aliases || [])].join(' ') })), onPick: it => { e.cid = it.id; e.lines.forEach((l, i) => { if (l.gid && !l.price && C.g[l.gid]) applyLast(l, C.g[l.gid]); }); redrawLines(el); }, onClear: () => { e.cid = ''; } });
+  if (cid) combo(cid, { items: () => (T.party === 'C' ? customers() : suppliers()).map(c => ({ id: c.id, label: c.short || c.name, sub: [c.code, c.short ? c.name : ''].filter(Boolean).join(' '), text: [c.code, c.name, c.short, ...(c.aliases || [])].join(' ') })), onPick: it => { e.cid = it.id; e.lines.forEach((l, i) => { if (l.gid && !l.price && C.g[l.gid]) applyLast(l, C.g[l.gid]); }); redrawLines(el); }, onClear: () => { e.cid = ''; } });
   bindLines(el);
   el.querySelector('#addLine')?.addEventListener('click', () => { e.lines.push({ gid: '', qty: '', price: '' }); redrawLines(el); setTimeout(() => el.querySelector(`tr[data-i="${e.lines.length - 1}"] input`)?.focus(), 0); });
   el.querySelector('#addTxt')?.addEventListener('click', () => { e.lines.push({ txt: '' }); redrawLines(el); });
@@ -322,7 +323,7 @@ export function billDoc(b) {
   const rows = lines.map((l, i) => l.txt !== undefined ? `<tr><td></td><td colspan="5">${esc(l.txt)}</td></tr>` : `<tr><td class="c">${i + 1}</td><td>${esc(l.gid ? gname(l.gid) : l.n || '')}${l.memo ? `<small> ${esc(l.memo)}</small>` : ''}</td><td class="n">${fmtQ(l.qty)}</td><td>${esc(l.unit === 'a' ? (C.g[l.gid]?.aunit || '') : l.u || C.g[l.gid]?.unit || l.unit || '')}</td><td class="n">${fp4(l.price)}</td><td class="n">${fmt(lineAmt(l))}</td></tr>`).join('');
   const css = `@page{size:A4;margin:12mm}body{font-family:"Microsoft JhengHei","微軟正黑體","PingFang TC","Noto Sans TC",sans-serif;font-size:11pt;color:#000;margin:0}h1{text-align:center;font-size:18pt;margin:0 0 2mm}.co{text-align:center;font-size:10pt;margin-bottom:4mm}.meta{display:grid;grid-template-columns:1fr 1fr;gap:1mm 10mm;margin-bottom:4mm;font-size:10.5pt}table{width:100%;border-collapse:collapse}th,td{border:.5pt solid #000;padding:1.5mm 2mm;text-align:left}th{background:#eee;font-weight:600}td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}td.c{text-align:center}small{color:#555}tfoot td{font-weight:600}.sig{display:flex;justify-content:space-between;margin-top:12mm;font-size:10.5pt}.sig span{flex:1}`;
   const html = `<div class="co">${esc(co.name || '志瑞螺絲企業有限公司')}　統編 ${esc(co.taxId || '')}　電話 ${esc(co.phone || '')}　傳真 ${esc(co.fax || '')}<br>${esc(co.addr || '')}</div><h1>${esc(title)}</h1>
-    <div class="meta"><div>${T.party === 'C' ? '客戶' : '廠商'}：${esc(c.name || b.cn || '')}</div><div>單號：${esc(b.no)}</div><div>電話：${esc(c.phone || '')}</div><div>日期：${esc(slash(b.date))}</div><div>地址：${esc(c.addr || '')}</div><div>${b.type === 'PO' && b.deliv ? '交期：' + esc(slash(b.deliv)) : b.type === 'QUO' && b.valid ? '有效期限：' + esc(slash(b.valid)) : ''}</div></div>
+    <div class="meta"><div>${T.party === 'C' ? '客戶' : '廠商'}：${esc(c.name ? printName(c.name) : (b.cn || ''))}</div><div>單號：${esc(b.no)}</div><div>電話：${esc(c.phone || '')}</div><div>日期：${esc(slash(b.date))}</div><div>地址：${esc(c.addr || '')}</div><div>${b.type === 'PO' && b.deliv ? '交期：' + esc(slash(b.deliv)) : b.type === 'QUO' && b.valid ? '有效期限：' + esc(slash(b.valid)) : ''}</div></div>
     <table><thead><tr><th style="width:8mm">#</th><th>品名規格</th><th class="n" style="width:22mm">數量</th><th style="width:14mm">單位</th><th class="n" style="width:22mm">單價</th><th class="n" style="width:26mm">金額</th></tr></thead><tbody>${rows}</tbody>
     <tfoot><tr><td colspan="5" class="n">小計</td><td class="n">${fmt(t.sub)}</td></tr>${b.disc ? `<tr><td colspan="5" class="n">折讓</td><td class="n">-${fmt(b.disc)}</td></tr>` : ''}${b.tax ? `<tr><td colspan="5" class="n">營業稅 5%</td><td class="n">${fmt(t.tax)}</td></tr>` : ''}<tr><td colspan="5" class="n">總計</td><td class="n">${fmt(t.total)}</td></tr></tfoot></table>
     ${b.note ? `<p>備註：${esc(b.note)}</p>` : ''}

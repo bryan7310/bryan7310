@@ -5,6 +5,7 @@ import { api } from '../core/api.js';
 import { tabs, combo, printHTML, toast } from '../core/ui.js';
 import { calc, TYPES, totals, lineAmt, cname, cshort, gname, customers, suppliers } from '../core/calc.js';
 import { openBill } from './_bills.js';
+import { printName } from '../core/names.js';
 import { mailImport } from './mail.js';
 
 const ui = { tab: 'ar', from: thisMonth() + '-01', to: today(), cid: '', q: '', mail: new Set() };
@@ -23,7 +24,7 @@ const dstr = d => isoOf(d);
 function draw(el) {
   const hasRange = ui.tab !== 'stock';
   el.innerHTML = `<div class="head"><h1>報表</h1><span class="sp"></span>${tabs('rp', TABS, ui.tab)}</div>
-    <div class="panel" style="display:grid;gap:12px"><div class="tools" style="align-items:center">${hasRange ? `<div class="f"><label for="rpFrom">從</label><input type="date" id="rpFrom" value="${ui.from}"></div><div class="f"><label for="rpTo">到</label><input type="date" id="rpTo" value="${ui.to}"></div><button class="btn sm" data-q="c25" title="上上月 26 日到上月 25 日">上月25結帳</button><button class="btn sm" data-q="cme" title="上月 1 日到上月底">上月底結</button>` : ''}${NEED_CUST[ui.tab] ? `<div class="f" style="flex:1 1 220px"><label for="rpC">客戶</label><div class="combo"><input id="rpC" value="${esc(ui.cid ? cname(ui.cid) : '')}" placeholder="打客戶代號、名稱或簡稱"></div></div>` : ''}<span class="sp"></span>${ui.tab === 'ar' ? `<span class="muted small">勾選 <b id="rpMailN">${ui.mail.size}</b> 家：</span><button class="btn sm" id="rpMail" ${ui.mail.size ? '' : 'disabled'}>導入郵寄掛號</button>` : ''}<button class="btn sm" id="rpCsv">匯出 Excel (CSV)</button><button class="btn sm" id="rpPrint">列印</button></div><div id="rpBody"></div></div>`;
+    <div class="panel" style="display:grid;gap:12px"><div class="tools" style="align-items:center">${hasRange ? `<div class="f"><label for="rpFrom">從</label><input type="date" id="rpFrom" value="${ui.from}"></div><div class="f"><label for="rpTo">到</label><input type="date" id="rpTo" value="${ui.to}"></div><button class="btn sm" data-q="c25" title="上上月 26 日到上月 25 日">上月25結帳</button><button class="btn sm" data-q="cme" title="上月 1 日到上月底">上月底結</button>` : ''}${NEED_CUST[ui.tab] ? `<div class="f" style="flex:1 1 220px"><label for="rpC">客戶</label><div class="combo"><input id="rpC" value="${esc(ui.cid ? cshort(ui.cid) : '')}" placeholder="打客戶代號、名稱或簡稱"></div></div>` : ''}<span class="sp"></span>${ui.tab === 'ar' ? `<span class="muted small">勾選 <b id="rpMailN">${ui.mail.size}</b> 家：</span><button class="btn sm" id="rpMail" ${ui.mail.size ? '' : 'disabled'}>導入郵寄掛號</button>` : ''}<button class="btn sm" id="rpCsv">匯出 Excel (CSV)</button><button class="btn sm" id="rpPrint">列印</button></div><div id="rpBody"></div></div>`;
   el.addEventListener('tab', ev => { ui.tab = ev.detail.val; draw(el); }, { once: true });
   $('#rpFrom', el)?.addEventListener('change', ev => { ui.from = ev.target.value; body(el); });
   $('#rpTo', el)?.addEventListener('change', ev => { ui.to = ev.target.value; body(el); });
@@ -33,7 +34,7 @@ function draw(el) {
     else { ui.from = dstr(new Date(y, m - 1, 1)); ui.to = dstr(new Date(y, m, 0)); }
     draw(el);
   }));
-  if ($('#rpC', el)) combo($('#rpC', el), { items: () => customers(true).map(c => ({ id: c.id, label: c.name, sub: c.short || '', text: [c.code, c.name, c.short, ...(c.aliases || [])].join(' ') })), onPick: it => { ui.cid = it.id; body(el); }, onClear: () => { ui.cid = ''; body(el); } });
+  if ($('#rpC', el)) combo($('#rpC', el), { items: () => customers(true).map(c => ({ id: c.id, label: c.short || c.name, sub: c.short ? c.name : '', text: [c.code, c.name, c.short, ...(c.aliases || [])].join(' ') })), onPick: it => { ui.cid = it.id; body(el); }, onClear: () => { ui.cid = ''; body(el); } });
   body(el);
 }
 let last = { title: '', head: [], rows: [], foot: [] };
@@ -80,7 +81,7 @@ async function body(el) {
       const tot = rows.reduce((a, r) => ({ n: a.n + r.n, net: a.net + r.net, tax: a.tax + r.tax, total: a.total + r.total }), { n: 0, net: 0, tax: 0, total: 0 });
       for (const id of [...ui.mail]) if (!rows.some(r => r.c.id === id)) ui.mail.delete(id);
       const nSel = arSel ? cs.filter(c => arSel.has(c.id)).length : cs.length;
-      last = { title: `應收帳款明細 ${ui.from}～${ui.to}`, head: ['代號', '客戶', '出貨單數', '未稅金額', '稅額', '合計'], rows: rows.map(r => [r.c.code || '', r.c.name, String(r.n), fmt(r.net), fmt(r.tax), fmt(r.total)]), foot: ['合計', `${rows.length} 家`, String(tot.n), fmt(tot.net), fmt(tot.tax), fmt(tot.total)] };
+      last = { title: `應收帳款明細 ${ui.from}～${ui.to}`, head: ['代號', '客戶', '出貨單數', '未稅金額', '稅額', '合計'], rows: rows.map(r => [r.c.code || '', printName(r.c.name), String(r.n), fmt(r.net), fmt(r.tax), fmt(r.total)]), foot: ['合計', `${rows.length} 家`, String(tot.n), fmt(tot.net), fmt(tot.tax), fmt(tot.total)] };
       box.innerHTML = `<div class="grid2" style="grid-template-columns:minmax(240px,320px) 1fr;align-items:start;gap:12px">
         <div class="panel" style="padding:10px 12px"><div class="ptitle" style="padding:0 0 6px">客戶<small>已選 ${nSel} / ${cs.length}</small></div>
           <input id="arQ" type="search" placeholder="篩選客戶（代號、名稱、簡稱）" style="width:100%;margin-bottom:6px" value="${esc(ui.q)}">
@@ -122,9 +123,9 @@ async function body(el) {
       let sub = 0, tax = 0, total = 0;
       for (const r of out) sub += r.amt;
       for (const b of bills) { const s = b.type === 'SALE' ? 1 : -1; const t = totOf(b); tax += s * (t.tax || 0); total += s * (t.total || 0); }
-      last = { title: `${c.name} 出貨明細 ${ui.from}～${ui.to}`, head: ['日期', '客料號', '品名', '數量', '單位', '單價', '金額', '採購單號'], rows: out.map(r => [r.first ? slash(r.b.date) + (r.s < 0 ? '（退）' : '') : '', r.pn, r.name, fmtQ(r.qty), r.unit, fp4(r.price), fmt(r.amt), r.memo]), foot: ['合計', `${bills.length} 張`, `${out.length} 筆`, '', '', tax ? `稅 ${fmt(tax)}` : '', fmt(total), ''], meta: { c, sub, tax, total, n: bills.length } };
+      last = { title: `${printName(c.name)} 出貨明細 ${ui.from}～${ui.to}`, head: ['日期', '客料號', '品名', '數量', '單位', '單價', '金額', '採購單號'], rows: out.map(r => [r.first ? slash(r.b.date) + (r.s < 0 ? '（退）' : '') : '', r.pn, r.name, fmtQ(r.qty), r.unit, fp4(r.price), fmt(r.amt), r.memo]), foot: ['合計', `${bills.length} 張`, `${out.length} 筆`, '', '', tax ? `稅 ${fmt(tax)}` : '', fmt(total), ''], meta: { c, sub, tax, total, n: bills.length } };
       box.innerHTML = `<div class="kpis"><div class="kpi"><span>單據數（含退回）</span><b>${bills.length}</b></div><div class="kpi"><span>明細筆數</span><b>${out.length}</b></div><div class="kpi"><span>金額（未稅）</span><b>${fmt(sub)}</b></div><div class="kpi"><span>含稅合計</span><b>${fmt(total)}</b></div></div>
-        <div class="muted small" style="margin:6px 0">${esc(c.code || '')} ${esc(c.name)}　${ui.from} 至 ${ui.to}${bills.some(b => b.hist) ? '・含舊系統歷史出貨單' : ''}</div>
+        <div class="muted small" style="margin:6px 0">${esc(c.code || '')} ${esc(printName(c.name))}　${ui.from} 至 ${ui.to}${bills.some(b => b.hist) ? '・含舊系統歷史出貨單' : ''}</div>
         ${out.length ? `<div class="tw"><table><thead><tr><th>日期</th><th>客料號</th><th>品名</th><th class="n">數量</th><th>單位</th><th class="n">單價</th><th class="n">金額</th><th>採購單號</th></tr></thead><tbody>
         ${out.map(r => `<tr class="row" data-bid="${r.b.id}" ${r.b.hist ? 'data-hist="1"' : ''} ${r.first ? 'style="border-top:2px solid var(--line)"' : ''}><td class="nowrap">${r.first ? slash(r.b.date) + (r.s < 0 ? ' <span class="pill bad">退回</span>' : '') : ''}</td><td>${esc(r.pn)}</td><td>${esc(r.name)}</td><td class="n">${fmtQ(r.qty)}</td><td class="muted">${esc(r.unit)}</td><td class="n">${fp4(r.price)}</td><td class="n">${fmt(r.amt)}</td><td class="muted">${esc(r.memo)}</td></tr>`).join('')}</tbody>
         <tfoot><tr><td colspan="6">小計（未稅）</td><td class="n">${fmt(sub)}</td><td></td></tr>${tax ? `<tr><td colspan="6">稅額</td><td class="n">${fmt(tax)}</td><td></td></tr>` : ''}<tr><td colspan="6">合計</td><td class="n">${fmt(total)}</td><td></td></tr></tfoot></table></div>` : '<div class="empty"><b>期間內沒有出貨</b>調整查詢期間再看看。</div>'}`;
@@ -142,7 +143,7 @@ async function body(el) {
     const c = C.ct[ui.cid]; const bills = C.bills.filter(b => b.cid === ui.cid && !TYPES[b.type].doc && !b.hist && inR(b)).sort((a, b) => (a.date || '').localeCompare(b.date || '') || (a.createdAt || 0) - (b.createdAt || 0));
     const before = C.bills.filter(b => b.cid === ui.cid && !TYPES[b.type].doc && !b.hist && (b.date || '') < ui.from).reduce((s, b) => s + (C.eff[b.id] || 0), +c.init || 0);
     let bal = before; const rows = bills.map(b => { const e = C.eff[b.id] || 0; bal += e; const T = TYPES[b.type]; return [slash(b.date), T.name, b.no, T.lines ? (b.lines || []).filter(l => l.gid).map(l => `${gname(l.gid)} ×${fmtQ(l.qty)}`).join('、').slice(0, 80) : (b.note || ''), e > 0 ? fmt(T.lines ? C.tot[b.id].total : 0) : '', e < 0 || (T.lines && +b.paid) ? fmt(T.lines ? +b.paid : b.amount) : '', fmt(bal)]; });
-    last = { title: `${c.name} 對帳單 ${ui.from}～${ui.to}`, head: ['日期', '單據', '單號', '內容', '應收', '收款', '餘額'], rows: [['', '期初餘額', '', '', '', '', fmt(before)], ...rows], foot: ['期末餘額', '', '', '', '', '', fmt(bal)] };
+    last = { title: `${printName(c.name)} 對帳單 ${ui.from}～${ui.to}`, head: ['日期', '單據', '單號', '內容', '應收', '收款', '餘額'], rows: [['', '期初餘額', '', '', '', '', fmt(before)], ...rows], foot: ['期末餘額', '', '', '', '', '', fmt(bal)] };
     box.innerHTML = `<div class="kpis"><div class="kpi"><span>期初</span><b>${fmt(before)}</b></div><div class="kpi"><span>期間應收</span><b>${fmt(bills.reduce((s, b) => s + Math.max(0, C.eff[b.id] || 0), 0))}</b></div><div class="kpi"><span>期末餘額</span><b>${fmt(bal)}</b></div></div>${table(last, ['', ...bills.map(b => b.id)])}`;
     bindRows();
   } else if (ui.tab === 'goods') {
@@ -154,7 +155,7 @@ async function body(el) {
   } else if (ui.tab === 'purchase') {
     const m = new Map();
     for (const b of C.bills) { if (b.type !== 'PUR' && b.type !== 'PUR_RET') continue; if (!inR(b)) continue; const s = b.type === 'PUR' ? 1 : -1; const x = m.get(b.cid) || m.set(b.cid, { a: 0, n: 0 }).get(b.cid); x.a += s * (C.tot[b.id]?.net || 0); x.n++; }
-    const rows = [...m.entries()].sort((a, b) => b[1].a - a[1].a).map(([cid, x]) => [cname(cid), String(x.n), fmt(x.a)]);
+    const rows = [...m.entries()].sort((a, b) => b[1].a - a[1].a).map(([cid, x]) => [printName(cname(cid)), String(x.n), fmt(x.a)]);
     last = { title: `進貨統計 ${ui.from}～${ui.to}`, head: ['廠商', '單數', '進貨金額（未稅）'], rows, foot: ['合計', String(sum([...m.values()], x => x.n)), fmt(sum([...m.values()], x => x.a))] };
     box.innerHTML = table(last);
   } else if (ui.tab === 'stock') {
@@ -169,7 +170,7 @@ async function body(el) {
     if (!last.rows.length) return toast('沒有資料可以列印');
     const co = store.setting('company'); const meta = ui.tab === 'stock' ? `列印日期：${slash(today())}` : `期間：${slash(ui.from)} ～ ${slash(ui.to)}　列印日期：${slash(today())}`;
     const title = ui.tab === 'ar' ? '應收帳款明細' : ui.tab === 'ship' ? '客戶出貨明細表' : last.title.replace(/ \d{4}-\d{2}-\d{2}～.*$/, '');
-    const sub = ui.tab === 'ship' && last.meta ? `<div class="meta"><span>客戶：${esc(last.meta.c.code || '')} ${esc(last.meta.c.name)}</span><span>${meta}</span></div>` : `<div class="meta"><span>${meta}</span></div>`;
+    const sub = ui.tab === 'ship' && last.meta ? `<div class="meta"><span>客戶：${esc(last.meta.c.code || '')} ${esc(printName(last.meta.c.name))}</span><span>${meta}</span></div>` : `<div class="meta"><span>${meta}</span></div>`;
     printHTML(last.title, `@page{size:A4;margin:12mm 10mm}body{font-family:"Microsoft JhengHei","微軟正黑體","PingFang TC","Noto Sans TC",sans-serif;font-size:10pt;margin:0;color:#000}.co{text-align:center;font-weight:bold;font-size:11pt}h1{font-size:16pt;text-align:center;margin:0 0 2mm}.meta{display:flex;justify-content:space-between;margin:3mm 0 2mm}table{width:100%;border-collapse:collapse}th,td{border-bottom:.4pt solid #999;padding:1.2mm 1.5mm;text-align:left;vertical-align:top}th{border-top:1pt solid #000;border-bottom:1pt solid #000;white-space:nowrap}td.n,th.n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}thead{display:table-header-group}tr{page-break-inside:avoid}tfoot td{font-weight:bold;border-top:1.2pt solid #000;border-bottom:none}`,
       `<div class="co">${esc(co.name || '志瑞螺絲企業有限公司')}</div><h1>${esc(title)}</h1>${sub}${table(last, null, true)}`, { tip: '按 Ctrl+P 列印，紙張 A4。' });
   };

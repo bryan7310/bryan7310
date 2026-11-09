@@ -85,7 +85,7 @@ function editRow(r) {
     footer: `${r.id && !isNew ? `<button class="btn danger" id="ap-del">刪除</button>` : ''}${r.manual && r.auto ? '<button class="btn" id="ap-auto">恢復自動</button>' : ''}<span class="sp"></span><button class="btn" data-close>取消</button><button class="btn pri" id="ap-ok">儲存</button>`,
     onOpen(el, close) {
       let cid = r.cid;
-      if (isNew) combo($('#ap-c', el), { items: () => suppliers().map(c => ({ id: c.id, label: c.name, sub: [c.code, c.short].filter(Boolean).join(' '), text: [c.code, c.name, c.short, ...(c.aliases || [])].join(' ') })), onPick: it => { cid = it.id; } });
+      if (isNew) combo($('#ap-c', el), { items: () => suppliers().map(c => ({ id: c.id, label: c.short || c.name, sub: [c.code, c.short ? c.name : ''].filter(Boolean).join(' '), text: [c.code, c.name, c.short, ...(c.aliases || [])].join(' ') })), onPick: it => { cid = it.id; } });
       $('#ap-ok', el).onclick = async () => {
         if (!cid) return toast('請選廠商');
         const amt = parseNum($('#ap-amt', el).value) || 0, tax = parseNum($('#ap-tax', el).value) || 0, pay = parseNum($('#ap-pay', el).value);

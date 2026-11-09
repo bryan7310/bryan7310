@@ -3,6 +3,7 @@ import { $, esc, today, uid } from '../core/util.js';
 import { store } from '../core/store.js';
 import { toast, modal, confirm, combo, printHTML } from '../core/ui.js';
 import { calc, customers } from '../core/calc.js';
+import { printName } from '../core/names.js';
 
 export default {
   id: 'mail', name: '郵寄掛號', group: '財務', icon: 'mail',
@@ -41,7 +42,7 @@ function addrSplit(a) { a = String(a || '').trim(); const m = a.match(/^(.{2,6}?
 /** 從客戶 id 清單加入郵寄明細（已在清單裡的不重複加）。回傳 {add, miss:[名稱]} */
 export async function mailImport(cids) {
   const C = calc(); const cur = store.list('mail'); const ops = []; const miss = []; let add = 0;
-  for (const id of cids) { const c = C.ct[id]; if (!c || cur.some(x => x.cid === id)) continue; const p = addrParts(c.addr); if (!p.addr) miss.push(shortName(c)); ops.push({ col: 'mail', id: uid('M'), data: { cid: id, name: shortName(c), zip: contactZip(c), addr: p.addr, no: '', to: '公司 會計部收', at: Date.now() } }); add++; }
+  for (const id of cids) { const c = C.ct[id]; if (!c || cur.some(x => x.cid === id)) continue; const p = addrParts(c.addr); if (!p.addr) miss.push(shortName(c)); ops.push({ col: 'mail', id: uid('M'), data: { cid: id, name: printName(c.name), zip: contactZip(c), addr: p.addr, no: '', to: '公司 會計部收', at: Date.now() } }); add++; }
   if (ops.length) await store.batch(ops);
   return { add, miss };
 }
@@ -54,7 +55,7 @@ function draw(el) {
       <div class="tools"><span class="muted">郵件種類</span>${['限時掛號', '掛號', '快捷郵件'].map(t => `<label class="check"><input type="radio" name="mltype" value="${t}" ${type === t ? 'checked' : ''}> ${t}</label>`).join('')}<span class="sp"></span>${list.length ? '<button class="btn sm" id="mlClear">清空</button>' : ''}</div>
       ${miss ? `<div class="banner">有 ${miss} 筆沒有地址，請在下表補上，或到「基本資料 → 客戶」填地址後重新加入。</div>` : ''}
       <p class="muted small" style="margin:0">從「應收帳款」勾選客戶按「導入郵寄掛號」，或按「加客戶」。勾選列右邊的方塊選要印在執據上的件數；地址標籤印全部。</p>
-      <div class="tw"><table><thead><tr><th><input type="checkbox" id="mlAll" ${list.length && list.every(x => sel.has(x.id)) ? 'checked' : ''}></th><th class="n">順序</th><th>掛號號碼</th><th>姓名（公司簡稱）</th><th>郵遞區號</th><th>寄達地址</th><th>標籤第四行</th><th></th></tr></thead><tbody>
+      <div class="tw"><table><thead><tr><th><input type="checkbox" id="mlAll" ${list.length && list.every(x => sel.has(x.id)) ? 'checked' : ''}></th><th class="n">順序</th><th>掛號號碼</th><th>姓名（公司全名）</th><th>郵遞區號</th><th>寄達地址</th><th>標籤第四行</th><th></th></tr></thead><tbody>
       ${list.map((x, i) => `<tr class="${x.addr ? '' : 'muted'}"><td><input type="checkbox" data-sel="${x.id}" ${sel.has(x.id) ? 'checked' : ''}></td><td class="n">${i + 1}</td>${[['no', 110], ['name', 120], ['zip', 70], ['addr', 300], ['to', 130]].map(([k, w]) => `<td><input data-f="${k}" data-id="${x.id}" value="${esc(x[k] ?? '')}" style="width:${w}px;border:1px solid var(--line);border-radius:6px;padding:4px 6px" ${k === 'addr' && !x.addr ? 'placeholder="找不到地址，請填"' : ''}></td>`).join('')}<td><button class="btn xs" data-del="${x.id}">✕</button></td></tr>`).join('') || '<tr><td colspan="8"><div class="empty"><b>還沒有郵寄明細</b>到「應收帳款」勾選客戶後按「導入郵寄掛號」。</div></td></tr>'}</tbody></table></div></div>`;
   el.querySelectorAll('[name=mltype]').forEach(r => r.onchange = () => store.saveSetting('mail', { ...s, type: r.value }));
   el.querySelectorAll('[data-f]').forEach(inp => inp.addEventListener('change', async () => { const x = store.get('mail', inp.dataset.id); if (!x) return; const d = { ...x, [inp.dataset.f]: inp.value }; delete d.id; await store.save('mail', x.id, d); }));
@@ -62,12 +63,14 @@ function draw(el) {
   el.querySelectorAll('[data-sel]').forEach(cb => cb.onchange = () => { cb.checked ? sel.add(cb.dataset.sel) : sel.delete(cb.dataset.sel); draw(el); });
   $('#mlAll', el).onchange = ev => { list.forEach(x => ev.target.checked ? sel.add(x.id) : sel.delete(x.id)); draw(el); };
   $('#mlClear', el)?.addEventListener('click', async () => { if (await confirm('清空郵寄明細？', { danger: true, ok: '清空' })) { await store.batch(list.map(x => ({ col: 'mail', id: x.id, delete: true }))); sel.clear(); } });
-  $('#mlAdd', el).onclick = () => modal({ title: '加客戶到郵寄明細', width: 480, body: '<div class="f"><label for="ml-c">客戶</label><div class="combo"><input id="ml-c" placeholder="搜尋客戶" autofocus></div></div>', footer: '<span class="sp"></span><button class="btn" data-close>關閉</button>', onOpen(m) { combo(m.querySelector('#ml-c'), { items: () => customers().map(c => ({ id: c.id, label: c.name, sub: c.short || '', text: [c.code, c.name, c.short, ...(c.aliases || [])].join(' ') })), onPick: async it => { const r = await mailImport([it.id]); toast(r.add ? `已加入${r.miss.length ? '（沒有地址）' : ''}` : '已經在清單裡'); m.querySelector('#ml-c').value = ''; } }); } });
+  $('#mlAdd', el).onclick = () => modal({ title: '加客戶到郵寄明細', width: 480, body: '<div class="f"><label for="ml-c">客戶</label><div class="combo"><input id="ml-c" placeholder="搜尋客戶" autofocus></div></div>', footer: '<span class="sp"></span><button class="btn" data-close>關閉</button>', onOpen(m) { combo(m.querySelector('#ml-c'), { items: () => customers().map(c => ({ id: c.id, label: c.short || c.name, sub: c.short ? c.name : '', text: [c.code, c.name, c.short, ...(c.aliases || [])].join(' ') })), onPick: async it => { const r = await mailImport([it.id]); toast(r.add ? `已加入${r.miss.length ? '（沒有地址）' : ''}` : '已經在清單裡'); m.querySelector('#ml-c').value = ''; } }); } });
   $('#mlLabel', el).onclick = () => printLabels(list);
   $('#mlExe', el).onclick = () => printReceipt(list.filter(x => sel.has(x.id)), type);
 }
+// 列印用名稱：清單裡還是以前存的簡稱（或就是簡稱）時換成全名；自己改過的名字照印
+const outName = x => { const c = x.cid && store.get('contacts', x.cid); if (c && (!x.name || x.name === shortName(c) || x.name === c.short)) return printName(c.name); return x.name || ''; };
 function printLabels(list) {
-  const html = list.filter(x => x.addr || x.name).map(x => { const [l2, l3] = addrSplit(x.addr); return `<div class="lb"><div class="z">${esc(x.zip)}</div><div class="a">${esc(l2)}</div><div class="a">${esc(l3)}</div><div class="n">${esc(x.name)}${esc(x.to || '公司 會計部收')}</div></div>`; }).join('');
+  const html = list.filter(x => x.addr || x.name).map(x => { const [l2, l3] = addrSplit(x.addr); return `<div class="lb"><div class="z">${esc(x.zip)}</div><div class="a">${esc(l2)}</div><div class="a">${esc(l3)}</div><div class="n">${esc(outName(x))}${esc(x.to || '公司 會計部收')}</div></div>`; }).join('');
   printHTML('地址標籤', `@page{size:50mm 40mm;margin:0}*{box-sizing:border-box}body{margin:0;font-family:"Microsoft JhengHei","微軟正黑體","PingFang TC","Noto Sans TC",sans-serif;color:#000}
 .lb{width:50mm;height:40mm;padding:3mm 3mm 2.5mm;display:grid;grid-template-rows:auto 1fr 1fr auto;align-content:space-between;page-break-after:always;overflow:hidden}.lb:last-child{page-break-after:auto}@media screen{.lb{border:1px dashed #999;margin:4mm;display:inline-grid;vertical-align:top}}
 .lb>div{white-space:nowrap;overflow:hidden;transform-origin:left center}.z{font-size:13pt;font-weight:bold;letter-spacing:.15em}.a{font-size:11.5pt;font-weight:bold;line-height:1.35;align-self:center}.n{font-size:11pt;font-weight:bold;border-top:.4pt solid #000;padding-top:1mm}`,
@@ -84,7 +87,7 @@ function printReceipt(list, type) {
     html += `<div class="page"><div class="top"><div class="lft"><div class="boxes">□□□□□□　□□</div><div>收寄局碼　郵件種類碼</div><div>（由收寄局填寫）</div></div><div class="mid"><div class="tt">中　華　民　國　郵　政</div><div>${ty('限時掛號')}</div><div>交寄大宗${ty('掛號')}函件執據</div><div>${ty('快捷郵件')}</div></div><div class="stamp">郵<br>局<br>郵<br>戳</div></div>
       <div class="dt">${rocD}　　　　　　第 ${p + 1} / ${pages} 頁</div><div class="snd"><div>寄　件　人　名稱：${esc(co.name || '志瑞螺絲企業有限公司')}</div><div>寄件人代表　　詳細地址：${esc(co.addr || '')}　電話號碼：${esc(co.phone || '')}</div></div>
       <table><thead><tr><th rowspan="2" class="c0">順序<br>號碼</th><th rowspan="2" class="c1">掛號號碼</th><th colspan="2">收　　件　　人</th><th rowspan="2" class="c4">是否<br>回執<br>(√)</th><th rowspan="2" class="c4">是否<br>印刷<br>物(√)</th><th rowspan="2" class="c5">重量</th><th rowspan="2" class="c5">郵資</th><th rowspan="2" class="c6">限時小包掛號或快捷郵件內裝物品名稱</th></tr><tr><th class="c2">姓　　名</th><th>寄達地名(或地址)</th></tr></thead><tbody>
-      ${Array.from({ length: per }, (_, i) => { const x = rows[i]; return `<tr><td class="c">${p * per + i + 1}</td><td>${x ? esc(x.no) : ''}</td><td>${x ? esc(x.name) : ''}</td><td class="ad">${x ? esc((x.zip ? x.zip + ' ' : '') + x.addr) : ''}</td><td></td><td></td><td></td><td></td><td></td></tr>`; }).join('')}</tbody></table>
+      ${Array.from({ length: per }, (_, i) => { const x = rows[i]; return `<tr><td class="c">${p * per + i + 1}</td><td>${x ? esc(x.no) : ''}</td><td>${x ? esc(outName(x)) : ''}</td><td class="ad">${x ? esc((x.zip ? x.zip + ' ' : '') + x.addr) : ''}</td><td></td><td></td><td></td><td></td><td></td></tr>`; }).join('')}</tbody></table>
       ${p === pages - 1 ? `<div class="ft"><div>(1) 此單填寫 1 式 2 份。</div><div>上開 ${esc(type)} 共 <b>${list.length}</b> 件照收無誤</div><div>經辦員簽署＿＿＿＿＿＿</div></div><div class="keep">保存期限 2 年</div>` : ''}</div>`;
   }
   printHTML('大宗掛號執據', `@page{size:A4;margin:0}*{box-sizing:border-box}body{margin:0;font-family:"PMingLiU","新細明體","Microsoft JhengHei",serif;color:#000;font-size:10pt}

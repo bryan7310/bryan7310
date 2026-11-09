@@ -7,6 +7,7 @@ import { api } from '../core/api.js';
 import { SP_FIELDS, spLab, spParse, spGet, spDims, spSVG, spRows, spTable, spWeight } from '../core/spec.js';
 import { loadHistPur } from './_bills.js';
 import { loadXlsx } from './purchase_import.js';
+import { shortName, suggestShorts } from '../core/names.js';
 
 const ui = { tab: 'goods', q: '', page: 0 };
 const TABS = [['goods', '商品'], ['customers', '客戶'], ['suppliers', '供應商'], ['warehouses', '倉庫'], ['accounts', '結算帳戶'], ['names', '名稱對應']];
@@ -34,7 +35,7 @@ function draw(el) {
     rows = store.list('accounts').map(a => [a, [esc(a.name), `<span class="n">${fmt(a.init)}</span>`, `<span class="n">${fmt(C.accBal[a.id] || 0)}</span>`]]);
   } else if (t === 'names') return drawNames(el);
   const [s, e, pg] = pager('m', rows.length, ui.page);
-  el.innerHTML = `<div class="head"><h1>基本資料</h1><span class="sp"></span>${col === 'contacts' ? `<button class="btn" id="fillExp" title="匯出還沒停用、缺統編／電話／地址的${label}，填好後用「匯入${label}資料」匯回">匯出待補資料</button><button class="btn" id="fillImp">匯入${label}資料</button>` : ''}${t === 'goods' || col === 'contacts' ? `<button class="btn" id="expBtn">匯出 CSV</button>` : ''}<button class="btn pri" id="addBtn">＋ 新增${label}</button></div>
+  el.innerHTML = `<div class="head"><h1>基本資料</h1><span class="sp"></span>${col === 'contacts' ? `<button class="btn" id="shortBtn" title="幫還沒有簡稱的${label}從全名擷取簡稱（介面顯示用；列印一律用全名）">擷取簡稱</button><button class="btn" id="fillExp" title="匯出還沒停用、缺統編／電話／地址的${label}，填好後用「匯入${label}資料」匯回">匯出待補資料</button><button class="btn" id="fillImp">匯入${label}資料</button>` : ''}${t === 'goods' || col === 'contacts' ? `<button class="btn" id="expBtn">匯出 CSV</button>` : ''}<button class="btn pri" id="addBtn">＋ 新增${label}</button></div>
     <div class="panel"><div class="tools">${tabs('m', TABS, t)}<input type="search" id="mq" placeholder="搜尋${label}" value="${esc(ui.q)}"><span class="muted small">${rows.length} 筆</span>${offN ? `<button type="button" class="btn sm ${ui.off ? 'pri' : ''}" id="offBtn">${ui.off ? '隱藏' : '顯示'}停用（${offN}）</button>` : ''}</div>
     <div class="tw" style="margin-top:10px"><table><thead><tr>${head.map(h => `<th>${h}</th>`).join('')}</tr></thead><tbody>${rows.slice(s, e).map(([d, cells]) => `<tr class="row" data-id="${d.id}">${cells.map(c => `<td>${c}</td>`).join('')}</tr>`).join('') || `<tr><td colspan="${head.length}"><div class="empty"><b>沒有資料</b></div></td></tr>`}</tbody></table></div>${pg}</div>`;
   el.addEventListener('tab', ev => { ui.tab = ev.detail.val; ui.q = ''; ui.page = 0; location.hash = '#master/' + ui.tab; }, { once: true });
@@ -43,6 +44,7 @@ function draw(el) {
   el.querySelectorAll('tr.row').forEach(tr => tr.addEventListener('click', () => openMaster(col, store.get(col, tr.dataset.id))));
   $('#addBtn', el).addEventListener('click', () => openMaster(col, null, t === 'suppliers' ? 'S' : 'C'));
   $('#offBtn', el)?.addEventListener('click', () => { ui.off = !ui.off; ui.page = 0; draw(el); });
+  $('#shortBtn', el)?.addEventListener('click', () => extractShorts(t === 'customers' ? 'C' : 'S'));
   $('#fillExp', el)?.addEventListener('click', () => fillExport(t === 'customers' ? 'C' : 'S').catch(e => toast('匯出失敗：' + (e.message || e))));
   $('#fillImp', el)?.addEventListener('click', () => fillImport(t === 'customers' ? 'C' : 'S'));
   $('#expBtn', el)?.addEventListener('click', () => { const hs = head.map(h => h.replace(/<[^>]+>/g, '')); downloadText(`${label}.csv`, '﻿' + [hs.join(','), ...rows.map(([, cells]) => cells.map(c => '"' + c.replace(/<[^>]+>/g, '').replace(/"/g, '""') + '"').join(','))].join('\n'), 'text/csv'); });
@@ -74,6 +76,12 @@ export function openMaster(col, doc, kind) {
     footer: `${doc ? `<button class="btn danger" id="mDel" ${refs ? `title="有 ${refs} 張單據用到，無法刪除" disabled` : ''}>刪除${refs ? `（${refs} 張單據用到）` : ''}</button>` : ''}<span class="sp"></span><button class="btn" data-close>取消</button><button class="btn pri" id="mSave">儲存</button>`,
     onOpen(el, close) {
       if (col === 'goods') goodsExtraBind(el, d);
+      if (col === 'contacts') {   // 簡稱欄：空白時灰字顯示會自動帶入的簡稱
+        const sh = el.querySelector('#f-short'), nm = el.querySelector('#f-name'), al = el.querySelector('#f-aliases');
+        const ph = () => { sh.placeholder = nm.value.trim() ? '空白＝自動：' + shortName(nm.value, String(al?.value || '').split(/[,，、]/)) : ''; };
+        nm.addEventListener('input', ph); ph();
+        el.querySelector('label[for="f-short"]').textContent = '簡稱（畫面顯示用，列印用全名）';
+      }
       el.querySelector('#mSave').onclick = async () => {
         const f = formData(el); const out = { ...d };
         for (const [n, , t] of fs) out[n] = t === 'num' ? (f[n] === '' ? 0 : +String(f[n]).replace(/,/g, '') || 0) : String(f[n] ?? '').trim();
@@ -81,6 +89,7 @@ export function openMaster(col, doc, kind) {
         if (col === 'contacts') {
           out.kind = k; out.aliases = String(f.aliases || '').split(/[,，、]/).map(s => s.trim()).filter(Boolean);
           if (f.inactive) out.inactive = true; else delete out.inactive;
+          if (!out.short) out.short = shortName(out.name, out.aliases);   // 簡稱空白就自動擷取（畫面顯示用）
           if (out.code && store.list('contacts').some(c => c.code === out.code && c.id !== d.id)) { el.querySelector('#mErr').textContent = `編號 ${out.code} 已經有人用了`; return; }
         }
         if (col === 'goods') { const sp = spForm(el); if (Object.keys(sp).length) out.sp = sp; else delete out.sp; }
@@ -157,6 +166,34 @@ function goodsExtraBind(el, d) {
   dwgBind(el, d);
   refresh();
   loadHistPur().then(() => { if (el.isConnected) refreshCost(); }).catch(() => {});
+}
+// ---------- 擷取簡稱：沒有簡稱的客戶／供應商，從全名建議簡稱，可逐筆修改後存檔 ----------
+function extractShorts(kind) {
+  const lab = kind === 'C' ? '客戶' : '供應商';
+  const all = store.list('contacts').filter(c => c.kind === kind);
+  const miss = all.filter(c => !String(c.short || '').trim()).sort((a, b) => !!a.inactive - !!b.inactive || String(a.code || a.name).localeCompare(String(b.code || b.name)));
+  if (!miss.length) return toast(`所有${lab}都有簡稱了`);
+  const sug = suggestShorts(miss, all.filter(c => String(c.short || '').trim()));
+  modal({
+    title: `擷取${lab}簡稱`, width: 860,
+    body: `<p class="muted" style="margin-top:0">${miss.length} 家${lab}還沒有簡稱。系統從全名建議簡稱（以前用過、又是全名開頭的別名優先），可以直接改；不想設的取消勾選。<b>簡稱只用在畫面顯示，單據、對帳單、支票、發票等列印一律用全名。</b></p>
+      <div class="tools" style="align-items:center"><label class="check small"><input type="checkbox" id="esAll" checked> 全選</label><span class="muted small" id="esN"></span></div>
+      <div class="tw" style="max-height:55vh;margin-top:6px"><table><thead><tr><th></th><th>編號</th><th>全名</th><th style="width:180px">簡稱</th><th></th></tr></thead><tbody>
+      ${sug.map((x, i) => `<tr class="${x.c.inactive ? 'muted' : ''}"><td><input type="checkbox" data-es="${i}" checked></td><td class="mono nowrap">${esc(x.c.code || '')}</td><td>${esc(x.c.name)}${x.c.inactive ? ' <span class="pill">停用</span>' : ''}</td><td><input data-esv="${i}" value="${esc(x.short)}" style="width:100%"></td><td class="small" style="color:var(--warn)">${esc(x.note)}</td></tr>`).join('')}</tbody></table></div>`,
+    footer: `<span class="sp"></span><button class="btn" data-close>取消</button><button class="btn pri" id="esGo">儲存簡稱</button>`,
+    onOpen(m, close) {
+      const cnt = () => { const n = m.querySelectorAll('[data-es]:checked').length; m.querySelector('#esN').textContent = `已勾選 ${n} 家`; m.querySelector('#esGo').textContent = `儲存 ${n} 家簡稱`; };
+      m.querySelector('#esAll').onchange = ev => { m.querySelectorAll('[data-es]').forEach(c => { c.checked = ev.target.checked; }); cnt(); };
+      m.addEventListener('change', ev => { if (ev.target.matches('[data-es]')) cnt(); });
+      cnt();
+      m.querySelector('#esGo').onclick = async () => {
+        const ops = [];
+        m.querySelectorAll('[data-es]:checked').forEach(c => { const i = +c.dataset.es; const v = m.querySelector(`[data-esv="${i}"]`).value.trim(); if (!v) return; const { id, ...rest } = sug[i].c; ops.push({ col: 'contacts', id, data: { ...rest, short: v } }); });
+        if (!ops.length) return toast('沒有要儲存的簡稱');
+        await store.batch(ops); store.log('擷取簡稱', `${lab} ${ops.length} 家`); close(); toast(`已設定 ${ops.length} 家${lab}的簡稱`);
+      };
+    },
+  });
 }
 // ---------- 客戶／供應商資料：匯出待補 Excel、匯入補好的資料 ----------
 const FILL_COLS = [['id', '系統代號（勿改）'], ['code', '編號'], ['name', '名稱'], ['short', '簡稱'], ['taxId', '統一編號'], ['phone', '電話'], ['fax', '傳真'], ['zip', '郵遞區號'], ['addr', '地址'], ['person', '聯絡人'], ['payMethod', '付款方式'], ['note', '備註']];
