@@ -86,6 +86,9 @@ details.acc-batch > summary:hover { background: var(--acc-bg); }
 .sptbl th, .sptbl td { border: 1px solid var(--line); padding: 3px 4px; }
 .sptbl thead th { background: var(--sunken); font-weight: 500; }
 .sptbl .on { background: var(--blue-soft); color: var(--blue); font-weight: 600; }
+.dwgbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--line); }
+.dwgthumb { width: 64px; height: 48px; object-fit: cover; border: 1px solid var(--line); border-radius: 4px; background: #fff; cursor: zoom-in; }
+.dwgpdf { display: inline-grid; place-items: center; width: 48px; height: 48px; border-radius: 4px; background: var(--bad-soft); color: var(--bad); font-weight: 700; font-size: 12px; }
 .spfix { margin-top: 8px; }
 .spfix > summary { cursor: pointer; color: var(--blue); }
 .spfix .grid { margin-top: 8px; }

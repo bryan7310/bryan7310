@@ -107,6 +107,7 @@ function goodsExtraHTML(d) {
     <details class="spbox" open><summary><b>規格與圖面</b> <span class="muted small">（從品名自動帶入；認錯時到「修正規格」改）</span></summary>
       <div class="sppv"><div id="spSvg"></div><div class="spside"><table class="sprows" id="spRows"></table></div></div>
       <div id="spTbl"></div>
+      <div class="dwgbar" id="dwgBar"></div>
       <details class="spfix" ${Object.keys(o).length ? 'open' : ''}><summary>修正規格 <span class="muted small">（空白＝用自動值，灰字是自動值）</span></summary><div class="grid">${SP_FIELDS.map(fld).join('')}</div></details>
     </details>`;
 }
@@ -143,8 +144,74 @@ function goodsExtraBind(el, d) {
   let t = 0; const later = () => { clearTimeout(t); t = setTimeout(refresh, 200); };
   el.addEventListener('input', ev => { if (ev.target.matches('#f-name,#f-code,#f-cat,#f-unit,#f-cost,#f-wt,[data-sp]')) later(); });
   el.addEventListener('change', ev => { if (ev.target.matches('[data-sp]')) later(); });
+  dwgBind(el, d);
   refresh();
   loadHistPur().then(() => { if (el.isConnected) refreshCost(); }).catch(() => {});
+}
+// ---------- 客戶圖面：上傳到伺服器 data/files，商品上記 dwg {id,name,type,size,at} ----------
+const fileUrl = (dw, dl) => `/api/files/${encodeURIComponent(dw.id)}?n=${encodeURIComponent(dw.name || '')}${dl ? '&dl=1' : ''}`;
+async function shrinkImg(file) {   // 大圖縮到長邊 2400px 的 JPG（手機拍的照片常常 5～10MB）
+  const url = URL.createObjectURL(file);
+  try {
+    const img = new Image(); await new Promise((ok, no) => { img.onload = ok; img.onerror = no; img.src = url; });
+    let w = img.naturalWidth, h = img.naturalHeight; const mx = 2400;
+    if (Math.max(w, h) <= mx && file.size < 1.5e6) return { blob: file, name: file.name };
+    if (Math.max(w, h) > mx) { const f = mx / Math.max(w, h); w = Math.round(w * f); h = Math.round(h * f); }
+    const c = document.createElement('canvas'); c.width = w; c.height = h; const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, w, h); x.drawImage(img, 0, 0, w, h);
+    const blob = await new Promise(r => c.toBlob(r, 'image/jpeg', 0.85));
+    return { blob, name: file.name.replace(/\.[^.]+$/, '') + '.jpg' };
+  } finally { URL.revokeObjectURL(url); }
+}
+function dwgView(dw, title) {
+  if (/pdf/.test(dw.type)) { window.open(fileUrl(dw), '_blank'); return; }
+  modal({ title: `${title || ''}　客戶圖面`, width: 1100, body: `<div style="text-align:center;background:#fff;border-radius:var(--r)"><img src="${fileUrl(dw)}" alt="客戶圖面" style="max-width:100%;height:auto"></div><div class="muted small" style="margin-top:6px">${esc(dw.name || '')}</div>`, footer: `<a class="btn" href="${fileUrl(dw, 1)}">下載</a><span class="sp"></span><button class="btn" data-close>關閉</button>` });
+}
+function dwgBind(el, d) {
+  const bar = el.querySelector('#dwgBar'); if (!bar) return;
+  const draw = () => {
+    const dw = d.dwg;
+    bar.innerHTML = `${dw ? (/pdf/.test(dw.type) ? '<span class="dwgpdf">PDF</span>' : `<img class="dwgthumb" src="${fileUrl(dw)}" alt="" data-dwg-view>`) : ''}
+      <span class="muted small sp">${dw ? `客戶圖面：${esc(dw.name)}${dw.size ? `（${dw.size >= 1048576 ? (dw.size / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(dw.size / 1024)) + ' KB'}）` : ''}` : '尚未附客戶圖面（可上傳 JPG／PNG 圖片或 PDF）'}</span>
+      ${dw ? '<button type="button" class="btn sm" data-dwg-view>查看圖面</button>' : ''}
+      <button type="button" class="btn sm" data-dwg-up>${dw ? '更換圖面' : '上傳圖面'}</button>
+      ${dw ? '<button type="button" class="btn sm danger" data-dwg-del>移除</button>' : ''}
+      <input type="file" accept="image/*,.pdf,application/pdf" hidden data-dwg-file>`;
+  };
+  // 已存在的商品：圖面一上傳就存到商品上；新商品：按「儲存」時一起存
+  const persist = async dwg => {
+    if (dwg) d.dwg = dwg; else delete d.dwg;
+    if (!d.id) return;
+    const cur = store.get('goods', d.id) || d; const { id, ...rest } = cur;
+    if (dwg) rest.dwg = dwg; else delete rest.dwg;
+    await store.save('goods', d.id, rest);
+  };
+  bar.addEventListener('click', async ev => {
+    const t = ev.target;
+    if (t.closest('[data-dwg-view]')) return dwgView(d.dwg, el.querySelector('#f-name')?.value || d.name);
+    if (t.closest('[data-dwg-up]')) return bar.querySelector('[data-dwg-file]').click();
+    if (t.closest('[data-dwg-del]')) {
+      if (!await confirm(`移除客戶圖面「${d.dwg.name}」？`, { danger: true, ok: '移除' })) return;
+      const old = d.dwg; await persist(null); api.post(`/api/files/${encodeURIComponent(old.id)}/delete`, {}).catch(() => {});
+      store.log('移除圖面', `商品「${d.name || ''}」${old.name}`); draw(); toast('已移除圖面');
+    }
+  });
+  bar.addEventListener('change', async ev => {
+    const inp = ev.target.closest('[data-dwg-file]'); if (!inp || !inp.files[0]) return;
+    const file = inp.files[0]; const isPdf = file.type === 'application/pdf' || /\.pdf$/i.test(file.name);
+    if (!isPdf && !/^image\//.test(file.type)) return toast('只接受圖片（JPG／PNG）或 PDF');
+    const st = bar.querySelector('.sp'); st.textContent = '上傳中…';
+    try {
+      const up = isPdf ? { blob: file, name: file.name } : await shrinkImg(file);
+      if (up.blob.size > 25 * 1024 * 1024) throw new Error('檔案超過 25 MB');
+      const r = await fetch('/api/files?name=' + encodeURIComponent(up.name), { method: 'POST', body: up.blob, credentials: 'same-origin' });
+      const j = await r.json().catch(() => ({})); if (!r.ok || !j.ok) throw new Error(j.error || ('HTTP ' + r.status));
+      const old = d.dwg; await persist({ id: j.id, name: j.name, type: j.type, size: j.size, at: Date.now() });
+      if (old && old.id !== j.id) api.post(`/api/files/${encodeURIComponent(old.id)}/delete`, {}).catch(() => {});
+      store.log('上傳圖面', `商品「${d.name || el.querySelector('#f-name')?.value || ''}」${j.name}`);
+      draw(); toast(d.id ? '圖面已上傳並存到商品' : '圖面已上傳，按「儲存」後存到商品');
+    } catch (e) { st.textContent = '上傳失敗：' + (e.message || e); }
+  });
+  draw();
 }
 function refCount(col, id) {
   const bills = store.list('bills');

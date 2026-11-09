@@ -13,6 +13,8 @@ API（全部回 JSON；除了登入與 /api/status 之外都要先登入）
   POST /api/batch            [{col,id,data} | {col,id,delete:true}]
   GET  /api/hist?...         歷史單據查詢（cid、gid、type、q、from、to、limit、offset）
   GET  /api/hist/prices?gid= 某商品歷史單價
+  POST /api/files?name=      上傳附檔（客戶圖面；內容直接放在 body）→ {id,name,type,size}
+  GET  /api/files/<id>       讀附檔（?n=顯示檔名  ?dl=1 下載）   POST /api/files/<id>/delete 刪除
   GET  /api/users            帳號清單   POST /api/users {name,login,pw} 新增
   POST /api/users/<id>       {name?, login?, pw?, disabled?}
   POST /api/backup           立即備份
@@ -24,6 +26,8 @@ import gzip
 import json
 import mimetypes
 import os
+import re
+import secrets
 import shutil
 import sys
 import threading
@@ -32,7 +36,7 @@ import traceback
 import zipfile
 from http import HTTPStatus
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
-from urllib.parse import urlparse, parse_qs
+from urllib.parse import urlparse, parse_qs, quote
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from db import DB  # noqa: E402
@@ -46,6 +50,10 @@ LIVE_COLS = ['settings', 'contacts', 'goods', 'warehouses', 'accounts', 'bills',
              'checks_out', 'checks_in', 'orders', 'drawings', 'labels', 'mail', 'logs']
 COOKIE = 'zr_session'
 LONG_POLL = 25
+# 附檔（客戶圖面）
+FILE_TYPES = {'.jpg': 'image/jpeg', '.png': 'image/png', '.gif': 'image/gif', '.webp': 'image/webp', '.pdf': 'application/pdf'}
+FILE_MAX = 25 * 1024 * 1024
+FILE_RE = re.compile(r'^/api/files/([0-9a-f]{16}\.(?:jpg|png|gif|webp|pdf))(/delete)?$')
 
 
 class State:
@@ -75,7 +83,7 @@ class Handler(BaseHTTPRequestHandler):
         self.send_bytes(body, 'application/json; charset=utf-8', status, headers)
 
     def send_bytes(self, body, ctype, status=200, headers=None, cache=False):
-        gz = len(body) > 1024 and 'gzip' in (self.headers.get('Accept-Encoding') or '')
+        gz = len(body) > 1024 and 'gzip' in (self.headers.get('Accept-Encoding') or '') and not ctype.startswith(('image/', 'application/pdf'))
         if gz:
             body = gzip.compress(body, 5)
         self.send_response(status)
@@ -135,6 +143,8 @@ class Handler(BaseHTTPRequestHandler):
             u = urlparse(self.path)
             if not u.path.startswith('/api/'):
                 return self.error('not found', 404)
+            if u.path == '/api/files':
+                return self.upload(parse_qs(u.query))
             body = self.body_json()
             return self.api('POST', u.path, parse_qs(u.query), body)
         except (BrokenPipeError, ConnectionResetError):
@@ -250,10 +260,56 @@ class Handler(BaseHTTPRequestHandler):
                 return self.error('至少要保留一個可用帳號')
             db.update_user(uid, b.get('name'), b.get('login'), b.get('disabled'))
             return self.send_json({'ok': True, 'users': db.users()})
+        m = FILE_RE.match(path)
+        if m:
+            fp = os.path.join(self.files_dir(), m.group(1))
+            if method == 'POST' and m.group(2) == '/delete':
+                try:
+                    os.remove(fp)
+                except OSError:
+                    pass
+                return self.send_json({'ok': True})
+            if not os.path.isfile(fp):
+                return self.error('找不到檔案', 404)
+            with open(fp, 'rb') as f:
+                data = f.read()
+            name = q('n') or m.group(1)
+            ext = os.path.splitext(m.group(1))[1].lower()
+            disp = 'attachment' if q('dl') else 'inline'
+            return self.send_bytes(data, FILE_TYPES.get(ext, 'application/octet-stream'), cache=True,
+                                   headers={'Content-Disposition': f"{disp}; filename*=UTF-8''{quote(name)}"})
         if path == '/api/backup' and method == 'POST':
             ok, msg = run_backup(self.state, manual=True)
             return self.send_json({'ok': ok, 'msg': msg, 'backup': self.state.backup})
         return self.error('not found', 404)
+
+    # ---------- 附檔（客戶圖面）：存在 data/files，檔名是亂數＋副檔名 ----------
+    def files_dir(self):
+        d = os.path.join(self.state.data_dir, 'files')
+        os.makedirs(d, exist_ok=True)
+        return d
+
+    def upload(self, qs):
+        if not self.user():
+            return self.error('請先登入', 401)
+        n = int(self.headers.get('Content-Length') or 0)
+        if n <= 0:
+            return self.error('沒有收到檔案')
+        if n > FILE_MAX:
+            self.rfile.read(n)
+            return self.error('檔案太大（上限 %d MB）' % (FILE_MAX // 1024 // 1024))
+        name = (qs.get('name') or ['file'])[0][:200]
+        ext = os.path.splitext(name)[1].lower()
+        if ext == '.jpeg':
+            ext = '.jpg'
+        if ext not in FILE_TYPES:
+            self.rfile.read(n)
+            return self.error('只接受圖片（JPG、PNG、GIF、WEBP）或 PDF')
+        data = self.rfile.read(n)
+        fid = secrets.token_hex(8) + ext
+        with open(os.path.join(self.files_dir(), fid), 'wb') as f:
+            f.write(data)
+        return self.send_json({'ok': True, 'id': fid, 'name': name, 'type': FILE_TYPES[ext], 'size': len(data)})
 
     def set_cookie(self, token):
         return f'{COOKIE}={token}; Path=/; Max-Age={86400 * 365}; HttpOnly; SameSite=Lax'
@@ -284,6 +340,14 @@ def run_backup(state, manual=False):
         with zipfile.ZipFile(zpath, 'w', zipfile.ZIP_DEFLATED) as z:
             z.write(tmp, 'zhirui.db')
         os.remove(tmp)
+        # 客戶圖面等附檔：同步到備份資料夾的 files 子資料夾（只複製新的，不刪舊的，避免每份 zip 都重複一大包）
+        fdir = os.path.join(state.data_dir, 'files')
+        if os.path.isdir(fdir):
+            bdir = os.path.join(cfg['dir'], 'files')
+            os.makedirs(bdir, exist_ok=True)
+            for f in os.listdir(fdir):
+                if not os.path.exists(os.path.join(bdir, f)):
+                    shutil.copy2(os.path.join(fdir, f), os.path.join(bdir, f))
         # 只保留最近 N 份（只刪這種檔名）
         files = sorted(f for f in os.listdir(cfg['dir']) if f.startswith('志瑞平台備份_') and f.endswith('.zip'))
         for f in files[:-cfg['keep']] if cfg['keep'] > 0 else []:
