@@ -1,0 +1,2 @@
+# Windows 批次檔必須用 CRLF 換行，否則 cmd 會讀錯；關閉自動轉換，以倉庫內容為準
+*.bat -text
