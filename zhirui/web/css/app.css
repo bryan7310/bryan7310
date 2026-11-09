@@ -335,3 +335,172 @@ td .sub { display: block; color: var(--muted); font-size: 12px; }
   .grid2 { grid-template-columns: 1fr; }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+
+/* ==========================================================================
+   iOS 質感（覆蓋層）：系統字體、分組淡灰背景、毛玻璃側欄與頂列、
+   iOS 設定式彩色圖示方塊、分段控制分頁、圓角卡片、填色輸入框、膠囊提示
+   ========================================================================== */
+:root {
+  --bg: #F2F2F7; --surface: #FFFFFF; --sunken: rgba(118,118,128,.12); --ink: #1C1C1E; --muted: #8A8A8E;
+  --line: rgba(60,60,67,.14); --line-strong: rgba(60,60,67,.26);
+  --blue: #007AFF; --blue-ink: #FFFFFF; --blue-soft: rgba(0,122,255,.12); --cyan: #007AFF; --navy: #1C1C1E;
+  --ok: #248A3D; --ok-soft: rgba(52,199,89,.16); --warn: #B25000; --warn-soft: rgba(255,149,0,.16); --bad: #D70015; --bad-soft: rgba(255,59,48,.12);
+  --zinc-soft: rgba(255,204,0,.2); --zinc-ink: #8A6A00;
+  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang TC", "Segoe UI Variable Text", "Segoe UI", "Microsoft JhengHei UI", "Microsoft JhengHei", "Noto Sans TC", sans-serif;
+  --mono: "SF Mono", ui-monospace, "Cascadia Mono", "Segoe UI Mono", Consolas, monospace;
+  --r: 12px; --rail-w: 248px;
+  --glass: rgba(249,249,251,.78); --glass-top: rgba(255,255,255,.72); --sep: rgba(60,60,67,.12);
+  --shadow: 0 0 0 .5px rgba(0,0,0,.04), 0 10px 30px -12px rgba(0,0,0,.18);
+  --sel: #007AFF;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #000000; --surface: #1C1C1E; --sunken: rgba(118,118,128,.24); --ink: #FFFFFF; --muted: #98989F;
+    --line: rgba(84,84,88,.45); --line-strong: rgba(84,84,88,.7);
+    --blue: #0A84FF; --blue-soft: rgba(10,132,255,.2); --cyan: #0A84FF; --navy: #2C2C2E;
+    --ok: #30D158; --ok-soft: rgba(48,209,88,.18); --warn: #FF9F0A; --warn-soft: rgba(255,159,10,.18); --bad: #FF453A; --bad-soft: rgba(255,69,58,.18);
+    --zinc-soft: rgba(255,214,10,.18); --zinc-ink: #FFD60A;
+    --glass: rgba(28,28,30,.78); --glass-top: rgba(22,22,24,.72); --sep: rgba(84,84,88,.4); --sel: #0A84FF;
+    --shadow: 0 0 0 .5px rgba(255,255,255,.06), 0 10px 30px -12px rgba(0,0,0,.7);
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #000000; --surface: #1C1C1E; --sunken: rgba(118,118,128,.24); --ink: #FFFFFF; --muted: #98989F;
+  --line: rgba(84,84,88,.45); --line-strong: rgba(84,84,88,.7);
+  --blue: #0A84FF; --blue-soft: rgba(10,132,255,.2); --cyan: #0A84FF; --navy: #2C2C2E;
+  --ok: #30D158; --ok-soft: rgba(48,209,88,.18); --warn: #FF9F0A; --warn-soft: rgba(255,159,10,.18); --bad: #FF453A; --bad-soft: rgba(255,69,58,.18);
+  --zinc-soft: rgba(255,214,10,.18); --zinc-ink: #FFD60A;
+  --glass: rgba(28,28,30,.78); --glass-top: rgba(22,22,24,.72); --sep: rgba(84,84,88,.4); --sel: #0A84FF;
+  --shadow: 0 0 0 .5px rgba(255,255,255,.06), 0 10px 30px -12px rgba(0,0,0,.7);
+}
+body { font: 14.5px/1.5 var(--font); letter-spacing: -.005em; -webkit-font-smoothing: antialiased; accent-color: var(--blue); }
+:focus-visible { outline: 3px solid color-mix(in srgb, var(--blue) 45%, transparent); outline-offset: 1px; border-radius: 8px; }
+/* 數字用系統字的等寬數字（iOS 做法），料號等代碼仍用等寬字 */
+.num, td.n, th.n, .kpi b, .totals b, .sumbox b, .lines input.num { font-family: var(--font); font-variant-numeric: tabular-nums; letter-spacing: 0; }
+
+/* ---------- 側欄：毛玻璃＋iOS 設定式圖示方塊 ---------- */
+.rail { background: var(--glass); backdrop-filter: saturate(180%) blur(24px); -webkit-backdrop-filter: saturate(180%) blur(24px); color: var(--ink); border-right: .5px solid var(--sep); }
+.brand { color: var(--ink); padding: 18px 18px 10px; }
+.brand .logo { width: 34px; height: 34px; border-radius: 9px; background: #0D2A5C url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='7.5' fill='none' stroke='%2364D2FF' stroke-width='2.4'/%3E%3Cpath d='M16 12.2 19.8 16 16 19.8 12.2 16z' fill='%2364D2FF'/%3E%3C/svg%3E") center/78% no-repeat; box-shadow: 0 1px 2px rgba(0,0,0,.15); }
+.brand b { font-size: 17px; letter-spacing: .02em; font-weight: 700; }
+.brand small { color: var(--muted); letter-spacing: .08em; font-size: 11.5px; }
+.nav { padding: 2px 10px 12px; gap: 1px; }
+.nav .grp { font-size: 12px; letter-spacing: .02em; color: var(--muted); padding: 14px 10px 5px; font-weight: 600; }
+.nav a { gap: 11px; padding: 6px 10px 6px 8px; border-radius: 10px; color: var(--ink); font-weight: 500; }
+.nav a svg { width: 28px; height: 28px; padding: 5px; border-radius: 7px; background: #8E8E93; color: #fff; stroke-width: 2; opacity: 1; box-shadow: inset 0 0 0 .5px rgba(0,0,0,.06); }
+.nav a:hover { background: var(--sunken); color: var(--ink); }
+.nav a[aria-current="page"] { background: var(--sel); color: #fff; }
+.nav a[aria-current="page"]::before { display: none; }
+.nav a[aria-current="page"] svg { box-shadow: 0 0 0 1.5px rgba(255,255,255,.55); }
+.nav .cnt { font: 600 12px var(--font); font-variant-numeric: tabular-nums; background: rgba(118,118,128,.16); color: var(--muted); padding: 0 7px; border-radius: 10px; line-height: 20px; }
+.nav a[aria-current="page"] .cnt { background: rgba(255,255,255,.25); color: #fff; }
+.nav .cnt.alert { background: #FF3B30; color: #fff; }
+/* 每個功能一個 iOS 系統色 */
+.nav a[data-m="home"] svg { background: #007AFF; }
+.nav a[data-m="pricing"] svg { background: #FF9500; }
+.nav a[data-m="quotes"] svg { background: #5856D6; }
+.nav a[data-m="sales"] svg { background: #34C759; }
+.nav a[data-m="orders"] svg { background: #FF3B30; }
+.nav a[data-m="faxes"] svg { background: #8E8E93; }
+.nav a[data-m="drawing"] svg { background: #30B0C7; }
+.nav a[data-m="purchase"] svg { background: #FF2D55; }
+.nav a[data-m="stock"] svg { background: #A2845E; }
+.nav a[data-m="labels"] svg { background: #AF52DE; }
+.nav a[data-m="receivables"] svg { background: #34C759; }
+.nav a[data-m="mail"] svg { background: #FF9500; }
+.nav a[data-m="payables"] svg { background: #FF3B30; }
+.nav a[data-m="invoices"] svg { background: #5AC8FA; }
+.nav a[data-m="checks-out"] svg { background: #5856D6; }
+.nav a[data-m="checks-in"] svg { background: #00C7BE; }
+.nav a[data-m="money"] svg { background: #FFCC00; color: #1C1C1E; }
+.nav a[data-m="reports"] svg { background: #007AFF; }
+.nav a[data-m="master"] svg { background: #636366; }
+.nav a[data-m="settings"] svg { background: #8E8E93; }
+.rail-foot { border-top: .5px solid var(--sep); color: var(--muted); padding: 12px 18px 16px; font-size: 12.5px; }
+.sync.ok i { background: #34C759; } .sync.busy i { background: #FF9500; } .sync.err i { background: #FF3B30; }
+.me span { color: var(--ink); font-weight: 600; }
+.me button { color: var(--blue); font-weight: 500; }
+.me button:hover { color: var(--blue); opacity: .75; }
+
+/* ---------- 頂列：毛玻璃、大標題、iOS 搜尋欄 ---------- */
+.topbar { background: var(--glass-top); backdrop-filter: saturate(180%) blur(24px); -webkit-backdrop-filter: saturate(180%) blur(24px); border-bottom: .5px solid var(--sep); min-height: 56px; }
+.crumb { font-size: 20px; font-weight: 700; letter-spacing: -.01em; }
+.crumb small { font-size: 13.5px; }
+.gsearch input { border: 0; background: var(--sunken) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238A8A8E' stroke-width='2.2' stroke-linecap='round'%3E%3Ccircle cx='11' cy='11' r='6.5'/%3E%3Cpath d='m20 20-4.2-4.2'/%3E%3C/svg%3E") 10px center/16px no-repeat; border-radius: 10px; padding: 8px 12px 8px 34px; }
+.gsearch input::placeholder { color: var(--muted); }
+.gres { border: 0; border-radius: 14px; box-shadow: var(--shadow), 0 0 0 .5px var(--sep); padding: 4px 0; }
+.gres a { border-radius: 8px; margin: 0 6px; }
+.icon-btn { border-radius: 10px; color: var(--blue); }
+.content { padding-top: 22px; gap: 18px; }
+
+/* ---------- 共用元件 ---------- */
+.head h1 { font-size: 28px; font-weight: 700; letter-spacing: -.02em; }
+.btn { border: 0; background: var(--sunken); color: var(--blue); border-radius: 10px; padding: 7px 14px; font-weight: 600; transition: transform .08s, opacity .15s, background .15s; }
+.btn:hover { border: 0; background: color-mix(in srgb, var(--sunken) 100%, var(--blue) 6%); }
+.btn:active:not(:disabled) { transform: scale(.97); opacity: .8; }
+.btn:disabled { opacity: .4; }
+.btn.pri { background: var(--blue); color: #fff; box-shadow: 0 1px 2px color-mix(in srgb, var(--blue) 35%, transparent); }
+.btn.pri:hover { filter: none; background: color-mix(in srgb, var(--blue) 88%, #000); }
+.btn.danger { background: var(--bad-soft); color: var(--bad); border: 0; }
+.btn.danger:hover { background: color-mix(in srgb, var(--bad-soft) 100%, var(--bad) 8%); }
+.btn.ghost { background: transparent; }
+.btn.sm { padding: 5px 11px; border-radius: 8px; font-size: 13px; }
+.btn.xs { padding: 3px 8px; border-radius: 7px; font-size: 12px; }
+.panel { border: 0; border-radius: 14px; padding: 16px 18px; box-shadow: 0 0 0 .5px var(--line); }
+.panel h2, .panel .ptitle { font-size: 16px; }
+.kpi { border: 0; border-radius: 14px; padding: 14px 16px; box-shadow: 0 0 0 .5px var(--line); }
+.kpi span { font-size: 13px; font-weight: 500; }
+.kpi b { font-size: 26px; font-weight: 700; letter-spacing: -.02em; }
+/* 分段控制 */
+.tabs { background: var(--sunken); padding: 2px; border-radius: 9px; gap: 0; }
+.tabs button { padding: 5px 14px; border-radius: 7px; color: var(--ink); font-weight: 500; font-size: 13.5px; transition: background .15s; }
+.tabs button.on { background: var(--surface); box-shadow: 0 3px 8px rgba(0,0,0,.12), 0 3px 1px rgba(0,0,0,.04); font-weight: 600; }
+:root[data-theme="dark"] .tabs button.on { background: #636366; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .tabs button.on { background: #636366; } }
+/* 輸入框：iOS 填色欄位 */
+.tools input[type=search], .tools input[type=text], .tools input[type=month], .tools input[type=date], .tools select,
+.f input, .f select, .f textarea, .facets select, .res .add input { border: 1px solid transparent; background: var(--sunken); border-radius: 10px; padding: 8px 12px; }
+.f input:focus, .f select:focus, .f textarea:focus, .tools input:focus, .tools select:focus { border-color: transparent; background: var(--surface); box-shadow: 0 0 0 3px color-mix(in srgb, var(--blue) 35%, transparent); outline: none; }
+.f > label, .f > .lbl { font-size: 12.5px; font-weight: 500; }
+select { appearance: none; -webkit-appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238A8A8E' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m7 10 5 5 5-5'/%3E%3C/svg%3E") !important; background-repeat: no-repeat !important; background-position: right 8px center !important; background-size: 14px !important; padding-right: 28px !important; }
+.pill { border-radius: 999px; padding: 1px 9px; font-weight: 600; }
+.banner { border-radius: 12px; }
+/* 表格：髮絲分隔線 */
+th, td { border-bottom: .5px solid var(--line); }
+th { font-size: 12.5px; font-weight: 600; color: var(--muted); background: var(--surface); }
+tr.row:hover td { background: color-mix(in srgb, var(--sunken) 60%, transparent); }
+tr.sel td { background: var(--blue-soft); }
+tfoot td { border-top: 1px solid var(--line-strong); }
+/* 下拉、對話框、提示 */
+.combo-list { border: 0; border-radius: 12px; box-shadow: var(--shadow), 0 0 0 .5px var(--sep); padding: 4px 0; }
+.combo-list div { margin: 0 4px; border-radius: 8px; }
+.combo-list div.on, .combo-list div:hover { background: var(--blue); color: #fff; }
+.combo-list div.on small, .combo-list div:hover small { color: rgba(255,255,255,.8); }
+.modal-bg { background: rgba(0,0,0,.32); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); }
+.modal { border-radius: 18px; box-shadow: 0 30px 80px -20px rgba(0,0,0,.45), 0 0 0 .5px var(--sep); animation: ios-pop .22s cubic-bezier(.2,.9,.3,1.15); }
+@keyframes ios-pop { from { transform: scale(.96); opacity: 0; } to { transform: none; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .modal { animation: none; } }
+.modal .mh { border-bottom: .5px solid var(--sep); padding: 14px 18px 12px; }
+.modal .mh h2 { font-size: 17px; font-weight: 700; }
+.modal .mf { border-top: .5px solid var(--sep); }
+.toast { background: rgba(30,30,32,.9); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border-radius: 999px; padding: 11px 20px; font-weight: 500; box-shadow: 0 12px 30px -10px rgba(0,0,0,.45); }
+.toast button { color: #64D2FF; }
+/* 單據明細、合計 */
+.lines input, .lines select { border-radius: 8px; }
+.lines input:focus { box-shadow: 0 0 0 3px color-mix(in srgb, var(--blue) 30%, transparent); border-color: transparent; }
+.sumbox { border-radius: 14px; }
+.sumbox b { font-weight: 700; }
+/* 登入 */
+.login { background: radial-gradient(120% 90% at 10% 0%, #6EA8FF 0%, transparent 55%), radial-gradient(100% 80% at 100% 100%, #B57CFF 0%, transparent 55%), linear-gradient(160deg, #0B2E6B, #1F5FD6); }
+.login .card { border-radius: 22px; background: color-mix(in srgb, var(--surface) 82%, transparent); backdrop-filter: saturate(180%) blur(30px); -webkit-backdrop-filter: saturate(180%) blur(30px); box-shadow: 0 30px 80px -20px rgba(0,0,0,.45); padding: 30px 28px; }
+.login .card h1 { font-size: 22px; }
+.login .card .btn.pri { padding: 12px; border-radius: 12px; font-size: 16px; }
+/* 捲軸細一點 */
+* { scrollbar-width: thin; scrollbar-color: rgba(120,120,128,.4) transparent; }
+/* 手機抽屜 */
+@media (max-width: 960px) {
+  .rail { background: var(--glass); }
+  .scrim { background: rgba(0,0,0,.3); }
+  .head h1 { font-size: 24px; }
+  .topbar .crumb { display: none; }
+}
