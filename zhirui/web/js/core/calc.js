@@ -2,6 +2,7 @@
 import { store } from './store.js';
 import { rnd0, dayN } from './util.js';
 import { platCost } from './pricing.js';
+import { estWeight } from './spec.js';
 
 export const TYPES = {
   SALE: { name: '銷貨單', pre: 'XS', party: 'C', stock: -1, money: 1, ps: 1, lines: true },
@@ -39,7 +40,17 @@ export function unitFactor(u) { // [類別, 每單位幾個基本件]
   if (/kg|公斤/i.test(u)) return ['kg', 1];
   return ['u:' + u, 1];
 }
-export const goodsWt = g => +g?.wt > 0 ? +g.wt : 0;   // 單重 g（有填才用）
+// 單重 g／支：有填用實測值，沒填用品名規格依標準尺寸估算（同舊進銷存）
+const WTM = new Map(); let WTMgen = -1;
+export const goodsWt = g => {
+  if (!g) return 0; if (+g.wt > 0) return +g.wt;
+  if (WTMgen !== store.gen) { WTM.clear(); WTMgen = store.gen; }
+  if (!WTM.has(g.id)) WTM.set(g.id, estWeight(g));
+  return WTM.get(g.id);
+};
+// 舊系統的進貨單（歷史單據載入後放進來），成本推算也會用到
+let HIST_PUR = [];
+export function setHistPur(bills) { HIST_PUR = bills || []; C = null; }
 export function uRate(u, g) {
   if (!g) return null;
   const [c1, f1] = unitFactor(u), [c2, f2] = unitFactor(g.unit || '');
@@ -86,7 +97,7 @@ export function calc() {
   const bills = store.list('bills').sort((a, b) => (a.date || '').localeCompare(b.date || '') || (a.createdAt || 0) - (b.createdAt || 0));
   const purIdx = {}, poIdx = {};
   for (const b of bills) { if (b.type !== 'PO') continue; for (const l of b.lines || []) { if (!l.gid || !(+l.price > 0)) continue; const [cls, f] = lineUnit(l, g[l.gid]); (poIdx[l.gid] ??= []).push({ d: dayN(b.date), date: b.date, no: b.no, cls, per: (+l.price) / f }); } }
-  for (const b of bills) { if (b.type !== 'PUR') continue; for (const l of b.lines || []) { if (!l.gid || !(+l.price > 0)) continue; const [cls, f] = lineUnit(l, g[l.gid]); (purIdx[l.gid] ??= []).push({ d: dayN(b.date), date: b.date, no: b.no, cls, per: (+l.price) / f, cid: b.cid }); } }
+  for (const b of [...bills, ...HIST_PUR]) { if (b.type !== 'PUR') continue; for (const l of b.lines || []) { if (!l.gid || !(+l.price > 0) || !g[l.gid]) continue; const [cls, f] = lineUnit(l, g[l.gid]); (purIdx[l.gid] ??= []).push({ d: dayN(b.date), date: b.date, no: b.no, cls, per: (+l.price) / f, cid: b.cid, hist: !!b.hist }); } }
   const costMiss = {}, costLn = {};
   const saleCost = (b, l, i) => { if (!l.gid) return 0; const r = costOf(l, b.date, purIdx, g, poIdx); (costLn[b.id] ??= [])[i] = r; if (!r) { costMiss[b.id] = (costMiss[b.id] || 0) + 1; return 0; } return r.c * (+l.qty || 0); };
   const add = (gid, wid, q) => { if (!gid || !wid) return; (stock[gid] ??= {}); stock[gid][wid] = (stock[gid][wid] || 0) + q; };
@@ -140,13 +151,14 @@ function costG(g, gid, cls, f, date, purIdx, poIdx, sane) {
   if (g && +g.cost > 0) { const [bc, bf] = unitFactor(g.unit || ''); if (bc === cls) return { c: (+g.cost) / bf * f, src: '商品成本（手動）', manual: true }; }
   return null;
 }
-export function costOf(l, date, purIdx, gm, poIdx) {
+/** loose：不拿單價或牌價檢查合理性（商品資料上看「目前成本」用，進貨單一律優先） */
+export function costOf(l, date, purIdx, gm, poIdx, loose) {
   if (!l.gid) return null; const g = (gm || calc().g)[l.gid];
   purIdx = purIdx || calc().purIdx; poIdx = poIdx || calc().poIdx;
   const [cls, f] = lineUnit(l, g);
   const sp = +l.price || 0;
-  let ref = null; if (!sp && g && cls === 'p') { const pc = platCost(g); if (pc) ref = pc.per * f; }
-  const sane = (c, lo, hi) => sp ? (c >= sp * lo && c <= sp * hi) : ref ? (c >= ref * 0.2 && c <= ref * 5) : true;
+  let ref = null; if (!sp && !loose && g && cls === 'p') { const pc = platCost(g); if (pc) ref = pc.per * f; }
+  const sane = (c, lo, hi) => loose ? c > 0 : sp ? (c >= sp * lo && c <= sp * hi) : ref ? (c >= ref * 0.2 && c <= ref * 5) : true;
   return costG(g, l.gid, cls, f, date, purIdx, poIdx, sane);
 }
 

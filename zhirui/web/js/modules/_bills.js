@@ -2,7 +2,7 @@
 import { $, $$, esc, fmt, fmtQ, fp4, today, uid, matchQ, qTerms, roc, slash, thisMonth, money, isoOf, downloadText } from '../core/util.js';
 import { store } from '../core/store.js';
 import { toast, modal, confirm, combo, pager, tabs, printHTML } from '../core/ui.js';
-import { TYPES, totals, lineAmt, calc, nextNo, cname, cshort, wname, gname, goodsLabel, customers, suppliers, defWh, qtyAt, bqty, uRate, lastSale, unitPrice, unitFactor } from '../core/calc.js';
+import { TYPES, totals, lineAmt, calc, nextNo, cname, cshort, wname, gname, goodsLabel, customers, suppliers, defWh, qtyAt, bqty, uRate, lastSale, unitPrice, unitFactor, setHistPur } from '../core/calc.js';
 import { api } from '../core/api.js';
 import { labelPicker } from './labels.js';
 import { faxDialog } from './faxes.js';
@@ -123,6 +123,7 @@ function histFetch(types) {
     }
     for (const b of out) b.hist = true;
     histCache.set(key, out); histPending.delete(key);
+    if (types.includes('PUR')) setHistPur(out.filter(b => b.type === 'PUR'));   // 成本推算也用舊系統進貨單
     return out;
   })();
   histPending.set(key, p);
@@ -130,8 +131,9 @@ function histFetch(types) {
   return p;
 }
 /** 登入後在背景先把各種歷史單據載好，打開清單時就不用等 */
+export const loadHistPur = () => histFetch(['PUR', 'PUR_RET', 'PO']);
 export async function preloadHist() {
-  for (const types of [['SALE', 'SALE_RET'], ['PUR', 'PUR_RET', 'PO'], ['QUO', 'RFQ']]) {
+  for (const types of [['PUR', 'PUR_RET', 'PO'], ['SALE', 'SALE_RET'], ['QUO', 'RFQ']]) {
     try { await histFetch(types); } catch (e) { break; }
     await new Promise(r => setTimeout(r, 300));
   }

@@ -169,15 +169,18 @@ const HEADS2 = ['內六角', '六角', '半圓頭', '圓頭', '盤頭', '大扁�
 const headN = h => h === '圓頭' ? '丸頭' : h === '平頭' ? '皿頭' : h === '大扁' ? '大扁頭' : h;
 const matClass = t => { t = String(t || ''); if (/SUS|不銹|不鏽|白鐵/i.test(t)) return 'S'; if (/銅/.test(t)) return 'C'; if (/合金|SCM/i.test(t)) return 'A'; if (/鐵|鋼/.test(t)) return 'F'; return ''; };
 const lenN = s => String(s || '').replace(/["”吋]|mm/g, '').trim();
+// 華司種類：平、彈簧、盤型彈簧、齒型、波浪、弓形、碗型、四角（不同種類不互配）
+const wKind = t => /盤型/.test(t) ? 'disc' : /彈簧/.test(t) ? 'spring' : /齒/.test(t) ? 'tooth' : /波浪/.test(t) ? 'wave' : /弓/.test(t) ? 'bow' : /碗/.test(t) ? 'cup' : /四角/.test(t) ? 'sq' : 'flat';
+const isWasher = t => /華司|墊圈/.test(t) && !/螺絲|螺栓/.test(t);
 function parseGoods(g) {
   const t = String(g.name || '').replace(/[＊×xX]/g, '*').replace(/／/g, '/');
   const m = t.match(/(M\d+(?:\.\d+)?|\d+\/\d+|#?\d+#|\d+(?:\.\d+)?)\s*\*\s*(\d+(?:\.\d+)?(?:\/\d+)?(?:-\d+\/\d+)?)/i);
   const dia = m ? m[1].toUpperCase().replace(/^(\d+)#$/, '$1#') : '', len = m ? lenN(m[2]) : '';
   const head = headN(HEADS2.find(h => t.includes(h)) || '');
-  const mat = matClass(t), nut = /螺帽|螺母|帽/.test(t) && !/螺絲/.test(t), washer = /華司|墊圈/.test(t) && !/螺絲/.test(t);
+  const mat = matClass(t), nut = /螺帽|螺母|帽/.test(t) && !/螺絲/.test(t), washer = isWasher(t);
   const tap = /鐵板|自攻|TP|T\/P/i.test(t), ms = /機械|MS|M\/S/i.test(t), cap = /內六角|CAP/i.test(t);
   const thread = tap ? 'tap' : cap ? 'cap' : ms ? 'ms' : '';
-  return { dia, len, head, mat, nut, washer, thread, t };
+  return { dia, len, head, mat, nut, washer, wk: washer ? wKind(t) : '', thread, t };
 }
 let PIDX = null, PIDXgen = -1;
 function priceIdx() {
@@ -206,7 +209,9 @@ export function platCost(g) {
       if (p.head && attr(it, 'head') === p.head) score += 3; else if (p.head) continue;
       if (p.mat && matClass(it.material + n) === p.mat) score += 2; else if (p.mat) continue;
       if (p.nut !== /帽/.test(n)) continue;
-      if (p.washer !== /華司|墊圈/.test(n)) continue;
+      if (p.washer !== isWasher(n)) continue;
+      if (p.washer && p.wk !== wKind(n)) continue;   // 平華司、彈簧華司、齒型、波浪…不互配
+      if (p.washer && +p.len > 0) { const q = String(it.spec || '').match(/[×x*]\s*(\d+(?:\.\d+)?)/); if (q) score += Math.max(-3, 2 - Math.abs(+q[1] - +p.len) / 2); }   // 平華司外徑越接近越好
       if (p.thread === 'tap' && !/鐵板|自攻/.test(n + (it.thread || ''))) continue;
       if (p.thread === 'ms' && !/機械/.test(n + (it.thread || ''))) continue;
       if (p.thread === 'cap' && !/內六角/.test(n)) continue;

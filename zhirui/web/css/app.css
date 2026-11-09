@@ -72,6 +72,25 @@ details.acc-batch > summary { background: var(--acc-row); }
 details.acc-batch[open] > summary { background: var(--acc-bg); }
 details.acc-batch > summary:hover { background: var(--acc-bg); }
 
+/* 商品：自動成本、規格與圖面 */
+.gcost { margin: 10px 0 4px; padding: 8px 12px; border-radius: var(--r); background: var(--sunken); line-height: 1.7; }
+.warn-t { color: var(--bad); }
+.spbox { margin-top: 10px; border: 1px solid var(--line); border-radius: var(--r); padding: 8px 12px; }
+.spbox > summary { cursor: pointer; padding: 2px 0; }
+.sppv { display: grid; grid-template-columns: minmax(0, 3fr) minmax(220px, 2fr); gap: 12px; align-items: start; margin-top: 8px; color: var(--ink); }
+.sppv svg { display: block; width: 100%; height: auto; background: var(--surface); fill: none; stroke: none; stroke-width: 1; }
+.sprows { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.sprows th { text-align: left; color: var(--muted); font-weight: 500; white-space: nowrap; padding: 2px 10px 2px 0; vertical-align: top; }
+.sprows td { padding: 2px 0; }
+.sptbl { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 8px; text-align: center; }
+.sptbl th, .sptbl td { border: 1px solid var(--line); padding: 3px 4px; }
+.sptbl thead th { background: var(--sunken); font-weight: 500; }
+.sptbl .on { background: var(--blue-soft); color: var(--blue); font-weight: 600; }
+.spfix { margin-top: 8px; }
+.spfix > summary { cursor: pointer; color: var(--blue); }
+.spfix .grid { margin-top: 8px; }
+@media (max-width: 720px) { .sppv { grid-template-columns: 1fr; } }
+
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
 html, body { margin: 0; height: 100%; }

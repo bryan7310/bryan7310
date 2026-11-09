@@ -1,9 +1,11 @@
 // 基本資料：商品、客戶、供應商、倉庫、結算帳戶、名稱對應
-import { $, esc, fmt, fmtQ, uid, matchQ, qTerms, money, downloadText } from '../core/util.js';
+import { $, esc, fmt, fmtQ, uid, matchQ, qTerms, money, downloadText, today } from '../core/util.js';
 import { store } from '../core/store.js';
 import { toast, modal, confirm, tabs, pager, field, selectField, formData, combo } from '../core/ui.js';
-import { calc, goodsLabel, qtyAll, customers, suppliers } from '../core/calc.js';
+import { calc, goodsLabel, qtyAll, customers, suppliers, costOf } from '../core/calc.js';
 import { api } from '../core/api.js';
+import { SP_FIELDS, spLab, spParse, spGet, spDims, spSVG, spRows, spTable, spWeight } from '../core/spec.js';
+import { loadHistPur } from './_bills.js';
 
 const ui = { tab: 'goods', q: '', page: 0 };
 const TABS = [['goods', '商品'], ['customers', '客戶'], ['suppliers', '供應商'], ['warehouses', '倉庫'], ['accounts', '結算帳戶'], ['names', '名稱對應']];
@@ -42,7 +44,7 @@ function draw(el) {
 }
 
 const FIELDS = {
-  goods: [['code', '料號'], ['name', '品名', 'req'], ['spec', '規格'], ['cat', '類別'], ['unit', '單位'], ['vcode', '客料號'], ['salePrice', '售價', 'num'], ['purPrice', '進價', 'num'], ['cost', '手動成本（找不到進貨單時用）', 'num'], ['safety', '安全庫存', 'num'], ['wt', '單重 g', 'num'], ['aunit', '大單位（例如 箱）'], ['arate', '大單位 = 幾個基本單位', 'num'], ['note', '備註']],
+  goods: [['code', '料號'], ['name', '品名', 'req'], ['spec', '規格'], ['cat', '類別'], ['unit', '單位'], ['vcode', '客料號'], ['salePrice', '售價', 'num'], ['purPrice', '進價', 'num'], ['cost', '手動成本（進貨單、查價都找不到時用）', 'num'], ['safety', '安全庫存', 'num'], ['wt', '單重 g／支（空白＝自動估算）', 'num'], ['aunit', '大單位（例如 箱）'], ['arate', '大單位 = 幾個基本單位', 'num'], ['note', '備註']],
   C: [['code', '客戶編號'], ['name', '客戶名稱', 'req'], ['short', '簡稱'], ['taxId', '統一編號'], ['person', '聯絡人'], ['phone', '電話'], ['fax', '傳真'], ['zip', '郵遞區號'], ['addr', '地址'], ['payMethod', '付款方式（匯款、支票、扣趴…）'], ['init', '期初應收', 'num'], ['note', '備註']],
   S: [['code', '供應商編號'], ['name', '供應商名稱', 'req'], ['short', '簡稱'], ['taxId', '統一編號'], ['person', '聯絡人'], ['phone', '電話'], ['fax', '傳真'], ['addr', '地址'], ['init', '期初應付', 'num'], ['note', '備註']],
   warehouses: [['name', '倉庫名稱', 'req']],
@@ -57,18 +59,21 @@ export function openMaster(col, doc, kind) {
   const body = `<div class="grid">${fs.map(([n, l, t]) => `<div class="f" ${n === 'addr' || n === 'note' || n === 'name' ? 'style="grid-column:1/-1"' : ''}><label for="f-${n}">${esc(l)}</label><input id="f-${n}" name="${n}" value="${esc(d[n] ?? '')}" ${t === 'num' ? 'class="num" inputmode="decimal"' : ''} ${t === 'req' ? 'required' : ''}></div>`).join('')}
     ${col === 'contacts' ? `<div class="f" style="grid-column:1/-1"><label for="f-aliases">別名（作業平台、支票、發票上用過的其他寫法，用逗號隔開）</label><input id="f-aliases" name="aliases" value="${esc((d.aliases || []).join('、'))}"></div>` : ''}
     ${col === 'warehouses' && doc ? `<label class="check" style="grid-column:1/-1"><input type="checkbox" name="isDefault" ${store.setting('prefs').defaultWh === doc.id ? 'checked' : ''}> 設為預設倉庫</label>` : ''}</div>
+    ${col === 'goods' ? goodsExtraHTML(d) : ''}
     ${doc && col === 'goods' ? `<div class="muted small">各倉庫庫存：${store.list('warehouses').map(w => `${esc(w.name)} ${fmtQ((C.stock[doc.id] || {})[w.id] || 0)}`).join('、')}　<a href="#" id="histBtn">查看歷史單價</a></div><div id="histBox"></div>` : ''}
     ${doc && col === 'contacts' ? `<div class="muted small">目前${k === 'C' ? '應收' : '應付'}餘額 ${fmt(C.bal[doc.id] || 0)}　<a href="#" id="histBtn">查看歷史單據</a></div><div id="histBox"></div>` : ''}
     <div class="err" id="mErr"></div>`;
   modal({
-    title: `${doc ? '修改' : '新增'}${LABEL[k]}`, body, width: 760,
+    title: `${doc ? '修改' : '新增'}${LABEL[k]}`, body, width: col === 'goods' ? 900 : 760,
     footer: `${doc ? `<button class="btn danger" id="mDel" ${refs ? `title="有 ${refs} 張單據用到，無法刪除" disabled` : ''}>刪除${refs ? `（${refs} 張單據用到）` : ''}</button>` : ''}<span class="sp"></span><button class="btn" data-close>取消</button><button class="btn pri" id="mSave">儲存</button>`,
     onOpen(el, close) {
+      if (col === 'goods') goodsExtraBind(el, d);
       el.querySelector('#mSave').onclick = async () => {
         const f = formData(el); const out = { ...d };
         for (const [n, , t] of fs) out[n] = t === 'num' ? (f[n] === '' ? 0 : +String(f[n]).replace(/,/g, '') || 0) : String(f[n] ?? '').trim();
         if (!out.name) { el.querySelector('#mErr').textContent = '請填名稱'; return; }
         if (col === 'contacts') { out.kind = k; out.aliases = String(f.aliases || '').split(/[,，、]/).map(s => s.trim()).filter(Boolean); }
+        if (col === 'goods') { const sp = spForm(el); if (Object.keys(sp).length) out.sp = sp; else delete out.sp; }
         if (col === 'goods' && out.code && store.list('goods').some(g => g.code === out.code && g.id !== d.id)) { el.querySelector('#mErr').textContent = '料號重複'; return; }
         const id = d.id || uid(col === 'goods' ? 'g' : col === 'contacts' ? 'c' : 'w');
         delete out.id;
@@ -91,6 +96,55 @@ export function openMaster(col, doc, kind) {
       });
     },
   });
+}
+// ---------- 商品：自動成本、規格與圖面、單重估算 ----------
+function goodsExtraHTML(d) {
+  const o = d.sp || {};
+  const fld = ([k, l, list]) => list
+    ? `<div class="f"><label for="sp-${k}">${l}</label><select id="sp-${k}" data-sp="${k}"><option value="">自動</option>${list.map(([x, t]) => `<option value="${x}" ${x === o[k] ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select></div>`
+    : `<div class="f"><label for="sp-${k}">${l}</label><input id="sp-${k}" data-sp="${k}" value="${esc(o[k] ?? '')}"></div>`;
+  return `<div class="gcost" id="gCost"><span class="muted">自動成本計算中…</span></div>
+    <details class="spbox" open><summary><b>規格與圖面</b> <span class="muted small">（從品名自動帶入；認錯時到「修正規格」改）</span></summary>
+      <div class="sppv"><div id="spSvg"></div><div class="spside"><table class="sprows" id="spRows"></table></div></div>
+      <div id="spTbl"></div>
+      <details class="spfix" ${Object.keys(o).length ? 'open' : ''}><summary>修正規格 <span class="muted small">（空白＝用自動值，灰字是自動值）</span></summary><div class="grid">${SP_FIELDS.map(fld).join('')}</div></details>
+    </details>`;
+}
+const spForm = el => { const o = {}; el.querySelectorAll('[data-sp]').forEach(i => { const v = i.value.trim(); if (v) o[i.dataset.sp] = v; }); return o; };
+function goodsExtraBind(el, d) {
+  const v = n => el.querySelector('#f-' + n)?.value ?? '';
+  const cur = () => ({ ...d, code: v('code').trim(), name: v('name').trim(), cat: v('cat').trim(), unit: v('unit').trim(), cost: +String(v('cost')).replace(/,/g, '') || 0, wt: +String(v('wt')).replace(/,/g, '') || 0, sp: spForm(el) });
+  const refreshSpec = () => {
+    const g = cur(); const a = spParse(g);
+    el.querySelectorAll('[data-sp]').forEach(i => { const k = i.dataset.sp; const f = SP_FIELDS.find(x => x[0] === k); if (f[2]) i.options[0].textContent = '自動：' + (a[k] ? spLab(f[2], a[k]) : '—'); else i.placeholder = a[k] != null && a[k] !== '' ? '自動：' + a[k] : ''; });
+    const sp = spGet(g), dm = spDims(sp);
+    el.querySelector('#spSvg').innerHTML = spSVG(sp, dm);
+    el.querySelector('#spRows').innerHTML = spRows(sp, dm).map(([l, x]) => `<tr><th>${esc(l)}</th><td>${esc(x)}</td></tr>`).join('');
+    el.querySelector('#spTbl').innerHTML = spTable(sp, dm);
+    const w = spWeight({ ...sp, _wt: 0 }, dm); const wi = el.querySelector('#f-wt');
+    if (wi) { wi.placeholder = w ? `自動估算：${w}` : '認不出規格，請填實測'; if (wi.value === '0') wi.value = ''; }
+  };
+  const refreshCost = () => {
+    const box = el.querySelector('#gCost'); if (!box) return;
+    const g = cur(); const C = calc(); const sameName = d.id && g.name === d.name && g.unit === d.unit;
+    const tmp = { ...g, id: sameName ? d.id : 'tmp:' + g.name + '|' + g.unit };
+    const gid = d.id || 'tmp:new';
+    const r = costOf({ gid, qty: 1, price: 0 }, today(), C.purIdx, { ...C.g, [gid]: tmp }, C.poIdx, true);
+    const ci = el.querySelector('#f-cost'); if (ci) { ci.placeholder = r && !r.manual ? `自動：${fp(r.c)}` : ''; if (ci.value === '0') ci.value = ''; }
+    const recs = (C.purIdx[d.id] || []).slice().sort((x, y) => y.d - x.d).slice(0, 3);
+    const unit = esc(g.unit || 'PCS');
+    box.innerHTML = r
+      ? `<b>自動成本 ${fp(r.c)} / ${unit}</b>　<span class="muted">來源：${esc(r.src)}</span>${r.manual ? ' <span class="pill warn">手動</span>' : /^查價/.test(r.src) ? ' <span class="pill blue">查價牌價</span>' : ' <span class="pill ok">進貨單</span>'}`
+        + (recs.length ? `<div class="muted small">最近進貨：${recs.map(x => `${esc(x.date)} ${esc(C.ct[x.cid]?.short || C.ct[x.cid]?.name || '')} ${fp(x.per)}${x.cls === 'kg' ? '/KG' : ''}`).join('、')}</div>` : '')
+      : `<b class="warn-t">找不到成本</b>　<span class="muted">進貨單、採購單、查價牌價都對不到，請填下面的「手動成本」。</span>`;
+  };
+  const fp = n => (Math.round(n * 10000) / 10000).toString();
+  const refresh = () => { try { refreshSpec(); } catch (e) { console.error(e); } try { refreshCost(); } catch (e) { console.error(e); } };
+  let t = 0; const later = () => { clearTimeout(t); t = setTimeout(refresh, 200); };
+  el.addEventListener('input', ev => { if (ev.target.matches('#f-name,#f-code,#f-cat,#f-unit,#f-cost,#f-wt,[data-sp]')) later(); });
+  el.addEventListener('change', ev => { if (ev.target.matches('[data-sp]')) later(); });
+  refresh();
+  loadHistPur().then(() => { if (el.isConnected) refreshCost(); }).catch(() => {});
 }
 function refCount(col, id) {
   const bills = store.list('bills');
