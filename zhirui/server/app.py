@@ -667,7 +667,14 @@ def main():
         state.backup = {'last': st.get('last'), 'file': st.get('file'), 'err': st.get('err')}
     Handler.state = state
     threading.Thread(target=backup_loop, args=(state,), daemon=True).start()
-    srv = ThreadingHTTPServer((a.host, a.port), Handler)
+    # Windows 的 SO_REUSEADDR 會讓第二個伺服器也綁到同一個埠（兩個伺服器同時跑、資料不同步），所以不重用位址：埠被占用就直接失敗
+    class Server(ThreadingHTTPServer):
+        allow_reuse_address = False
+    try:
+        srv = Server((a.host, a.port), Handler)
+    except OSError as e:
+        print(f'埠 {a.port} 已經有伺服器在用（{e}）。已經有一個伺服器在執行，請不要再開第二個；要更新程式請用「設定備份 → 重新啟動伺服器」或 重啟伺服器.bat。')
+        sys.exit(2)
     srv.daemon_threads = True
     print(f'志瑞螺絲作業平台伺服器啟動：http://localhost:{a.port}/  資料：{db.path}')
     if db.user_count() == 0:
