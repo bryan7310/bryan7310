@@ -156,3 +156,11 @@ export const ICONS = {
   labels: '<path d="M3 12.6V4.5A1.5 1.5 0 0 1 4.5 3h8.1a1.5 1.5 0 0 1 1 .4l7 7a1.5 1.5 0 0 1 0 2.1l-8.1 8.1a1.5 1.5 0 0 1-2.1 0l-7-7a1.5 1.5 0 0 1-.4-1z"/><circle cx="8" cy="8" r="1.6"/>',
   mail: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/>',
 };
+/** 列表搜尋框：中文輸入法組字中不觸發（重畫會打斷組字、打不出中文），組字完成或一般輸入才觸發 fn(value) */
+export function onSearch(inp, fn) {
+  if (!inp) return; let comp = false, last = inp.value;
+  const run = () => { if (inp.value === last) return; last = inp.value; fn(last); };
+  inp.addEventListener('compositionstart', () => { comp = true; });
+  inp.addEventListener('compositionend', () => { comp = false; run(); });
+  inp.addEventListener('input', ev => { if (comp || ev.isComposing) return; run(); });
+}

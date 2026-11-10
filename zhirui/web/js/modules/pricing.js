@@ -1,7 +1,7 @@
 // 螺絲查價：各供應商牌價、折數、淨價；加入報價單草稿；折數管理
 import { $, esc, ls, qTerms, debounce, fmtQ } from '../core/util.js';
 import { store } from '../core/store.js';
-import { toast, tabs, modal, confirm } from '../core/ui.js';
+import { toast, tabs, modal, confirm, onSearch } from '../core/ui.js';
 import { FACETS, facetVal, matchFacets, sortFacetVals, searchText, itemFactor, fmtDisc, netPrice, fmtList, fmtP, attr, noteOf, origText, perKgText, dupGroup, supName, catById, parseDisc, discKey, itemDisc } from '../core/pricing.js';
 
 const LIMIT = 150;
@@ -98,7 +98,7 @@ function drawDiscounts(el) {
     </div>`;
   el.addEventListener('tab', ev => { ui.tab = ev.detail.val; draw(el); }, { once: true });
   $('#dmSup', el).addEventListener('change', ev => { dm.sup = ev.target.value; drawDiscounts(el); });
-  $('#dmQ', el).addEventListener('input', debounce(ev => { dm.q = ev.target.value; drawDiscounts(el); setTimeout(() => $('#dmQ', el).focus(), 0); }, 250));
+  onSearch($('#dmQ', el), debounce(v => { dm.q = v; drawDiscounts(el); setTimeout(() => { const i = $('#dmQ', el); if (i) { i.focus(); i.setSelectionRange(i.value.length, i.value.length); } }, 0); }, 250));
   el.querySelectorAll('[data-key]').forEach(inp => inp.addEventListener('change', async () => {
     const key = inp.dataset.key; const g = groups.get(key); const v = inp.value.trim();
     if (v && isNaN(parseDisc(v))) { toast('折數格式不對，例如 65、6.5、65 95'); inp.focus(); return; }

@@ -1,7 +1,7 @@
 // 傳真：採購單／詢價單／報價單產生黑白傳真稿（可加封面頁），用電腦的傳真驅動程式送出；傳真紀錄
 import { $, esc, fmt, today, slash, ls, qTerms, matchQ, thisMonth, shiftMonth, ymLabel, copyText } from '../core/util.js';
 import { store } from '../core/store.js';
-import { toast, modal, printHTML } from '../core/ui.js';
+import { toast, modal, printHTML, onSearch } from '../core/ui.js';
 import { calc, TYPES, cname, cshort } from '../core/calc.js';
 import { printName } from '../core/names.js';
 import { billDoc, openBill } from './_bills.js';
@@ -69,7 +69,7 @@ function draw(el) {
   $('#fxPrev', el).onclick = () => { ui.month = shiftMonth(ui.month === 'all' ? thisMonth() : ui.month, -1); draw(el); };
   $('#fxNext', el).onclick = () => { ui.month = shiftMonth(ui.month === 'all' ? thisMonth() : ui.month, 1); draw(el); };
   $('#fxAll', el).onclick = () => { ui.month = 'all'; draw(el); };
-  $('#fxQ', el).addEventListener('input', ev => { ui.q = ev.target.value; draw(el); const i = $('#fxQ', el); i.focus(); i.setSelectionRange(i.value.length, i.value.length); });
+  onSearch($('#fxQ', el), v => { ui.q = v; draw(el); const i = $('#fxQ', el); i.focus(); i.setSelectionRange(i.value.length, i.value.length); });
   el.querySelectorAll('[data-m]').forEach(b => b.onclick = () => { ui.month = b.dataset.m; draw(el); });
   el.querySelectorAll('tr.row').forEach(tr => tr.addEventListener('click', ev => { if (ev.target.closest('button')) return; openBill(null, tr.dataset.id); }));
   el.querySelectorAll('[data-re]').forEach(b => b.onclick = () => { const r = list[+b.dataset.re]; faxDialog(store.get('bills', r.b.id)); });

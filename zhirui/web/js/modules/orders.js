@@ -1,7 +1,7 @@
 // 訂貨排程：向廠商訂製產品，勾選訂貨、叫線、生產…進度；與採購單連動
 import { $, esc, roc, today, daysLeft, uid, qTerms, matchQ, slash } from '../core/util.js';
 import { store } from '../core/store.js';
-import { toast, modal, confirm, tabs, combo } from '../core/ui.js';
+import { toast, modal, confirm, tabs, combo, onSearch } from '../core/ui.js';
 import { suppliers, customers, cshort, calc, gname } from '../core/calc.js';
 import { openBill } from './_bills.js';
 
@@ -29,7 +29,7 @@ function draw(el) {
     <div class="tw" style="margin-top:10px"><table><thead><tr><th>廠商</th><th>訂貨日</th><th>產品</th><th class="n">數量</th><th>客戶</th><th>交期</th><th>進度</th><th></th></tr></thead><tbody>${list.map((o, i) => { const dl = o.due ? daysLeft(o.due) : null; const tag = o.due && !(o.steps || {}).done ? (dl < 0 ? `<span class="pill bad">逾期 ${-dl} 天</span>` : dl <= SOON ? `<span class="pill warn">${dl === 0 ? '今天' : dl + ' 天後'}</span>` : '') : ''; return `<tr data-i="${i}"><td><b>${esc(vn(o))}</b>${o.fromPO ? ' <span class="pill blue">採購單</span>' : o.poId ? ' <span class="pill">PO</span>' : ''}</td><td class="nowrap">${esc(roc(o.date))}</td><td>${esc(o.prod)}${o.note ? `<span class="sub">${esc(o.note)}</span>` : ''}</td><td class="n">${esc(String(o.qty || ''))}</td><td>${esc(o.cust || '')}</td><td class="nowrap">${o.due ? esc(roc(o.due)) : ''} ${tag}</td><td><div class="steps">${STEPS.map(([k, l]) => `<label class="${(o.steps || {})[k] ? 'on' : ''}"><input type="checkbox" data-step="${k}" data-i="${i}" ${(o.steps || {})[k] ? 'checked' : ''}>${l}</label>`).join('')}</div></td><td class="nowrap"><button class="btn xs" data-edit="${i}">修改</button>${o.poId ? ` <button class="btn xs ghost" data-po="${o.poId}">採購單</button>` : ''}</td></tr>`; }).join('') || `<tr><td colspan="8"><div class="empty"><b>${ui.tab === 'active' ? '沒有進行中的訂貨' : '沒有已完成的紀錄'}</b></div></td></tr>`}</tbody></table></div></div>`;
   el.addEventListener('tab', ev => { ui.tab = ev.detail.val; draw(el); }, { once: true });
   $('#odV', el).addEventListener('change', ev => { ui.vendor = ev.target.value; draw(el); });
-  $('#odQ', el).addEventListener('input', ev => { ui.q = ev.target.value; draw(el); const i = $('#odQ', el); i.focus(); i.setSelectionRange(i.value.length, i.value.length); });
+  onSearch($('#odQ', el), v => { ui.q = v; draw(el); const i = $('#odQ', el); i.focus(); i.setSelectionRange(i.value.length, i.value.length); });
   $('#odNew', el).addEventListener('click', () => editOrder(null));
   el.querySelectorAll('[data-step]').forEach(cb => cb.addEventListener('change', async () => {
     const o = list[+cb.dataset.i]; const steps = { ...(o.steps || {}) }; steps[cb.dataset.step] = cb.checked;

@@ -1,7 +1,7 @@
 // 基本資料：商品、客戶、供應商、倉庫、結算帳戶、名稱對應
 import { $, esc, fmt, fmtQ, uid, matchQ, qTerms, money, downloadText, today } from '../core/util.js';
 import { store } from '../core/store.js';
-import { toast, modal, confirm, tabs, pager, field, selectField, formData, combo } from '../core/ui.js';
+import { toast, modal, confirm, tabs, pager, field, selectField, formData, combo, onSearch } from '../core/ui.js';
 import { calc, goodsLabel, qtyAll, customers, suppliers, costOf, cdisp } from '../core/calc.js';
 import { api } from '../core/api.js';
 import { SP_FIELDS, spLab, spParse, spGet, spDims, spSVG, spRows, spTable, spWeight } from '../core/spec.js';
@@ -39,7 +39,7 @@ function draw(el) {
     <div class="panel"><div class="tools">${tabs('m', TABS, t)}<input type="search" id="mq" placeholder="搜尋${label}" value="${esc(ui.q)}"><span class="muted small">${rows.length} 筆</span>${offN ? `<button type="button" class="btn sm ${ui.off ? 'pri' : ''}" id="offBtn">${ui.off ? '隱藏' : '顯示'}停用（${offN}）</button>` : ''}</div>
     <div class="tw" style="margin-top:10px"><table><thead><tr>${head.map(h => `<th>${h}</th>`).join('')}</tr></thead><tbody>${rows.slice(s, e).map(([d, cells]) => `<tr class="row" data-id="${d.id}">${cells.map(c => `<td>${c}</td>`).join('')}</tr>`).join('') || `<tr><td colspan="${head.length}"><div class="empty"><b>沒有資料</b></div></td></tr>`}</tbody></table></div>${pg}</div>`;
   el.addEventListener('tab', ev => { ui.tab = ev.detail.val; ui.q = ''; ui.page = 0; location.hash = '#master/' + ui.tab; }, { once: true });
-  $('#mq', el).addEventListener('input', ev => { ui.q = ev.target.value; ui.page = 0; draw(el); const i = $('#mq', el); i.focus(); i.setSelectionRange(i.value.length, i.value.length); });
+  onSearch($('#mq', el), v => { ui.q = v; ui.page = 0; draw(el); const i = $('#mq', el); i.focus(); i.setSelectionRange(i.value.length, i.value.length); });
   el.querySelectorAll('[data-page]').forEach(b => b.addEventListener('click', () => { ui.page = +b.dataset.to; draw(el); }));
   el.querySelectorAll('tr.row').forEach(tr => tr.addEventListener('click', () => openMaster(col, store.get(col, tr.dataset.id))));
   $('#addBtn', el).addEventListener('click', () => openMaster(col, null, t === 'suppliers' ? 'S' : 'C'));

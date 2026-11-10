@@ -1,7 +1,7 @@
 // 支票登記：登記收到的客票、依到期日送代收、帳戶分類
 import { $, esc, money, today, roc, slash, parseNum, uid, daysLeft, qTerms, matchQ, toHalf, addDays, copyText } from '../core/util.js';
 import { store } from '../core/store.js';
-import { toast, modal, confirm, tabs, combo, pager, printHTML } from '../core/ui.js';
+import { toast, modal, confirm, tabs, combo, pager, printHTML, onSearch } from '../core/ui.js';
 import { customers, cshort } from '../core/calc.js';
 import { printName } from '../core/names.js';
 
@@ -31,7 +31,7 @@ function draw(el) {
     <div class="tw" style="margin-top:10px"><table><thead><tr>${ui.tab === 'pending' ? '<th><input type="checkbox" id="ciAll" aria-label="全選"></th>' : ''}<th>到期日</th><th>客戶</th><th>銀行</th><th>票號</th><th>帳號</th><th class="n">金額</th><th>收到日</th>${ui.tab === 'done' ? '<th>代收</th>' : ''}<th>備註</th><th></th></tr></thead><tbody>
       ${list.slice(s, e).map(c => { const dl = c.due ? daysLeft(c.due) : null; const tag = ui.tab === 'pending' && c.due ? (dl < 0 ? `<span class="pill bad">到期 ${-dl} 天</span>` : dl <= 7 ? `<span class="pill warn">${dl === 0 ? '今天' : dl + ' 天後'}</span>` : '') : ''; return `<tr class="row" data-id="${c.id}">${ui.tab === 'pending' ? `<td><input type="checkbox" data-sel="${c.id}" ${ui.sel.has(c.id) ? 'checked' : ''}></td>` : ''}<td class="nowrap">${esc(roc(c.due))} ${tag}</td><td><b>${esc(c.cid ? cshort(c.cid) : c.name)}</b></td><td>${esc(c.bank || '')}</td><td class="mono">${esc(c.no || '')}</td><td class="mono muted">${esc(c.acct || '')}</td><td class="n">${money(c.amt)}</td><td class="nowrap muted">${c.recv ? esc(roc(c.recv)) : ''}</td>${ui.tab === 'done' ? `<td><span class="pill blue">${esc(labelOf(c))}</span></td>` : ''}<td class="muted">${esc(c.note || '')}</td><td class="nowrap">${ui.tab === 'done' ? `<button class="btn xs" data-undo="${c.id}">退回待代收</button>` : ''}</td></tr>`; }).join('') || `<tr><td colspan="11"><div class="empty"><b>${ui.tab === 'pending' ? '沒有待代收的客票' : '沒有紀錄'}</b></div></td></tr>`}</tbody></table></div>${pg}</div>`;
   el.addEventListener('tab', ev => { ui.tab = ev.detail.val; ui.page = 0; ui.q = ''; draw(el); }, { once: true });
-  $('#ciQ', el).addEventListener('input', ev => { ui.q = ev.target.value; ui.page = 0; draw(el); const i = $('#ciQ', el); i.focus(); i.setSelectionRange(i.value.length, i.value.length); });
+  onSearch($('#ciQ', el), v => { ui.q = v; ui.page = 0; draw(el); const i = $('#ciQ', el); i.focus(); i.setSelectionRange(i.value.length, i.value.length); });
   $('#ciYear', el)?.addEventListener('change', ev => { ui.year = ev.target.value; ui.page = 0; draw(el); });
   el.querySelectorAll('[data-page]').forEach(b => b.addEventListener('click', () => { ui.page = +b.dataset.to; draw(el); }));
   $('#ciNew', el).addEventListener('click', () => editCheck(null));

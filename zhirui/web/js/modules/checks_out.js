@@ -1,7 +1,7 @@
 // 支票開立：付款支票、國字金額、套印；從應付帳款帶入
 import { $, esc, money, today, roc, rocLong, parseNum, uid, cnMoney, slash, qTerms, matchQ } from '../core/util.js';
 import { store } from '../core/store.js';
-import { toast, modal, confirm, tabs, combo, printHTML, pager } from '../core/ui.js';
+import { toast, modal, confirm, tabs, combo, printHTML, pager, onSearch } from '../core/ui.js';
 import { suppliers, cshort } from '../core/calc.js';
 import { printName } from '../core/names.js';
 
@@ -32,7 +32,7 @@ function draw(el) {
     <div class="panel"><div class="tools"><input type="search" id="coQ" placeholder="搜尋抬頭、票號、金額" value="${esc(ui.q)}"><span class="muted small">${list.length} 張・合計 ${money(list.reduce((a, c) => a + (+c.amount || 0), 0))}</span><span class="sp"></span>${ui.tab === 'pending' && list.length ? `<button class="btn sm pri" id="coPrintAll">列印全部待列印（${list.length} 張）</button>` : ''}</div>
     <div class="tw" style="margin-top:10px"><table><thead><tr><th>票載日期</th><th>抬頭</th><th class="n">金額</th><th>國字</th><th>支票號碼</th><th>備註</th><th></th></tr></thead><tbody>${list.slice(s, e).map(c => `<tr class="row" data-id="${c.id}"><td class="nowrap">${esc(roc(c.date))}</td><td><b>${esc(c.cid ? cshort(c.cid) : c.payee)}</b></td><td class="n">${money(c.amount)}</td><td class="muted small">${esc(cnMoney(c.amount))}</td><td class="mono">${esc(c.no || '')}</td><td class="muted">${esc(c.note || '')}</td><td class="nowrap"><button class="btn xs" data-print="${c.id}">${c.printedAt ? '重印' : '列印'}</button></td></tr>`).join('') || `<tr><td colspan="7"><div class="empty"><b>${ui.tab === 'pending' ? '沒有待列印的支票' : '還沒有列印過的支票'}</b></div></td></tr>`}</tbody></table></div>${pg}</div>`;
   el.addEventListener('tab', ev => { ui.tab = ev.detail.val; ui.page = 0; draw(el); }, { once: true });
-  $('#coQ', el).addEventListener('input', ev => { ui.q = ev.target.value; ui.page = 0; draw(el); const i = $('#coQ', el); i.focus(); i.setSelectionRange(i.value.length, i.value.length); });
+  onSearch($('#coQ', el), v => { ui.q = v; ui.page = 0; draw(el); const i = $('#coQ', el); i.focus(); i.setSelectionRange(i.value.length, i.value.length); });
   el.querySelectorAll('[data-page]').forEach(b => b.addEventListener('click', () => { ui.page = +b.dataset.to; draw(el); }));
   $('#coNew', el).addEventListener('click', () => newCheckOut());
   $('#coLayout', el).addEventListener('click', layoutDialog);

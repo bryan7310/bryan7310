@@ -1,7 +1,7 @@
 // 庫存：各倉庫數量、低於安全庫存、其他出入庫、調撥
 import { $, esc, fmt, fmtQ, qTerms, matchQ } from '../core/util.js';
 import { store } from '../core/store.js';
-import { tabs, pager } from '../core/ui.js';
+import { tabs, pager, onSearch } from '../core/ui.js';
 import { calc, goodsLabel, TYPES } from '../core/calc.js';
 import { billList, openBill } from './_bills.js';
 import { openMaster } from './master.js';
@@ -32,7 +32,7 @@ function draw(el) {
     <div class="tw" style="margin-top:10px"><table><thead><tr><th>料號</th><th>品名規格</th>${whs.map(w => `<th class="n">${esc(w.name)}</th>`).join('')}<th class="n">合計</th><th>單位</th><th class="n">安全庫存</th><th class="n">平均成本</th></tr></thead>
     <tbody>${list.slice(s, e).map(g => { const t = all(g); return `<tr class="row" data-id="${g.id}"><td class="mono">${esc(g.code)}</td><td>${esc(g.name)} <span class="muted">${esc(g.spec || '')}</span></td>${whs.map(w => `<td class="n">${fmtQ((C.stock[g.id] || {})[w.id] || 0)}</td>`).join('')}<td class="n" style="${+g.safety > 0 && t < +g.safety ? 'color:var(--bad);font-weight:600' : ''}">${fmtQ(t)}</td><td>${esc(g.unit || '')}</td><td class="n muted">${g.safety ? fmtQ(g.safety) : ''}</td><td class="n muted">${C.cost[g.id]?.avg ? fmtQ(C.cost[g.id].avg) : ''}</td></tr>`; }).join('') || `<tr><td colspan="${6 + whs.length}"><div class="empty"><b>${ui.tab === 'low' ? '沒有低於安全庫存的商品' : '沒有庫存紀錄'}</b></div></td></tr>`}</tbody></table></div>${pg}</div>`;
   el.addEventListener('tab', ev => { ui.tab = ev.detail.val; ui.page = 0; draw(el); }, { once: true });
-  $('#sq', el).addEventListener('input', ev => { ui.q = ev.target.value; ui.page = 0; draw(el); const i = $('#sq', el); i.focus(); i.setSelectionRange(i.value.length, i.value.length); });
+  onSearch($('#sq', el), v => { ui.q = v; ui.page = 0; draw(el); const i = $('#sq', el); i.focus(); i.setSelectionRange(i.value.length, i.value.length); });
   el.querySelectorAll('[data-page]').forEach(b => b.addEventListener('click', () => { ui.page = +b.dataset.to; draw(el); }));
   el.querySelectorAll('[data-new]').forEach(b => b.addEventListener('click', () => openBill(b.dataset.new)));
   el.querySelectorAll('tr.row').forEach(tr => tr.addEventListener('click', () => openMaster('goods', store.get('goods', tr.dataset.id))));

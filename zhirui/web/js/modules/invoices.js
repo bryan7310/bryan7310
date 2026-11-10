@@ -1,7 +1,7 @@
 // 發票作業：銷項發票（由銷貨單開立）、待開清單、進項發票、套印
 import { $, esc, fmt, money, today, thisMonth, roc, slash, parseNum, uid, cnMoney, ubnOk, shiftMonth, ymLabel, qTerms, matchQ } from '../core/util.js';
 import { store } from '../core/store.js';
-import { toast, modal, confirm, tabs, combo, printHTML, pager } from '../core/ui.js';
+import { toast, modal, confirm, tabs, combo, printHTML, pager, onSearch } from '../core/ui.js';
 import { calc, customers, suppliers, cshort, totals, gname } from '../core/calc.js';
 import { openBill } from './_bills.js';
 import { printName } from '../core/names.js';
@@ -36,7 +36,7 @@ function drawList(el) {
   el.innerHTML = `<div class="panel"><div class="tools"><input type="month" id="ivYm" value="${ui.ym}"><input type="search" id="ivQ" placeholder="搜尋發票號碼、買受人、統編" value="${esc(ui.q)}"><span class="muted small">${list.length} 張・銷售額 ${money(sumU)}・稅 ${money(sumT)}・合計 ${money(sumU + sumT)}</span><span class="sp"></span><button class="btn sm" id="ivPrintAll" ${list.length ? '' : 'disabled'}>列印本月明細</button></div>
     <div class="tw" style="margin-top:10px"><table><thead><tr><th>日期</th><th>發票號碼</th><th>買受人</th><th>統編</th><th class="n">銷售額</th><th class="n">稅額</th><th class="n">總計</th><th>來源</th><th></th></tr></thead><tbody>${list.slice(s, e).map(i => `<tr class="row" data-no="${esc(i.no)}"><td class="nowrap">${esc(slash(i.date))}</td><td class="mono">${esc(i.no)}${i.void ? ' <span class="pill bad">作廢</span>' : ''}</td><td>${esc(i.cid ? cshort(i.cid) : i.name)}</td><td class="mono">${esc(i.buyer || '')}</td><td class="n">${money(i.untaxed)}</td><td class="n">${money(i.tax)}</td><td class="n">${money(total(i))}</td><td class="muted small">${i.billId ? '銷貨單' : i.legacy ? '匯入' : '手開'}</td><td class="nowrap"><button class="btn xs" data-print="${esc(i.no)}">套印</button></td></tr>`).join('') || '<tr><td colspan="9"><div class="empty"><b>這個月沒有發票</b></div></td></tr>'}</tbody></table></div>${pg}</div>`;
   $('#ivYm', el).addEventListener('change', ev => { ui.ym = ev.target.value; ui.page = 0; drawList(el); });
-  $('#ivQ', el).addEventListener('input', ev => { ui.q = ev.target.value; ui.page = 0; drawList(el); const i = $('#ivQ', el); i.focus(); i.setSelectionRange(i.value.length, i.value.length); });
+  onSearch($('#ivQ', el), v => { ui.q = v; ui.page = 0; drawList(el); const i = $('#ivQ', el); i.focus(); i.setSelectionRange(i.value.length, i.value.length); });
   el.querySelectorAll('[data-page]').forEach(b => b.addEventListener('click', () => { ui.page = +b.dataset.to; drawList(el); }));
   el.querySelectorAll('tr.row').forEach(tr => tr.addEventListener('click', ev => { if (ev.target.closest('button')) return; editInvoice(store.get('invoices', tr.dataset.no)); }));
   el.querySelectorAll('[data-print]').forEach(b => b.addEventListener('click', () => printInvoices([store.get('invoices', b.dataset.print)], 'form')));
@@ -136,7 +136,7 @@ function drawPurch(el) {
   el.innerHTML = `<div class="panel"><div class="tools"><select id="pvP"><option value="">全部期別</option>${periods.map(p => `<option ${p === ui.pPeriod ? 'selected' : ''}>${p}</option>`).join('')}</select><input type="search" id="pvQ" placeholder="搜尋廠商、發票號碼" value="${esc(ui.pq)}"><span class="muted small">${list.length} 張・未稅 ${money(su)}・稅 ${money(st)}</span><span class="sp"></span><button class="btn sm pri" id="pvAdd">＋ 新增進項發票</button></div>
     <div class="tw" style="margin-top:10px"><table><thead><tr><th>期別</th><th>日期</th><th>廠商</th><th>發票號碼</th><th>類別</th><th class="n">未稅</th><th class="n">稅額</th><th class="n">總計</th><th></th></tr></thead><tbody>${list.map(p => `<tr class="row" data-id="${p.id}"><td>${esc(p.period || '')}</td><td class="nowrap">${esc(slash(p.date))}</td><td>${esc(p.name)}</td><td class="mono">${esc(p.no)}</td><td>${esc(p.kind || '')}</td><td class="n">${money(p.untaxed)}</td><td class="n">${money(p.tax)}</td><td class="n">${money(p.total ?? (+p.untaxed + +p.tax))}</td><td></td></tr>`).join('') || '<tr><td colspan="9"><div class="empty"><b>沒有進項發票</b></div></td></tr>'}</tbody></table></div></div>`;
   $('#pvP', el).addEventListener('change', ev => { ui.pPeriod = ev.target.value; drawPurch(el); });
-  $('#pvQ', el).addEventListener('input', ev => { ui.pq = ev.target.value; drawPurch(el); const i = $('#pvQ', el); i.focus(); i.setSelectionRange(i.value.length, i.value.length); });
+  onSearch($('#pvQ', el), v => { ui.pq = v; drawPurch(el); const i = $('#pvQ', el); i.focus(); i.setSelectionRange(i.value.length, i.value.length); });
   $('#pvAdd', el).addEventListener('click', () => editPurch(null));
   el.querySelectorAll('tr.row').forEach(tr => tr.addEventListener('click', () => editPurch(store.get('purch_invoices', tr.dataset.id))));
 }
