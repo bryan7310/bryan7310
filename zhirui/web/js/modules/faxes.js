@@ -1,5 +1,5 @@
 // 傳真：採購單／詢價單／報價單產生黑白傳真稿（可加封面頁），用電腦的傳真驅動程式送出；傳真紀錄
-import { $, esc, fmt, today, slash, ls, qTerms, matchQ, thisMonth, shiftMonth, ymLabel, copyText } from '../core/util.js';
+import { $, esc, fmt, today, slash, ls, qTerms, matchQ, thisMonth, shiftMonth, ymLabel, copyText, toHalf } from '../core/util.js';
 import { store } from '../core/store.js';
 import { toast, modal, printHTML, onSearch } from '../core/ui.js';
 import { calc, TYPES, cname, cshort } from '../core/calc.js';
@@ -12,11 +12,15 @@ export default {
   render(el) { this.el = el; draw(el); },
   onChange(ch) { if (this.el?.isConnected && ch.has('bills')) draw(this.el); },
 };
-// 傳真撥號：台中客戶（地址在台中，或沒有地址但號碼是 04 開頭）把區碼 04 拿掉
+// 傳真撥號：符號、空白一律拿掉（全形數字先轉半形；寫了兩個號碼只取第一個）；
+// 地址有「台中／臺中」的，再把開頭的區碼 04 拿掉（049 是南投區碼，不動）
+export const isTaichung = c => /台中|臺中/.test(toHalf(c?.addr || ''));
 export function faxDial(c, num) {
-  const raw = String(num || '').trim(); if (!raw) return ''; const d = raw.replace(/[^\d]/g, '');
-  const tc = /台中|臺中/.test(c?.addr || '') || (!(c?.addr) && /^04(?!9)/.test(d));
-  if (tc && /^04(?!9)/.test(d) && d.length >= 9) return d.slice(2); return d || raw;
+  const raw = toHalf(num).trim(); if (!raw) return '';
+  const first = raw.split(/[、,，;；/／]|或|及/)[0].split(/[#＃]|分機|轉|ext\.?|x(?=\s*\d)/i)[0];
+  let d = first.replace(/[^\d]/g, '') || raw.replace(/[^\d]/g, '');
+  if (isTaichung(c) && /^04(?!9)/.test(d)) d = d.slice(2);
+  return d;
 }
 export function faxDialog(b, after) {
   const T = TYPES[b.type]; if (!T?.doc) return; const C = calc(); const c = C.ct[b.cid] || {}; const co = store.setting('company');
@@ -24,7 +28,7 @@ export function faxDialog(b, after) {
   modal({
     title: `傳真${T.name} ${b.no}`, width: 640,
     body: `<div class="grid">
-      <div class="f"><label for="fx-to">收件傳真號碼（撥號用）${c.fax ? `<span class="muted">　資料：${esc(c.fax)}${/台中|臺中/.test(c.addr || '') ? '・台中，已去掉 04' : ''}</span>` : ''}</label><input id="fx-to" value="${esc(faxDial(c, b.faxTo || c.fax || ''))}" placeholder="例如 24834426"></div>
+      <div class="f"><label for="fx-to">收件傳真號碼（撥號用）${c.fax ? `<span class="muted">　資料：${esc(c.fax)}${isTaichung(c) ? '・地址在台中，去掉 04' : ''}</span>` : ''}</label><input id="fx-to" value="${esc(faxDial(c, b.faxTo || c.fax || ''))}" placeholder="例如 24834426"></div>
       <div class="f"><label for="fx-attn">收件人</label><input id="fx-attn" value="${esc(b.attn || c.person || '')}"></div>
       <div class="f" style="grid-column:1/-1"><label for="fx-subj">主旨</label><input id="fx-subj" value="${esc(T.name + ' ' + b.no)}"></div>
       <div class="f" style="grid-column:1/-1"><label for="fx-msg">附言</label><textarea id="fx-msg">${b.type === 'PO' ? '敬請依採購單內容安排交貨，收到後請簽回確認，謝謝。' : b.type === 'RFQ' ? '敬請報價並回傳，謝謝。' : '報價如上，敬請參考，謝謝。'}</textarea></div></div>
@@ -41,7 +45,7 @@ export function faxDialog(b, after) {
         const to = v('fx-to'), attn = v('fx-attn'), subj = v('fx-subj'), msg = v('fx-msg'), cover = el.querySelector('#fx-cover').checked, prn = v('fx-prn');
         if (!to) return el.querySelector('#fx-err').textContent = '請填收件傳真號碼';
         ls.set('zr.faxprn', prn);
-        const dial = to.replace(/[^\d#*+]/g, ''); const copied = await copyText(dial);
+        const dial = faxDial(c, to) || toHalf(to).replace(/[^\d#*+]/g, ''); const copied = await copyText(dial);
         const ops = [];
         if (el.querySelector('#fx-save')?.checked && c.id && !c.fax) { const d = { ...c, fax: to }; delete d.id; ops.push({ col: 'contacts', id: c.id, data: d }); }
         const d = billDoc({ ...b, attn: attn || b.attn }); const n = 1 + (cover ? 1 : 0);
