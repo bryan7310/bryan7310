@@ -5,6 +5,7 @@ import { toast, modal, confirm, tabs, combo } from '../core/ui.js';
 import { calc, customers, cshort, TYPES } from '../core/calc.js';
 import { openBill } from './_bills.js';
 import { mailImport } from './mail.js';
+import { apYm, apRange } from './payables.js';
 
 const ui = { ym: thisMonth(), tab: 'month', filter: 'all', year: thisMonth().slice(0, 4), yc: '' };
 const picked = new Set();
@@ -20,7 +21,7 @@ export function arRows(ym) {
   const C = calc();
   const auto = new Map();
   for (const b of C.bills) {
-    if ((b.type !== 'SALE' && b.type !== 'SALE_RET') || !(b.date || '').startsWith(ym) || !b.cid) continue;
+    if ((b.type !== 'SALE' && b.type !== 'SALE_RET') || apYm(b.date) !== ym || !b.cid) continue;
     const s = b.type === 'SALE' ? 1 : -1; const t = C.tot[b.id];
     const a = auto.get(b.cid) || auto.set(b.cid, { amt: 0, tax: 0, bills: [] }).get(b.cid);
     a.amt += s * t.net; a.tax += s * t.tax; a.bills.push(b);
@@ -38,7 +39,7 @@ export function arRows(ym) {
   return out.sort((x, y) => (+y.total || 0) - (+x.total || 0) || String(x.name).localeCompare(String(y.name), 'zh-Hant'));
 }
 export function arSummary() {
-  const t = today(); const months = new Set([...store.list('receivables').map(r => r.ym), ...calc().bills.filter(b => b.type === 'SALE' && b.cid).map(b => (b.date || '').slice(0, 7))].filter(Boolean));
+  const t = today(); const months = new Set([...store.list('receivables').map(r => r.ym), ...calc().bills.filter(b => b.type === 'SALE' && b.cid).map(b => apYm(b.date))].filter(Boolean));
   let open = 0, openN = 0, late = 0;
   for (const ym of months) for (const r of arRows(ym)) { if (r.rec || !(r.total > 0)) continue; open += r.total; openN++; if (isLate(r)) late++; }
   return { open, openN, late };
@@ -57,10 +58,10 @@ function draw(el) {
   const list = ui.tab === 'open' ? allOpen() : rows.filter(r => ui.filter === 'all' || (ui.filter === 'open' ? !r.rec : r.rec));
   el.innerHTML = `<div class="head"><h1>應收帳款</h1><span class="sp"></span>${tabs('ar', [['month', '本月'], ['open', '未收款'], ['year', '年度彙總']], ui.tab)}${ui.tab === 'year' ? '' : `<button class="btn" id="arMail" ${picked.size ? '' : 'disabled'}>導入郵寄掛號${picked.size ? `（${picked.size}）` : ''}</button><button class="btn pri" id="arAdd">＋ 手動新增</button>`}</div>
     ${ui.tab === 'month' ? `<div class="panel" style="display:grid;gap:12px">
-      <div class="tools"><button class="btn sm" id="prevM">‹</button><input type="month" id="ym" value="${ym}" style="font-weight:600"><button class="btn sm" id="nextM">›</button><span class="muted">${ymLabel(ym)}</span><span class="sp"></span>${tabs('f', [['all', '全部'], ['open', '未收'], ['done', '已收']], ui.filter)}</div>
+      <div class="tools"><button class="btn sm" id="prevM">‹</button><input type="month" id="ym" value="${ym}" style="font-weight:600"><button class="btn sm" id="nextM">›</button><span class="muted">${ymLabel(ym)}（${roc(apRange(ym)[0])}～${roc(apRange(ym)[1])}）</span><span class="sp"></span>${tabs('f', [['all', '全部'], ['open', '未收'], ['done', '已收']], ui.filter)}</div>
       <div class="kpis"><div class="kpi"><span>貨款</span><b>${money(tot(r => r.amt))}</b></div><div class="kpi"><span>稅額</span><b>${money(tot(r => r.tax))}</b></div><div class="kpi"><span>總額</span><b>${money(tot(r => r.total))}</b></div><div class="kpi"><span>門市收入</span><b>${money(st.amt || 0)}</b><small>${esc(st.note || '')}</small></div><div class="kpi ok"><span>已收 ${done.length} 筆</span><b>${money(done.reduce((s, r) => s + (r.recAmt ?? r.total), 0))}</b></div><div class="kpi ${open.length ? 'alert' : ''}"><span>未收 ${open.length} 筆</span><b>${money(open.reduce((s, r) => s + r.total, 0))}</b></div></div>
       <div class="tools"><div class="f" style="width:160px"><label for="stAmt">門市收入</label><input id="stAmt" class="num" value="${st.amt ? money(st.amt) : ''}"></div><div class="f" style="flex:1"><label for="stNote">門市收入備註</label><input id="stNote" value="${esc(st.note || '')}"></div></div>
-      <p class="muted small" style="margin:0">金額由該月銷貨單自動加總（銷貨退回扣除）。點金額可手動修改；有 <span class="pill zinc">手調</span> 標記的是手動輸入，可按「恢復自動」。</p>
+      <p class="muted small" style="margin:0">金額由該月銷貨單自動加總（25 結：上月 26 日～本月 25 日；銷貨退回扣除）。點金額可手動修改；有 <span class="pill zinc">手調</span> 標記的是手動輸入，可按「恢復自動」。</p>
       ${table(list, ym)}</div>`
     : ui.tab === 'year' ? yearView() : `<div class="panel">${table(list, null, true)}</div>`}`;
   el.addEventListener('tab', ev => { if (ev.detail.key === 'ar') ui.tab = ev.detail.val; else ui.filter = ev.detail.val; draw(el); }, { once: true });
@@ -76,7 +77,7 @@ function draw(el) {
   $('#arMail', el)?.addEventListener('click', async () => { const r = await mailImport([...picked]); picked.clear(); toast(`已導入 ${r.add} 家到郵寄掛號${r.miss.length ? `；找不到地址：${r.miss.join('、')}` : ''}`); location.hash = '#mail'; });
 }
 function allOpen() {
-  const months = new Set([...store.list('receivables').map(r => r.ym), ...calc().bills.filter(b => b.type === 'SALE' && b.cid).map(b => (b.date || '').slice(0, 7))].filter(Boolean));
+  const months = new Set([...store.list('receivables').map(r => r.ym), ...calc().bills.filter(b => b.type === 'SALE' && b.cid).map(b => apYm(b.date))].filter(Boolean));
   return [...months].sort().flatMap(ym => arRows(ym).filter(r => !r.rec && r.total > 0));
 }
 function table(list, ym, showYm) {
@@ -154,7 +155,7 @@ function yearData(y) {
 function arYears() {
   const ys = new Set([thisMonth().slice(0, 4), ui.year]);
   for (const r of store.list('receivables')) if (r.ym) ys.add(r.ym.slice(0, 4));
-  for (const b of calc().bills) if (b.type === 'SALE' && b.date) ys.add(b.date.slice(0, 4));
+  for (const b of calc().bills) if (b.type === 'SALE' && b.date) ys.add(apYm(b.date).slice(0, 4));
   return [...ys].filter(y => /^\d{4}$/.test(y)).sort().reverse();
 }
 function yearView() {
@@ -166,7 +167,7 @@ function yearView() {
   yRows = sel ? sel.rows.slice().sort((a, b) => a.ym < b.ym ? -1 : a.ym > b.ym ? 1 : 0) : [];
   return `<div class="panel" style="display:grid;gap:12px">
     <div class="tools"><button class="btn sm" id="prevY" aria-label="上一年">‹</button><select id="yy" style="font-weight:600">${arYears().map(v => `<option value="${v}" ${v === y ? 'selected' : ''}>${+v - 1911} 年（${v}）</option>`).join('')}</select><button class="btn sm" id="nextY" aria-label="下一年">›</button><span class="muted">${list.length} 家客戶・全年合計 <b>${money(grand)}</b></span></div>
-    <p class="muted small" style="margin:0">各月應收總額（含稅），依全年合計由大到小。點客戶看整年明細；點月份跳到那個月的應收。</p>
+    <p class="muted small" style="margin:0">各月應收總額（含稅，25 結），依全年合計由大到小。點客戶看整年明細；點月份跳到那個月的應收。</p>
     ${list.length || shopTot ? `<div class="tw"><table class="ary"><thead><tr><th>客戶</th>${Array.from({ length: 12 }, (_, i) => `<th class="n"><a href="#" data-ym="${mm(y, i)}" title="看 ${i + 1} 月應收">${i + 1} 月</a></th>`).join('')}<th class="n">全年</th></tr></thead><tbody>
       ${list.map(o => `<tr class="row${o.k === ui.yc ? ' on' : ''}" data-yc="${esc(o.k)}"><td><b>${esc(o.name)}</b></td>${o.m.map(v => `<td class="n">${cell(v)}</td>`).join('')}<td class="n"><b>${money(o.tot)}</b></td></tr>`).join('')}
       ${shopTot ? `<tr><td><b style="color:var(--blue)">門市收入</b></td>${shop.map(v => `<td class="n">${cell(v)}</td>`).join('')}<td class="n"><b>${money(shopTot)}</b></td></tr>` : ''}
