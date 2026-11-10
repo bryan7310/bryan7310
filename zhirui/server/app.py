@@ -292,6 +292,18 @@ class Handler(BaseHTTPRequestHandler):
         if path == '/api/ai' and method == 'POST':
             ai_update(self.state.data_dir, body or {})
             return self.send_json(ai_status(self.state.data_dir))
+        if path == '/api/contacts/dups' and method == 'GET':
+            kind = q('kind', 'S')
+            if kind not in ('C', 'S'):
+                return self.error('kind 要是 C 或 S')
+            return self.send_json({'groups': db.contact_dups(kind)})
+        if path == '/api/contacts/merge' and method == 'POST':
+            b = body or {}
+            try:
+                r = db.merge_contacts(str(b.get('keep') or ''), [str(x) for x in (b.get('merge') or [])], me['id'])
+            except ValueError as e:
+                return self.error(str(e))
+            return self.send_json(dict(r, ok=True))
         if path == '/api/restart' and method == 'POST':
             # 由啟動器（run_forever.py）執行時，結束碼 3 會被立刻重開 → 載入新程式，不需 UAC
             if not os.environ.get('ZR_LAUNCHER'):

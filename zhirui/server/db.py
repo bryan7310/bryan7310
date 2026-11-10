@@ -5,6 +5,7 @@
 """
 import json
 import os
+import re
 import sqlite3
 import threading
 import time
@@ -85,8 +86,8 @@ class DB:
     def delete(self, col, id, uid=None):
         return self.batch([{'col': col, 'id': id, 'delete': True}], uid)[0]
 
-    def batch(self, ops, uid=None):
-        """一次寫入多筆；全部成功才提交。回傳每筆的 {col,id,ver}。"""
+    def batch(self, ops, uid=None, extra=None):
+        """一次寫入多筆；全部成功才提交。回傳每筆的 {col,id,ver}。extra(conn)：同一個交易裡要多做的 SQL"""
         out = []
         with self.cond:
             self.conn.execute('BEGIN')
@@ -110,6 +111,8 @@ class DB:
                             'ON CONFLICT(col,id) DO UPDATE SET data=excluded.data, ver=excluded.ver, ts=excluded.ts, deleted=0',
                             (col, id, json.dumps(data, ensure_ascii=False, separators=(',', ':')), ver, ts))
                     out.append({'col': col, 'id': id, 'ver': ver})
+                if extra:
+                    extra(self.conn)
                 self.conn.execute('COMMIT')
             except Exception:
                 self.conn.execute('ROLLBACK')
@@ -127,6 +130,126 @@ class DB:
             else:
                 out.append({'col': col, 'id': id, 'ver': ver, 'data': dict(json.loads(data), id=id)})
         return out
+
+    # ---------- 客戶／供應商：重複檢查與合併 ----------
+    REF_COLS = ('bills', 'receivables', 'payables', 'checks_in', 'checks_out', 'invoices', 'purch_invoices', 'orders', 'mail', 'labels')
+
+    @staticmethod
+    def _cname_strict(s):
+        s = str(s or '').replace('臺', '台')
+        s = re.sub(r'[(（]股[)）]', '', s)
+        s = re.sub(r'[-－]\s*\d+$', '', s)
+        s = re.sub(r'[\s()（）\-－_.,，、]', '', s)
+        return re.sub(r'(股份有限公司|有限公司|股份公司|公司)$', '', s)
+
+    @staticmethod
+    def _cname_loose(s):
+        s = str(s or '').replace('臺', '台')
+        s = re.sub(r'[(（]股[)）]', '', s)
+        s = re.sub(r'[-－]\s*\d+$', '', s)
+        s = re.sub(r'[(（][^)）]*[)）]', '', s)
+        return re.sub(r'[\s\-－_.,，、]|股份|有限|公司|企業|工業|實業|商行|行號|社$|廠$|行$', '', s)
+
+    def contact_dups(self, kind):
+        """同類（C／S）名稱重複的群組；每群依「舊系統 > Access > 新平台」、交易筆數排序，第一筆是建議保留的"""
+        ct = {c['id']: c for c in self.list('contacts') if c.get('kind') == kind}
+        refs = {}
+        for col in self.REF_COLS:
+            for i, d in self.conn.execute('SELECT id, data FROM docs WHERE col=? AND deleted=0', (col,)):
+                cid = json.loads(d).get('cid')
+                if cid in ct:
+                    refs[cid] = refs.get(cid, 0) + 1
+        hist = {c: n for c, n in self.conn.execute('SELECT cid, COUNT(*) FROM hist_bills GROUP BY cid') if c in ct}
+        tier = lambda k: 0 if (k.startswith('oc') and ct[k].get('old')) else 1 if ct[k].get('mdb') else 2
+        groups, seen = [], set()
+        for fn, strong in ((self._cname_strict, True), (self._cname_loose, False)):
+            g = {}
+            for k, v in ct.items():
+                n = fn(v.get('name'))
+                if n:
+                    g.setdefault(n, []).append(k)
+            for n, ks in sorted(g.items()):
+                key = tuple(sorted(ks))
+                if len(ks) < 2 or key in seen or any(set(ks) <= set(x['ids']) for x in groups):
+                    continue
+                seen.add(key)
+                ks.sort(key=lambda k: (tier(k), -(refs.get(k, 0) + hist.get(k, 0)), not ct[k].get('short'), str(ct[k].get('code') or '~')))
+                taxes = {re.sub(r'\D', '', str(ct[k].get('taxId') or '')) for k in ks} - {''}
+                # 名稱只差「(1)」「(2)」「(弟)」這種短括號的，多半是不同的人／單位，預設不勾
+                short_paren = any(re.search(r'[(（](\d+|[^)）\d])[)）]', re.sub(r'[(（]股[)）]', '', str(ct[k].get('name') or ''))) for k in ks)
+                groups.append({'ids': ks, 'strong': strong, 'conflict': len(taxes) > 1, 'suggest': strong or not short_paren,
+                               'items': [{'id': k, 'tier': ['舊系統', 'Access', '新平台'][tier(k)], 'code': ct[k].get('code', ''), 'name': ct[k].get('name', ''),
+                                          'short': ct[k].get('short', ''), 'taxId': ct[k].get('taxId', ''), 'phone': ct[k].get('phone', ''),
+                                          'inactive': bool(ct[k].get('inactive')), 'refs': refs.get(k, 0), 'hist': hist.get(k, 0)} for k in ks]})
+        for x in groups:
+            if x['conflict']:
+                x['suggest'] = False
+        return groups
+
+    def merge_contacts(self, keep, others, uid=None):
+        """把 others 併入 keep：資料補空欄、名稱放別名、所有單據（含舊系統歷史單據）改掛 keep，others 刪除。一個交易完成。"""
+        others = [o for o in dict.fromkeys(others) if o and o != keep]
+        K = self.get('contacts', keep)
+        if not K or not others:
+            raise ValueError('找不到要保留的資料，或沒有要合併的對象')
+        Os = []
+        for o in others:
+            d = self.get('contacts', o)
+            if not d:
+                raise ValueError('找不到 %s（可能已經合併過了）' % o)
+            if d.get('kind') != K.get('kind'):
+                raise ValueError('客戶和供應商不能互相合併')
+            Os.append((o, d))
+        K = dict(K)
+        for o, d in Os:
+            for f in ('short', 'taxId', 'person', 'phone', 'fax', 'zip', 'addr', 'payMethod'):
+                if not str(K.get(f) or '').strip() and str(d.get(f) or '').strip():
+                    K[f] = d[f]
+            on = str(d.get('note') or '').strip()
+            if on and on not in str(K.get('note') or ''):
+                K['note'] = (str(K.get('note') or '').strip() + '；' + on).strip('；')
+            # 保留那筆的簡稱若不是名稱開頭（像「拉釘(全鋼)」這種備註），而被併入的那筆有正常簡稱，就換過來
+            ks, os_ = str(K.get('short') or '').strip(), str(d.get('short') or '').strip()
+            nm = str(K.get('name') or '')
+            extra_al = []
+            if os_ and ks and not nm.startswith(ks) and nm.startswith(os_):
+                K['short'], extra_al = os_, [ks]
+            al = [*(K.get('aliases') or []), *(d.get('aliases') or []), d.get('name', ''), d.get('short', ''), *extra_al]
+            K['aliases'] = [a for a in dict.fromkeys(str(x).strip() for x in al) if a and a != K.get('name') and a != K.get('short')]
+            try:
+                K['init'] = round(float(K.get('init') or 0) + float(d.get('init') or 0), 2)
+            except (TypeError, ValueError):
+                pass
+            if not d.get('inactive'):
+                K.pop('inactive', None)
+            K.setdefault('merged', []).append({'id': o, 'code': d.get('code', ''), 'name': d.get('name', ''), 'at': int(time.time() * 1000)})
+        ops = [{'col': 'contacts', 'id': keep, 'data': K}]
+        moved = {}
+        oset = set(others)
+        for col in self.REF_COLS:
+            for i, d in self.conn.execute('SELECT id, data FROM docs WHERE col=? AND deleted=0', (col,)).fetchall():
+                x = json.loads(d)
+                if x.get('cid') in oset:
+                    x['cid'] = keep
+                    ops.append({'col': col, 'id': i, 'data': x, 'keep_by': True})
+                    moved[col] = moved.get(col, 0) + 1
+        for o in others:
+            ops.append({'col': 'contacts', 'id': o, 'delete': True})
+        hist_n = [0]
+        def extra(conn):
+            ph = ','.join('?' * len(others))
+            for bid, data in conn.execute('SELECT id, data FROM hist_bills WHERE cid IN (%s)' % ph, others).fetchall():
+                b = json.loads(data)
+                b['cid'] = keep
+                conn.execute('UPDATE hist_bills SET cid=?, data=? WHERE id=?', (keep, json.dumps(b, ensure_ascii=False, separators=(',', ':')), bid))
+                hist_n[0] += 1
+            conn.execute('UPDATE hist_lines SET cid=? WHERE cid IN (%s)' % ph, [keep, *others])
+            if hist_n[0]:
+                conn.execute("INSERT OR REPLACE INTO meta(key,value) VALUES('hist_ver',?)", (str(int(time.time() * 1000)),))
+        # 改掛的單據不要蓋掉原本的建立者（_by）
+        by_ops = [op for op in ops if op.pop('keep_by', False)]
+        self.batch(ops, None, extra)
+        return {'keep': keep, 'merged': others, 'moved': moved, 'hist': hist_n[0], 'docs': len(by_ops)}
 
     # ---------- 歷史單據 ----------
     def hist_replace(self, bills):

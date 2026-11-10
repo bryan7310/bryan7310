@@ -5,7 +5,7 @@ import { toast, modal, confirm, tabs, pager, field, selectField, formData, combo
 import { calc, goodsLabel, qtyAll, customers, suppliers, costOf, cdisp } from '../core/calc.js';
 import { api } from '../core/api.js';
 import { SP_FIELDS, spLab, spParse, spGet, spDims, spSVG, spRows, spTable, spWeight } from '../core/spec.js';
-import { loadHistPur } from './_bills.js';
+import { loadHistPur, resetHistCache } from './_bills.js';
 import { loadXlsx } from './purchase_import.js';
 import { shortName, suggestShorts } from '../core/names.js';
 
@@ -35,7 +35,7 @@ function draw(el) {
     rows = store.list('accounts').map(a => [a, [esc(a.name), `<span class="n">${fmt(a.init)}</span>`, `<span class="n">${fmt(C.accBal[a.id] || 0)}</span>`]]);
   } else if (t === 'names') return drawNames(el);
   const [s, e, pg] = pager('m', rows.length, ui.page);
-  el.innerHTML = `<div class="head"><h1>基本資料</h1><span class="sp"></span>${col === 'contacts' ? `<button class="btn" id="shortBtn" title="幫還沒有簡稱的${label}從全名擷取簡稱（介面顯示用；列印一律用全名）">擷取簡稱</button><button class="btn" id="fillExp" title="匯出還沒停用、缺統編／電話／地址的${label}，填好後用「匯入${label}資料」匯回">匯出待補資料</button><button class="btn" id="fillImp">匯入${label}資料</button>` : ''}${t === 'goods' || col === 'contacts' ? `<button class="btn" id="expBtn">匯出 CSV</button>` : ''}<button class="btn pri" id="addBtn">＋ 新增${label}</button></div>
+  el.innerHTML = `<div class="head"><h1>基本資料</h1><span class="sp"></span>${col === 'contacts' ? `<button class="btn" id="dupBtn" title="找出名稱重複的${label}，以舊系統那筆為主合併">檢查重複</button><button class="btn" id="shortBtn" title="幫還沒有簡稱的${label}從全名擷取簡稱（介面顯示用；列印一律用全名）">擷取簡稱</button><button class="btn" id="fillExp" title="匯出還沒停用、缺統編／電話／地址的${label}，填好後用「匯入${label}資料」匯回">匯出待補資料</button><button class="btn" id="fillImp">匯入${label}資料</button>` : ''}${t === 'goods' || col === 'contacts' ? `<button class="btn" id="expBtn">匯出 CSV</button>` : ''}<button class="btn pri" id="addBtn">＋ 新增${label}</button></div>
     <div class="panel"><div class="tools">${tabs('m', TABS, t)}<input type="search" id="mq" placeholder="搜尋${label}" value="${esc(ui.q)}"><span class="muted small">${rows.length} 筆</span>${offN ? `<button type="button" class="btn sm ${ui.off ? 'pri' : ''}" id="offBtn">${ui.off ? '隱藏' : '顯示'}停用（${offN}）</button>` : ''}</div>
     <div class="tw" style="margin-top:10px"><table><thead><tr>${head.map(h => `<th>${h}</th>`).join('')}</tr></thead><tbody>${rows.slice(s, e).map(([d, cells]) => `<tr class="row" data-id="${d.id}">${cells.map(c => `<td>${c}</td>`).join('')}</tr>`).join('') || `<tr><td colspan="${head.length}"><div class="empty"><b>沒有資料</b></div></td></tr>`}</tbody></table></div>${pg}</div>`;
   el.addEventListener('tab', ev => { ui.tab = ev.detail.val; ui.q = ''; ui.page = 0; location.hash = '#master/' + ui.tab; }, { once: true });
@@ -45,6 +45,7 @@ function draw(el) {
   $('#addBtn', el).addEventListener('click', () => openMaster(col, null, t === 'suppliers' ? 'S' : 'C'));
   $('#offBtn', el)?.addEventListener('click', () => { ui.off = !ui.off; ui.page = 0; draw(el); });
   $('#shortBtn', el)?.addEventListener('click', () => extractShorts(t === 'customers' ? 'C' : 'S'));
+  $('#dupBtn', el)?.addEventListener('click', () => dupCheck(t === 'customers' ? 'C' : 'S'));
   $('#fillExp', el)?.addEventListener('click', () => fillExport(t === 'customers' ? 'C' : 'S').catch(e => toast('匯出失敗：' + (e.message || e))));
   $('#fillImp', el)?.addEventListener('click', () => fillImport(t === 'customers' ? 'C' : 'S'));
   $('#expBtn', el)?.addEventListener('click', () => { const hs = head.map(h => h.replace(/<[^>]+>/g, '')); downloadText(`${label}.csv`, '﻿' + [hs.join(','), ...rows.map(([, cells]) => cells.map(c => '"' + c.replace(/<[^>]+>/g, '').replace(/"/g, '""') + '"').join(','))].join('\n'), 'text/csv'); });
@@ -352,4 +353,40 @@ function drawNames(el) {
   el.querySelectorAll('[data-pick]').forEach(inp => { const r = rows[+inp.dataset.pick]; combo(inp, { items: () => (r.kind === 'C' ? customers(true) : suppliers(true)).map(c => ({ id: c.id, label: c.name, sub: [c.code, c.short].filter(Boolean).join(' '), text: [c.code, c.name, c.short, ...(c.aliases || [])].join(' ') })), onPick: it => done(r, it.id) }); });
   el.querySelectorAll('[data-new]').forEach(b => b.addEventListener('click', async () => { const r = rows[+b.dataset.new]; const id = uid('c'); await store.save('contacts', id, { kind: r.kind, code: '', name: r.name, short: r.name, aliases: [], init: 0, note: '由名稱對應新增' }); done(r, id); }));
   el.querySelectorAll('[data-skip]').forEach(b => b.addEventListener('click', () => done(rows[+b.dataset.skip], null)));
+}
+
+// ---------- 檢查重複：名稱相同（或只差公司字樣、括號備註）的客戶／供應商，以舊系統那筆為主合併 ----------
+async function dupCheck(kind) {
+  const label = kind === 'C' ? '客戶' : '供應商';
+  const m = modal({ title: `檢查重複${label}`, width: 980, closeOnBg: false, body: '<div class="muted">檢查中…</div>', footer: '<span class="muted small" id="dpSum"></span><span class="sp"></span><button class="btn" data-close>關閉</button><button class="btn pri" id="dpGo" disabled>合併勾選的</button>' });
+  let groups = [];
+  try { groups = (await api.get('/api/contacts/dups?kind=' + kind)).groups || []; } catch (e) { m.el.querySelector('.mb').innerHTML = `<div class="banner">${esc(e.message)}</div>`; return; }
+  const mb = m.el.querySelector('.mb');
+  if (!groups.length) { mb.innerHTML = `<div class="empty"><b>沒有重複的${label}</b>名稱相同或只差「股份有限公司」、括號備註的都檢查過了</div>`; return; }
+  const tierCls = t => t === '舊系統' ? 'ok' : t === 'Access' ? 'blue' : '';
+  mb.innerHTML = `<p class="muted small" style="margin:0">每一組預設保留「舊系統」那筆（同為舊系統時保留交易較多的），其他筆的電話、地址、統編等空欄會補進來，名稱放進別名，所有單據、帳款、支票、發票與舊系統歷史單據都改掛到保留的那筆，然後刪除。名稱只差 (1)(2)、(弟) 這類的可能是不同對象，預設不勾。</p>
+    ${groups.map((g, gi) => `<div class="panel" style="padding:10px 12px;display:grid;gap:6px" data-g="${gi}">
+      <label class="check"><input type="checkbox" data-gon="${gi}" ${g.suggest ? 'checked' : ''}> <b>第 ${gi + 1} 組</b>${g.strong ? '' : ' <span class="pill">名稱相近</span>'}${g.conflict ? ' <span class="pill bad">統編不同，請確認</span>' : ''}</label>
+      <div class="tw"><table><thead><tr><th>保留</th><th>來源</th><th>編號</th><th>名稱</th><th>簡稱</th><th>統編</th><th>電話</th><th class="n">新平台單據</th><th class="n">舊系統單據</th></tr></thead><tbody>
+      ${g.items.map((it, ii) => `<tr><td><input type="radio" name="dpk${gi}" value="${esc(it.id)}" ${ii === 0 ? 'checked' : ''} aria-label="保留這筆"></td><td><span class="pill ${tierCls(it.tier)}">${esc(it.tier)}</span></td><td class="mono">${esc(it.code)}</td><td>${esc(it.name)}${it.inactive ? ' <span class="pill">停用</span>' : ''}</td><td>${esc(it.short || '')}</td><td class="mono">${esc(it.taxId || '')}</td><td>${esc(it.phone || '')}</td><td class="n">${it.refs}</td><td class="n">${it.hist}</td></tr>`).join('')}
+      </tbody></table></div></div>`).join('')}`;
+  const go = m.el.querySelector('#dpGo');
+  const sel = () => groups.map((g, gi) => ({ g, gi, on: mb.querySelector(`[data-gon="${gi}"]`).checked, keep: mb.querySelector(`input[name="dpk${gi}"]:checked`)?.value })).filter(x => x.on && x.keep);
+  const upd = () => { const n = sel().length; go.disabled = !n; go.textContent = n ? `合併勾選的 ${n} 組` : '合併勾選的'; m.el.querySelector('#dpSum').textContent = `找到 ${groups.length} 組，勾選 ${n} 組`; };
+  mb.addEventListener('change', upd); upd();
+  go.onclick = async () => {
+    const list = sel(); if (!list.length) return;
+    const nOther = list.reduce((s, x) => s + x.g.ids.length - 1, 0);
+    if (!await confirm(`合併 ${list.length} 組、共 ${nOther} 筆${label}到保留的那筆？\n合併後被併入的那筆會刪除，單據改掛到保留的那筆，無法一鍵復原（每天的自動備份仍可還原）。`, { ok: '合併', danger: true })) return;
+    go.disabled = true; let ok = 0, docs = 0, hist = 0; const errs = [];
+    for (const x of list) {
+      go.textContent = `合併中 ${ok + errs.length + 1}／${list.length}…`;
+      try { const r = await api.post('/api/contacts/merge', { keep: x.keep, merge: x.g.ids.filter(i => i !== x.keep) }); ok++; docs += r.docs || 0; hist += r.hist || 0; const k = x.g.items.find(i => i.id === x.keep); store.log('合併', `${label} ${k.code} ${k.name} ← ${x.g.items.filter(i => i.id !== x.keep).map(i => `${i.code} ${i.name}`).join('、')}`); }
+      catch (e) { errs.push(`第 ${x.gi + 1} 組：${e.message}`); }
+    }
+    try { const st = await api.status(); resetHistCache(st.histVer); } catch (e) { resetHistCache(); }
+    m.close();
+    toast(`已合併 ${ok} 組（單據 ${docs} 筆、舊系統單據 ${hist} 張改掛）${errs.length ? `，${errs.length} 組失敗` : ''}`);
+    if (errs.length) modal({ title: '部分合併失敗', width: 560, body: `<ul>${errs.map(e => `<li>${esc(e)}</li>`).join('')}</ul>`, footer: '<span class="sp"></span><button class="btn" data-close>關閉</button>' });
+  };
 }

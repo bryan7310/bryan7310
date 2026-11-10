@@ -107,6 +107,8 @@ function billRow(b, opts, C) {
 
 // ---------- 舊系統歷史單據（唯讀，存在伺服器另一個表，向伺服器查） ----------
 const histCache = new Map(), histPending = new Map();
+/** 舊系統歷史單據改過（例如合併客戶／供應商）後清掉記憶體快取，下次用新版本重抓 */
+export function resetHistCache(stamp) { histCache.clear(); histPending.clear(); if (stamp) store.histVer = stamp; }
 /** 整批載入這幾種單據的歷史資料：先看這台瀏覽器的快取（版本相同就直接用），否則向伺服器一次抓 10000 張；載過留在記憶體與快取 */
 function histFetch(types) {
   const key = types.join(',');
