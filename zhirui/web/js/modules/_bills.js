@@ -220,7 +220,7 @@ function lineRow(l, i) {
   const del = `<td><button class="icon-btn" data-del="${i}" aria-label="刪除這行"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button></td>`;
   if (l.txt !== undefined) return `<tr data-i="${i}" class="noteln"><td colspan="${span}"><div style="display:flex;align-items:center;gap:6px"><span class="pill" style="flex:none">備註</span><input data-f="txt" value="${esc(l.txt)}" placeholder="這一行備註，會印在單據上（例如：以上請分兩包裝、急件）"></div></td>${del}</tr>`;
   const have = lineHave(l);
-  const units = g ? [[g.unit || 'PCS', g.unit || 'PCS'], ...(g.aunit ? [['a', `${g.aunit}（${fmtQ(g.arate || 1)}）`]] : []), ['H', 'H（百支）'], ['K', 'K（千支）'], ['KG', 'KG']].filter((x, k, a) => a.findIndex(y => y[0] === x[0]) === k) : [];
+  const units = g ? [[g.unit || 'PCS', g.unit || 'PCS'], ...(g.aunit ? [['a', `${g.aunit}（${fmtQ(g.arate || 1)}）`]] : []), ['H', 'H（百支）'], ['K', 'K（千支）'], ['KG', 'KG'], ['盒', '盒'], ['箱', '箱'], ['件', '件'], ['SET', 'SET']].filter((x, k, a) => a.findIndex(y => y[0] === x[0]) === k) : [];
   let cost = '';
   if (showCost) {
     const r = l.gid ? costOf(l, edit.date) : null; const base = !l.u && l.unit !== 'a';
