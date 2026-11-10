@@ -67,7 +67,8 @@ export function copyGoods(g, onSaved) {
   openMaster('goods', null, null, onSaved, tpl);
 }
 const LABEL = { goods: '商品', C: '客戶', S: '供應商', warehouses: '倉庫', accounts: '結算帳戶' };
-export function openMaster(col, doc, kind, onSaved, tpl) {
+/** opts.fromBill：從單據的「修改商品」打開；料號改成系統沒有的 → 提示後新建商品，不動原商品，onSaved(新id, {created:true}) */
+export function openMaster(col, doc, kind, onSaved, tpl, opts = {}) {
   const k = col === 'contacts' ? (doc ? doc.kind : kind) : col;
   const fs = FIELDS[k]; const d = doc || {}; const v = doc ? d : (tpl || {});   // v：表單預填值（複製時是來源商品）
   const C = calc();
@@ -104,6 +105,13 @@ export function openMaster(col, doc, kind, onSaved, tpl) {
           if (out.code && store.list('contacts').some(c => c.code === out.code && c.id !== d.id)) { el.querySelector('#mErr').textContent = `編號 ${out.code} 已經有人用了`; return; }
         }
         if (col === 'goods') { const sp = spForm(el); if (Object.keys(sp).length) out.sp = sp; else delete out.sp; }
+        if (col === 'goods' && opts.fromBill && doc && out.code && out.code !== String(d.code || '').trim() && !store.list('goods').some(g => g.code === out.code)) {
+          // 單據裡改成新料號：原商品可能還有其他單據在用，改成新建一個商品，這一行換成新商品
+          if (!await confirm(`料號「${out.code}」系統裡沒有。\n要用這些資料新建一個商品，並把這一行換成新商品嗎？\n原本的「${d.code || ''} ${d.name}」不會被修改。`, { ok: '新建商品' })) return;
+          const nd = {}; for (const [n] of fs) nd[n] = out[n]; if (out.sp) nd.sp = out.sp; nd.note = [nd.note, `由 ${d.code || d.name} 修改建立`].filter(Boolean).join('；');
+          const nid = uid('g'); await store.save('goods', nid, nd);
+          store.log('新增', `商品 ${nd.code} ${nd.name}（由 ${d.code || ''} 修改建立）`); close(); toast(`已新建商品 ${nd.code}`); onSaved && onSaved(nid, { created: true }); return;
+        }
         if (col === 'goods' && out.code && store.list('goods').some(g => g.code === out.code && g.id !== d.id)) { el.querySelector('#mErr').textContent = `料號 ${out.code} 已經有了，請改成不一樣的料號`; const ci = el.querySelector('#f-code'); ci?.focus(); ci?.select(); return; }
         const id = d.id || uid(col === 'goods' ? 'g' : col === 'contacts' ? 'c' : 'w');
         delete out.id;

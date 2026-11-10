@@ -424,7 +424,7 @@ function bindLines(el) {
       else inp.addEventListener('input', () => { edit._dirty = true; l[f === 'nu' ? 'unit' : f] = inp.value; if (f === 'qty' || f === 'price') { delete l._lp; showWarn(tr, l); } updateTotals(el); });
     });
     tr.querySelector('[data-spec]')?.addEventListener('click', ev => { ev.preventDefault(); const g = calc().g[l.gid]; if (g) specView(g); });
-    tr.querySelector('[data-gedit]')?.addEventListener('click', ev => { ev.preventDefault(); const g = store.get('goods', l.gid); if (g) openMaster('goods', g, null, () => redrawLines(el)); });
+    tr.querySelector('[data-gedit]')?.addEventListener('click', ev => { ev.preventDefault(); const g = store.get('goods', l.gid); if (g) openMaster('goods', g, null, (id, info) => { if (info?.created) { l.gid = id; edit._dirty = true; } redrawLines(el); }, null, { fromBill: true }); });
     tr.querySelector('[data-ghist]')?.addEventListener('click', ev => { ev.preventDefault(); if (l.gid && edit.cid) lineHistory(l.gid, edit.cid); });
     tr.querySelector('[data-gcost]')?.addEventListener('change', async ev => { const v = +String(ev.target.value).replace(/,/g, ''); const g = store.get('goods', l.gid); if (!g || !(v > 0)) return; const { id, ...rest } = g; await store.save('goods', id, { ...rest, cost: v }); toast(`已存到商品「${g.name}」的手動成本`); redrawLines(el); });
     tr.querySelector('[data-del]')?.addEventListener('click', () => { edit.lines.splice(i, 1); if (!edit.lines.length) edit.lines.push({ gid: '', qty: '', price: '' }); redrawLines(el); });
