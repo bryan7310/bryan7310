@@ -1,7 +1,7 @@
 // 匯入進貨單：讀廠商出貨表單（Excel／CSV）→ 自動配對商品 → 建立進貨單
 // 比對方式：材質、品名、規格（直徑、長度、頭型）、電鍍，再用「單價和商品成本接近程度」加分；
 // 廠商料號配對過一次會記在設定 vmap，下次直接對上。
-import { $, esc, fmtQ, fp4, today, uid, toHalf, qTerms, pad, isoOf } from '../core/util.js';
+import { $, esc, fmtQ, fp4, today, uid, toHalf, qTerms, norm, pad, isoOf } from '../core/util.js';
 import { store } from '../core/store.js';
 import { toast, modal } from '../core/ui.js';
 import { calc, TYPES, costOf, suppliers, uRate } from '../core/calc.js';
@@ -162,7 +162,7 @@ const PI_SYN = [[/^(鐵板牙?|自攻|尖尾)$/, '(鐵板|自攻|尖尾|快速�
 function piShow(PI, it) {
   if (!piF(it, PI.f)) return false; const ts = qTerms(PI.q); if (!ts.length) return true;
   const sel = it.cands.find(x => x.o.g.id === it.pick); const txt = [it.code, it.mat, it.name, it.spec, it.fin, it.no, sel ? sel.o.g.name + ' ' + sel.o.g.code : ''].join(' ');
-  return ts.every(t => { const syn = PI_SYN.find(([re]) => re.test(t)); return syn ? new RegExp(syn[1], 'i').test(txt) : txt.toLowerCase().includes(t); });
+  return ts.every(t => { const syn = PI_SYN.find(([re]) => re.test(t)); return syn ? new RegExp(syn[1], 'i').test(txt) : norm(txt).includes(t); });
 }
 
 // ---------- 檢視與確認 ----------

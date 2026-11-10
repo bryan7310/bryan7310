@@ -1,5 +1,5 @@
 // 螺絲查價：各供應商牌價、折數、淨價；加入報價單草稿；折數管理
-import { $, esc, ls, qTerms, debounce, fmtQ } from '../core/util.js';
+import { $, esc, ls, qTerms, matchQ, debounce, fmtQ } from '../core/util.js';
 import { store } from '../core/store.js';
 import { toast, tabs, modal, confirm, onSearch } from '../core/ui.js';
 import { FACETS, facetVal, matchFacets, sortFacetVals, searchText, itemFactor, fmtDisc, netPrice, fmtList, fmtP, attr, noteOf, origText, perKgText, dupGroup, supName, catById, parseDisc, discKey, itemDisc } from '../core/pricing.js';
@@ -53,7 +53,7 @@ function renderFilters(el, base) {
 }
 function renderSearch(el) {
   const items = store.list('pricing');
-  const terms = qTerms(ui.q.replace(/[×xX*]/g, '×'));
+  const terms = qTerms(ui.q);
   const base = terms.length ? items.filter(it => { const t = searchText(it); return terms.every(w => t.includes(w)); }) : items;
   renderFilters(el, base);
   const list = base.filter(it => matchFacets(it, flt));
@@ -87,7 +87,7 @@ function drawDiscounts(el) {
   const groups = new Map();
   for (const it of items) { if ((it.sup || '自行新增') !== dm.sup) continue; const key = discKey(it); let g = groups.get(key); if (!g) groups.set(key, g = { key, cat: it.cat, name: it.name, base: String(it.disc ?? '').trim(), items: [] }); g.items.push(it); }
   const edited = new Map(store.list('discounts').map(d => [d.key, d]));
-  const list = [...groups.values()].filter(g => !dm.q || (g.name + ' ' + (catById(g.cat)?.name || '')).toLowerCase().includes(dm.q.toLowerCase()));
+  const list = [...groups.values()].filter(g => !dm.q || matchQ(g.name + ' ' + (catById(g.cat)?.name || ''), dm.q));
   const byCat = new Map(); for (const g of list) (byCat.get(g.cat) || byCat.set(g.cat, []).get(g.cat)).push(g);
   el.innerHTML = `<div class="head"><h1>螺絲查價</h1><span class="sp"></span>${tabs('pt', [['search', '查價'], ['discounts', '折數管理']], 'discounts')}</div>
     <div class="panel" style="display:grid;gap:12px">

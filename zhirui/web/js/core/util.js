@@ -25,7 +25,9 @@ export const fmtD = (n, d) => isFinite(n) ? (+n).toLocaleString('zh-TW', { minim
 export const money = n => Math.round(n || 0).toLocaleString('zh-TW');
 export const parseNum = v => { if (typeof v === 'number') return v; const t = toHalf(v).replace(/[,\s$NT元＄]/gi, ''); if (t === '') return null; const n = Number(t); return isFinite(n) ? n : NaN; };
 export const toHalf = s => String(s ?? '').replace(/[！-～]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0)).replace(/　/g, ' ');
-export const norm = s => toHalf(s).toLowerCase().replace(/\s*[x×*]\s*/g, '×').trim();
+// 搜尋用：大小寫、全形半形不分；乘號 * x X ×（含手機鍵盤的 ✕ ╳ ∗ 等）都當成同一個，3*10 = 3x10 = 3X10
+export const MUL_RE = /\s*[x×*✕✖╳⨯∗﹡⁎]\s*/g;
+export const norm = s => toHalf(s).toLowerCase().replace(MUL_RE, '×').trim();
 
 // 多關鍵字搜尋：空白或逗號隔開，每個字都要出現
 export const qTerms = q => norm(q).split(/[\s,，]+/).filter(Boolean);
