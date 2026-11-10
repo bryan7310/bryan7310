@@ -109,7 +109,7 @@ export function shipDoc(b, opt = {}) {
 export function printShip(b, opt = {}) {
   const T = TYPES[b.type] || TYPES.SALE; const d = shipDoc(b, opt);
   printHTML(`${T.name} ${b.no}`, d.css, d.html, { tip: d.tip, delay: 500 });
-  store.log('列印', `${T.name} ${b.no}${opt.noAmt ? '（不含金額）' : opt.pn ? '（料號列印）' : ''}`);
+  store.log('列印', `${T.name} ${b.no}${opt.pn && opt.noAmt ? '（料號列印，不含金額）' : opt.noAmt ? '（不含金額）' : opt.pn ? '（料號列印）' : ''}`);
 }
 
 // ---------- 格式設定（全公司共用；列印位置每台電腦各自） ----------
