@@ -242,7 +242,7 @@ class Handler(BaseHTTPRequestHandler):
             body = ('{"total":%d,"stamp":%s,"rows":[' % (total, json.dumps(db.hist_stamp()))).encode('utf-8') + ','.join(raws).encode('utf-8') + b']}'
             return self.send_bytes(body, 'application/json; charset=utf-8')
         if path == '/api/hist/prices':
-            return self.send_json({'rows': db.hist_prices(q('gid', ''), int(q('limit', 50)))})
+            return self.send_json({'rows': db.hist_prices(q('gid', ''), int(q('limit', 50)), q('cid', ''))})
         if path == '/api/users' and method == 'GET':
             return self.send_json({'users': db.users()})
         if path == '/api/users' and method == 'POST':

@@ -190,10 +190,14 @@ class DB:
         total = self.conn.execute('SELECT COUNT(*) FROM hist_bills b' + (' WHERE ' + ' AND '.join(where) if where else ''), args[:-2]).fetchone()[0]
         return {'total': total, 'rows': [json.loads(r[0]) for r in rows]}
 
-    def hist_prices(self, gid, limit=50):
-        rows = self.conn.execute(
-            'SELECT l.type, l.date, l.cid, l.qty, l.price, l.u, b.no FROM hist_lines l JOIN hist_bills b ON b.id=l.bill_id '
-            'WHERE l.gid=? AND l.price>0 ORDER BY l.date DESC LIMIT ?', (gid, int(limit))).fetchall()
+    def hist_prices(self, gid, limit=50, cid=''):
+        """某商品的歷史單價；cid 有給就只看那個客戶／廠商"""
+        sql = 'SELECT l.type, l.date, l.cid, l.qty, l.price, l.u, b.no FROM hist_lines l JOIN hist_bills b ON b.id=l.bill_id WHERE l.gid=? AND l.price>0'
+        args = [gid]
+        if cid:
+            sql += ' AND l.cid=?'
+            args.append(cid)
+        rows = self.conn.execute(sql + ' ORDER BY l.date DESC LIMIT ?', args + [int(limit)]).fetchall()
         return [{'type': t, 'date': d, 'cid': c, 'qty': q, 'price': p, 'u': u, 'no': n} for t, d, c, q, p, u, n in rows]
 
     def hist_count(self):

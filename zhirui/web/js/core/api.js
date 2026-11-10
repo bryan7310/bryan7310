@@ -19,7 +19,7 @@ export const api = {
   sync: (since, signal) => call('GET', '/api/sync?since=' + since, null, signal),
   batch: ops => call('POST', '/api/batch', ops),
   hist: params => call('GET', '/api/hist?' + new URLSearchParams(Object.fromEntries(Object.entries(params).filter(([, v]) => v != null && v !== '')))),
-  histPrices: (gid, limit = 50) => call('GET', `/api/hist/prices?gid=${encodeURIComponent(gid)}&limit=${limit}`),
+  histPrices: (gid, limit = 50, cid = '') => call('GET', `/api/hist/prices?gid=${encodeURIComponent(gid)}&limit=${limit}${cid ? '&cid=' + encodeURIComponent(cid) : ''}`),
   users: () => call('GET', '/api/users'),
   addUser: (name, login, pw) => call('POST', '/api/users', { name, login, pw }),
   updateUser: (id, patch) => call('POST', '/api/users/' + id, patch),

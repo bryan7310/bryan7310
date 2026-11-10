@@ -226,12 +226,29 @@ function lineRow(l, i) {
     const r = l.gid ? costOf(l, edit.date) : null; const base = !l.u && l.unit !== 'a';
     cost = `<td class="n small c-c">${l.gid && (!r || r.manual) && base ? `<input class="num" data-gcost="${i}" inputmode="decimal" value="${r ? Math.round(r.c * 10000) / 10000 : ''}" placeholder="填成本" title="查無成本時可自行填入，會存到商品資料的手動成本">` : r ? fp4(r.c) : ''}</td><td class="muted small csrc c-src" title="${r ? esc(r.src) : '查無成本'}">${r ? esc(r.src) : l.gid ? '—' : ''}</td>`;
   }
-  return `<tr data-i="${i}"><td class="c-g"><div class="combo"><input data-f="gid" value="${esc(g ? goodsLabel(g, edit.type) : l.n || '')}" placeholder="打料號、品名、客料號搜尋"></div>${have != null ? `<div class="have ${(T.stock === -1 || T.transfer) && bqty(l, g) > have ? 'bad' : ''}">${esc(wname(edit.wid))}庫存 ${fmtQ(have)} ${esc(g?.unit || '')}</div>` : ''}${l._lp ? `<div class="lp">${esc(l._lp)}</div>` : ''}${g ? `<div class="glinks"><a href="#" data-spec="${i}">規格・圖面${g.dwg ? '（附客戶圖）' : ''}</a><a href="#" data-gedit="${i}">修改商品</a></div>` : ''}</td>
+  return `<tr data-i="${i}"><td class="c-g"><div class="combo"><input data-f="gid" value="${esc(g ? goodsLabel(g, edit.type) : l.n || '')}" placeholder="打料號、品名、客料號搜尋"></div>${have != null ? `<div class="have ${(T.stock === -1 || T.transfer) && bqty(l, g) > have ? 'bad' : ''}">${esc(wname(edit.wid))}庫存 ${fmtQ(have)} ${esc(g?.unit || '')}</div>` : ''}${l._lp ? `<div class="lp">${esc(l._lp)}</div>` : ''}${g ? `<div class="glinks"><a href="#" data-spec="${i}">規格・圖面${g.dwg ? '（附客戶圖）' : ''}</a><a href="#" data-gedit="${i}">修改商品</a>${edit.cid ? `<a href="#" data-ghist="${i}" title="這個${T.party === 'S' ? '廠商' : '客戶'}、這個商品的歷史交易">歷史明細</a>` : ''}</div>` : ''}</td>
     <td class="c-q"><input data-f="qty" class="num" inputmode="decimal" value="${esc(l.qty)}"></td>
     <td class="c-u">${g ? `<select data-f="unit">${units.map(([v, lb]) => `<option value="${v}" ${(l.unit === 'a' ? 'a' : l.u || g.unit || 'PCS') === v ? 'selected' : ''}>${esc(lb)}</option>`).join('')}</select>` : `<input data-f="nu" value="${esc(l.unit || '')}" placeholder="單位">`}</td>
     ${priced ? `<td class="c-p"><input data-f="price" class="num" inputmode="decimal" value="${esc(l.price)}">${(w => w ? `<div class="pwarn">${esc(w)}</div>` : '')(priceWarn(l, g))}</td><td class="n c-s" id="ls-${i}">${fmt(lineAmt(l))}</td>` : ''}
     <td class="c-m"><input data-f="memo" value="${esc(l.memo || '')}" placeholder="${edit.type === 'SALE' || edit.type === 'SALE_RET' ? '例如採購單號' : ''}"></td>
     ${cost}${del}</tr>`;
+}
+/** 歷史明細：某客戶／廠商與某商品的全部交易（新平台單據＋舊系統歷史單據） */
+export async function lineHistory(gid, cid) {
+  const C = calc(); const g = C.g[gid]; const c = C.ct[cid]; if (!g || !c) return;
+  const sale = c.kind === 'C';
+  const types = sale ? ['SALE', 'SALE_RET', 'QUO'] : ['PUR', 'PUR_RET', 'PO', 'RFQ'];
+  const unitOf = (l, gg) => l.unit === 'a' ? (gg?.aunit || '') : (l.u || gg?.unit || '');
+  const live = store.list('bills').filter(b => b.cid === cid && types.includes(b.type)).flatMap(b => (b.lines || []).filter(l => l.gid === gid).map(l => ({ date: b.date || '', type: b.type, no: b.no, id: b.id, qty: +l.qty || 0, unit: unitOf(l, g), price: +l.price || 0, amt: lineAmt(l) })));
+  const m = modal({ title: `歷史明細｜${cdisp(c)}・${g.name}`, width: 760, body: '<div class="muted">載入中…</div>', footer: '<span class="muted small" id="lhSum"></span><span class="sp"></span><button class="btn" data-close>關閉</button>' });
+  let hist = [];
+  try { const r = await api.histPrices(gid, 200, cid); hist = (r.rows || []).filter(x => x.cid === cid).map(x => ({ date: x.date || '', type: x.type, no: x.no, hist: true, qty: +x.qty || 0, unit: x.u || g.unit || '', price: +x.price || 0, amt: Math.round((+x.qty || 0) * (+x.price || 0)) })); } catch (e) { /* 舊單據載入失敗就只顯示新平台的 */ }
+  const all = [...live, ...hist].sort((a, b) => b.date.localeCompare(a.date) || String(b.no).localeCompare(String(a.no)));
+  const mb = m.el.querySelector('.mb');
+  mb.innerHTML = all.length ? `<div class="tw"><table><thead><tr><th>日期</th><th>單據</th><th>單號</th><th class="n">數量</th><th>單位</th><th class="n">單價</th><th class="n">金額</th></tr></thead><tbody>${all.map(x => `<tr ${x.id ? `class="row" data-open="${x.id}"` : ''}><td class="nowrap">${esc(slash(x.date))}</td><td>${esc(TYPES[x.type]?.name || x.type)}${x.hist ? '<span class="muted small">（舊）</span>' : ''}</td><td class="mono">${esc(x.no || '')}</td><td class="n">${fmtQ(x.qty)}</td><td>${esc(x.unit)}</td><td class="n">${fp4(x.price)}</td><td class="n">${fmt(x.amt)}</td></tr>`).join('')}</tbody></table></div><p class="muted small" style="margin:8px 0 0">點新平台的單據可直接打開；「舊」是舊系統匯入的歷史單據。</p>` : '<div class="empty"><b>沒有交易紀錄</b>這個商品還沒跟這個對象交易過</div>';
+  const tq = all.reduce((s, x) => s + x.qty, 0); const last = all.find(x => x.price > 0);
+  m.el.querySelector('#lhSum').textContent = all.length ? `共 ${all.length} 筆・數量合計 ${fmtQ(tq)}${last ? `・最近單價 ${fp4(last.price)}（${slash(last.date)}）` : ''}` : '';
+  mb.querySelectorAll('[data-open]').forEach(tr => tr.addEventListener('click', () => { const b = store.get('bills', tr.dataset.open); if (b) { m.close(); openBill(b.type, b.id); } }));
 }
 function lineHave(l) { if (!l.gid || !edit || !edit.wid || TYPES[edit.type].doc) return null; return qtyAt(l.gid, edit.wid); }
 function bindBill(el, close) {
@@ -355,6 +372,7 @@ function bindLines(el) {
     });
     tr.querySelector('[data-spec]')?.addEventListener('click', ev => { ev.preventDefault(); const g = calc().g[l.gid]; if (g) specView(g); });
     tr.querySelector('[data-gedit]')?.addEventListener('click', ev => { ev.preventDefault(); const g = store.get('goods', l.gid); if (g) openMaster('goods', g, null, () => redrawLines(el)); });
+    tr.querySelector('[data-ghist]')?.addEventListener('click', ev => { ev.preventDefault(); if (l.gid && edit.cid) lineHistory(l.gid, edit.cid); });
     tr.querySelector('[data-gcost]')?.addEventListener('change', async ev => { const v = +String(ev.target.value).replace(/,/g, ''); const g = store.get('goods', l.gid); if (!g || !(v > 0)) return; const { id, ...rest } = g; await store.save('goods', id, { ...rest, cost: v }); toast(`已存到商品「${g.name}」的手動成本`); redrawLines(el); });
     tr.querySelector('[data-del]')?.addEventListener('click', () => { edit.lines.splice(i, 1); if (!edit.lines.length) edit.lines.push({ gid: '', qty: '', price: '' }); redrawLines(el); });
     tr.querySelectorAll('input').forEach(inp => inp.addEventListener('keydown', ev => {
