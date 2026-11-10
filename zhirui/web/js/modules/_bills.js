@@ -86,7 +86,7 @@ export function billList(el, opts, ui) {
   el.addEventListener('tab', e2 => { ui.tab = e2.detail.val; ui.page = 0; redraw(); }, { once: true });
   el.querySelectorAll('[data-page]').forEach(b => b.addEventListener('click', () => { ui.page = +b.dataset.to; redraw(); }));
   el.querySelectorAll('[data-new]').forEach(b => b.addEventListener('click', () => openBill(b.dataset.new, null, opts.onSaved)));
-  el.querySelectorAll('tr.row').forEach(tr => tr.addEventListener('click', e2 => { if (e2.target.closest('button,a')) return; if (tr.dataset.hist) return histView(byId.get(tr.dataset.id)); openBill(null, tr.dataset.id, opts.onSaved); }));
+  el.querySelectorAll('tr.row').forEach(tr => tr.addEventListener('click', e2 => { if (e2.target.closest('button,a')) return; if (tr.dataset.hist) return histView(byId.get(tr.dataset.id), () => { if (el.isConnected) billList(el, opts, ui); }); openBill(null, tr.dataset.id, opts.onSaved); }));
   el.querySelectorAll('[data-hprint]').forEach(b => b.addEventListener('click', () => printBill(byId.get(b.dataset.hprint))));
   el.querySelectorAll('[data-hfax]').forEach(b => b.addEventListener('click', () => faxDialog(byId.get(b.dataset.hfax), () => { if (el.isConnected) billList(el, opts, ui); })));
   opts.bind && opts.bind(el);
@@ -145,19 +145,39 @@ export async function preloadHist() {
     await new Promise(r => setTimeout(r, 300));
   }
 }
-/** 歷史單據檢視（唯讀） */
-export function histView(b) {
+/** 歷史單據檢視；按「修改」用單據編輯器改，存回舊系統歷史資料（onSaved：存好後通知清單重畫） */
+export function histView(b, onSaved) {
   const C = calc(); const T = TYPES[b.type] || {}; const c = C.ct[b.cid]; const lines = b.lines || [];
-  const body = `<div class="banner">舊系統搬來的歷史單據，只能查看和列印，不計入現在的庫存與應收應付。</div>
+  const body = `<div class="banner">舊系統搬來的歷史單據，不計入現在的庫存與應收應付；按「修改」可以更正內容。</div>
     <div class="grid" style="margin-bottom:10px"><div><span class="muted small">${T.party === 'S' ? '廠商' : '客戶'}</span><div>${esc(c ? c.name : b.cn || '—')}</div></div><div><span class="muted small">日期</span><div>${esc(slash(b.date))}</div></div><div><span class="muted small">單號</span><div class="mono">${esc(b.no)}</div></div>${b.valid ? `<div><span class="muted small">有效期限</span><div>${esc(slash(b.valid))}</div></div>` : ''}${b.deliv ? `<div><span class="muted small">交期</span><div>${esc(slash(b.deliv))}</div></div>` : ''}</div>
     <div class="tw"><table><thead><tr><th>#</th><th>品名規格</th><th class="n">數量</th><th>單位</th><th class="n">單價</th><th class="n">金額</th></tr></thead><tbody>
     ${(seq => lines.map((l, i) => l.txt !== undefined ? `<tr><td></td><td colspan="5" class="muted">${esc(l.txt)}</td></tr>` : `<tr><td class="muted">${seq[i]}</td><td>${esc(l.gid ? gname(l.gid, b.type) : l.n || '')}${l.memo ? `<span class="sub">${esc(l.memo)}</span>` : ''}</td><td class="n">${fmtQ(l.qty)}</td><td class="muted">${esc(l.u || C.g[l.gid]?.unit || '')}</td><td class="n">${fp4(l.price)}</td><td class="n">${fmt(lineAmt(l))}</td></tr>`).join(''))(lineSeq(lines)) || '<tr><td colspan="6" class="muted">沒有明細</td></tr>'}</tbody>
     <tfoot><tr><td colspan="5" class="n">總計</td><td class="n"><b>${fmt(b.oamt != null ? b.oamt : totals(b).total)}</b></td></tr></tfoot></table></div>${b.note ? `<p class="muted small">備註：${esc(b.note)}</p>` : ''}`;
-  modal({ title: `${T.name || b.type} ${b.no}`, width: 760, body, footer: '<button class="btn" data-print>列印</button><span class="sp"></span><button class="btn" data-close>關閉</button>', onOpen(m) { m.querySelector('[data-print]').onclick = () => printBill(b); } });
+  modal({ title: `${T.name || b.type} ${b.no}`, width: 760, body, footer: '<button class="btn" data-print>列印</button><span class="sp"></span><button class="btn" data-close>關閉</button><button class="btn pri" data-hedit>修改</button>', onOpen(m, close) { m.querySelector('[data-print]').onclick = () => printBill(b); m.querySelector('[data-hedit]').onclick = () => { close(); openHistBill(b, onSaved); }; } });
 }
 
 // ---------- 編輯器 ----------
 let edit = null, dlg = null, onSavedCb = null;
+/** 用單據編輯器修改舊系統歷史單據：存檔寫回伺服器的歷史資料（不變成一般單據，不計庫存帳款） */
+export function openHistBill(b, onSaved) {
+  onSavedCb = onSaved;
+  edit = JSON.parse(JSON.stringify(b)); edit.lines = edit.lines || []; edit.hist = true;
+  edit._orig = JSON.parse(JSON.stringify(b)); edit._o0 = b.oamt != null ? +b.oamt : null; edit._s0 = totals({ ...b, hist: false }).total;
+  delete edit.oamt;   // 編輯時總額依明細計算；存檔時再換算回舊系統總額
+  edit._err = '';
+  drawBill();
+}
+/** 歷史單據改過：更新記憶體與瀏覽器快取，不必整批重抓 */
+function histPatch(b, stamp) {
+  for (const [key, arr] of histCache) {
+    const i = arr.findIndex(x => x.id === b.id); if (i < 0) continue;
+    arr[i] = b;
+    if (stamp) store.cachePut('hist:' + key, { stamp, rows: arr });
+    if (key.split(',').includes('PUR')) setHistPur(arr.filter(x => x.type === 'PUR'));
+    if (key.split(',').includes('SALE')) setHistSale(arr.filter(x => x.type === 'SALE'));
+  }
+  if (stamp) store.histVer = stamp;
+}
 export function openBill(type, id, onSaved, preset) {
   onSavedCb = onSaved;
   const C = calc();
@@ -187,7 +207,7 @@ function drawBill() {
   const whs = store.list('warehouses'), accts = store.list('accounts');
   const balHint = T.party && e.cid && C.bal[e.cid] != null && !T.doc ? `<div class="hint muted small">目前${T.party === 'C' ? '應收' : '應付'} ${fmt(C.bal[e.cid])} 元</div>` : '';
   const body = `
-    ${e.hist ? '<div class="banner">這是舊系統搬來的歷史單據，不計入現在的庫存與應收應付。</div>' : ''}
+    ${e.hist ? '<div class="banner">修改舊系統搬來的歷史單據：存檔只更正這張歷史單據，不計入現在的庫存與應收應付。</div>' : ''}
     <div class="grid">
       <div class="f"><label for="b-date">單據日期</label><input type="date" id="b-date" value="${esc(e.date)}"></div>
       <div class="f"><label for="b-no">單號</label><input id="b-no" value="${esc(e.no)}" class="mono"></div>
@@ -205,13 +225,15 @@ function drawBill() {
         <div class="totals"><div><span>總重（約）</span> <b id="t-wt"></b></div><div><span>小計</span> <b id="t-sub"></b></div><div><span>稅額</span> <b id="t-tax"></b></div><div class="big"><span>總額</span> <b id="t-total"></b></div>${!T.doc ? `<div><span>${T.party === 'C' ? '已收' : '已付'}</span> <input id="b-paid" class="num" style="width:110px;border:1px solid var(--line);border-radius:6px;padding:5px 8px;text-align:right" value="${e.paid || ''}"></div><div><span>結算帳戶</span> <select id="b-aid" style="border:1px solid var(--line);border-radius:6px;padding:5px 8px">${accts.map(a => `<option value="${a.id}" ${a.id === e.aid ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}</select></div><div><span>尚欠</span> <b id="t-due"></b></div>` : ''}</div>` : ''}` : ''}
     <div class="f"><label for="b-note">${ship ? '整張單備註（各行都沒填備註時，印在出貨單第一行最後一欄）' : '備註'}</label><textarea id="b-note" style="min-height:44px">${esc(e.note || '')}</textarea></div>
     ${e._err ? `<div class="err">${esc(e._err)}</div>` : ''}`;
-  const footer = ship
+  let footer = ship
     ? `<button class="btn" id="printShip">列印出貨單</button><button class="btn" id="printShipPn" title="品名前加印客料號">料號列印</button><button class="btn" id="printShipNa">列印（不含金額）</button><button class="btn" id="printShipPnNa" title="品名前加印客料號，不印單價、金額">料號列印（不含金額）</button><button class="btn sm" id="shipFmt" title="調整出貨單格式">格式</button><button class="btn" id="lblBill" ${e.id ? '' : 'title="會先儲存這張單"'}>標籤</button>${e.type === 'SALE' ? `<button class="btn" id="stkAdj" ${e.id ? '' : 'title="會先儲存這張單"'}>調整即時庫存</button>` : ''}<button class="btn danger" id="delBill" ${e.id ? '' : 'disabled title="還沒儲存的單據不用刪除"'}>刪除單據</button><span class="sp"></span><button class="btn" data-close>取消</button><button class="btn pri" id="saveBill">儲存</button>`
     : `${e.id ? `<button class="btn danger" id="delBill">刪除</button>` : ''}${e.id && T.doc ? `<button class="btn" id="faxBill">傳真</button>` : ''}${e.id && (e.type === 'QUO' || e.type === 'PO' || e.type === 'PUR') ? `<button class="btn" id="printBill">列印</button>` : ''}${e.id && e.type === 'QUO' && !e.toBill ? `<button class="btn" id="toSale">轉成銷貨單</button>` : ''}${e.id && e.type === 'PO' && !e.received ? `<button class="btn" id="toPur">轉成進貨單</button>` : ''}<span class="sp"></span><button class="btn" data-close>取消</button><button class="btn pri" id="saveBill">儲存</button>`;
   const nav = navList(e.type); const pos = e.id ? nav.findIndex(b => b.id === e.id) : nav.length;
-  const headExtra = T.lines ? `<button class="btn sm" id="navPrev" ${pos > 0 ? '' : 'disabled'} title="Alt+←">◀ 上一張</button><button class="btn sm" id="navNext" ${e.id && pos < nav.length - 1 ? '' : 'disabled'} title="Alt+→">下一張 ▶</button><button class="btn sm pri" id="saveBill2" title="Ctrl+S">儲存</button><button class="btn sm" id="dlgMax">${ls.get('zr.billMax', false) ? '還原' : '放大'}</button>` : '';
+  let headExtra = T.lines ? `<button class="btn sm" id="navPrev" ${pos > 0 ? '' : 'disabled'} title="Alt+←">◀ 上一張</button><button class="btn sm" id="navNext" ${e.id && pos < nav.length - 1 ? '' : 'disabled'} title="Alt+→">下一張 ▶</button><button class="btn sm pri" id="saveBill2" title="Ctrl+S">儲存</button><button class="btn sm" id="dlgMax">${ls.get('zr.billMax', false) ? '還原' : '放大'}</button>` : '';
   if (dlg) dlg.close();
-  dlg = modal({ title: `${e.id ? '' : '新增'}${T.name}${e.id ? ' ' + e.no : ''}`, width: T.lines ? 1240 : 760, body, footer, headExtra, closeOnBg: false, onOpen: bindBill, onClose: () => { dlg = null; } });
+  if (e.hist) footer = footer.replace(/<button[^>]*id="(delBill|stkAdj|faxBill|toSale|toPur)"[^>]*>[^<]*<\/button>/g, '');   // 歷史單據：不能刪除、調庫存、轉單
+  if (e.hist) headExtra = headExtra.replace(/<button[^>]*id="nav(Prev|Next)"[^>]*>[^<]*<\/button>/g, '');
+  dlg = modal({ title: `${e.id ? '' : '新增'}${T.name}${e.id ? ' ' + e.no : ''}${e.hist ? '（舊系統）' : ''}`, width: T.lines ? 1240 : 760, body, footer, headExtra, closeOnBg: false, onOpen: bindBill, onClose: () => { dlg = null; } });
   if (T.lines && ls.get('zr.billMax', false)) dlg.el.classList.add('max');
 }
 function navList(type) { return store.list('bills').filter(b => b.type === type && !b.hist).sort((a, b) => (a.date || '').localeCompare(b.date || '') || String(a.no).localeCompare(String(b.no))); }
@@ -301,6 +323,7 @@ function bindBill(el, close) {
   el.querySelector('#toPur')?.addEventListener('click', () => convertBill(e, 'PUR', close));
   // 上一張／下一張、放大
   const go = async d => {
+    if (e.hist) return;
     const nav = navList(e.type); const i = e.id ? nav.findIndex(b => b.id === e.id) : nav.length; const j = i + d;
     if (j < 0 || j >= nav.length) return toast(d < 0 ? '已經是第一張' : '已經是最後一張');
     if (e._dirty && !await confirm('這張單有修改還沒儲存，要放棄修改嗎？', { ok: '放棄修改' })) return;
@@ -398,8 +421,8 @@ async function saveBill(close, then) {
   if (!e.date) err = '請填單據日期';
   else if (!String(e.no).trim()) err = '請填單號';
   else if (!e.hist && store.list('bills').some(b => b.no === e.no.trim() && b.id !== e.id && b.type === e.type && !b.hist)) err = '單號重複';
-  else if (T.party && !e.cid) err = `請選擇${T.party === 'C' ? '客戶' : '供應商'}`;
-  if (!err && T.lines && !T.doc && !e.wid) err = '請選擇倉庫';
+  else if (T.party && !e.cid && !(e.hist && e.cn)) err = `請選擇${T.party === 'C' ? '客戶' : '供應商'}`;
+  if (!err && T.lines && !T.doc && !e.wid && !e.hist) err = '請選擇倉庫';
   if (!err && T.transfer && (!e.toWid || e.toWid === e.wid)) err = '調入倉庫要和調出倉庫不同';
   if (!err && T.lines) {
     e.lines = e.lines.filter(l => l.gid || l.n || +l.qty || (l.txt !== undefined && String(l.txt).trim()));
@@ -420,11 +443,24 @@ async function saveBill(close, then) {
   if (T.money && !T.lines) { doc.aid = e.aid || ''; doc.amount = +e.amount || 0; if (e.cat) doc.cat = e.cat; for (const k of ['ref', 'checkId']) if (e[k]) doc[k] = e[k]; }
   if (e.hist) { doc.hist = true; if (e.cn) doc.cn = e.cn; if (e.oamt != null) doc.oamt = e.oamt; }
   doc.createdBy = e.createdBy || store.user.id; if (e.id) doc.updatedBy = store.user.id;
+  if (e.hist) return saveHist(e, T, { ...e._orig, ...doc, id }, close);
   try { await store.save('bills', id, doc); } catch (err2) { toast('儲存失敗：' + err2.message); return; }
   store.log(e.id ? '修改' : '新增', `${T.name} ${doc.no}${T.party ? '｜' + cname(doc.cid) : ''}｜${fmt(T.lines ? totals(doc).total : doc.amount)} 元`);
   close(); toast(`${T.name} ${doc.no} 已儲存`);
   onSavedCb && onSavedCb({ ...doc, id });
   if (then) { openBill(null, id, onSavedCb); setTimeout(() => edit && edit.id === id && then(edit), 50); }   // 儲存後重新打開這張單，再做標籤／調整庫存
+}
+// 歷史單據存檔：總額依明細重算（舊系統總額含稅或另有差額時，照原本的差距換算）
+async function saveHist(e, T, doc, close) {
+  if (!doc.wid) delete doc.wid;
+  const sub = totals({ ...doc, hist: false }).total, o0 = e._o0, s0 = e._s0;
+  doc.oamt = o0 == null || Math.abs(o0 - s0) < 1.5 ? sub : Math.abs(o0 - Math.round(s0 * 1.05)) < 2 ? Math.round(sub * 1.05) : Math.round(o0 + sub - s0);
+  doc.hist = true;
+  let r; try { r = await api.post('/api/hist/save', doc); } catch (err2) { toast('儲存失敗：' + err2.message); return; }
+  histPatch(doc, r.stamp);
+  store.log('修改', `舊系統${T.name} ${doc.no}${T.party ? '｜' + (doc.cid ? cname(doc.cid) : doc.cn || '') : ''}｜${fmt(doc.oamt)} 元`);
+  close(); toast(`舊系統${T.name} ${doc.no} 已更正`);
+  onSavedCb && onSavedCb(doc);
 }
 // 報價單 → 銷貨單、採購單 → 進貨單
 async function convertBill(src, type, close) {

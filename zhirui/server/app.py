@@ -13,6 +13,7 @@ API（全部回 JSON；除了登入與 /api/status 之外都要先登入）
   POST /api/batch            [{col,id,data} | {col,id,delete:true}]
   GET  /api/hist?...         歷史單據查詢（cid、gid、type、q、from、to、limit、offset）
   GET  /api/hist/prices?gid= 某商品歷史單價
+  POST /api/hist/save         修改一張舊系統歷史單據（仍是歷史單據，不計庫存帳款）
   POST /api/files?name=      上傳附檔（客戶圖面；內容直接放在 body）→ {id,name,type,size}
   GET  /api/files/<id>       讀附檔（?n=顯示檔名  ?dl=1 下載）   POST /api/files/<id>/delete 刪除
   GET  /api/users            帳號清單   POST /api/users {name,login,pw} 新增
@@ -338,6 +339,15 @@ class Handler(BaseHTTPRequestHandler):
             if kind not in ('C', 'S'):
                 return self.error('kind 要是 C 或 S')
             return self.send_json({'groups': db.contact_dups(kind)})
+        if path == '/api/hist/save' and method == 'POST':
+            b = body or {}
+            if not isinstance(b, dict) or not isinstance(b.get('lines', []), list):
+                return self.error('資料格式不對')
+            try:
+                stamp = db.hist_update(b)
+            except ValueError as e:
+                return self.error(str(e))
+            return self.send_json({'ok': True, 'stamp': stamp})
         if path == '/api/contacts/merge' and method == 'POST':
             b = body or {}
             try:

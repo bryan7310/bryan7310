@@ -276,6 +276,34 @@ class DB:
             # 歷史單據版本：瀏覽器用它判斷本機快取還能不能用
             self.conn.execute("INSERT OR REPLACE INTO meta(key,value) VALUES('hist_ver',?)", (str(int(time.time() * 1000)),))
 
+    def hist_update(self, b):
+        """修改一張已存在的歷史單據（含明細索引），回傳新的 hist_ver。不會變成一般單據、不計庫存帳款。"""
+        bid = str(b.get('id') or '')
+        with self.lock:
+            if not self.conn.execute('SELECT 1 FROM hist_bills WHERE id=?', (bid,)).fetchone():
+                raise ValueError('找不到這張歷史單據')
+            b = dict(b, id=bid, hist=True)
+            stamp = str(int(time.time() * 1000))
+            self.conn.execute('BEGIN')
+            try:
+                self.conn.execute('UPDATE hist_bills SET type=?, no=?, date=?, cid=?, cn=?, amt=?, data=? WHERE id=?',
+                                  (b.get('type'), str(b.get('no') or ''), b.get('date') or '', b.get('cid') or '', b.get('cn') or '',
+                                   float(b.get('oamt') or 0), json.dumps(b, ensure_ascii=False, separators=(',', ':')), bid))
+                self.conn.execute('DELETE FROM hist_lines WHERE bill_id=?', (bid,))
+                for l in b.get('lines') or []:
+                    if 'txt' in l:
+                        continue
+                    self.conn.execute(
+                        'INSERT INTO hist_lines(bill_id,gid,type,date,cid,qty,price,u,memo) VALUES(?,?,?,?,?,?,?,?,?)',
+                        (bid, l.get('gid'), b.get('type'), b.get('date') or '', b.get('cid') or '',
+                         float(l.get('qty') or 0), float(l.get('price') or 0), l.get('u') or '', l.get('memo') or ''))
+                self.conn.execute("INSERT OR REPLACE INTO meta(key,value) VALUES('hist_ver',?)", (stamp,))
+                self.conn.execute('COMMIT')
+            except Exception:
+                self.conn.execute('ROLLBACK')
+                raise
+            return stamp
+
     def hist_stamp(self):
         row = self.conn.execute("SELECT value FROM meta WHERE key='hist_ver'").fetchone()
         return row[0] if row else 'c%d' % self.hist_count()
