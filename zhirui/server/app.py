@@ -34,6 +34,9 @@ import threading
 import time
 import traceback
 import zipfile
+import base64
+import urllib.request
+import urllib.error
 from http import HTTPStatus
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs, quote
@@ -281,6 +284,21 @@ class Handler(BaseHTTPRequestHandler):
         if path == '/api/backup' and method == 'POST':
             ok, msg = run_backup(self.state, manual=True)
             return self.send_json({'ok': ok, 'msg': msg, 'backup': self.state.backup})
+
+        # AI 辨識（支票拍照）：金鑰存在 data/ai.json，不進資料庫、不同步到瀏覽器
+        if path == '/api/ai' and method == 'GET':
+            return self.send_json(ai_status(self.state.data_dir))
+        if path == '/api/ai' and method == 'POST':
+            key = str((body or {}).get('key') or '').strip()
+            ai_save_key(self.state.data_dir, key)
+            return self.send_json(ai_status(self.state.data_dir))
+        if path == '/api/ocr/check' and method == 'POST':
+            img = str((body or {}).get('image') or '')
+            try:
+                fields = ocr_check(self.state.data_dir, img)
+            except OcrError as e:
+                return self.error(str(e), e.status)
+            return self.send_json({'ok': True, 'fields': fields})
         return self.error('not found', 404)
 
     # ---------- 附檔（客戶圖面）：存在 data/files，檔名是亂數＋副檔名 ----------
@@ -319,6 +337,139 @@ class Handler(BaseHTTPRequestHandler):
         return {'ver': db.ver, 'users': db.user_count(), 'needSetup': db.user_count() == 0,
                 'counts': {c: db.count(c) for c in ('goods', 'contacts', 'bills', 'pricing', 'checks_in')},
                 'hist': db.hist_count(), 'histVer': db.hist_stamp(), 'backup': self.state.backup, 'time': int(time.time() * 1000)}
+
+
+# ---------- AI 辨識：支票拍照 → Claude 擷取欄位 ----------
+AI_MODEL = 'claude-opus-5-5'
+OCR_SCHEMA = {
+    'type': 'object',
+    'properties': {
+        'drawer': {'type': 'string', 'description': '發票人（開票的公司或個人名稱）'},
+        'bank': {'type': 'string', 'description': '付款銀行名稱，例如 華南商業銀行、臺中市霧峰區農會'},
+        'branch': {'type': 'string', 'description': '分行／分部名稱，例如 南台中分行'},
+        'checkNo': {'type': 'string', 'description': '支票號碼，英文字母＋數字，例如 KD0482749'},
+        'account': {'type': 'string', 'description': '帳號'},
+        'amount': {'type': 'number', 'description': '金額（新臺幣，數字）'},
+        'dueDate': {'type': 'string', 'description': '票面日期，西元 YYYY-MM-DD'},
+        'notes': {'type': 'string', 'description': '看不清楚或不確定的地方，用中文簡短說明；沒有就空字串'},
+    },
+    'required': ['drawer', 'bank', 'branch', 'checkNo', 'account', 'amount', 'dueDate', 'notes'],
+    'additionalProperties': False,
+}
+OCR_PROMPT = (
+    '你在幫台灣的螺絲公司登記收到的客戶支票（客票）。使用者會給你一張支票照片，照片可能是橫的、斜的或倒的，先自行轉正再讀。\n'
+    '請擷取：\n'
+    '1. drawer 發票人：開這張票的公司或個人。通常是票面上方印刷的公司名，或下方「發票人簽章」印鑑上的名稱。'
+    '注意「憑票支付」後面寫的是受款人（通常是志瑞螺絲企業有限公司），不是發票人。\n'
+    '2. bank 付款銀行、branch 分行：票面印的付款行，例如「華南商業銀行」「南台中分行」；農會、信用合作社也算銀行。\n'
+    '3. checkNo 票號：右上角「支票號碼」，通常 2 個英文字母＋7 位數字（例如 KD0482749），可用底部磁性墨水字軌的數字核對。\n'
+    '4. account 帳號：右上角「帳號」，保留原本的數字與連字號。\n'
+    '5. amount 金額：NT$ 阿拉伯數字與國字大寫（壹貳參肆伍陸柒捌玖拾佰仟萬）互相核對後回傳數字；兩者不一致時以國字大寫為準並在 notes 說明。\n'
+    '6. dueDate 到期日：票面「中華民國 年 月 日」，民國年加 1911 換成西元，格式 YYYY-MM-DD（民國 113 年 12 月 31 日 → 2024-12-31）。\n'
+    '看不清楚的欄位：字串回空字串、金額回 0，並在 notes 用中文簡短說明。不要猜。'
+)
+
+
+class OcrError(Exception):
+    def __init__(self, msg, status=400):
+        super().__init__(msg)
+        self.status = status
+
+
+def ai_file(data_dir):
+    return os.path.join(data_dir, 'ai.json')
+
+
+def ai_key(data_dir):
+    k = os.environ.get('ANTHROPIC_API_KEY') or ''
+    try:
+        with open(ai_file(data_dir), encoding='utf-8') as f:
+            k = (json.load(f) or {}).get('anthropic_api_key') or k
+    except Exception:
+        pass
+    return k.strip()
+
+
+def ai_save_key(data_dir, key):
+    fp = ai_file(data_dir)
+    if not key:
+        if os.path.exists(fp):
+            os.remove(fp)
+        return
+    with open(fp, 'w', encoding='utf-8') as f:
+        json.dump({'anthropic_api_key': key}, f)
+
+
+def ai_status(data_dir):
+    k = ai_key(data_dir)
+    return {'configured': bool(k), 'hint': (k[:7] + '…' + k[-4:]) if len(k) > 12 else ('已設定' if k else ''), 'model': AI_MODEL,
+            'mock': bool(os.environ.get('ZR_OCR_MOCK'))}
+
+
+def ocr_check(data_dir, data_url):
+    """data_url：瀏覽器送來的 data:image/jpeg;base64,... → 回傳欄位 dict"""
+    mock = os.environ.get('ZR_OCR_MOCK')
+    if mock:
+        with open(mock, encoding='utf-8') as f:
+            return json.load(f)
+    key = ai_key(data_dir)
+    if not key:
+        raise OcrError('還沒設定 AI 辨識金鑰：請到「設定備份 → AI 辨識」貼上 Anthropic API 金鑰', 409)
+    m = re.match(r'^data:(image/(?:jpeg|png|webp|gif));base64,(.+)$', data_url, re.S)
+    if not m:
+        raise OcrError('沒有收到圖片')
+    media, b64 = m.group(1), m.group(2).strip()
+    if len(b64) > 12 * 1024 * 1024:
+        raise OcrError('圖片太大，請縮小後再試')
+    req = {
+        'model': AI_MODEL,
+        'max_tokens': 2048,
+        'system': OCR_PROMPT,
+        'output_config': {'effort': 'high', 'format': {'type': 'json_schema', 'schema': OCR_SCHEMA}},
+        'fallbacks': 'default',
+        'messages': [{'role': 'user', 'content': [
+            {'type': 'image', 'source': {'type': 'base64', 'media_type': media, 'data': b64}},
+            {'type': 'text', 'text': '請辨識這張支票，依指定的 JSON 格式回傳。'},
+        ]}],
+    }
+    out = None
+    for attempt in (1, 2):
+        data = json.dumps(req).encode('utf-8')
+        r = urllib.request.Request('https://api.anthropic.com/v1/messages', data=data, method='POST', headers={
+            'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2026-10-21',
+            'anthropic-beta': 'server-side-fallback-2026-07-01'})
+        try:
+            with urllib.request.urlopen(r, timeout=120) as resp:
+                out = json.loads(resp.read().decode('utf-8'))
+            break
+        except urllib.error.HTTPError as e:
+            try:
+                msg = json.loads(e.read().decode('utf-8')).get('error', {}).get('message') or ''
+            except Exception:
+                msg = ''
+            # 伺服端 fallback 參數若不被接受（例如與結構化輸出衝突），拿掉再試一次
+            if attempt == 1 and e.code == 400 and 'fallback' in msg.lower() and 'fallbacks' in req:
+                del req['fallbacks']
+                continue
+            if e.code in (401, 403):
+                raise OcrError('AI 金鑰無效或沒有權限：' + msg, 502)
+            if e.code == 429:
+                raise OcrError('AI 服務暫時忙碌（額度或速率限制），請稍後再試', 502)
+            raise OcrError('AI 服務回應 %d：%s' % (e.code, msg), 502)
+        except OcrError:
+            raise
+        except Exception as e:
+            raise OcrError('連不上 AI 服務：%s' % e, 502)
+    if out.get('stop_reason') == 'refusal':
+        raise OcrError('AI 拒絕處理這張圖片，請確認是支票照片', 502)
+    text = ''.join(b.get('text', '') for b in out.get('content', []) if b.get('type') == 'text')
+    try:
+        fields = json.loads(text)
+    except Exception:
+        raise OcrError('AI 回傳的內容無法解析', 502)
+    u = out.get('usage') or {}
+    sys.stderr.write('ocr/check %s in=%s out=%s\n' % (out.get('model'), u.get('input_tokens'), u.get('output_tokens')))
+    return fields
 
 
 # ---------- 每日自動備份 ----------

@@ -6,7 +6,7 @@ import { toast, modal, confirm, tabs, prompt } from '../core/ui.js';
 import { setTheme, getTheme } from '../app.js';
 
 const ui = { tab: 'company' };
-const TABS = [['company', '公司資料'], ['users', '帳號'], ['backup', '備份'], ['print', '套印與顯示'], ['logs', '操作日誌']];
+const TABS = [['company', '公司資料'], ['users', '帳號'], ['backup', '備份'], ['print', '套印與顯示'], ['ai', 'AI 辨識'], ['logs', '操作日誌']];
 export default {
   id: 'settings', name: '設定備份', group: '管理', icon: 'settings',
   render(el, { sub }) { this.el = el; if (sub && TABS.some(t => t[0] === sub)) ui.tab = sub; draw(el); },
@@ -44,6 +44,14 @@ async function draw(el) {
       <div class="tools"><span class="sp"></span><button class="btn pri" id="prSave">儲存</button></div>`;
     $('#prSave', box).onclick = async () => { await store.batch([{ col: 'settings', id: 'invoice_print', data: { ...ip, dx: +$('#ip-dx', box).value || 0, dy: +$('#ip-dy', box).value || 0 } }, { col: 'settings', id: 'pricing', data: { ...pr, decimals: +$('#pr-dec', box).value } }]); toast('已儲存'); };
     box.querySelectorAll('#thm button').forEach(b => b.onclick = () => { setTheme(b.dataset.v); box.querySelectorAll('#thm button').forEach(x => x.classList.toggle('on', x === b)); });
+  } else if (ui.tab === 'ai') {
+    let st = { configured: false, hint: '', model: '' }; try { st = await api.get('/api/ai'); } catch (e) {}
+    box.innerHTML = `<p class="muted" style="margin:0">支票登記的「拍照辨識」會把支票照片送到 Anthropic 的 Claude 模型（${esc(st.model || '')}）擷取發票人、銀行、票號、金額、到期日，再帶入登記客票讓人核對。每張約新臺幣 1～2 元，按量計費。</p>
+      <div class="banner ${st.configured ? 'info' : ''}">${st.mock ? '目前是測試模式（回傳固定資料，不會呼叫 AI）。' : st.configured ? `已設定金鑰 <span class="mono">${esc(st.hint)}</span>` : '還沒設定金鑰，拍照辨識無法使用。'}</div>
+      <div class="grid"><div class="f" style="grid-column:1/-1"><label for="ai-key">Anthropic API 金鑰（sk-ant-… 開頭；存在伺服器 data\ai.json，不會同步到瀏覽器）</label><input id="ai-key" type="password" autocomplete="off" placeholder="貼上新的金鑰；留空並儲存＝清除"></div></div>
+      <div class="tools"><span class="sp"></span><button class="btn pri" id="aiSave">儲存</button></div>
+      <p class="muted small">金鑰在 <span class="mono">console.anthropic.com</span> → API Keys 建立，並在 Billing 儲值。金鑰只放伺服器，不要貼到群組或截圖。</p>`;
+    $('#aiSave', box).onclick = async () => { const key = $('#ai-key', box).value.trim(); if (key && !/^sk-ant-/.test(key)) return toast('金鑰格式不對（應該是 sk-ant- 開頭）'); if (!key && st.configured && !await confirm('清除金鑰？拍照辨識會停用。', { danger: true, ok: '清除' })) return; try { await api.post('/api/ai', { key }); toast(key ? '已儲存' : '已清除'); draw(el); } catch (e) { toast(e.message); } };
   } else if (ui.tab === 'logs') {
     const logs = store.list('logs').sort((a, b) => (b.at || 0) - (a.at || 0)).slice(0, 300);
     const who = id => store.users.find(u => u.id === id)?.name || '';
