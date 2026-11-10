@@ -561,3 +561,12 @@ tfoot td { border-top: 1px solid var(--line-strong); }
 .modal .mh, .modal .mb, .modal .mf { box-sizing: border-box; max-width: 100%; }
 .f input[type=date], .f input[type=month], .f input[type=time] { min-width: 0; width: 100%; -webkit-appearance: none; appearance: none; }
 .grid { grid-template-columns: repeat(auto-fit, minmax(min(160px, 100%), 1fr)); }
+
+/* ---------- iOS Safari（續）：grid 裡的 modal 預設 min-width:auto，WebKit 會把裡面可捲動內容的最小寬度算進去而撐寬；明確設 0，並擋掉頁面橫向捲動 ---------- */
+html, body { max-width: 100%; overflow-x: hidden; }
+.modal-bg { overflow-x: hidden; }
+.modal { min-width: 0; overflow: hidden; }
+.modal > * { min-width: 0; max-width: 100%; }
+.modal .mb { overflow-x: hidden; }
+.modal .mb > .tw { overflow-x: auto; }
+.content, #view { max-width: 100%; overflow-x: hidden; }
