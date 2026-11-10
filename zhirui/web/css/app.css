@@ -505,3 +505,10 @@ tfoot td { border-top: 1px solid var(--line-strong); }
   .head h1 { font-size: 24px; }
   .topbar .crumb { display: none; }
 }
+
+/* ---------- 公司 logo（img/logo.svg） ---------- */
+.brand .logo { width: 40px; height: 40px; border-radius: 0; background: url("../img/logo.svg") center/contain no-repeat; box-shadow: none; }
+.brand b { background: linear-gradient(90deg, #236bd0, #4bb8fa); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.login .card h1 { display: grid; justify-items: center; gap: 6px; text-align: center; font-size: 18px; }
+.login .card h1 .logo { width: 72px; height: 72px; background: url("../img/logo.svg") center/contain no-repeat; }
+.login .card h1::after { content: "ZHIRUI SCREWS"; font-size: 11px; letter-spacing: .3em; color: var(--muted); font-weight: 600; }
