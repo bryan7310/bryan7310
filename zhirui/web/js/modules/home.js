@@ -21,19 +21,23 @@ async function retailGoods() {
   const id = uid('g'); const doc = { code: '門市', name: RETAIL_GOODS, spec: '', cat: '', unit: 'PCS', purPrice: 0, salePrice: 1, safety: 0, nostock: true, note: '門市銷售用：數量＝金額，單價 1 元；不管庫存' };
   await store.save('goods', id, doc); return { ...doc, id };
 }
-async function addRetail(el) {
-  const amt = Math.round(+String(el.querySelector('#rtAmt').value).replace(/,/g, '')); const note = el.querySelector('#rtNote').value.trim(); const date = el.querySelector('#rtDate').value || today();
-  if (!(amt > 0)) return toast('請輸入金額');
-  const c = retailCustomer(); if (!c) return toast('找不到客戶「門市銷售」，請先到基本資料新增');
+/** 登記一筆門市銷售（自動開銷貨單）；回傳單號，失敗回傳 null */
+export async function createRetail(amt, note, date) {
+  amt = Math.round(+String(amt).replace(/,/g, '')); note = String(note || '').trim(); date = date || today();
+  if (!(amt > 0)) { toast('請輸入金額'); return null; }
+  const c = retailCustomer(); if (!c) { toast('找不到客戶「門市銷售」，請先到基本資料新增'); return null; }
   const g = await retailGoods(); const wid = defWh()?.id || ''; const cash = store.list('accounts').find(a => /現金/.test(a.name)) || store.list('accounts')[0];
   const no = nextNo('SALE', date);
   const doc = { type: 'SALE', no, date, cid: c.id, wid, lines: [{ gid: g.id, qty: amt, price: 1 }], disc: 0, tax: false, paid: amt, aid: cash?.id || '', note, retail: true, createdAt: Date.now(), updatedAt: Date.now(), createdBy: store.user.id };
-  ui.rdate = date; ui.focus = true;
-  await store.save('bills', uid('b'), doc); store.log('新增', `銷貨單 ${no}｜門市銷售｜${fmt(amt)} 元`); toast(`門市銷售 ${fmt(amt)} 元已登記（${no}）`);
+  await store.save('bills', uid('b'), doc); store.log('新增', `銷貨單 ${no}｜門市銷售｜${fmt(amt)} 元`); toast(`門市銷售 ${fmt(amt)} 元已登記（${no}）`); return no;
 }
+async function addRetail(el) { const date = el.querySelector('#rtDate').value || today(); ui.rdate = date; ui.focus = true; await createRetail(el.querySelector('#rtAmt').value, el.querySelector('#rtNote').value, date); }
+/** 某天的門市銷售單 */
+export function retailBills(C, day) { const c = retailCustomer(); return c ? C.bills.filter(b => b.type === 'SALE' && b.cid === c.id && b.date === day).sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0)) : []; }
+export const retailCustomerExists = () => !!retailCustomer();
 function retailPanel(C, t) {
   const c = retailCustomer(); const day = ui.rdate || t;
-  const list = c ? C.bills.filter(b => b.type === 'SALE' && b.cid === c.id && b.date === day).sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0)) : [];
+  const list = retailBills(C, day);
   const sum = list.reduce((s, b) => s + (C.tot[b.id]?.total || 0), 0);
   const hm = ms => { const d = new Date(ms || 0); return ms ? `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}` : ''; };
   return `<div class="panel" id="retail"><div class="ptitle">門市銷售明細<small>輸入金額就會自動開一張出貨單：客戶「門市銷售」、商品「${RETAIL_GOODS}」、單價 1 元、現金收訖</small></div>

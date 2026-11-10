@@ -397,6 +397,7 @@ body { font: 14.5px/1.5 var(--font); letter-spacing: -.005em; -webkit-font-smoot
 .nav .cnt.alert { background: #FF3B30; color: #fff; }
 /* 每個功能一個 iOS 系統色 */
 .nav a[data-m="home"] svg { background: #007AFF; }
+.nav a[data-m="retail"] svg { background: #FF9F0A; }
 .nav a[data-m="pricing"] svg { background: #FF9500; }
 .nav a[data-m="quotes"] svg { background: #5856D6; }
 .nav a[data-m="sales"] svg { background: #34C759; }

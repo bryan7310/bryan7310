@@ -1,5 +1,6 @@
 // 模組清單：側邊選單與路由都從這裡產生
 import home from './home.js';
+import retail from './retail.js';
 import pricing from './pricing.js';
 import quotes from './quotes.js';
 import sales from './sales.js';
@@ -20,4 +21,4 @@ import reports from './reports.js';
 import master from './master.js';
 import settings from './settings.js';
 
-export const MODULES = [home, pricing, quotes, sales, orders, faxes, drawing, purchase, stock, labels, receivables, mail, payables, invoices, checksOut, checksIn, money, reports, master, settings];
+export const MODULES = [home, retail, pricing, quotes, sales, orders, faxes, drawing, purchase, stock, labels, receivables, mail, payables, invoices, checksOut, checksIn, money, reports, master, settings];
