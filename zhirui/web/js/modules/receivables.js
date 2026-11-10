@@ -1,5 +1,5 @@
 // 應收帳款：每月各客戶金額由銷貨單自動彙總，可手動調整；勾選已收款、未收追蹤、門市收入
-import { $, esc, fmt, money, today, thisMonth, ymLabel, shiftMonth, roc, slash, parseNum, uid, daysLeft } from '../core/util.js';
+import { $, esc, fmt, money, today, thisMonth, ymLabel, shiftMonth, roc, slash, parseNum, uid, daysLeft, rnd0 } from '../core/util.js';
 import { store } from '../core/store.js';
 import { toast, modal, confirm, tabs, combo } from '../core/ui.js';
 import { calc, customers, cshort, TYPES, totals } from '../core/calc.js';
@@ -37,6 +37,15 @@ function ensureHistAR(force) {
 const bt = b => b.hist ? totals(b) : calc().tot[b.id];
 const saleMonths = () => [...calc().bills, ...HIST_AR].filter(b => b.type === 'SALE' && b.cid).map(b => apYm(b.date));
 
+// 自動加稅：銷貨單沒勾含稅時，依客戶在舊系統應收資料「最後一個月」有沒有收稅決定是否加 5%（月合計 × 5%，四捨五入）；
+// 舊資料裡沒有的新客戶：預設加稅（舊資料大多數客戶都有收稅）；門市銷售（C999）不加
+function taxPlan() {
+  const last = new Map();
+  for (const r of store.list('receivables')) if (r.src === 'platform' && r.cid && (!last.has(r.cid) || r.ym > last.get(r.cid).ym)) last.set(r.cid, { ym: r.ym, tax: +r.tax > 0 });
+  const shop = cid => { const c = store.get('contacts', cid); return !!c && (c.code === 'C999' || c.name === '門市銷售'); };
+  return cid => { if (shop(cid)) return false; const h = last.get(cid); return h ? h.tax : true; };
+}
+
 /** 某月的應收列：銷貨單（含舊系統銷貨單）自動彙總 + 手動覆寫／舊資料 */
 export function arRows(ym) {
   const C = calc();
@@ -44,9 +53,11 @@ export function arRows(ym) {
   for (const b of [...C.bills, ...HIST_AR]) {
     if ((b.type !== 'SALE' && b.type !== 'SALE_RET') || apYm(b.date) !== ym || !b.cid) continue;
     const s = b.type === 'SALE' ? 1 : -1; const t = bt(b);
-    const a = auto.get(b.cid) || auto.set(b.cid, { amt: 0, tax: 0, bills: [] }).get(b.cid);
-    a.amt += s * t.net; a.tax += s * t.tax; a.bills.push(b);
+    const a = auto.get(b.cid) || auto.set(b.cid, { amt: 0, tax: 0, free: 0, bills: [] }).get(b.cid);
+    a.amt += s * t.net; a.tax += s * t.tax; if (!t.tax && !b.retail) a.free += s * t.net; a.bills.push(b);
   }
+  const taxable = taxPlan();
+  for (const [cid, a] of auto) if (Math.round(a.free) && taxable(cid)) { a.autoTax = rnd0(a.free * 0.05); a.tax += a.autoTax; }
   const docs = store.list('receivables').filter(r => r.ym === ym);
   const out = []; const used = new Set();
   for (const r of docs) {
@@ -82,7 +93,7 @@ function draw(el) {
       <div class="tools"><button class="btn sm" id="prevM">‹</button><input type="month" id="ym" value="${ym}" style="font-weight:600"><button class="btn sm" id="nextM">›</button><span class="muted">${ymLabel(ym)}（${roc(apRange(ym)[0])}～${roc(apRange(ym)[1])}）</span><span class="sp"></span>${tabs('f', [['all', '全部'], ['open', '未收'], ['done', '已收']], ui.filter)}</div>
       <div class="kpis"><div class="kpi"><span>貨款</span><b>${money(tot(r => r.amt))}</b></div><div class="kpi"><span>稅額</span><b>${money(tot(r => r.tax))}</b></div><div class="kpi"><span>總額</span><b>${money(tot(r => r.total))}</b></div><div class="kpi"><span>門市收入</span><b>${money(st.amt || 0)}</b><small>${esc(st.note || '')}</small></div><div class="kpi ok"><span>已收 ${done.length} 筆</span><b>${money(done.reduce((s, r) => s + (r.recAmt ?? r.total), 0))}</b></div><div class="kpi ${open.length ? 'alert' : ''}"><span>未收 ${open.length} 筆</span><b>${money(open.reduce((s, r) => s + r.total, 0))}</b></div></div>
       <div class="tools"><div class="f" style="width:160px"><label for="stAmt">門市收入</label><input id="stAmt" class="num" value="${st.amt ? money(st.amt) : ''}"></div><div class="f" style="flex:1"><label for="stNote">門市收入備註</label><input id="stNote" value="${esc(st.note || '')}"></div></div>
-      <p class="muted small" style="margin:0">金額由該月銷貨單（含舊系統銷貨單）自動加總（25 結：上月 26 日～本月 25 日；銷貨退回扣除）。點金額可手動修改；有 <span class="pill zinc">手調</span> 標記的是手動輸入，可按「恢復自動」。</p>
+      <p class="muted small" style="margin:0">金額由該月銷貨單（含舊系統銷貨單）自動加總（25 結：上月 26 日～本月 25 日；銷貨退回扣除；依客戶舊資料自動加 5% 稅）。點金額可手動修改；有 <span class="pill zinc">手調</span> 標記的是手動輸入，可按「恢復自動」。</p>
       ${table(list, ym)}</div>`
     : ui.tab === 'year' ? yearView() : `<div class="panel">${table(list, null, true)}</div>`}`;
   el.addEventListener('tab', ev => { if (ev.detail.key === 'ar') ui.tab = ev.detail.val; else ui.filter = ev.detail.val; draw(el); }, { once: true });
@@ -104,7 +115,7 @@ function allOpen() {
 function table(list, ym, showYm) {
   if (!list.length) return `<div class="empty"><b>${showYm ? '全部都收齊了 ✓' : '這個月沒有應收帳款'}</b>${showYm ? '' : '開銷貨單後會自動出現，或按「手動新增」'}</div>`;
   return `<div class="tw"><table><thead><tr><th><input type="checkbox" id="arPkAll" title="全選（導入郵寄掛號）"></th><th>已收</th>${showYm ? '<th>月份</th>' : ''}<th>客戶</th><th class="n">貨款</th><th class="n">稅額</th><th class="n">總額</th><th>付款方式</th><th>到期</th><th class="n">實收</th><th>收款日</th><th></th></tr></thead><tbody>
-    ${list.map((r, i) => `<tr class="${r.rec ? 'muted' : ''}" data-i="${i}"><td><input type="checkbox" data-pk="${r.cid || ''}" ${r.cid && picked.has(r.cid) ? 'checked' : ''} ${r.cid ? '' : 'disabled'} title="導入郵寄掛號"></td><td><input type="checkbox" data-rec="${i}" ${r.rec ? 'checked' : ''} aria-label="已收款"></td>${showYm ? `<td class="nowrap">${esc(ymLabel(r.ym))}</td>` : ''}<td><b>${esc(r.name)}</b>${r.manual ? ' <span class="pill zinc">手調</span>' : r.src === 'platform' && !r.auto ? ' <span class="pill">舊資料</span>' : ''}${isLate(r) ? ' <span class="pill bad">逾期</span>' : ''}${r.note ? `<span class="sub">${esc(r.note)}</span>` : ''}${r.auto ? `<span class="sub">${r.auto.bills.length} 張銷貨單</span>` : ''}</td><td class="n"><a href="#" data-edit="${i}">${money(r.amt)}</a></td><td class="n">${r.tax ? money(r.tax) : '—'}</td><td class="n"><b>${money(r.total)}</b></td><td>${esc(r.method || '')}</td><td class="nowrap">${r.due ? esc(roc(r.due)) : ''}</td><td class="n">${r.rec ? money(r.recAmt ?? r.total) : ''}</td><td class="nowrap">${r.rec && r.recDate ? esc(roc(r.recDate)) : ''}</td><td class="nowrap"><button class="btn xs" data-edit="${i}">修改</button>${r.auto ? ` <button class="btn xs ghost" data-bills="${i}">單據</button>` : ''}</td></tr>`).join('')}
+    ${list.map((r, i) => `<tr class="${r.rec ? 'muted' : ''}" data-i="${i}"><td><input type="checkbox" data-pk="${r.cid || ''}" ${r.cid && picked.has(r.cid) ? 'checked' : ''} ${r.cid ? '' : 'disabled'} title="導入郵寄掛號"></td><td><input type="checkbox" data-rec="${i}" ${r.rec ? 'checked' : ''} aria-label="已收款"></td>${showYm ? `<td class="nowrap">${esc(ymLabel(r.ym))}</td>` : ''}<td><b>${esc(r.name)}</b>${r.manual ? ' <span class="pill zinc">手調</span>' : r.src === 'platform' && !r.auto ? ' <span class="pill">舊資料</span>' : ''}${isLate(r) ? ' <span class="pill bad">逾期</span>' : ''}${r.note ? `<span class="sub">${esc(r.note)}</span>` : ''}${r.auto ? `<span class="sub">${r.auto.bills.length} 張銷貨單${r.auto.autoTax && !r.manual ? '・自動加稅 5%' : ''}</span>` : ''}</td><td class="n"><a href="#" data-edit="${i}">${money(r.amt)}</a></td><td class="n">${r.tax ? money(r.tax) : '—'}</td><td class="n"><b>${money(r.total)}</b></td><td>${esc(r.method || '')}</td><td class="nowrap">${r.due ? esc(roc(r.due)) : ''}</td><td class="n">${r.rec ? money(r.recAmt ?? r.total) : ''}</td><td class="nowrap">${r.rec && r.recDate ? esc(roc(r.recDate)) : ''}</td><td class="nowrap"><button class="btn xs" data-edit="${i}">修改</button>${r.auto ? ` <button class="btn xs ghost" data-bills="${i}">單據</button>` : ''}</td></tr>`).join('')}
     </tbody><tfoot><tr><td></td><td></td>${showYm ? '<td></td>' : ''}<td>合計 ${list.length} 筆</td><td class="n">${money(list.reduce((s, r) => s + r.amt, 0))}</td><td class="n">${money(list.reduce((s, r) => s + r.tax, 0))}</td><td class="n">${money(list.reduce((s, r) => s + r.total, 0))}</td><td colspan="2"></td><td class="n">${money(list.filter(r => r.rec).reduce((s, r) => s + (r.recAmt ?? r.total), 0))}</td><td colspan="2"></td></tr></tfoot></table></div>`;
 }
 function bindRows(el, list) {
@@ -131,7 +142,7 @@ function editRow(r) {
       <label class="check"><input type="checkbox" id="ar-rec" ${r.rec ? 'checked' : ''}> 已收款</label>
       <div class="f"><label for="ar-recAmt">實收金額</label><input id="ar-recAmt" class="num" value="${r.recAmt != null ? money(r.recAmt) : ''}" placeholder="同總額"></div>
       <div class="f"><label for="ar-recDate">收款日</label><input type="date" id="ar-recDate" value="${esc(r.recDate || '')}"></div></div>
-      ${r.auto ? `<p class="muted small">自動金額：貨款 ${money(r.auto.amt)}、稅額 ${money(r.auto.tax)}（${r.auto.bills.length} 張銷貨單）。改了金額就變成手動；按「恢復自動」回到銷貨單加總。</p>` : ''}`,
+      ${r.auto ? `<p class="muted small">自動金額：貨款 ${money(r.auto.amt)}、稅額 ${money(r.auto.tax)}（${r.auto.bills.length} 張銷貨單${r.auto.autoTax ? `；稅額含依舊資料自動加的 5%：${money(r.auto.autoTax)}，不收稅請把稅額改成 0` : ''}）。改了金額就變成手動；按「恢復自動」回到銷貨單加總。</p>` : ''}`,
     footer: `${r.id && !isNew ? `<button class="btn danger" id="ar-del">刪除</button>` : ''}${r.manual && r.auto ? '<button class="btn" id="ar-auto">恢復自動</button>' : ''}<span class="sp"></span><button class="btn" data-close>取消</button><button class="btn pri" id="ar-ok">儲存</button>`,
     onOpen(el, close) {
       let cid = r.cid;
