@@ -289,8 +289,7 @@ class Handler(BaseHTTPRequestHandler):
         if path == '/api/ai' and method == 'GET':
             return self.send_json(ai_status(self.state.data_dir))
         if path == '/api/ai' and method == 'POST':
-            key = str((body or {}).get('key') or '').strip()
-            ai_save_key(self.state.data_dir, key)
+            ai_update(self.state.data_dir, body or {})
             return self.send_json(ai_status(self.state.data_dir))
         if path == '/api/ocr/check' and method == 'POST':
             img = str((body or {}).get('image') or '')
@@ -380,30 +379,136 @@ def ai_file(data_dir):
     return os.path.join(data_dir, 'ai.json')
 
 
-def ai_key(data_dir):
-    k = os.environ.get('ANTHROPIC_API_KEY') or ''
+GEMINI_MODEL = 'gemini-3.5-flash-lite'
+PROVIDERS = ('gemini', 'claude')
+
+
+def ai_cfg(data_dir):
+    cfg = {}
     try:
         with open(ai_file(data_dir), encoding='utf-8') as f:
-            k = (json.load(f) or {}).get('anthropic_api_key') or k
+            cfg = json.load(f) or {}
     except Exception:
-        pass
-    return k.strip()
+        cfg = {}
+    if not cfg.get('anthropic_api_key') and os.environ.get('ANTHROPIC_API_KEY'):
+        cfg['anthropic_api_key'] = os.environ['ANTHROPIC_API_KEY']
+    if not cfg.get('gemini_api_key') and os.environ.get('GEMINI_API_KEY'):
+        cfg['gemini_api_key'] = os.environ['GEMINI_API_KEY']
+    if cfg.get('provider') not in PROVIDERS:
+        cfg['provider'] = 'gemini' if cfg.get('gemini_api_key') or not cfg.get('anthropic_api_key') else 'claude'
+    cfg['gemini_model'] = (cfg.get('gemini_model') or GEMINI_MODEL).strip()
+    return cfg
 
 
-def ai_save_key(data_dir, key):
-    fp = ai_file(data_dir)
-    if not key:
-        if os.path.exists(fp):
-            os.remove(fp)
-        return
-    with open(fp, 'w', encoding='utf-8') as f:
-        json.dump({'anthropic_api_key': key}, f)
+def ai_update(data_dir, body):
+    """body：provider（gemini／claude）、key（空＝不改）、clear（true＝清掉該供應商金鑰）、model（Gemini 模型名）"""
+    cfg = {}
+    try:
+        with open(ai_file(data_dir), encoding='utf-8') as f:
+            cfg = json.load(f) or {}
+    except Exception:
+        cfg = {}
+    prov = str(body.get('provider') or cfg.get('provider') or 'gemini')
+    if prov not in PROVIDERS:
+        prov = 'gemini'
+    cfg['provider'] = prov
+    kname = 'gemini_api_key' if prov == 'gemini' else 'anthropic_api_key'
+    key = str(body.get('key') or '').strip()
+    if key:
+        cfg[kname] = key
+    elif body.get('clear'):
+        cfg.pop(kname, None)
+    if 'model' in body:
+        m = re.sub(r'[^A-Za-z0-9._-]', '', str(body.get('model') or ''))
+        if m:
+            cfg['gemini_model'] = m
+        else:
+            cfg.pop('gemini_model', None)
+    with open(ai_file(data_dir), 'w', encoding='utf-8') as f:
+        json.dump(cfg, f, ensure_ascii=False)
+
+
+def _hint(k):
+    return (k[:6] + '…' + k[-4:]) if len(k) > 12 else ('已設定' if k else '')
 
 
 def ai_status(data_dir):
-    k = ai_key(data_dir)
-    return {'configured': bool(k), 'hint': (k[:7] + '…' + k[-4:]) if len(k) > 12 else ('已設定' if k else ''), 'model': AI_MODEL,
+    c = ai_cfg(data_dir)
+    prov = c['provider']
+    key = c.get('gemini_api_key' if prov == 'gemini' else 'anthropic_api_key') or ''
+    return {'provider': prov, 'configured': bool(key), 'hint': _hint(key),
+            'model': c['gemini_model'] if prov == 'gemini' else AI_MODEL,
+            'keys': {'gemini': _hint(c.get('gemini_api_key') or ''), 'claude': _hint(c.get('anthropic_api_key') or '')},
             'mock': bool(os.environ.get('ZR_OCR_MOCK'))}
+
+
+def _parse_json_text(text):
+    text = (text or '').strip()
+    try:
+        return json.loads(text)
+    except Exception:
+        pass
+    m = re.search(r'\{.*\}', text, re.S)
+    if m:
+        try:
+            return json.loads(m.group(0))
+        except Exception:
+            pass
+    raise OcrError('AI 回傳的內容無法解析', 502)
+
+
+def _http_json(url, headers, req, label):
+    """POST JSON 到 AI 服務；回 (status, json)。HTTPError 也會解析 body 給呼叫端判斷"""
+    data = json.dumps(req).encode('utf-8')
+    r = urllib.request.Request(url, data=data, method='POST', headers=dict(headers, **{'Content-Type': 'application/json'}))
+    try:
+        with urllib.request.urlopen(r, timeout=120) as resp:
+            return resp.status, json.loads(resp.read().decode('utf-8'))
+    except urllib.error.HTTPError as e:
+        try:
+            j = json.loads(e.read().decode('utf-8'))
+        except Exception:
+            j = {}
+        return e.code, j
+    except Exception as e:
+        raise OcrError('連不上 %s 服務：%s' % (label, e), 502)
+
+
+def ocr_gemini(cfg, media, b64):
+    key = cfg.get('gemini_api_key') or ''
+    if not key:
+        raise OcrError('還沒設定 Gemini API 金鑰：請到「設定備份 → AI 辨識」貼上', 409)
+    model = cfg['gemini_model']
+    schema_txt = json.dumps({k: v.get('description', '') for k, v in OCR_SCHEMA['properties'].items()}, ensure_ascii=False)
+    req = {
+        'systemInstruction': {'parts': [{'text': OCR_PROMPT + '\n只回傳一個 JSON 物件，鍵與說明如下（amount 是數字，其餘字串）：' + schema_txt}]},
+        'contents': [{'role': 'user', 'parts': [
+            {'inlineData': {'mimeType': media, 'data': b64}},
+            {'text': '請辨識這張支票，只回傳 JSON。'},
+        ]}],
+        'generationConfig': {'responseMimeType': 'application/json', 'temperature': 0},
+    }
+    url = 'https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent' % model
+    code, out = _http_json(url, {'x-goog-api-key': key}, req, 'Gemini')
+    if code != 200:
+        msg = ((out.get('error') or {}).get('message') or '')
+        if code in (400, 401, 403) and ('key' in msg.lower() or 'permission' in msg.lower() or code in (401, 403)):
+            raise OcrError('Gemini 金鑰無效或沒有權限：' + msg, 502)
+        if code == 404:
+            raise OcrError('Gemini 找不到模型「%s」，請到設定改模型名稱：%s' % (model, msg), 502)
+        if code == 429:
+            raise OcrError('Gemini 免費額度用完或太頻繁，請稍後再試：' + msg, 502)
+        raise OcrError('Gemini 回應 %d：%s' % (code, msg), 502)
+    cands = out.get('candidates') or []
+    if not cands:
+        reason = ((out.get('promptFeedback') or {}).get('blockReason') or '')
+        raise OcrError('Gemini 沒有回傳結果' + ('（%s）' % reason if reason else ''), 502)
+    parts = (cands[0].get('content') or {}).get('parts') or []
+    text = ''.join(p.get('text', '') for p in parts)
+    fields = _parse_json_text(text)
+    u = out.get('usageMetadata') or {}
+    sys.stderr.write('ocr/check gemini %s in=%s out=%s\n' % (model, u.get('promptTokenCount'), u.get('candidatesTokenCount')))
+    return fields
 
 
 def ocr_check(data_dir, data_url):
@@ -412,15 +517,18 @@ def ocr_check(data_dir, data_url):
     if mock:
         with open(mock, encoding='utf-8') as f:
             return json.load(f)
-    key = ai_key(data_dir)
-    if not key:
-        raise OcrError('還沒設定 AI 辨識金鑰：請到「設定備份 → AI 辨識」貼上 Anthropic API 金鑰', 409)
     m = re.match(r'^data:(image/(?:jpeg|png|webp|gif));base64,(.+)$', data_url, re.S)
     if not m:
         raise OcrError('沒有收到圖片')
     media, b64 = m.group(1), m.group(2).strip()
     if len(b64) > 12 * 1024 * 1024:
         raise OcrError('圖片太大，請縮小後再試')
+    cfg = ai_cfg(data_dir)
+    if cfg['provider'] == 'gemini':
+        return ocr_gemini(cfg, media, b64)
+    key = cfg.get('anthropic_api_key') or ''
+    if not key:
+        raise OcrError('還沒設定 Claude（Anthropic）API 金鑰：請到「設定備份 → AI 辨識」貼上', 409)
     req = {
         'model': AI_MODEL,
         'max_tokens': 2048,
@@ -463,10 +571,7 @@ def ocr_check(data_dir, data_url):
     if out.get('stop_reason') == 'refusal':
         raise OcrError('AI 拒絕處理這張圖片，請確認是支票照片', 502)
     text = ''.join(b.get('text', '') for b in out.get('content', []) if b.get('type') == 'text')
-    try:
-        fields = json.loads(text)
-    except Exception:
-        raise OcrError('AI 回傳的內容無法解析', 502)
+    fields = _parse_json_text(text)
     u = out.get('usage') or {}
     sys.stderr.write('ocr/check %s in=%s out=%s\n' % (out.get('model'), u.get('input_tokens'), u.get('output_tokens')))
     return fields

@@ -45,13 +45,31 @@ async function draw(el) {
     $('#prSave', box).onclick = async () => { await store.batch([{ col: 'settings', id: 'invoice_print', data: { ...ip, dx: +$('#ip-dx', box).value || 0, dy: +$('#ip-dy', box).value || 0 } }, { col: 'settings', id: 'pricing', data: { ...pr, decimals: +$('#pr-dec', box).value } }]); toast('已儲存'); };
     box.querySelectorAll('#thm button').forEach(b => b.onclick = () => { setTheme(b.dataset.v); box.querySelectorAll('#thm button').forEach(x => x.classList.toggle('on', x === b)); });
   } else if (ui.tab === 'ai') {
-    let st = { configured: false, hint: '', model: '' }; try { st = await api.get('/api/ai'); } catch (e) {}
-    box.innerHTML = `<p class="muted" style="margin:0">支票登記的「拍照辨識」會把支票照片送到 Anthropic 的 Claude 模型（${esc(st.model || '')}）擷取發票人、銀行、票號、金額、到期日，再帶入登記客票讓人核對。每張約新臺幣 1～2 元，按量計費。</p>
-      <div class="banner ${st.configured ? 'info' : ''}">${st.mock ? '目前是測試模式（回傳固定資料，不會呼叫 AI）。' : st.configured ? `已設定金鑰 <span class="mono">${esc(st.hint)}</span>` : '還沒設定金鑰，拍照辨識無法使用。'}</div>
-      <div class="grid"><div class="f" style="grid-column:1/-1"><label for="ai-key">Anthropic API 金鑰（sk-ant-… 開頭；存在伺服器 data\ai.json，不會同步到瀏覽器）</label><input id="ai-key" type="password" autocomplete="off" placeholder="貼上新的金鑰；留空並儲存＝清除"></div></div>
-      <div class="tools"><span class="sp"></span><button class="btn pri" id="aiSave">儲存</button></div>
-      <p class="muted small">金鑰在 <span class="mono">console.anthropic.com</span> → API Keys 建立，並在 Billing 儲值。金鑰只放伺服器，不要貼到群組或截圖。</p>`;
-    $('#aiSave', box).onclick = async () => { const key = $('#ai-key', box).value.trim(); if (key && !/^sk-ant-/.test(key)) return toast('金鑰格式不對（應該是 sk-ant- 開頭）'); if (!key && st.configured && !await confirm('清除金鑰？拍照辨識會停用。', { danger: true, ok: '清除' })) return; try { await api.post('/api/ai', { key }); toast(key ? '已儲存' : '已清除'); draw(el); } catch (e) { toast(e.message); } };
+    let st = { provider: 'gemini', configured: false, hint: '', model: '', keys: {} }; try { st = await api.get('/api/ai'); } catch (e) {}
+    const gem = st.provider === 'gemini';
+    box.innerHTML = `<p class="muted" style="margin:0">支票登記的「拍照辨識」會把支票照片送到 AI 模型擷取發票人、銀行、票號、金額、到期日，再帶入登記客票讓人核對。</p>
+      <div class="banner ${st.configured ? 'info' : ''}">${st.mock ? '目前是測試模式（回傳固定資料，不會呼叫 AI）。' : st.configured ? `目前使用 <b>${gem ? 'Google Gemini' : 'Anthropic Claude'}</b>（${esc(st.model)}），金鑰 <span class="mono">${esc(st.hint)}</span>` : `目前選 ${gem ? 'Google Gemini' : 'Anthropic Claude'}，但還沒設定金鑰，拍照辨識無法使用。`}</div>
+      <div class="tabs" id="aiProv">${[['gemini', 'Google Gemini（免費額度）'], ['claude', 'Anthropic Claude（付費）']].map(([v, l]) => `<button type="button" data-v="${v}" class="${st.provider === v ? 'on' : ''}">${l}${st.keys?.[v] ? ' ✓' : ''}</button>`).join('')}</div>
+      <div id="aiGem" style="display:${gem ? 'grid' : 'none'};gap:10px">
+        <p class="muted small" style="margin:0">免費：到 <span class="mono">aistudio.google.com</span> 用 Google 帳號建立 API key，不用信用卡，每天有免費額度（Flash-Lite 等級）。<b>注意</b>：Google 條款寫明免費方案的內容「會用來改進 Google 產品」，也可能被人工檢視；支票上有客戶名稱、帳號，介意的話請改用付費方案（Gemini 付費或 Claude 都不會拿資料訓練）。</p>
+        <div class="grid"><div class="f"><label for="ai-key-g">Gemini API 金鑰（AIza… 開頭；存在伺服器 data\\ai.json，不會同步到瀏覽器）</label><input id="ai-key-g" type="password" autocomplete="off" placeholder="${st.keys?.gemini ? '已設定 ' + esc(st.keys.gemini) + '，留空＝不變' : '貼上金鑰'}"></div><div class="f"><label for="ai-model-g">模型名稱（免費額度可用：gemini-3.5-flash-lite、gemini-3.6-flash、gemini-3.8-flash）</label><input id="ai-model-g" value="${esc(gem ? st.model : '')}" placeholder="gemini-3.5-flash-lite"></div></div>
+      </div>
+      <div id="aiCla" style="display:${gem ? 'none' : 'grid'};gap:10px">
+        <p class="muted small" style="margin:0">付費：到 <span class="mono">console.anthropic.com</span> → API Keys 建立並在 Billing 儲值；模型 claude-opus-5-5，每張約新臺幣 1～2 元，資料不會被拿去訓練。</p>
+        <div class="grid"><div class="f" style="grid-column:1/-1"><label for="ai-key-c">Anthropic API 金鑰（sk-ant-… 開頭；存在伺服器 data\\ai.json，不會同步到瀏覽器）</label><input id="ai-key-c" type="password" autocomplete="off" placeholder="${st.keys?.claude ? '已設定 ' + esc(st.keys.claude) + '，留空＝不變' : '貼上金鑰'}"></div></div>
+      </div>
+      <div class="tools"><button class="btn" id="aiClear">清除這個供應商的金鑰</button><span class="sp"></span><button class="btn pri" id="aiSave">儲存</button></div>
+      <p class="muted small">金鑰只放伺服器，不要貼到群組或截圖。</p>`;
+    let prov = st.provider;
+    box.querySelectorAll('#aiProv button').forEach(b => b.onclick = () => { prov = b.dataset.v; box.querySelectorAll('#aiProv button').forEach(x => x.classList.toggle('on', x === b)); $('#aiGem', box).style.display = prov === 'gemini' ? 'grid' : 'none'; $('#aiCla', box).style.display = prov === 'claude' ? 'grid' : 'none'; });
+    $('#aiSave', box).onclick = async () => {
+      const key = $(prov === 'gemini' ? '#ai-key-g' : '#ai-key-c', box).value.trim();
+      if (key && prov === 'claude' && !/^sk-ant-/.test(key)) return toast('Claude 金鑰格式不對（應該是 sk-ant- 開頭）');
+      if (key && prov === 'gemini' && !/^AIza/.test(key)) return toast('Gemini 金鑰格式不對（應該是 AIza 開頭）');
+      const body = { provider: prov, key }; if (prov === 'gemini') body.model = $('#ai-model-g', box).value.trim();
+      try { await api.post('/api/ai', body); toast('已儲存'); draw(el); } catch (e) { toast(e.message); }
+    };
+    $('#aiClear', box).onclick = async () => { if (!await confirm(`清除 ${prov === 'gemini' ? 'Gemini' : 'Claude'} 的金鑰？`, { danger: true, ok: '清除' })) return; try { await api.post('/api/ai', { provider: prov, key: '', clear: true }); toast('已清除'); draw(el); } catch (e) { toast(e.message); } };
   } else if (ui.tab === 'logs') {
     const logs = store.list('logs').sort((a, b) => (b.at || 0) - (a.at || 0)).slice(0, 300);
     const who = id => store.users.find(u => u.id === id)?.name || '';
