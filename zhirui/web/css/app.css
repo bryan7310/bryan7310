@@ -256,6 +256,7 @@ td .sub { display: block; color: var(--muted); font-size: 12px; }
 .lines { width: 100%; border-collapse: collapse; }
 .lines th { font-weight: 500; }
 .lines td { padding: 3px 4px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+.lines td.c-no { text-align: center; color: var(--muted); font-family: var(--mono); font-variant-numeric: tabular-nums; }
 .lines input, .lines select { width: 100%; border: 1px solid transparent; background: transparent; padding: 6px 8px; border-radius: 4px; min-width: 0; }
 .lines input:hover { border-color: var(--line); }
 .lines input:focus { border-color: var(--blue); background: var(--surface); outline: none; }
@@ -539,9 +540,12 @@ tfoot td { border-top: 1px solid var(--line-strong); }
   .lines thead { display: none; }
   .lines tbody tr { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px 6px; padding: 8px 0; border-bottom: 1px solid var(--line); }
   .lines tbody tr.noteln { display: flex; align-items: center; }
-  .lines tbody tr.noteln td:first-child { flex: 1; }
+  .lines tbody tr.noteln td[colspan] { flex: 1; }
+  .lines tbody tr.noteln td.c-no { display: none; }
   .lines tbody td { display: block; border: 0; padding: 0; min-width: 0; }
-  .lines td.c-g, .lines tbody td:first-child { grid-column: 1 / -1; }
+  .lines td.c-g { grid-column: 1 / -1; }
+  .lines td.c-no { grid-column: 1 / -1; font-size: 11px; color: var(--muted); text-align: left; }
+  .lines td.c-no::before { content: '第 '; } .lines td.c-no::after { content: ' 項'; }
   .lines td.c-m { grid-column: 1 / 4; }
   .lines td.c-del { grid-column: 4; justify-self: end; align-self: end; }
   .lines td.c-c { grid-column: 1 / 3; }

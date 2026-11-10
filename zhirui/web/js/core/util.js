@@ -60,6 +60,8 @@ export function cnMoney(n) {
 }
 export const ubnOk = id => { const s = String(id || ''); if (!/^\d{8}$/.test(s)) return false; const w = [1, 2, 1, 2, 1, 2, 4, 1]; let sum = 0; for (let i = 0; i < 8; i++) { const p = +s[i] * w[i]; sum += Math.floor(p / 10) + p % 10; } return sum % 10 === 0 || (s[6] === '7' && (sum + 1) % 10 === 0); };
 
+/** 明細項次：只算商品行，備註行不佔號（回傳與 lines 同長的陣列，備註行為 0） */
+export const lineSeq = lines => { let n = 0; return (lines || []).map(l => l && l.txt !== undefined ? 0 : ++n); };
 export const debounce = (fn, ms = 200) => { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; };
 export const sortBy = (arr, f, desc = false) => [...arr].sort((a, b) => { const x = f(a), y = f(b); return (x > y ? 1 : x < y ? -1 : 0) * (desc ? -1 : 1); });
 export const sum = (arr, f) => arr.reduce((s, x) => s + (f ? f(x) : x), 0);

@@ -1,5 +1,5 @@
 // 出貨單：中一刀（241×140 mm）列印、格式設定、從 Excel 匯入明細、調整即時庫存、規格圖面快速檢視（移植自舊進銷存）
-import { esc, fmt, fmtQ, today, ls, uid } from '../core/util.js';
+import { esc, fmt, fmtQ, today, ls, uid, lineSeq } from '../core/util.js';
 import { store } from '../core/store.js';
 import { toast, modal, confirm, printHTML } from '../core/ui.js';
 import { calc, TYPES, totals, lineAmt, goodsLabel, goodsWt, lineKg, qtyAt, nextNo, defWh, unitPrice, lastSale } from '../core/calc.js';
@@ -40,6 +40,7 @@ export function shipDoc(b, opt = {}) {
   const dt = String(b.date || '').split('-').map((x, i) => i ? String(+x) : x).join('/');
   const anyMemo = lines.some(l => String(l.memo || '').trim());
   const cols = TP.cols.filter(x => x.show && (PN || x.k !== 'pn')).map(x => !PN && x.k === 'pnname' ? { ...x, label: String(x.label).replace(/客料號[　\s]*/, '') || '品　　名' } : x);
+  const seqs = lineSeq(lines);
   const val = (k, l, i) => {
     const g = C.g[l.gid];
     switch (k) {
@@ -47,7 +48,7 @@ export function shipDoc(b, opt = {}) {
       case 'pn': return g?.spec || ''; case 'name': return g ? g.name : String(l.n || ''); case 'code': return g?.code || '';
       case 'qty': return fq(l.qty); case 'unit': return unitOf(l); case 'price': return NA ? '' : fp(l.price); case 'amt': return NA ? '' : fmt(lineAmt(l));
       case 'memo': return anyMemo ? (l.memo || '') : (TP.noteMode === 'memo' && i === 0 ? (b.note || '') : '');
-      case 'seq': return String(i + 1); case 'batch': return l.batch || ''; case 'cat': return g?.cat || ''; case 'blank': return '';
+      case 'seq': return String(seqs[i] || ''); case 'batch': return l.batch || ''; case 'cat': return g?.cat || ''; case 'blank': return '';
       case 'uwt': { if (!g) return ''; const w = goodsWt(g); return w ? String(w) : ''; }
       case 'wtl': { const w = lineKg(l, g); return w ? String(w >= 100 ? Math.round(w * 10) / 10 : Math.round(w * 1000) / 1000) : ''; }
     }
