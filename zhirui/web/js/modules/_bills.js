@@ -152,7 +152,7 @@ export async function preloadHist() {
 /** 歷史單據檢視；按「修改」用單據編輯器改，存回舊系統歷史資料（onSaved：存好後通知清單重畫） */
 export function histView(b, onSaved) {
   const C = calc(); const T = TYPES[b.type] || {}; const c = C.ct[b.cid]; const lines = b.lines || [];
-  const body = `<div class="banner">舊系統搬來的歷史單據，不計入現在的庫存與應收應付；按「修改」可以更正內容。</div>
+  const body = `<div class="banner">舊系統搬來的歷史單據，不計入現在的庫存與應付；銷貨單會接在舊系統應收資料之後計入應收帳款。按「修改」可以更正內容。</div>
     <div class="grid" style="margin-bottom:10px"><div><span class="muted small">${T.party === 'S' ? '廠商' : '客戶'}</span><div>${esc(c ? c.name : b.cn || '—')}</div></div><div><span class="muted small">日期</span><div>${esc(slash(b.date))}</div></div><div><span class="muted small">單號</span><div class="mono">${esc(b.no)}</div></div>${b.valid ? `<div><span class="muted small">有效期限</span><div>${esc(slash(b.valid))}</div></div>` : ''}${b.deliv ? `<div><span class="muted small">交期</span><div>${esc(slash(b.deliv))}</div></div>` : ''}</div>
     <div class="tw"><table><thead><tr><th>#</th><th>品名規格</th><th class="n">數量</th><th>單位</th><th class="n">單價</th><th class="n">金額</th></tr></thead><tbody>
     ${(seq => lines.map((l, i) => l.txt !== undefined ? `<tr><td></td><td colspan="5" class="muted">${esc(l.txt)}</td></tr>` : `<tr><td class="muted">${seq[i]}</td><td>${esc(l.gid ? gname(l.gid, b.type) : l.n || '')}${l.memo ? `<span class="sub">${esc(l.memo)}</span>` : ''}</td><td class="n">${fmtQ(l.qty)}</td><td class="muted">${esc(l.u || C.g[l.gid]?.unit || '')}</td><td class="n">${fp4(l.price)}</td><td class="n">${fmt(lineAmt(l))}</td></tr>`).join(''))(lineSeq(lines)) || '<tr><td colspan="6" class="muted">沒有明細</td></tr>'}</tbody>
@@ -211,7 +211,7 @@ function drawBill() {
   const whs = store.list('warehouses'), accts = store.list('accounts');
   const balHint = T.party && e.cid && C.bal[e.cid] != null && !T.doc ? `<div class="hint muted small">目前${T.party === 'C' ? '應收' : '應付'} ${fmt(C.bal[e.cid])} 元</div>` : '';
   const body = `
-    ${e.hist ? '<div class="banner">修改舊系統搬來的歷史單據：存檔只更正這張歷史單據，不計入現在的庫存與應收應付。</div>' : ''}
+    ${e.hist ? '<div class="banner">修改舊系統搬來的歷史單據：存檔只更正這張歷史單據，不計入現在的庫存與應付；銷貨單的金額會反映到應收帳款。</div>' : ''}
     <div class="grid">
       <div class="f"><label for="b-date">單據日期</label><input type="date" id="b-date" value="${esc(e.date)}"></div>
       <div class="f"><label for="b-no">單號</label><input id="b-no" value="${esc(e.no)}" class="mono"></div>

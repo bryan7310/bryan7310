@@ -2,8 +2,9 @@
 import { $, esc, fmt, money, today, thisMonth, ymLabel, shiftMonth, roc, slash, parseNum, uid, daysLeft } from '../core/util.js';
 import { store } from '../core/store.js';
 import { toast, modal, confirm, tabs, combo } from '../core/ui.js';
-import { calc, customers, cshort, TYPES } from '../core/calc.js';
-import { openBill } from './_bills.js';
+import { calc, customers, cshort, TYPES, totals } from '../core/calc.js';
+import { openBill, histView } from './_bills.js';
+import { api } from '../core/api.js';
 import { mailImport } from './mail.js';
 import { apYm, apRange } from './payables.js';
 
@@ -11,18 +12,38 @@ const ui = { ym: thisMonth(), tab: 'month', filter: 'all', year: thisMonth().sli
 const picked = new Set();
 export default {
   id: 'receivables', name: '應收帳款', group: '財務', icon: 'receivables',
-  render(el, { sub }) { this.el = el; if (sub === 'open' || sub === 'year') ui.tab = sub; draw(el); },
+  render(el, { sub }) { this.el = el; if (sub === 'open' || sub === 'year') ui.tab = sub; ensureHistAR(); draw(el); },
   onChange(ch) { if (this.el?.isConnected && ['bills', 'receivables', 'contacts', 'settings', 'checks_in'].some(c => ch.has(c))) draw(this.el); },
-  badge() { const s = arSummary(); return { cnt: s.late, alert: s.late > 0 }; },
+  badge() { ensureHistAR(); const s = arSummary(); return { cnt: s.late, alert: s.late > 0 }; },
 };
 
-/** 某月的應收列：銷貨單自動彙總 + 手動覆寫／舊資料 */
+// 舊系統銷貨單：只算「舊系統應收資料」最後一個月之後的（之前的已經在匯入的應收資料裡，不重複計算）
+let HIST_AR = [], histKey = '', histBusy = false;
+const oldArEnd = () => store.list('receivables').reduce((m, r) => r.src === 'platform' && r.ym > m ? r.ym : m, '');
+function ensureHistAR(force) {
+  const end = oldArEnd(); const key = end + '|' + (store.histVer || '');
+  if (!end || histBusy || (!force && key === histKey)) return;
+  histBusy = true; histKey = key;   // 失敗也不立刻重試，避免一直重抓
+  (async () => {
+    const from = end + '-26'; const out = [];
+    for (const type of ['SALE', 'SALE_RET']) {
+      let offset = 0;
+      for (;;) { const r = await api.get(`/api/hist?type=${type}&from=${from}&limit=1000&offset=${offset}`); out.push(...r.rows); offset += r.rows.length; if (!r.rows.length || offset >= r.total) break; }
+    }
+    for (const b of out) b.hist = true;
+    HIST_AR = out;
+  })().catch(e => console.warn('舊系統銷貨單載入失敗', e)).finally(() => { histBusy = false; store.emit(new Set(['receivables'])); });
+}
+const bt = b => b.hist ? totals(b) : calc().tot[b.id];
+const saleMonths = () => [...calc().bills, ...HIST_AR].filter(b => b.type === 'SALE' && b.cid).map(b => apYm(b.date));
+
+/** 某月的應收列：銷貨單（含舊系統銷貨單）自動彙總 + 手動覆寫／舊資料 */
 export function arRows(ym) {
   const C = calc();
   const auto = new Map();
-  for (const b of C.bills) {
+  for (const b of [...C.bills, ...HIST_AR]) {
     if ((b.type !== 'SALE' && b.type !== 'SALE_RET') || apYm(b.date) !== ym || !b.cid) continue;
-    const s = b.type === 'SALE' ? 1 : -1; const t = C.tot[b.id];
+    const s = b.type === 'SALE' ? 1 : -1; const t = bt(b);
     const a = auto.get(b.cid) || auto.set(b.cid, { amt: 0, tax: 0, bills: [] }).get(b.cid);
     a.amt += s * t.net; a.tax += s * t.tax; a.bills.push(b);
   }
@@ -39,7 +60,7 @@ export function arRows(ym) {
   return out.sort((x, y) => (+y.total || 0) - (+x.total || 0) || String(x.name).localeCompare(String(y.name), 'zh-Hant'));
 }
 export function arSummary() {
-  const t = today(); const months = new Set([...store.list('receivables').map(r => r.ym), ...calc().bills.filter(b => b.type === 'SALE' && b.cid).map(b => apYm(b.date))].filter(Boolean));
+  const t = today(); const months = new Set([...store.list('receivables').map(r => r.ym), ...saleMonths()].filter(Boolean));
   let open = 0, openN = 0, late = 0;
   for (const ym of months) for (const r of arRows(ym)) { if (r.rec || !(r.total > 0)) continue; open += r.total; openN++; if (isLate(r)) late++; }
   return { open, openN, late };
@@ -61,7 +82,7 @@ function draw(el) {
       <div class="tools"><button class="btn sm" id="prevM">‹</button><input type="month" id="ym" value="${ym}" style="font-weight:600"><button class="btn sm" id="nextM">›</button><span class="muted">${ymLabel(ym)}（${roc(apRange(ym)[0])}～${roc(apRange(ym)[1])}）</span><span class="sp"></span>${tabs('f', [['all', '全部'], ['open', '未收'], ['done', '已收']], ui.filter)}</div>
       <div class="kpis"><div class="kpi"><span>貨款</span><b>${money(tot(r => r.amt))}</b></div><div class="kpi"><span>稅額</span><b>${money(tot(r => r.tax))}</b></div><div class="kpi"><span>總額</span><b>${money(tot(r => r.total))}</b></div><div class="kpi"><span>門市收入</span><b>${money(st.amt || 0)}</b><small>${esc(st.note || '')}</small></div><div class="kpi ok"><span>已收 ${done.length} 筆</span><b>${money(done.reduce((s, r) => s + (r.recAmt ?? r.total), 0))}</b></div><div class="kpi ${open.length ? 'alert' : ''}"><span>未收 ${open.length} 筆</span><b>${money(open.reduce((s, r) => s + r.total, 0))}</b></div></div>
       <div class="tools"><div class="f" style="width:160px"><label for="stAmt">門市收入</label><input id="stAmt" class="num" value="${st.amt ? money(st.amt) : ''}"></div><div class="f" style="flex:1"><label for="stNote">門市收入備註</label><input id="stNote" value="${esc(st.note || '')}"></div></div>
-      <p class="muted small" style="margin:0">金額由該月銷貨單自動加總（25 結：上月 26 日～本月 25 日；銷貨退回扣除）。點金額可手動修改；有 <span class="pill zinc">手調</span> 標記的是手動輸入，可按「恢復自動」。</p>
+      <p class="muted small" style="margin:0">金額由該月銷貨單（含舊系統銷貨單）自動加總（25 結：上月 26 日～本月 25 日；銷貨退回扣除）。點金額可手動修改；有 <span class="pill zinc">手調</span> 標記的是手動輸入，可按「恢復自動」。</p>
       ${table(list, ym)}</div>`
     : ui.tab === 'year' ? yearView() : `<div class="panel">${table(list, null, true)}</div>`}`;
   el.addEventListener('tab', ev => { if (ev.detail.key === 'ar') ui.tab = ev.detail.val; else ui.filter = ev.detail.val; draw(el); }, { once: true });
@@ -77,7 +98,7 @@ function draw(el) {
   $('#arMail', el)?.addEventListener('click', async () => { const r = await mailImport([...picked]); picked.clear(); toast(`已導入 ${r.add} 家到郵寄掛號${r.miss.length ? `；找不到地址：${r.miss.join('、')}` : ''}`); location.hash = '#mail'; });
 }
 function allOpen() {
-  const months = new Set([...store.list('receivables').map(r => r.ym), ...calc().bills.filter(b => b.type === 'SALE' && b.cid).map(b => apYm(b.date))].filter(Boolean));
+  const months = new Set([...store.list('receivables').map(r => r.ym), ...saleMonths()].filter(Boolean));
   return [...months].sort().flatMap(ym => arRows(ym).filter(r => !r.rec && r.total > 0));
 }
 function table(list, ym, showYm) {
@@ -94,7 +115,7 @@ function bindRows(el, list) {
     toast(cb.checked ? `${r.name} 已收款 ${money(r.total)}` : `${r.name} 改回未收`);
   }));
   el.querySelectorAll('[data-edit]').forEach(b => b.addEventListener('click', ev => { ev.preventDefault(); editRow(list[+b.dataset.edit]); }));
-  el.querySelectorAll('[data-bills]').forEach(b => b.addEventListener('click', () => { const r = list[+b.dataset.bills]; modal({ title: `${r.name} ${ymLabel(r.ym)} 銷貨單`, width: 640, body: `<div class="tw"><table><thead><tr><th>日期</th><th>單號</th><th class="n">未稅</th><th class="n">稅</th><th>發票</th></tr></thead><tbody>${r.auto.bills.map(x => `<tr class="row" data-id="${x.id}"><td>${esc(slash(x.date))}</td><td class="mono">${esc(x.no)}${x.type === 'SALE_RET' ? ' <span class="pill bad">退回</span>' : ''}</td><td class="n">${money(calc().tot[x.id].net)}</td><td class="n">${money(calc().tot[x.id].tax)}</td><td>${esc(x.invNo || '')}</td></tr>`).join('')}</tbody></table></div>`, onOpen(m, close) { m.querySelectorAll('tr.row').forEach(tr => tr.addEventListener('click', () => { close(); openBill(null, tr.dataset.id); })); } }); }));
+  el.querySelectorAll('[data-bills]').forEach(b => b.addEventListener('click', () => { const r = list[+b.dataset.bills]; modal({ title: `${r.name} ${ymLabel(r.ym)} 銷貨單`, width: 640, body: `<div class="tw"><table><thead><tr><th>日期</th><th>單號</th><th class="n">未稅</th><th class="n">稅</th><th>發票</th></tr></thead><tbody>${r.auto.bills.map((x, k) => `<tr class="row" data-k="${k}"><td>${esc(slash(x.date))}</td><td class="mono">${esc(x.no)}${x.type === 'SALE_RET' ? ' <span class="pill bad">退回</span>' : ''}${x.hist ? ' <span class="pill">舊系統</span>' : ''}</td><td class="n">${money(bt(x).net)}</td><td class="n">${money(bt(x).tax)}</td><td>${esc(x.invNo || '')}</td></tr>`).join('')}</tbody></table></div>`, onOpen(m, close) { m.querySelectorAll('tr.row').forEach(tr => tr.addEventListener('click', () => { const x = r.auto.bills[+tr.dataset.k]; close(); if (x.hist) histView(x, () => ensureHistAR(true)); else openBill(null, x.id); })); } }); }));
 }
 function editRow(r) {
   const isNew = r.isNew || (!r.cid && !r.id);
