@@ -1,7 +1,9 @@
 // 總覽：今天該注意的事
-import { esc, fmt, money, today, thisMonth, daysLeft, slash, ymLabel, roc } from '../core/util.js';
+import { esc, fmt, money, today, thisMonth, daysLeft, slash, ymLabel, roc, uid } from '../core/util.js';
 import { store } from '../core/store.js';
-import { calc, TYPES, cshort } from '../core/calc.js';
+import { calc, TYPES, cshort, nextNo, defWh } from '../core/calc.js';
+import { toast, confirm } from '../core/ui.js';
+import { openBill } from './_bills.js';
 import { arSummary } from './receivables.js';
 import { apSummary } from './payables.js';
 
@@ -10,6 +12,37 @@ export default {
   render(el) { this.el = el; draw(el); },
   onChange() { if (this.el && this.el.isConnected) draw(this.el); },
 };
+// ---------- 門市銷售：每筆自動開一張出貨單（客戶 門市銷售、商品 門市銷售螺絲、數量＝金額、單價 1） ----------
+const RETAIL_GOODS = '門市銷售螺絲';
+const ui = { rdate: '', focus: false };
+const retailCustomer = () => store.list('contacts').find(c => c.kind === 'C' && (c.code === 'C999' || c.name === '門市銷售')) || null;
+async function retailGoods() {
+  let g = store.list('goods').find(x => x.name === RETAIL_GOODS); if (g) return g;
+  const id = uid('g'); const doc = { code: '門市', name: RETAIL_GOODS, spec: '', cat: '', unit: 'PCS', purPrice: 0, salePrice: 1, safety: 0, nostock: true, note: '門市銷售用：數量＝金額，單價 1 元；不管庫存' };
+  await store.save('goods', id, doc); return { ...doc, id };
+}
+async function addRetail(el) {
+  const amt = Math.round(+String(el.querySelector('#rtAmt').value).replace(/,/g, '')); const note = el.querySelector('#rtNote').value.trim(); const date = el.querySelector('#rtDate').value || today();
+  if (!(amt > 0)) return toast('請輸入金額');
+  const c = retailCustomer(); if (!c) return toast('找不到客戶「門市銷售」，請先到基本資料新增');
+  const g = await retailGoods(); const wid = defWh()?.id || ''; const cash = store.list('accounts').find(a => /現金/.test(a.name)) || store.list('accounts')[0];
+  const no = nextNo('SALE', date);
+  const doc = { type: 'SALE', no, date, cid: c.id, wid, lines: [{ gid: g.id, qty: amt, price: 1 }], disc: 0, tax: false, paid: amt, aid: cash?.id || '', note, retail: true, createdAt: Date.now(), updatedAt: Date.now(), createdBy: store.user.id };
+  ui.rdate = date; ui.focus = true;
+  await store.save('bills', uid('b'), doc); store.log('新增', `銷貨單 ${no}｜門市銷售｜${fmt(amt)} 元`); toast(`門市銷售 ${fmt(amt)} 元已登記（${no}）`);
+}
+function retailPanel(C, t) {
+  const c = retailCustomer(); const day = ui.rdate || t;
+  const list = c ? C.bills.filter(b => b.type === 'SALE' && b.cid === c.id && b.date === day).sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0)) : [];
+  const sum = list.reduce((s, b) => s + (C.tot[b.id]?.total || 0), 0);
+  const hm = ms => { const d = new Date(ms || 0); return ms ? `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}` : ''; };
+  return `<div class="panel" id="retail"><div class="ptitle">門市銷售明細<small>輸入金額就會自動開一張出貨單：客戶「門市銷售」、商品「${RETAIL_GOODS}」、單價 1 元、現金收訖</small></div>
+    <div class="tools" style="align-items:flex-end"><div class="f"><label for="rtDate">日期</label><input type="date" id="rtDate" value="${esc(day)}"></div><div class="f" style="width:140px"><label for="rtAmt">金額</label><input id="rtAmt" class="num" inputmode="numeric" placeholder="例如 350"></div><div class="f" style="flex:1 1 220px"><label for="rtNote">備註</label><input id="rtNote" placeholder="例如 M8 螺絲 20 支（選填）"></div><button class="btn pri" id="rtAdd">登記</button></div>
+    ${c ? '' : '<div class="banner">找不到客戶「門市銷售」，請先到基本資料新增。</div>'}
+    <div class="tw" style="margin-top:10px"><table><thead><tr><th>時間</th><th>單號</th><th class="n">金額</th><th>備註</th><th></th></tr></thead><tbody>
+    ${list.map(b => `<tr><td class="nowrap">${hm(b.createdAt)}</td><td class="mono"><a href="#" data-rt-open="${b.id}">${esc(b.no)}</a></td><td class="n">${fmt(C.tot[b.id]?.total || 0)}</td><td>${esc(b.note || '')}</td><td class="r"><button class="btn xs" data-rt-del="${b.id}">刪除</button></td></tr>`).join('') || `<tr><td colspan="5" class="muted">${esc(slash(day))} 還沒有門市銷售</td></tr>`}</tbody>
+    ${list.length ? `<tfoot><tr><td colspan="2">${esc(slash(day))} 合計 ${list.length} 筆</td><td class="n">${fmt(sum)}</td><td colspan="2"></td></tr></tfoot>` : ''}</table></div></div>`;
+}
 function draw(el) {
   const C = calc(); const m = thisMonth(); const t = today();
   let sales = 0, profit = 0, n = 0;
@@ -33,6 +66,7 @@ function draw(el) {
       <a class="kpi ${late.length ? 'alert' : ''}" href="#checks-in"><span>待代收客票</span><b>${fmt(cin.reduce((s, c) => s + (+c.amt || 0), 0))}</b><small>${cin.length} 張${late.length ? `・已到期 ${late.length}` : ''}${soon.length ? `・7 天內 ${soon.length}` : ''}</small></a>
       <a class="kpi" href="#invoices"><span>本月發票</span><b>${fmt(invSum)}</b><small>${inv.length} 張${pendInv.length ? `・${pendInv.length} 張銷貨單未開` : ''}</small></a>
     </div>
+    ${retailPanel(C, t)}
     <div class="grid2">
       <div class="panel"><div class="ptitle">待辦<small>需要處理的事</small></div>
         ${todo([
@@ -55,6 +89,14 @@ function draw(el) {
       </div>
     </div>`;
   el.querySelectorAll('tr[data-href]').forEach(tr => tr.addEventListener('click', () => location.hash = tr.dataset.href));
+  // 門市銷售
+  const rt = el.querySelector('#retail');
+  rt.querySelector('#rtAdd').addEventListener('click', () => addRetail(el));
+  rt.querySelectorAll('#rtAmt, #rtNote').forEach(i => i.addEventListener('keydown', ev => { if (ev.key === 'Enter' && !ev.isComposing) { ev.preventDefault(); addRetail(el); } }));
+  rt.querySelector('#rtDate').addEventListener('change', ev => { ui.rdate = ev.target.value; ui.focus = true; draw(el); });
+  rt.querySelectorAll('[data-rt-open]').forEach(a => a.addEventListener('click', ev => { ev.preventDefault(); openBill(null, a.dataset.rtOpen); }));
+  rt.querySelectorAll('[data-rt-del]').forEach(b => b.addEventListener('click', async () => { const x = store.get('bills', b.dataset.rtDel); if (!x) return; if (await confirm(`刪除門市銷售 ${fmt(C.tot[x.id]?.total || 0)} 元（${x.no}）？`, { danger: true, ok: '刪除' })) { await store.remove('bills', x.id); store.log('刪除', `銷貨單 ${x.no}｜門市銷售`); } }));
+  if (ui.focus) { ui.focus = false; setTimeout(() => el.querySelector('#rtAmt')?.focus(), 30); }
 }
 const href = b => b.type === 'SALE' || b.type === 'SALE_RET' ? 'sales' : b.type === 'PUR' || b.type === 'PUR_RET' || b.type === 'PO' ? 'purchase' : b.type === 'QUO' || b.type === 'RFQ' ? 'quotes' : TYPES[b.type].money ? 'money' : 'stock';
 const todo = items => { const li = items.filter(([n]) => n > 0); return li.length ? `<div style="display:grid;gap:6px">${li.map(([, txt, h]) => `<a href="${h}" style="display:flex;gap:8px;align-items:center;color:inherit"><span class="pill bad">!</span>${esc(txt)}</a>`).join('')}</div>` : '<div class="muted">目前沒有需要處理的事 ✓</div>'; };

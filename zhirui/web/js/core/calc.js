@@ -118,6 +118,7 @@ export function calc() {
     if (T.lines) (b.lines || []).forEach((l, i) => {
       if (l.txt !== undefined) return;
       const r = +l.rate || (l.u && l.gid ? uRate(l.u, g[l.gid]) || 1 : 1), q = (+l.qty || 0) * r, p = (+l.price || 0) / r, gid = l.gid; const c = cost[gid] ??= { q: 0, avg: +(g[gid]?.purPrice) || 0 }; lc[i] = 0;
+      if (g[gid]?.nostock) { if (b.type === 'SALE' || b.type === 'SALE_RET') { lc[i] = saleCost(b, l, i); cg += lc[i]; } return; }   // 不管庫存的商品（例如門市銷售螺絲）
       if (T.transfer) { add(gid, b.wid, -q); add(gid, b.toWid, q); addB(gid, b.wid, l.batch, -q); addB(gid, b.toWid, l.batch, q); return; }
       add(gid, b.wid, T.stock * q); addB(gid, b.wid, l.batch, T.stock * q);
       if (b.type === 'PUR' || b.type === 'IN') { const u = (b.type === 'IN' && !p) ? c.avg : p; const base = Math.max(c.q, 0); c.avg = base + q > 0 ? (base * c.avg + q * u) / (base + q) : u; c.q += q; }
