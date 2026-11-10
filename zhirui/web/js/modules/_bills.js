@@ -88,6 +88,7 @@ export function billList(el, opts, ui) {
   el.querySelectorAll('[data-new]').forEach(b => b.addEventListener('click', () => openBill(b.dataset.new, null, opts.onSaved)));
   el.querySelectorAll('tr.row').forEach(tr => tr.addEventListener('click', e2 => { if (e2.target.closest('button,a')) return; if (tr.dataset.hist) return histView(byId.get(tr.dataset.id)); openBill(null, tr.dataset.id, opts.onSaved); }));
   el.querySelectorAll('[data-hprint]').forEach(b => b.addEventListener('click', () => printBill(byId.get(b.dataset.hprint))));
+  el.querySelectorAll('[data-hfax]').forEach(b => b.addEventListener('click', () => faxDialog(byId.get(b.dataset.hfax), () => { if (el.isConnected) billList(el, opts, ui); })));
   opts.bind && opts.bind(el);
 }
 function billRow(b, opts, C) {
@@ -101,7 +102,7 @@ function billRow(b, opts, C) {
   if (b.type === 'PO' && b.received) status += ' <span class="pill ok">已進貨</span>';
   if (opts.status) status += opts.status(b);
   if (b.hist) status = '';
-  return `<tr class="row" data-id="${b.id}" ${b.hist ? 'data-hist="1"' : ''}><td class="nowrap">${esc(slash(b.date))}</td><td class="mono nowrap">${esc(b.no)}${opts.tabList && opts.tabList.length > 2 ? `<span class="sub">${T.name}</span>` : ''}</td><td>${esc(T.party ? partyLabel(b) : T.transfer ? wname(b.wid) + ' → ' + wname(b.toWid) : wname(b.wid))}</td><td class="muted">${content}</td>${opts.cols ? opts.cols.map(c => `<td class="${c.cls || ''}">${c.cell(b)}</td>`).join('') : ''}<td class="n">${fmt(b.hist ? b.oamt : T.lines ? t.total : b.amount)}</td><td>${status}</td><td class="r nowrap">${b.hist ? `<button class="btn xs" data-hprint="${b.id}">列印</button>` : opts.actions ? opts.actions(b) : ''}</td></tr>`;
+  return `<tr class="row" data-id="${b.id}" ${b.hist ? 'data-hist="1"' : ''}><td class="nowrap">${esc(slash(b.date))}</td><td class="mono nowrap">${esc(b.no)}${opts.tabList && opts.tabList.length > 2 ? `<span class="sub">${T.name}</span>` : ''}</td><td>${esc(T.party ? partyLabel(b) : T.transfer ? wname(b.wid) + ' → ' + wname(b.toWid) : wname(b.wid))}</td><td class="muted">${content}</td>${opts.cols ? opts.cols.map(c => `<td class="${c.cls || ''}">${c.cell(b)}</td>`).join('') : ''}<td class="n">${fmt(b.hist ? b.oamt : T.lines ? t.total : b.amount)}</td><td>${status}</td><td class="r nowrap">${b.hist ? (b.type === 'PO' && b.cid ? `<button class="btn xs" data-hfax="${b.id}">傳真</button>` : `<button class="btn xs" data-hprint="${b.id}">列印</button>`) : opts.actions ? opts.actions(b) : ''}</td></tr>`;
 }
 
 // ---------- 舊系統歷史單據（唯讀，存在伺服器另一個表，向伺服器查） ----------
