@@ -2,7 +2,7 @@
 import { $, esc, fmt, fmtQ, uid, matchQ, qTerms, money, downloadText, today } from '../core/util.js';
 import { store } from '../core/store.js';
 import { toast, modal, confirm, tabs, pager, field, selectField, formData, combo } from '../core/ui.js';
-import { calc, goodsLabel, qtyAll, customers, suppliers, costOf } from '../core/calc.js';
+import { calc, goodsLabel, qtyAll, customers, suppliers, costOf, cdisp } from '../core/calc.js';
 import { api } from '../core/api.js';
 import { SP_FIELDS, spLab, spParse, spGet, spDims, spSVG, spRows, spTable, spWeight } from '../core/spec.js';
 import { loadHistPur } from './_bills.js';
@@ -107,7 +107,7 @@ export function openMaster(col, doc, kind, onSaved) {
           const r = await api.histPrices(d.id, 30);
           const live = C.bills.filter(b => (b.lines || []).some(l => l.gid === d.id)).flatMap(b => b.lines.filter(l => l.gid === d.id).map(l => ({ type: b.type, date: b.date, cid: b.cid, qty: l.qty, price: l.price, u: l.u, no: b.no })));
           const all = [...live, ...r.rows].sort((a, b) => (b.date || '').localeCompare(a.date || '')).slice(0, 40);
-          box.innerHTML = `<div class="tw"><table><thead><tr><th>日期</th><th>單據</th><th>對象</th><th class="n">數量</th><th class="n">單價</th></tr></thead><tbody>${all.map(x => `<tr><td>${esc(x.date)}</td><td>${esc(x.type === 'SALE' ? '銷' : x.type === 'PUR' ? '進' : x.type)} ${esc(x.no)}</td><td>${esc(C.ct[x.cid]?.short || C.ct[x.cid]?.name || '')}</td><td class="n">${fmtQ(x.qty)}</td><td class="n">${fmtQ(x.price)}${x.u ? '/' + esc(x.u) : ''}</td></tr>`).join('') || '<tr><td class="muted">沒有紀錄</td></tr>'}</tbody></table></div>`;
+          box.innerHTML = `<div class="tw"><table><thead><tr><th>日期</th><th>單據</th><th>對象</th><th class="n">數量</th><th class="n">單價</th></tr></thead><tbody>${all.map(x => `<tr><td>${esc(x.date)}</td><td>${esc(x.type === 'SALE' ? '銷' : x.type === 'PUR' ? '進' : x.type)} ${esc(x.no)}</td><td>${esc(cdisp(C.ct[x.cid]))}</td><td class="n">${fmtQ(x.qty)}</td><td class="n">${fmtQ(x.price)}${x.u ? '/' + esc(x.u) : ''}</td></tr>`).join('') || '<tr><td class="muted">沒有紀錄</td></tr>'}</tbody></table></div>`;
         } else {
           const r = await api.hist({ cid: d.id, limit: 30 });
           box.innerHTML = `<div class="tw"><table><thead><tr><th>日期</th><th>單號</th><th>種類</th><th class="n">金額</th></tr></thead><tbody>${r.rows.map(b => `<tr><td>${esc(b.date)}</td><td class="mono">${esc(b.no)}</td><td>${esc({ SALE: '銷貨', PUR: '進貨', PO: '採購', QUO: '報價' }[b.type] || b.type)}</td><td class="n">${fmt(b.oamt)}</td></tr>`).join('') || '<tr><td class="muted">沒有紀錄</td></tr>'}</tbody></table><div class="muted small">歷史單據共 ${r.total} 張（舊系統）</div></div>`;
@@ -155,7 +155,7 @@ function goodsExtraBind(el, d) {
     const unit = esc(g.unit || 'PCS');
     box.innerHTML = r
       ? `<b>自動成本 ${fp(r.c)} / ${unit}</b>　<span class="muted">來源：${esc(r.src)}</span>${r.manual ? ' <span class="pill warn">手動</span>' : /^查價/.test(r.src) ? ' <span class="pill blue">查價牌價</span>' : ' <span class="pill ok">進貨單</span>'}`
-        + (recs.length ? `<div class="muted small">最近進貨：${recs.map(x => `${esc(x.date)} ${esc(C.ct[x.cid]?.short || C.ct[x.cid]?.name || '')} ${fp(x.per)}${x.cls === 'kg' ? '/KG' : ''}`).join('、')}</div>` : '')
+        + (recs.length ? `<div class="muted small">最近進貨：${recs.map(x => `${esc(x.date)} ${esc(cdisp(C.ct[x.cid]))} ${fp(x.per)}${x.cls === 'kg' ? '/KG' : ''}`).join('、')}</div>` : '')
       : `<b class="warn-t">找不到成本</b>　<span class="muted">進貨單、採購單、查價牌價都對不到，請填下面的「手動成本」。</span>`;
   };
   const fp = n => (Math.round(n * 10000) / 10000).toString();

@@ -2,7 +2,7 @@
 import { $, $$, esc, fmt, fmtQ, fp4, today, uid, matchQ, qTerms, roc, slash, thisMonth, money, isoOf, downloadText, ls } from '../core/util.js';
 import { store } from '../core/store.js';
 import { toast, modal, confirm, combo, pager, tabs, printHTML } from '../core/ui.js';
-import { TYPES, totals, lineAmt, calc, nextNo, cname, cshort, wname, gname, goodsLabel, customers, suppliers, defWh, qtyAt, bqty, uRate, lastSale, unitPrice, unitFactor, setHistPur, setHistSale, histSaleReady, costOf } from '../core/calc.js';
+import { TYPES, totals, lineAmt, calc, nextNo, cname, cshort, cdisp, wname, gname, goodsLabel, customers, suppliers, defWh, qtyAt, bqty, uRate, lastSale, unitPrice, unitFactor, setHistPur, setHistSale, histSaleReady, costOf } from '../core/calc.js';
 import { api } from '../core/api.js';
 import { printName } from '../core/names.js';
 import { labelPicker } from './labels.js';
@@ -11,7 +11,7 @@ import { openMaster } from './master.js';
 import { printShip, shipFormat, shipImportLines, shipTemplateXlsx, stockAdjust, specView, billKg, kgText } from './ship.js';
 
 export const billText = b => { const C = calc(); const c = C.ct[b.cid]; return [b.no, c?.code, c?.name, c?.short, b.cn, b.note, ...(b.lines || []).flatMap(l => { const g = C.g[l.gid]; return [g?.code, g?.name, g?.spec, l.n, l.memo]; })].filter(Boolean).join(' '); };
-export const partyLabel = b => { const C = calc(); const c = C.ct[b.cid]; return c ? (c.short || c.name) : (b.cn || '—'); };
+export const partyLabel = b => { const C = calc(); const c = C.ct[b.cid]; return c ? cdisp(c) : (b.cn || '—'); };
 
 /**
  * 單據清單頁。opts: {key, title, types:[...], tabList:[[k,label]], newTypes:[type...], extraHead(html), extraRow(b)->html, actions(b)->html}
@@ -102,7 +102,7 @@ function billRow(b, opts, C) {
   if (b.type === 'PO' && b.received) status += ' <span class="pill ok">已進貨</span>';
   if (opts.status) status += opts.status(b);
   if (b.hist) status = '';
-  return `<tr class="row" data-id="${b.id}" ${b.hist ? 'data-hist="1"' : ''}><td class="nowrap">${esc(slash(b.date))}</td><td class="mono nowrap">${esc(b.no)}${opts.tabList && opts.tabList.length > 2 ? `<span class="sub">${T.name}</span>` : ''}</td><td>${esc(T.party ? partyLabel(b) : T.transfer ? wname(b.wid) + ' → ' + wname(b.toWid) : wname(b.wid))}</td><td class="muted">${content}</td>${opts.cols ? opts.cols.map(c => `<td class="${c.cls || ''}">${c.cell(b)}</td>`).join('') : ''}<td class="n">${fmt(b.hist ? b.oamt : T.lines ? t.total : b.amount)}</td><td>${status}</td><td class="r nowrap">${b.hist ? (b.type === 'PO' && b.cid ? `<button class="btn xs" data-hfax="${b.id}">傳真</button>` : `<button class="btn xs" data-hprint="${b.id}">列印</button>`) : opts.actions ? opts.actions(b) : ''}</td></tr>`;
+  return `<tr class="row" data-id="${b.id}" ${b.hist ? 'data-hist="1"' : ''}><td class="nowrap">${esc(slash(b.date))}</td><td class="mono nowrap">${esc(b.no)}${opts.tabList && opts.tabList.length > 2 ? `<span class="sub">${T.name}</span>` : ''}</td><td class="nowrap">${esc(T.party ? partyLabel(b) : T.transfer ? wname(b.wid) + ' → ' + wname(b.toWid) : wname(b.wid))}</td><td class="muted">${content}</td>${opts.cols ? opts.cols.map(c => `<td class="${c.cls || ''}">${c.cell(b)}</td>`).join('') : ''}<td class="n">${fmt(b.hist ? b.oamt : T.lines ? t.total : b.amount)}</td><td>${status}</td><td class="r nowrap">${b.hist ? (b.type === 'PO' && b.cid ? `<button class="btn xs" data-hfax="${b.id}">傳真</button>` : `<button class="btn xs" data-hprint="${b.id}">列印</button>`) : opts.actions ? opts.actions(b) : ''}</td></tr>`;
 }
 
 // ---------- 舊系統歷史單據（唯讀，存在伺服器另一個表，向伺服器查） ----------

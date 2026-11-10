@@ -3,7 +3,7 @@ import { store } from './store.js';
 import { rnd0, dayN } from './util.js';
 import { platCost } from './pricing.js';
 import { estWeight } from './spec.js';
-import { printName } from './names.js';
+import { printName, shortName } from './names.js';
 
 export const TYPES = {
   SALE: { name: '銷貨單', pre: 'XS', party: 'C', stock: -1, money: 1, ps: 1, lines: true },
@@ -137,7 +137,8 @@ export function calc() {
 export const qtyAt = (gid, wid) => ((calc().stock[gid] || {})[wid] || 0);
 export const qtyAll = gid => Object.values(calc().stock[gid] || {}).reduce((a, b) => a + b, 0);
 export const cname = id => calc().ct[id]?.name || '—';
-export const cshort = id => { const c = calc().ct[id]; return c ? (c.short || c.name) : '—'; };
+export const cdisp = c => c ? (String(c.short || '').trim() || shortName(c.name, c.aliases) || c.name) : '';
+export const cshort = id => { const c = calc().ct[id]; return c ? cdisp(c) : '—'; };
 // 列印用全名（單據、對帳單、支票、發票、郵寄一律用這個）
 export const cprint = id => { const c = calc().ct[id]; return c ? printName(c.name) : ''; };
 export const wname = id => calc().wh[id]?.name || '—';
