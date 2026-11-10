@@ -29,7 +29,10 @@ export const norm = s => toHalf(s).toLowerCase().replace(/\s*[x×*]\s*/g, '×').
 
 // 多關鍵字搜尋：空白或逗號隔開，每個字都要出現
 export const qTerms = q => norm(q).split(/[\s,，]+/).filter(Boolean);
-export const matchQ = (text, q) => { const ts = Array.isArray(q) ? q : qTerms(q); if (!ts.length) return true; const t = norm(text); return ts.every(x => t.includes(x)); };
+// 搜尋同義詞：打其中一種寫法，另一種寫法的商品也找得到（商品、單據、查價等全站搜尋都適用）
+export const SYN = [['無頭內六角螺絲', '止付內六角螺絲', '止付螺絲', '無頭螺絲'], ['無頭內六角', '止付'], ['鐵皮螺絲', '鐵板牙螺絲', '鐵板螺絲'], ['鐵皮', '鐵板牙', '鐵板']];
+const synAlts = x => { const out = new Set([x]); for (const g of SYN) for (const k of g) { if (!x.includes(norm(k))) continue; for (const k2 of g) if (k2 !== k) out.add(x.replace(norm(k), norm(k2))); } return [...out]; };
+export const matchQ = (text, q) => { const ts = Array.isArray(q) ? q : qTerms(q); if (!ts.length) return true; const t = norm(text); return ts.every(x => synAlts(x).some(a => t.includes(a))); };
 
 // 國字金額（支票、發票）
 export function cnMoney(n) {
