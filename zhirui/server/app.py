@@ -56,6 +56,7 @@ LONG_POLL = 25
 # 附檔（客戶圖面）
 FILE_TYPES = {'.jpg': 'image/jpeg', '.png': 'image/png', '.gif': 'image/gif', '.webp': 'image/webp', '.pdf': 'application/pdf'}
 FILE_MAX = 25 * 1024 * 1024
+START_AT = int(time.time() * 1000)
 FILE_RE = re.compile(r'^/api/files/([0-9a-f]{16}\.(?:jpg|png|gif|webp|pdf))(/delete)?$')
 
 
@@ -291,6 +292,14 @@ class Handler(BaseHTTPRequestHandler):
         if path == '/api/ai' and method == 'POST':
             ai_update(self.state.data_dir, body or {})
             return self.send_json(ai_status(self.state.data_dir))
+        if path == '/api/restart' and method == 'POST':
+            # 由啟動器（run_forever.py）執行時，結束碼 3 會被立刻重開 → 載入新程式，不需 UAC
+            if not os.environ.get('ZR_LAUNCHER'):
+                return self.error('伺服器不是由啟動器執行，無法從網頁重啟：請在伺服器電腦執行「重啟伺服器.bat」', 409)
+            self.send_json({'ok': True, 'msg': '伺服器重新啟動中，約 3～5 秒'})
+            sys.stderr.write('restart requested by %s\n' % me.get('login'))
+            threading.Timer(0.6, lambda: os._exit(3)).start()
+            return
         if path == '/api/ocr/check' and method == 'POST':
             img = str((body or {}).get('image') or '')
             try:
@@ -335,7 +344,8 @@ class Handler(BaseHTTPRequestHandler):
         db = self.state.db
         return {'ver': db.ver, 'users': db.user_count(), 'needSetup': db.user_count() == 0,
                 'counts': {c: db.count(c) for c in ('goods', 'contacts', 'bills', 'pricing', 'checks_in')},
-                'hist': db.hist_count(), 'histVer': db.hist_stamp(), 'backup': self.state.backup, 'time': int(time.time() * 1000)}
+                'hist': db.hist_count(), 'histVer': db.hist_stamp(), 'backup': self.state.backup, 'time': int(time.time() * 1000),
+                'launcher': bool(os.environ.get('ZR_LAUNCHER')), 'started': START_AT}
 
 
 # ---------- AI 辨識：支票拍照 → Claude 擷取欄位 ----------

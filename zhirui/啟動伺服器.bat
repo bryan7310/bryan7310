@@ -9,5 +9,5 @@ if errorlevel 1 (
   exit /b 1
 )
 echo 伺服器啟動中…關掉這個視窗就會停止服務。
-python server\app.py --port 8080 --data data
+python server\run_forever.py --port 8080 --data data
 pause

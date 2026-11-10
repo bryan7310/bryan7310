@@ -32,8 +32,20 @@ async function draw(el) {
     box.innerHTML = `<p class="muted" style="margin:0">伺服器每天在指定時間自動把資料庫壓縮備份到下面的資料夾（伺服器電腦上的路徑，可以是 BeeStation 的網路磁碟機，例如 <span class="mono">Z:\\志瑞備份</span>），只保留最近 N 份。不需要有人開著網頁。</p>
       <div class="grid"><div class="f" style="grid-column:1/-1"><label for="bk-dir">備份資料夾（空白＝伺服器 data\\backup）</label><input id="bk-dir" value="${esc(bk.dir || '')}" placeholder="C:\\zhirui\\data\\backup"></div><div class="f"><label for="bk-time">每天時間</label><input type="time" id="bk-time" value="${esc(bk.time || '12:00')}"></div><div class="f"><label for="bk-keep">保留份數</label><input id="bk-keep" class="num" value="${bk.keep || 30}"></div><label class="check" style="align-self:end"><input type="checkbox" id="bk-on" ${bk.on === false ? '' : 'checked'}> 啟用自動備份</label></div>
       <div class="banner ${st.err ? '' : 'info'}">${st.err ? '上次備份失敗：' + esc(st.err) : st.last ? `上次備份：${new Date(st.last).toLocaleString('zh-TW')}　${esc(st.file || '')}` : '還沒有備份過'}</div>
-      <div class="tools"><button class="btn" id="bkNow">立即備份</button><span class="sp"></span><button class="btn pri" id="bkSave">儲存設定</button></div>
+      <div class="tools"><button class="btn" id="bkNow">立即備份</button><button class="btn" id="svRestart" title="伺服器程式（server 資料夾）更新後按這個，約 5 秒，大家的畫面會自動重新連線">重新啟動伺服器</button><span class="sp"></span><button class="btn pri" id="bkSave">儲存設定</button></div>
       <p class="muted small">還原方式：關掉伺服器，把備份 zip 裡的 zhirui.db 覆蓋 data\\zhirui.db，再啟動伺服器。</p>`;
+    $('#svRestart', box).onclick = async () => {
+      if (!await confirm('重新啟動伺服器？約 5 秒內所有人會暫時斷線，正在編輯的單據請先儲存。', { ok: '重新啟動' })) return;
+      const b = $('#svRestart', box); b.disabled = true; b.textContent = '重新啟動中…';
+      try {
+        const old = (await api.status()).started;
+        await api.post('/api/restart', {});
+        const t0 = Date.now(); let ok = false;
+        while (Date.now() - t0 < 40000) { await new Promise(r => setTimeout(r, 1500)); try { const st = await api.status(); if (st.started && st.started !== old) { ok = true; break; } } catch (e) {} }
+        toast(ok ? '伺服器已重新啟動' : '伺服器還沒回應，請稍後重新整理');
+      } catch (e) { toast(e.message); }
+      b.disabled = false; b.textContent = '重新啟動伺服器';
+    };
     $('#bkSave', box).onclick = async () => { await store.saveSetting('backup', { dir: $('#bk-dir', box).value.trim(), time: $('#bk-time', box).value, keep: +$('#bk-keep', box).value || 30, on: $('#bk-on', box).checked }); toast('已儲存'); };
     $('#bkNow', box).onclick = async () => { $('#bkNow', box).disabled = true; try { const r = await api.backup(); toast(r.msg); } catch (e) { toast('備份失敗：' + e.message); } draw(el); };
   } else if (ui.tab === 'print') {
