@@ -541,7 +541,7 @@ def ocr_check(data_dir, data_url):
         raise OcrError('還沒設定 Claude（Anthropic）API 金鑰：請到「設定備份 → AI 辨識」貼上', 409)
     req = {
         'model': AI_MODEL,
-        'max_tokens': 2048,
+        'max_tokens': 8192,  # 含思考 token；太小會被截斷、拿不到 JSON
         'system': OCR_PROMPT,
         'output_config': {'effort': 'high', 'format': {'type': 'json_schema', 'schema': OCR_SCHEMA}},
         'fallbacks': 'default',
@@ -581,6 +581,8 @@ def ocr_check(data_dir, data_url):
     if out.get('stop_reason') == 'refusal':
         raise OcrError('AI 拒絕處理這張圖片，請確認是支票照片', 502)
     text = ''.join(b.get('text', '') for b in out.get('content', []) if b.get('type') == 'text')
+    if out.get('stop_reason') == 'max_tokens' and not text.strip():
+        raise OcrError('AI 這次沒有讀完（輸出被截斷），請再按一次拍照辨識', 502)
     fields = _parse_json_text(text)
     u = out.get('usage') or {}
     sys.stderr.write('ocr/check %s in=%s out=%s\n' % (out.get('model'), u.get('input_tokens'), u.get('output_tokens')))
