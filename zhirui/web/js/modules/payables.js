@@ -15,10 +15,13 @@ export default {
   onChange(ch) { if (this.el?.isConnected && ['bills', 'payables', 'contacts', 'checks_out'].some(c => ch.has(c))) draw(this.el); },
   badge() { const s = apSummary(); return { cnt: s.openN }; },
 };
+// 應付帳款月份＝25 結：上月 26 日～本月 25 日（115/10 ＝ 115/09/26～115/10/25）
+export const apYm = date => { const d = String(date || ''); if (d.length < 10) return d.slice(0, 7); return +d.slice(8, 10) >= 26 ? shiftMonth(d.slice(0, 7), 1) : d.slice(0, 7); };
+export const apRange = ym => [shiftMonth(ym, -1) + '-26', ym + '-25'];
 export function apRows(ym) {
   const C = calc(); const auto = new Map();
   for (const b of C.bills) {
-    if ((b.type !== 'PUR' && b.type !== 'PUR_RET') || !(b.date || '').startsWith(ym) || !b.cid) continue;
+    if ((b.type !== 'PUR' && b.type !== 'PUR_RET') || apYm(b.date) !== ym || !b.cid) continue;
     const s = b.type === 'PUR' ? 1 : -1; const t = C.tot[b.id];
     const a = auto.get(b.cid) || auto.set(b.cid, { amt: 0, tax: 0, bills: [] }).get(b.cid);
     a.amt += s * t.net; a.tax += s * (b.tax ? t.tax : Math.round(t.net * 0.05)); a.bills.push(b);
@@ -35,7 +38,7 @@ export function apRows(ym) {
   return out.sort((x, y) => (+y.total || 0) - (+x.total || 0) || String(x.name).localeCompare(String(y.name), 'zh-Hant'));
 }
 export function apSummary() {
-  const months = new Set([...store.list('payables').map(r => r.ym), ...calc().bills.filter(b => b.type === 'PUR' && b.cid).map(b => (b.date || '').slice(0, 7))].filter(Boolean));
+  const months = new Set([...store.list('payables').map(r => r.ym), ...calc().bills.filter(b => b.type === 'PUR' && b.cid).map(b => apYm(b.date))].filter(Boolean));
   let open = 0, openN = 0;
   for (const ym of months) for (const r of apRows(ym)) { if (r.pay == null && r.total > 0) { open += r.total; openN++; } }
   return { open, openN };
@@ -49,9 +52,9 @@ function draw(el) {
   const tot = f => rows.reduce((s, r) => s + f(r), 0); const paid = rows.filter(r => r.pay != null);
   el.innerHTML = `<div class="head"><h1>應付帳款</h1><span class="sp"></span>${tabs('ap', [['month', '本月'], ['open', '待開票']], ui.tab)}<button class="btn pri" id="apAdd">＋ 手動新增</button></div>
     ${ui.tab === 'month' ? `<div class="panel" style="display:grid;gap:12px">
-      <div class="tools"><button class="btn sm" id="prevM">‹</button><input type="month" id="ym" value="${ym}" style="font-weight:600"><button class="btn sm" id="nextM">›</button><span class="muted">${ymLabel(ym)}</span><span class="sp"></span>${tabs('f', [['all', '全部'], ['open', '待開票'], ['done', '已開票']], ui.filter)}</div>
+      <div class="tools"><button class="btn sm" id="prevM">‹</button><input type="month" id="ym" value="${ym}" style="font-weight:600"><button class="btn sm" id="nextM">›</button><span class="muted">${ymLabel(ym)}（${roc(apRange(ym)[0])}～${roc(apRange(ym)[1])}）</span><span class="sp"></span>${tabs('f', [['all', '全部'], ['open', '待開票'], ['done', '已開票']], ui.filter)}</div>
       <div class="kpis"><div class="kpi"><span>應付（未稅）</span><b>${money(tot(r => r.amt))}</b></div><div class="kpi"><span>稅額</span><b>${money(tot(r => r.tax))}</b></div><div class="kpi"><span>總額</span><b>${money(tot(r => r.total))}</b></div><div class="kpi ok"><span>已開票 ${paid.length} 家</span><b>${money(paid.reduce((s, r) => s + (+r.pay || 0), 0))}</b></div><div class="kpi ${rows.length - paid.length ? 'alert' : ''}"><span>待開票 ${rows.length - paid.length} 家</span><b>${money(rows.filter(r => r.pay == null).reduce((s, r) => s + r.total, 0))}</b></div></div>
-      <p class="muted small" style="margin:0">金額由該月進貨單自動加總（進貨退出扣除，稅額以 5% 計）。在「開票金額」欄輸入金額並按 Enter 即完成。勾選要付的廠商、確認兌現日，按「送待開支票」會送到「支票開立」的待列印（兌現日＝票載日期）。</p>
+      <p class="muted small" style="margin:0">金額由該月進貨單自動加總（25 結：上月 26 日～本月 25 日；進貨退出扣除，稅額以 5% 計）。在「開票金額」欄輸入金額並按 Enter 即完成。勾選要付的廠商、確認兌現日，按「送待開支票」會送到「支票開立」的待列印（兌現日＝票載日期）。</p>
       ${sendBar()}${table(list, false)}</div>` : `<div class="panel">${sendBar()}${table(list, true)}</div>`}`;
   el.addEventListener('tab', ev => { if (ev.detail.key === 'ap') ui.tab = ev.detail.val; else ui.filter = ev.detail.val; draw(el); }, { once: true });
   $('#ym', el)?.addEventListener('change', ev => { ui.ym = ev.target.value; draw(el); });
@@ -70,7 +73,7 @@ function draw(el) {
   el.querySelectorAll('[data-bills]').forEach(b => b.addEventListener('click', () => { const r = list[+b.dataset.bills]; modal({ title: `${r.name} ${ymLabel(r.ym)} 進貨單`, width: 640, body: `<div class="tw"><table><thead><tr><th>日期</th><th>單號</th><th class="n">未稅</th></tr></thead><tbody>${r.auto.bills.map(x => `<tr class="row" data-id="${x.id}"><td>${esc(slash(x.date))}</td><td class="mono">${esc(x.no)}${x.type === 'PUR_RET' ? ' <span class="pill bad">退出</span>' : ''}</td><td class="n">${money(calc().tot[x.id].net)}</td></tr>`).join('')}</tbody></table></div>`, onOpen(m, close) { m.querySelectorAll('tr.row').forEach(tr => tr.addEventListener('click', () => { close(); openBill(null, tr.dataset.id); })); } }); }));
 }
 function allOpen() {
-  const months = new Set([...store.list('payables').map(r => r.ym), ...calc().bills.filter(b => b.type === 'PUR' && b.cid).map(b => (b.date || '').slice(0, 7))].filter(Boolean));
+  const months = new Set([...store.list('payables').map(r => r.ym), ...calc().bills.filter(b => b.type === 'PUR' && b.cid).map(b => apYm(b.date))].filter(Boolean));
   return [...months].sort().flatMap(ym => apRows(ym).filter(r => r.pay == null && r.total > 0));
 }
 function table(list, showYm) {
