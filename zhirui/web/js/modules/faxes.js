@@ -1,5 +1,5 @@
 // 傳真：採購單／詢價單／報價單產生黑白傳真稿（可加封面頁），用電腦的傳真驅動程式送出；傳真紀錄
-import { $, esc, fmt, today, slash, ls, qTerms, matchQ, thisMonth, shiftMonth, ymLabel } from '../core/util.js';
+import { $, esc, fmt, today, slash, ls, qTerms, matchQ, thisMonth, shiftMonth, ymLabel, copyText } from '../core/util.js';
 import { store } from '../core/store.js';
 import { toast, modal, printHTML } from '../core/ui.js';
 import { calc, TYPES, cname, cshort } from '../core/calc.js';
@@ -41,13 +41,13 @@ export function faxDialog(b, after) {
         const to = v('fx-to'), attn = v('fx-attn'), subj = v('fx-subj'), msg = v('fx-msg'), cover = el.querySelector('#fx-cover').checked, prn = v('fx-prn');
         if (!to) return el.querySelector('#fx-err').textContent = '請填收件傳真號碼';
         ls.set('zr.faxprn', prn);
-        try { await navigator.clipboard.writeText(to.replace(/[^\d#*+]/g, '')); } catch (e) {}
+        const dial = to.replace(/[^\d#*+]/g, ''); const copied = await copyText(dial);
         const ops = [];
         if (el.querySelector('#fx-save')?.checked && c.id && !c.fax) { const d = { ...c, fax: to }; delete d.id; ops.push({ col: 'contacts', id: c.id, data: d }); }
         const d = billDoc({ ...b, attn: attn || b.attn }); const n = 1 + (cover ? 1 : 0);
         const cv = cover ? `<div class="cover"><div class="fxt">傳　真　FAX</div><table class="fxi"><tr><th>收件公司</th><td>${esc(printName(c.name))}</td><th>寄件公司</th><td>${esc(co.name || '志瑞螺絲企業有限公司')}</td></tr><tr><th>收 件 人</th><td>${esc(attn)}</td><th>寄 件 人</th><td>${esc(store.user.name)}</td></tr><tr><th>傳真號碼</th><td><b>${esc(to)}</b></td><th>傳真號碼</th><td>${esc(co.fax || '')}</td></tr><tr><th>電　　話</th><td>${esc(c.phone || '')}</td><th>電　　話</th><td>${esc(co.phone || '')}</td></tr><tr><th>日　　期</th><td>${esc(slash(today()))}</td><th>頁　　數</th><td>共 ${n} 頁（含本頁）</td></tr><tr><th>主　　旨</th><td colspan="3"><b>${esc(subj)}</b></td></tr></table><div class="fxm">${esc(msg).replace(/\n/g, '<br>')}</div><div class="fxf">如傳真不清楚或頁數不符，請來電 ${esc(co.phone || '')} 告知，謝謝。</div></div>` : '';
         const bw = `*{color:#000!important}th{background:none!important}.cover{height:270mm;display:flex;flex-direction:column;page-break-after:always}.fxt{font-size:30pt;font-weight:bold;text-align:center;letter-spacing:.2em;border-bottom:2pt solid #000;padding-bottom:4mm;margin-bottom:8mm}.fxi{width:100%;border-collapse:collapse;table-layout:fixed}.fxi th,.fxi td{border:.8pt solid #000;height:11mm;font-size:12pt;padding:0 3mm;white-space:normal}.fxi th{width:28mm;text-align:center;font-weight:bold}.fxm{margin-top:8mm;border:.8pt solid #000;min-height:80mm;padding:5mm;font-size:13pt;line-height:1.7}.fxf{margin-top:auto;text-align:center;font-size:11pt}`;
-        printHTML(`傳真_${b.no}`, d.css + bw, cv + d.html, { tip: `傳真到 <b style="font-size:18px">${esc(to)}</b>（${esc(printName(c.name))}），共 ${n} 頁<br>① 列印畫面「目的地／印表機」選 <b>${esc(prn || '傳真印表機（PC-FAX）')}</b>，紙張 A4、縮放 100%，按「列印」<br>② 傳真軟體跳出來後，在傳真號碼欄按 <b>Ctrl+V</b> 貼上（號碼已自動複製），再按「傳送」<br><span style="color:#a33">③ 下次印出貨單時，記得把印表機換回原本的印表機。</span>` });
+        printHTML(`傳真_${b.no}`, d.css + bw, cv + d.html, { tip: `傳真到 <b style="font-size:18px">${esc(to)}</b>（${esc(printName(c.name))}），共 ${n} 頁　<button type="button" onclick="(function(){var t=document.createElement('textarea');t.value='${esc(dial)}';document.body.appendChild(t);t.select();var ok=document.execCommand('copy');t.remove();this.textContent=ok?'已複製 ${esc(dial)}':'複製失敗，請手動輸入';}).call(this)" style="font-size:13px;padding:3px 10px;border-radius:6px;border:1px solid #c9a44a;background:#fff;cursor:pointer">${copied ? '已複製號碼，再複製一次' : '複製傳真號碼'}</button><br>① 列印畫面「目的地／印表機」選 <b>${esc(prn || '傳真印表機（PC-FAX）')}</b>，紙張 A4、縮放 100%，按「列印」<br>② 傳真軟體跳出來後，在傳真號碼欄按 <b>Ctrl+V</b> 貼上（號碼已自動複製），再按「傳送」<br><span style="color:#a33">③ 下次印出貨單時，記得把印表機換回原本的印表機。</span>` });
         const cur = store.get('bills', b.id);
         if (cur) { const nd = { ...cur, faxTo: to, attn: attn || cur.attn, faxLog: [...(cur.faxLog || []), { at: new Date().toISOString(), to, attn, by: store.user.name }] }; delete nd.id; ops.push({ col: 'bills', id: b.id, data: nd }); b.faxTo = to; b.faxLog = nd.faxLog; }
         if (ops.length) await store.batch(ops);

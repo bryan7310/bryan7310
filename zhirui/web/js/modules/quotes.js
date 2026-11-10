@@ -1,5 +1,5 @@
 // 報價／詢價：查價加入的報價單草稿 → 正式報價單（進銷存）→ 銷貨單
-import { $, esc, fmt, fmtQ, uid, today } from '../core/util.js';
+import { $, esc, fmt, fmtQ, uid, today, copyText } from '../core/util.js';
 import { store } from '../core/store.js';
 import { toast, tabs, combo, confirm } from '../core/ui.js';
 import { billList, openBill } from './_bills.js';
@@ -39,7 +39,7 @@ function drawDraft(el) {
   $('#qCopy', el)?.addEventListener('click', () => {
     const co = store.setting('company');
     const txt = [`${co.name || '志瑞螺絲'} 報價 ${today()}`, C.ct[c.cid] ? `客戶：${printName(C.ct[c.cid].name)}` : '', ...lines.map(({ l, it }, i) => `${i + 1}. ${it.name} ${it.spec || ''}${it.material ? ' ' + it.material : ''}${it.finish ? ' ' + it.finish : ''}　${fmtQ(netPrice(it))} 元/${it.unit || '支'} × ${l.qty} = ${fmt(netPrice(it) * l.qty)}`), `小計 ${fmt(sub)}${disc ? `，再折 ${disc}% → ${fmt(net)}` : ''}${c.tax ? `，稅 ${fmt(tax)}` : ''}，總額 ${fmt(net + tax)}`].filter(Boolean).join('\n');
-    navigator.clipboard.writeText(txt).then(() => toast('已複製報價文字'), () => toast('無法複製，請手動選取'));
+    copyText(txt).then(ok => toast(ok ? '已複製報價文字' : '無法複製，請手動選取'));
   });
   $('#qMake', el)?.addEventListener('click', async () => {
     if (!c.cid) { toast('請先選客戶'); $('#qc', el).focus(); return; }
