@@ -217,20 +217,20 @@ function lineRow(l, i) {
   const C = calc(); const g = C.g[l.gid]; const T = TYPES[edit.type];
   const priced = !T.transfer && edit.type !== 'OUT'; const showCost = ['SALE', 'SALE_RET', 'QUO'].includes(edit.type);
   const span = 3 + (priced ? 2 : 0) + 1 + (showCost ? 2 : 0);
-  const del = `<td><button class="icon-btn" data-del="${i}" aria-label="刪除這行"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button></td>`;
+  const del = `<td class="c-del"><button class="icon-btn" data-del="${i}" aria-label="刪除這行"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button></td>`;
   if (l.txt !== undefined) return `<tr data-i="${i}" class="noteln"><td colspan="${span}"><div style="display:flex;align-items:center;gap:6px"><span class="pill" style="flex:none">備註</span><input data-f="txt" value="${esc(l.txt)}" placeholder="這一行備註，會印在單據上（例如：以上請分兩包裝、急件）"></div></td>${del}</tr>`;
   const have = lineHave(l);
   const units = g ? [[g.unit || 'PCS', g.unit || 'PCS'], ...(g.aunit ? [['a', `${g.aunit}（${fmtQ(g.arate || 1)}）`]] : []), ['H', 'H（百支）'], ['K', 'K（千支）'], ['KG', 'KG'], ['盒', '盒'], ['箱', '箱'], ['件', '件'], ['SET', 'SET']].filter((x, k, a) => a.findIndex(y => y[0] === x[0]) === k) : [];
   let cost = '';
   if (showCost) {
     const r = l.gid ? costOf(l, edit.date) : null; const base = !l.u && l.unit !== 'a';
-    cost = `<td class="n small">${l.gid && (!r || r.manual) && base ? `<input class="num" data-gcost="${i}" inputmode="decimal" value="${r ? Math.round(r.c * 10000) / 10000 : ''}" placeholder="填成本" title="查無成本時可自行填入，會存到商品資料的手動成本">` : r ? fp4(r.c) : ''}</td><td class="muted small csrc" title="${r ? esc(r.src) : '查無成本'}">${r ? esc(r.src) : l.gid ? '—' : ''}</td>`;
+    cost = `<td class="n small c-c">${l.gid && (!r || r.manual) && base ? `<input class="num" data-gcost="${i}" inputmode="decimal" value="${r ? Math.round(r.c * 10000) / 10000 : ''}" placeholder="填成本" title="查無成本時可自行填入，會存到商品資料的手動成本">` : r ? fp4(r.c) : ''}</td><td class="muted small csrc c-src" title="${r ? esc(r.src) : '查無成本'}">${r ? esc(r.src) : l.gid ? '—' : ''}</td>`;
   }
-  return `<tr data-i="${i}"><td><div class="combo"><input data-f="gid" value="${esc(g ? goodsLabel(g, edit.type) : l.n || '')}" placeholder="打料號、品名、客料號搜尋"></div>${have != null ? `<div class="have ${(T.stock === -1 || T.transfer) && bqty(l, g) > have ? 'bad' : ''}">${esc(wname(edit.wid))}庫存 ${fmtQ(have)} ${esc(g?.unit || '')}</div>` : ''}${l._lp ? `<div class="lp">${esc(l._lp)}</div>` : ''}${g ? `<div class="glinks"><a href="#" data-spec="${i}">規格・圖面${g.dwg ? '（附客戶圖）' : ''}</a><a href="#" data-gedit="${i}">修改商品</a></div>` : ''}</td>
-    <td><input data-f="qty" class="num" inputmode="decimal" value="${esc(l.qty)}"></td>
-    <td>${g ? `<select data-f="unit">${units.map(([v, lb]) => `<option value="${v}" ${(l.unit === 'a' ? 'a' : l.u || g.unit || 'PCS') === v ? 'selected' : ''}>${esc(lb)}</option>`).join('')}</select>` : `<input data-f="nu" value="${esc(l.unit || '')}" placeholder="單位">`}</td>
-    ${priced ? `<td><input data-f="price" class="num" inputmode="decimal" value="${esc(l.price)}">${(w => w ? `<div class="pwarn">${esc(w)}</div>` : '')(priceWarn(l, g))}</td><td class="n" id="ls-${i}">${fmt(lineAmt(l))}</td>` : ''}
-    <td><input data-f="memo" value="${esc(l.memo || '')}" placeholder="${edit.type === 'SALE' || edit.type === 'SALE_RET' ? '例如採購單號' : ''}"></td>
+  return `<tr data-i="${i}"><td class="c-g"><div class="combo"><input data-f="gid" value="${esc(g ? goodsLabel(g, edit.type) : l.n || '')}" placeholder="打料號、品名、客料號搜尋"></div>${have != null ? `<div class="have ${(T.stock === -1 || T.transfer) && bqty(l, g) > have ? 'bad' : ''}">${esc(wname(edit.wid))}庫存 ${fmtQ(have)} ${esc(g?.unit || '')}</div>` : ''}${l._lp ? `<div class="lp">${esc(l._lp)}</div>` : ''}${g ? `<div class="glinks"><a href="#" data-spec="${i}">規格・圖面${g.dwg ? '（附客戶圖）' : ''}</a><a href="#" data-gedit="${i}">修改商品</a></div>` : ''}</td>
+    <td class="c-q"><input data-f="qty" class="num" inputmode="decimal" value="${esc(l.qty)}"></td>
+    <td class="c-u">${g ? `<select data-f="unit">${units.map(([v, lb]) => `<option value="${v}" ${(l.unit === 'a' ? 'a' : l.u || g.unit || 'PCS') === v ? 'selected' : ''}>${esc(lb)}</option>`).join('')}</select>` : `<input data-f="nu" value="${esc(l.unit || '')}" placeholder="單位">`}</td>
+    ${priced ? `<td class="c-p"><input data-f="price" class="num" inputmode="decimal" value="${esc(l.price)}">${(w => w ? `<div class="pwarn">${esc(w)}</div>` : '')(priceWarn(l, g))}</td><td class="n c-s" id="ls-${i}">${fmt(lineAmt(l))}</td>` : ''}
+    <td class="c-m"><input data-f="memo" value="${esc(l.memo || '')}" placeholder="${edit.type === 'SALE' || edit.type === 'SALE_RET' ? '例如採購單號' : ''}"></td>
     ${cost}${del}</tr>`;
 }
 function lineHave(l) { if (!l.gid || !edit || !edit.wid || TYPES[edit.type].doc) return null; return qtyAt(l.gid, edit.wid); }
