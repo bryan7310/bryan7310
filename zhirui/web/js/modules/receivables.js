@@ -34,7 +34,8 @@ export function arRows(ym) {
     out.push({ ...r, amt, tax, auto: a, total: r.tot != null ? +r.tot : amt + tax, name: r.cid ? cshort(r.cid) : r.cust });
   }
   for (const [cid, a] of auto) if (!used.has(cid)) { if (Math.abs(a.amt) < 0.5) continue; const c = C.ct[cid]; out.push({ id: null, ym, cid, cust: cshort(cid), name: cshort(cid), amt: a.amt, tax: a.tax, total: a.amt + a.tax, auto: a, method: c?.payMethod || '' }); }
-  return out.sort((x, y) => (x.ord || 999) - (y.ord || 999) || String(x.name).localeCompare(String(y.name), 'zh-Hant'));
+  // 依總額由大到小；同額再依客戶名稱
+  return out.sort((x, y) => (+y.total || 0) - (+x.total || 0) || String(x.name).localeCompare(String(y.name), 'zh-Hant'));
 }
 export function arSummary() {
   const t = today(); const months = new Set([...store.list('receivables').map(r => r.ym), ...calc().bills.filter(b => b.type === 'SALE' && b.cid).map(b => (b.date || '').slice(0, 7))].filter(Boolean));
