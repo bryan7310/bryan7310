@@ -100,6 +100,10 @@ function billRow(b, opts, C) {
   if (b.type === 'SALE' && b.invNo) status += ` <span class="pill blue">發票 ${esc(b.invNo)}</span>`;
   if (b.type === 'QUO' && b.toBill) status += ' <span class="pill ok">已轉銷貨</span>';
   if (b.type === 'PO' && b.received) status += ' <span class="pill ok">已進貨</span>';
+  if (b.type === 'PUR' && !b.hist) {   // 進貨單：有單價高於上次進價的行就標出來
+    const ws = lines.map(l => { const w = purWarn(b, l, C.g[l.gid], C); return w ? `${gname(l.gid, b.type)} ${fp4(+l.price)}：${w}` : ''; }).filter(Boolean);
+    if (ws.length) status += ` <span class="pill bad" title="${esc(ws.join('\n'))}">單價偏高 ${ws.length} 項</span>`;
+  }
   if (opts.status) status += opts.status(b);
   if (b.hist) status = '';
   return `<tr class="row" data-id="${b.id}" ${b.hist ? 'data-hist="1"' : ''}><td class="nowrap">${esc(slash(b.date))}</td><td class="mono nowrap">${esc(b.no)}${opts.tabList && opts.tabList.length > 2 ? `<span class="sub">${T.name}</span>` : ''}</td><td class="nowrap">${esc(T.party ? partyLabel(b) : T.transfer ? wname(b.wid) + ' → ' + wname(b.toWid) : wname(b.wid))}</td><td class="muted">${content}</td>${opts.cols ? opts.cols.map(c => `<td class="${c.cls || ''}">${c.cell(b)}</td>`).join('') : ''}<td class="n">${fmt(b.hist ? b.oamt : T.lines ? t.total : b.amount)}</td><td>${status}</td><td class="r nowrap">${b.hist ? (b.type === 'PO' && b.cid ? `<button class="btn xs" data-hfax="${b.id}">傳真</button>` : `<button class="btn xs" data-hprint="${b.id}">列印</button>`) : opts.actions ? opts.actions(b) : ''}</td></tr>`;
@@ -366,16 +370,21 @@ function applyLast(l, g) {
   l._lp = `上次 ${slash(x.date)} 單價 ${fp4(x.price)}${x.u ? ' / ' + x.u : x.unit === 'a' ? ' / ' + g.aunit : ''}（${x.no}）`; return true;
 }
 /** 單價提醒：進貨單高於上次進價（優先同一廠商）；出貨單低於同客戶上次單價或低於成本 */
+/** 進貨單某一行的單價是否高於上次進價（同廠商優先）；回傳提醒文字或空字串。編輯畫面與進貨單列表共用 */
+function purWarn(b, l, g, C) {
+  if (!g || !l.gid) return ''; const p = +l.price; if (!(p > 0)) return '';
+  const [cls, f] = lineUnit(l, g);
+  const d0 = dayN(b.date || today());
+  const li = (C.purIdx[g.id] || []).filter(x => x.cls === cls && x.d <= d0 && x.no !== b.no).sort((a, c) => c.d - a.d);
+  const x = li.find(y => y.cid && y.cid === b.cid) || li[0]; if (!x) return '';
+  const last = x.per * f;
+  // 高出 0.5% 以上才算（上次進價常只記到小數 3 位，0.2223 對 0.222 這種是四捨五入差，不提醒）
+  return p > last * 1.005 ? `高於上次進價 ${fp4(last)}（${slash(x.date)} ${x.no}${x.cid && x.cid !== b.cid ? '・' + cdisp(C.ct[x.cid]) : ''}）` : '';
+}
 function priceWarn(l, g) {
   if (!g || !l.gid) return ''; const p = +l.price; if (!(p > 0)) return '';
   const C = calc(); const [cls, f] = lineUnit(l, g);
-  if (edit.type === 'PUR') {
-    const d0 = dayN(edit.date || today());
-    const li = (C.purIdx[g.id] || []).filter(x => x.cls === cls && x.d <= d0 && x.no !== edit.no).sort((a, b) => b.d - a.d);
-    const x = li.find(y => y.cid && y.cid === edit.cid) || li[0]; if (!x) return '';
-    const last = x.per * f;
-    return p > last * 1.0001 ? `高於上次進價 ${fp4(last)}（${slash(x.date)} ${x.no}${x.cid && x.cid !== edit.cid ? '・' + cdisp(C.ct[x.cid]) : ''}）` : '';
-  }
+  if (edit.type === 'PUR') return purWarn(edit, l, g, C);
   if (edit.type === 'SALE') {
     const out = [];
     const x = lastSale(edit.cid, g.id, edit.date, edit.id);
