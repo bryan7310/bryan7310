@@ -513,3 +513,18 @@ tfoot td { border-top: 1px solid var(--line-strong); }
 .login .card h1 { display: grid; justify-items: center; gap: 6px; text-align: center; font-size: 18px; }
 .login .card h1 .logo { width: 72px; height: 72px; background: url("../img/logo-icon.png") center/contain no-repeat; }
 .login .card h1::after { content: "ZHIRUI SCREWS"; font-size: 11px; letter-spacing: .3em; color: var(--muted); font-weight: 600; }
+
+/* ---------- 手機上的單據編輯：iOS Safari 會把 grid 裡可橫向捲動的表格壓成 0 高（看不到明細），改用 flex 直排；標題列可換行 ---------- */
+.modal { max-width: calc(100vw - 24px); }
+.modal .mb { display: flex; flex-direction: column; gap: 12px; min-height: 0; -webkit-overflow-scrolling: touch; }
+.modal .mb > * { flex: none; min-width: 0; }
+.modal .mb > .tw { display: block; width: auto; max-width: none; overflow-x: auto; -webkit-overflow-scrolling: touch; min-height: 40px; }
+.modal .mb > .tw > table { min-width: max-content; }
+.modal .mh { flex-wrap: wrap; row-gap: 6px; }
+.modal .mh h2 { white-space: nowrap; flex: 1 1 auto; }
+@media (max-width: 720px) {
+  .modal .mh { padding: 12px 14px 10px; }
+  .modal .mb { padding: 12px 14px; }
+  .modal .mf { padding: 10px 14px 12px; }
+  .modal .mh .btn.sm { padding: 5px 9px; }
+}
