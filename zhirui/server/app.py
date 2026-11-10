@@ -389,9 +389,13 @@ class Handler(BaseHTTPRequestHandler):
         return d
 
     def upload(self, qs):
-        if not self.user():
-            return self.error('請先登入', 401)
         n = int(self.headers.get('Content-Length') or 0)
+        if not self.user():
+            if 0 < n <= FILE_MAX:
+                self.rfile.read(n)
+            else:
+                self.close_connection = True
+            return self.error('請先登入', 401)
         if n <= 0:
             return self.error('沒有收到檔案')
         if n > FILE_MAX:

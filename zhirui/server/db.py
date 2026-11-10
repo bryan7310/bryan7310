@@ -70,15 +70,18 @@ class DB:
 
     # ---------- 文件 ----------
     def get(self, col, id):
-        row = self.conn.execute('SELECT data FROM docs WHERE col=? AND id=? AND deleted=0', (col, id)).fetchone()
+        with self.lock:
+            row = self.conn.execute('SELECT data FROM docs WHERE col=? AND id=? AND deleted=0', (col, id)).fetchone()
         return json.loads(row[0]) if row else None
 
     def list(self, col):
-        rows = self.conn.execute('SELECT id, data FROM docs WHERE col=? AND deleted=0', (col,)).fetchall()
+        with self.lock:
+            rows = self.conn.execute('SELECT id, data FROM docs WHERE col=? AND deleted=0', (col,)).fetchall()
         return [dict(json.loads(d), id=i) for i, d in rows]
 
     def count(self, col):
-        return self.conn.execute('SELECT COUNT(*) FROM docs WHERE col=? AND deleted=0', (col,)).fetchone()[0]
+        with self.lock:
+            return self.conn.execute('SELECT COUNT(*) FROM docs WHERE col=? AND deleted=0', (col,)).fetchone()[0]
 
     def put(self, col, id, data, uid=None):
         return self.batch([{'col': col, 'id': id, 'data': data}], uid)[0]
@@ -121,8 +124,9 @@ class DB:
         return out
 
     def changes_since(self, since, limit=20000):
-        rows = self.conn.execute(
-            'SELECT col, id, data, ver, deleted FROM docs WHERE ver>? ORDER BY ver LIMIT ?', (since, limit)).fetchall()
+        with self.lock:
+            rows = self.conn.execute(
+                'SELECT col, id, data, ver, deleted FROM docs WHERE ver>? ORDER BY ver LIMIT ?', (since, limit)).fetchall()
         out = []
         for col, id, data, ver, deleted in rows:
             if deleted:
@@ -360,10 +364,12 @@ class DB:
         return hashlib.pbkdf2_hmac('sha256', pw.encode('utf-8'), bytes.fromhex(salt), 120000).hex()
 
     def user_count(self):
-        return self.conn.execute('SELECT COUNT(*) FROM users WHERE disabled=0').fetchone()[0]
+        with self.lock:
+            return self.conn.execute('SELECT COUNT(*) FROM users WHERE disabled=0').fetchone()[0]
 
     def users(self):
-        rows = self.conn.execute('SELECT id, name, login, role, created, disabled FROM users ORDER BY created').fetchall()
+        with self.lock:
+            rows = self.conn.execute('SELECT id, name, login, role, created, disabled FROM users ORDER BY created').fetchall()
         return [{'id': r[0], 'name': r[1], 'login': r[2], 'role': r[3], 'created': r[4], 'disabled': bool(r[5])} for r in rows]
 
     def add_user(self, name, login, pw, role='admin'):
@@ -403,11 +409,11 @@ class DB:
     def session_user(self, token):
         if not token:
             return None
-        row = self.conn.execute(
-            'SELECT u.id, u.name, u.login, u.role FROM sessions s JOIN users u ON u.id=s.uid WHERE s.token=? AND u.disabled=0', (token,)).fetchone()
-        if not row:
-            return None
         with self.lock:
+            row = self.conn.execute(
+                'SELECT u.id, u.name, u.login, u.role FROM sessions s JOIN users u ON u.id=s.uid WHERE s.token=? AND u.disabled=0', (token,)).fetchone()
+            if not row:
+                return None
             self.conn.execute('UPDATE sessions SET last=? WHERE token=?', (int(time.time() * 1000), token))
         return {'id': row[0], 'name': row[1], 'login': row[2], 'role': row[3]}
 

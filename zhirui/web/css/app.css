@@ -587,3 +587,6 @@ table.ary th a:hover { color: var(--blue); }
 .iv-tools { display: inline-flex; align-items: center; gap: 4px; flex-wrap: wrap; }
 .iv-pct { min-width: 50px; text-align: center; font-variant-numeric: tabular-nums; color: var(--muted); font-size: 13px; }
 .dwgthumb[data-dwgv] { cursor: zoom-in; }
+/* 客戶圖面縮圖：跟規格圖一樣大，整張圖看得到 */
+.dwgbar .dwgthumb { flex: 0 0 100%; width: 100%; max-width: 760px; height: 300px; object-fit: contain; padding: 6px; border-radius: var(--r); }
+@media (max-width: 720px) { .dwgbar .dwgthumb { height: 220px; } }

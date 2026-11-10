@@ -75,7 +75,8 @@ async function draw(el, f) {
       let dwN = 0;
       for (const d of dwTodo) {
         const fr = await fetch('/pending/' + d.file, { cache: 'no-store' }); if (!fr.ok) throw new Error(`${d.label} 的圖檔讀不到（HTTP ${fr.status}）`);
-        const r = await fetch('/api/files?name=' + encodeURIComponent(d.name), { method: 'POST', body: await fr.blob(), credentials: 'same-origin' });
+        const body = await fr.blob(); let r;
+        for (let k = 0; k < 3; k++) { r = await fetch('/api/files?name=' + encodeURIComponent(d.name), { method: 'POST', body, credentials: 'same-origin' }); if (r.status !== 401) break; await new Promise(ok => setTimeout(ok, 600)); }
         const j = await r.json().catch(() => ({})); if (!r.ok || !j.ok) throw new Error(`${d.label} 上傳失敗：${j.error || 'HTTP ' + r.status}`);
         const g = { ...store.get('goods', d.gid), dwg: { id: j.id, name: j.name, type: j.type, size: j.size, at: Date.now() } }; delete g.id;
         await store.save('goods', d.gid, g); store.log('上傳圖面', `商品「${g.name}」${j.name}（${P.title || f}）`); dwN++;
