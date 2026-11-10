@@ -8,6 +8,7 @@ import { SP_FIELDS, spLab, spParse, spGet, spDims, spSVG, spRows, spTable, spWei
 import { loadHistPur, resetHistCache, goodsHistory } from './_bills.js';
 import { loadXlsx } from './purchase_import.js';
 import { shortName, suggestShorts } from '../core/names.js';
+import { imageViewer } from '../core/imgview.js';
 
 const ui = { tab: 'goods', q: '', page: 0 };
 const TABS = [['goods', '商品'], ['customers', '客戶'], ['suppliers', '供應商'], ['warehouses', '倉庫'], ['accounts', '結算帳戶'], ['names', '名稱對應']];
@@ -290,7 +291,7 @@ async function shrinkImg(file) {   // 大圖縮到長邊 2400px 的 JPG（手機
 }
 function dwgView(dw, title) {
   if (/pdf/.test(dw.type)) { window.open(fileUrl(dw), '_blank'); return; }
-  modal({ title: `${title || ''}　客戶圖面`, width: 1100, body: `<div style="text-align:center;background:#fff;border-radius:var(--r)"><img src="${fileUrl(dw)}" alt="客戶圖面" style="max-width:100%;height:auto"></div><div class="muted small" style="margin-top:6px">${esc(dw.name || '')}</div>`, footer: `<a class="btn" href="${fileUrl(dw, 1)}">下載</a><span class="sp"></span><button class="btn" data-close>關閉</button>` });
+  imageViewer({ url: fileUrl(dw), title: `${title || ''}　客戶圖面`, name: dw.name || '', dl: fileUrl(dw, 1) });
 }
 function dwgBind(el, d) {
   const bar = el.querySelector('#dwgBar'); if (!bar) return;

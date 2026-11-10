@@ -6,6 +6,7 @@ import { calc, TYPES, totals, lineAmt, goodsLabel, goodsWt, lineKg, qtyAt, nextN
 import { printName } from '../core/names.js';
 import { spGet, spDims, spSVG, spRows, spTable } from '../core/spec.js';
 import { loadXlsx } from './purchase_import.js';
+import { imageViewer } from '../core/imgview.js';
 
 // ---------- 格式 ----------
 const FONTS = { jh: ['微軟正黑體', '"Microsoft JhengHei","微軟正黑體","PingFang TC","Noto Sans TC",sans-serif'], ming: ['細明體', '"MingLiU","細明體","PMingLiU","新細明體",serif'], pming: ['新細明體', '"PMingLiU","新細明體","MingLiU",serif'], kai: ['標楷體', '"DFKai-SB","BiauKai","標楷體","Kaiti TC",serif'], times: ['Times New Roman＋新細明體', '"Times New Roman","PMingLiU","新細明體",serif'] };
@@ -264,8 +265,12 @@ export function specView(g) {
   modal({
     title: `${g.code || ''} ${g.name}　規格・圖面`, width: 900,
     body: `<div class="sppv" style="margin:0"><div>${spSVG(sp, dm)}</div><div class="spside"><table class="sprows">${spRows(sp, dm).map(([l, x]) => `<tr><th>${esc(l)}</th><td>${esc(x)}</td></tr>`).join('')}</table></div></div>${spTable(sp, dm)}
-      ${g.dwg ? `<div class="dwgbar">${/pdf/.test(g.dwg.type) ? '<span class="dwgpdf">PDF</span>' : `<img class="dwgthumb" src="/api/files/${encodeURIComponent(g.dwg.id)}?n=${encodeURIComponent(g.dwg.name || '')}" alt="">`}<span class="muted small sp">客戶圖面：${esc(g.dwg.name)}</span><a class="btn sm" target="_blank" href="/api/files/${encodeURIComponent(g.dwg.id)}?n=${encodeURIComponent(g.dwg.name || '')}">查看圖面</a></div>` : ''}`,
+      ${g.dwg ? `<div class="dwgbar">${/pdf/.test(g.dwg.type) ? '<span class="dwgpdf">PDF</span>' : `<img class="dwgthumb" src="/api/files/${encodeURIComponent(g.dwg.id)}?n=${encodeURIComponent(g.dwg.name || '')}" alt="" data-dwgv>`}<span class="muted small sp">客戶圖面：${esc(g.dwg.name)}</span>${/pdf/.test(g.dwg.type) ? `<a class="btn sm" target="_blank" href="/api/files/${encodeURIComponent(g.dwg.id)}?n=${encodeURIComponent(g.dwg.name || '')}">查看圖面</a>` : '<button type="button" class="btn sm" data-dwgv>查看圖面</button>'}</div>` : ''}`,
     footer: '<span class="sp"></span><button class="btn" data-close>關閉</button>',
+    onOpen(el) {
+      const u = g.dwg && `/api/files/${encodeURIComponent(g.dwg.id)}?n=${encodeURIComponent(g.dwg.name || '')}`;
+      el.querySelectorAll('[data-dwgv]').forEach(b => b.addEventListener('click', () => imageViewer({ url: u, title: `${g.code || ''} ${g.name}　客戶圖面`, name: g.dwg.name || '', dl: u + '&dl=1' })));
+    },
   });
 }
 /** 出貨單總重（kg），回傳 {kg, miss} */
