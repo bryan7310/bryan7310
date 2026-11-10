@@ -20,8 +20,8 @@ function draw(el) {
   const C = calc(); const q = qTerms(ui.q); let head = [], rows = [], label = '', col = '', offN = 0;
   const t = ui.tab;
   if (t === 'goods') {
-    col = 'goods'; label = '商品'; head = ['料號', '品名', '規格', '類別', '單位', '<span class="n">庫存</span>', '<span class="n">售價</span>', '<span class="n">進價</span>'];
-    rows = store.list('goods').filter(g => matchQ([g.code, g.name, g.spec, g.cat, g.vcode].join(' '), q)).sort((a, b) => String(a.code || a.name).localeCompare(String(b.code || b.name))).map(g => [g, [esc(g.code), esc(g.name), esc(g.spec), esc(g.cat), esc(g.unit), `<span class="n">${fmtQ(qtyAll(g.id))}</span>`, `<span class="n">${g.salePrice ? fmtQ(g.salePrice) : ''}</span>`, `<span class="n">${g.purPrice ? fmtQ(g.purPrice) : ''}</span>`]]);
+    col = 'goods'; label = '商品'; head = ['料號', '品名', '客料號', '廠商料號', '類別', '單位', '<span class="n">庫存</span>', '<span class="n">售價</span>', '<span class="n">進價</span>'];
+    rows = store.list('goods').filter(g => matchQ([g.code, g.name, g.spec, g.cat, g.vcode].join(' '), q)).sort((a, b) => String(a.code || a.name).localeCompare(String(b.code || b.name))).map(g => [g, [esc(g.code), esc(g.name), esc(g.spec), esc(g.vcode), esc(g.cat), esc(g.unit), `<span class="n">${fmtQ(qtyAll(g.id))}</span>`, `<span class="n">${g.salePrice ? fmtQ(g.salePrice) : ''}</span>`, `<span class="n">${g.purPrice ? fmtQ(g.purPrice) : ''}</span>`]]);
   } else if (t === 'customers' || t === 'suppliers') {
     col = 'contacts'; const C2 = t === 'customers'; label = C2 ? '客戶' : '供應商'; head = ['編號', '名稱', '簡稱／別名', '統編', '聯絡人', '電話', `<span class="n">${C2 ? '應收' : '應付'}餘額</span>`];
     const allC = C2 ? customers(true) : suppliers(true); offN = allC.filter(c => c.inactive).length;
@@ -51,7 +51,7 @@ function draw(el) {
 }
 
 const FIELDS = {
-  goods: [['code', '料號'], ['name', '品名', 'req'], ['spec', '規格'], ['cat', '類別'], ['unit', '單位'], ['vcode', '客料號'], ['salePrice', '售價', 'num'], ['purPrice', '進價', 'num'], ['cost', '手動成本（進貨單、查價都找不到時用）', 'num'], ['safety', '安全庫存', 'num'], ['wt', '單重 g／支（空白＝自動估算）', 'num'], ['aunit', '大單位（例如 箱）'], ['arate', '大單位 = 幾個基本單位', 'num'], ['note', '備註']],
+  goods: [['code', '料號'], ['name', '品名', 'req'], ['spec', '客料號'], ['vcode', '廠商料號'], ['cat', '類別'], ['unit', '單位'], ['salePrice', '售價', 'num'], ['purPrice', '進價', 'num'], ['cost', '手動成本（進貨單、查價都找不到時用）', 'num'], ['safety', '安全庫存', 'num'], ['wt', '單重 g／支（空白＝自動估算）', 'num'], ['aunit', '大單位（例如 箱）'], ['arate', '大單位 = 幾個基本單位', 'num'], ['note', '備註']],
   C: [['code', '客戶編號'], ['name', '客戶名稱', 'req'], ['short', '簡稱'], ['taxId', '統一編號'], ['person', '聯絡人'], ['phone', '電話'], ['fax', '傳真'], ['zip', '郵遞區號'], ['addr', '地址'], ['payMethod', '付款方式（匯款、支票、扣趴…）'], ['init', '期初應收', 'num'], ['note', '備註']],
   S: [['code', '供應商編號'], ['name', '供應商名稱', 'req'], ['short', '簡稱'], ['taxId', '統一編號'], ['person', '聯絡人'], ['phone', '電話'], ['fax', '傳真'], ['addr', '地址'], ['init', '期初應付', 'num'], ['note', '備註']],
   warehouses: [['name', '倉庫名稱', 'req']],
