@@ -142,8 +142,8 @@ export const cshort = id => { const c = calc().ct[id]; return c ? cdisp(c) : '�
 // 列印用全名（單據、對帳單、支票、發票、郵寄一律用這個）
 export const cprint = id => { const c = calc().ct[id]; return c ? printName(c.name) : ''; };
 export const wname = id => calc().wh[id]?.name || '—';
-export const gname = id => { const x = calc().g[id]; return x ? `${x.name}${x.spec ? ' ' + x.spec : ''}` : '（已刪除商品）'; };
-export const goodsLabel = x => [x.code, x.name, x.spec].filter(Boolean).join(' ');
+export const gname = (id, type) => { const x = calc().g[id]; if (!x) return '（已刪除商品）'; const ext = type === 'PO' ? x.vcode : x.spec; return `${x.name}${ext ? ' ' + ext : ''}`; };  // 採購單給廠商看：品名＋廠商料號，不印客料號
+export const goodsLabel = (x, type) => [x.code, x.name, type === 'PO' ? x.vcode : x.spec].filter(Boolean).join(' ');
 export const billAmt = b => TYPES[b.type]?.lines ? (calc().tot[b.id]?.total || 0) : +b.amount || 0;
 // 客戶／供應商清單：預設不含「停用」的（開單、挑選用）；all=true 含停用（基本資料、報表、名稱比對用）
 export const customers = all => store.list('contacts').filter(c => c.kind === 'C' && (all || !c.inactive)).sort((a, b) => String(a.code || a.name).localeCompare(String(b.code || b.name)));

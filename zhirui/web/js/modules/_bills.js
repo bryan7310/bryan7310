@@ -49,7 +49,7 @@ function bindSearch(el, ui, redraw, delay = 0) {
 }
 const csvOf = (name, head, rows) => downloadText(name + '.csv', '﻿' + [head, ...rows].map(r => r.map(c => '"' + String(c ?? '').replace(/"/g, '""') + '"').join(',')).join('\r\n'), 'text/csv');
 function billsCsv(title, list, C) {
-  const rows = list.map(b => { const T = TYPES[b.type] || {}; const t = C ? (C.tot[b.id] || totals(b)) : totals(b); const ls = (b.lines || []).filter(l => l.txt === undefined); return [slash(b.date), T.name || b.type, b.no, partyLabel(b), ls.map(l => `${l.gid ? gname(l.gid) : l.n || ''} ×${fmtQ(l.qty)}`).join('；'), b.hist && b.oamt != null ? Math.round(b.oamt) : (T.lines ? Math.round(t.total) : +b.amount || 0), T.lines && T.party && !T.doc && !b.hist ? +b.paid || 0 : '', b.note || '']; });
+  const rows = list.map(b => { const T = TYPES[b.type] || {}; const t = C ? (C.tot[b.id] || totals(b)) : totals(b); const ls = (b.lines || []).filter(l => l.txt === undefined); return [slash(b.date), T.name || b.type, b.no, partyLabel(b), ls.map(l => `${l.gid ? gname(l.gid, b.type) : l.n || ''} ×${fmtQ(l.qty)}`).join('；'), b.hist && b.oamt != null ? Math.round(b.oamt) : (T.lines ? Math.round(t.total) : +b.amount || 0), T.lines && T.party && !T.doc && !b.hist ? +b.paid || 0 : '', b.note || '']; });
   csvOf(`${title}_${today()}`, ['日期', '類型', '單號', '對象', '內容', '金額', '已收付', '備註'], rows);
 }
 export function billList(el, opts, ui) {
@@ -94,7 +94,7 @@ export function billList(el, opts, ui) {
 function billRow(b, opts, C) {
   const T = TYPES[b.type]; const t = C.tot[b.id] || totals(b);
   const lines = (b.lines || []).filter(l => l.txt === undefined);
-  const content = T.lines ? `${lines.slice(0, 2).map(l => esc(l.gid ? gname(l.gid) : l.n || '')).join('、')}${lines.length > 2 ? `…等 ${lines.length} 項` : ''}` : esc(b.note || b.cat || '');
+  const content = T.lines ? `${lines.slice(0, 2).map(l => esc(l.gid ? gname(l.gid, b.type) : l.n || '')).join('、')}${lines.length > 2 ? `…等 ${lines.length} 項` : ''}` : esc(b.note || b.cat || '');
   let status = '';
   if (T.lines && T.party && !T.doc) { const due = t.total - (+b.paid || 0); status = due <= 0 ? '<span class="pill ok">已結清</span>' : +b.paid > 0 ? `<span class="pill warn">尚欠 ${fmt(due)}</span>` : '<span class="pill">未收付</span>'; }
   if (b.type === 'SALE' && b.invNo) status += ` <span class="pill blue">發票 ${esc(b.invNo)}</span>`;
@@ -149,7 +149,7 @@ export function histView(b) {
   const body = `<div class="banner">舊系統搬來的歷史單據，只能查看和列印，不計入現在的庫存與應收應付。</div>
     <div class="grid" style="margin-bottom:10px"><div><span class="muted small">${T.party === 'S' ? '廠商' : '客戶'}</span><div>${esc(c ? c.name : b.cn || '—')}</div></div><div><span class="muted small">日期</span><div>${esc(slash(b.date))}</div></div><div><span class="muted small">單號</span><div class="mono">${esc(b.no)}</div></div>${b.valid ? `<div><span class="muted small">有效期限</span><div>${esc(slash(b.valid))}</div></div>` : ''}${b.deliv ? `<div><span class="muted small">交期</span><div>${esc(slash(b.deliv))}</div></div>` : ''}</div>
     <div class="tw"><table><thead><tr><th>#</th><th>品名規格</th><th class="n">數量</th><th>單位</th><th class="n">單價</th><th class="n">金額</th></tr></thead><tbody>
-    ${lines.map((l, i) => l.txt !== undefined ? `<tr><td></td><td colspan="5" class="muted">${esc(l.txt)}</td></tr>` : `<tr><td class="muted">${i + 1}</td><td>${esc(l.gid ? gname(l.gid) : l.n || '')}${l.memo ? `<span class="sub">${esc(l.memo)}</span>` : ''}</td><td class="n">${fmtQ(l.qty)}</td><td class="muted">${esc(l.u || C.g[l.gid]?.unit || '')}</td><td class="n">${fp4(l.price)}</td><td class="n">${fmt(lineAmt(l))}</td></tr>`).join('') || '<tr><td colspan="6" class="muted">沒有明細</td></tr>'}</tbody>
+    ${lines.map((l, i) => l.txt !== undefined ? `<tr><td></td><td colspan="5" class="muted">${esc(l.txt)}</td></tr>` : `<tr><td class="muted">${i + 1}</td><td>${esc(l.gid ? gname(l.gid, b.type) : l.n || '')}${l.memo ? `<span class="sub">${esc(l.memo)}</span>` : ''}</td><td class="n">${fmtQ(l.qty)}</td><td class="muted">${esc(l.u || C.g[l.gid]?.unit || '')}</td><td class="n">${fp4(l.price)}</td><td class="n">${fmt(lineAmt(l))}</td></tr>`).join('') || '<tr><td colspan="6" class="muted">沒有明細</td></tr>'}</tbody>
     <tfoot><tr><td colspan="5" class="n">總計</td><td class="n"><b>${fmt(b.oamt != null ? b.oamt : totals(b).total)}</b></td></tr></tfoot></table></div>${b.note ? `<p class="muted small">備註：${esc(b.note)}</p>` : ''}`;
   modal({ title: `${T.name || b.type} ${b.no}`, width: 760, body, footer: '<button class="btn" data-print>列印</button><span class="sp"></span><button class="btn" data-close>關閉</button>', onOpen(m) { m.querySelector('[data-print]').onclick = () => printBill(b); } });
 }
@@ -226,7 +226,7 @@ function lineRow(l, i) {
     const r = l.gid ? costOf(l, edit.date) : null; const base = !l.u && l.unit !== 'a';
     cost = `<td class="n small">${l.gid && (!r || r.manual) && base ? `<input class="num" data-gcost="${i}" inputmode="decimal" value="${r ? Math.round(r.c * 10000) / 10000 : ''}" placeholder="填成本" title="查無成本時可自行填入，會存到商品資料的手動成本">` : r ? fp4(r.c) : ''}</td><td class="muted small csrc" title="${r ? esc(r.src) : '查無成本'}">${r ? esc(r.src) : l.gid ? '—' : ''}</td>`;
   }
-  return `<tr data-i="${i}"><td><div class="combo"><input data-f="gid" value="${esc(g ? goodsLabel(g) : l.n || '')}" placeholder="打料號、品名、客料號搜尋"></div>${have != null ? `<div class="have ${(T.stock === -1 || T.transfer) && bqty(l, g) > have ? 'bad' : ''}">${esc(wname(edit.wid))}庫存 ${fmtQ(have)} ${esc(g?.unit || '')}</div>` : ''}${l._lp ? `<div class="lp">${esc(l._lp)}</div>` : ''}${g ? `<div class="glinks"><a href="#" data-spec="${i}">規格・圖面${g.dwg ? '（附客戶圖）' : ''}</a><a href="#" data-gedit="${i}">修改商品</a></div>` : ''}</td>
+  return `<tr data-i="${i}"><td><div class="combo"><input data-f="gid" value="${esc(g ? goodsLabel(g, edit.type) : l.n || '')}" placeholder="打料號、品名、客料號搜尋"></div>${have != null ? `<div class="have ${(T.stock === -1 || T.transfer) && bqty(l, g) > have ? 'bad' : ''}">${esc(wname(edit.wid))}庫存 ${fmtQ(have)} ${esc(g?.unit || '')}</div>` : ''}${l._lp ? `<div class="lp">${esc(l._lp)}</div>` : ''}${g ? `<div class="glinks"><a href="#" data-spec="${i}">規格・圖面${g.dwg ? '（附客戶圖）' : ''}</a><a href="#" data-gedit="${i}">修改商品</a></div>` : ''}</td>
     <td><input data-f="qty" class="num" inputmode="decimal" value="${esc(l.qty)}"></td>
     <td>${g ? `<select data-f="unit">${units.map(([v, lb]) => `<option value="${v}" ${(l.unit === 'a' ? 'a' : l.u || g.unit || 'PCS') === v ? 'selected' : ''}>${esc(lb)}</option>`).join('')}</select>` : `<input data-f="nu" value="${esc(l.unit || '')}" placeholder="單位">`}</td>
     ${priced ? `<td><input data-f="price" class="num" inputmode="decimal" value="${esc(l.price)}">${(w => w ? `<div class="pwarn">${esc(w)}</div>` : '')(priceWarn(l, g))}</td><td class="n" id="ls-${i}">${fmt(lineAmt(l))}</td>` : ''}
@@ -346,7 +346,7 @@ function bindLines(el) {
       const f = inp.dataset.f;
       if (f === 'gid') {
         combo(inp, {
-          items: () => store.list('goods').map(g => ({ id: g.id, label: goodsLabel(g), sub: g.unit || '', text: goodsLabel(g) + ' ' + (g.vcode || '') })), allowFree: TYPES[edit.type].doc,
+          items: () => store.list('goods').map(g => ({ id: g.id, label: goodsLabel(g, edit.type), sub: g.unit || '', text: goodsLabel(g) + ' ' + (g.vcode || '') })), allowFree: TYPES[edit.type].doc,
           onPick: it => { const g = C.g[it.id]; l.gid = it.id; delete l.n; l.u = ''; l.unit = ''; delete l.rate; if (!applyLast(l, g)) { const p = unitPrice(g, edit.type); if (p !== '') l.price = p; } if (!l.qty) l.qty = ''; redrawLines(el); setTimeout(() => el.querySelector(`tr[data-i="${i}"] [data-f="qty"]`)?.focus(), 0); },
           onBlur: val => { if (!l.gid && TYPES[edit.type].doc) { l.n = val; } },
         });
@@ -430,7 +430,7 @@ export function billDoc(b) {
   const t = totals(b);
   const title = { SALE: '出貨單', QUO: '報價單', PO: '採購單', PUR: '進貨單', SALE_RET: '銷貨退回單', PUR_RET: '進貨退出單' }[b.type] || T.name;
   const lines = (b.lines || []);
-  const rows = lines.map((l, i) => l.txt !== undefined ? `<tr><td></td><td colspan="5">${esc(l.txt)}</td></tr>` : `<tr><td class="c">${i + 1}</td><td>${esc(l.gid ? gname(l.gid) : l.n || '')}${l.memo ? `<small> ${esc(l.memo)}</small>` : ''}</td><td class="n">${fmtQ(l.qty)}</td><td>${esc(l.unit === 'a' ? (C.g[l.gid]?.aunit || '') : l.u || C.g[l.gid]?.unit || l.unit || '')}</td><td class="n">${fp4(l.price)}</td><td class="n">${fmt(lineAmt(l))}</td></tr>`).join('');
+  const rows = lines.map((l, i) => l.txt !== undefined ? `<tr><td></td><td colspan="5">${esc(l.txt)}</td></tr>` : `<tr><td class="c">${i + 1}</td><td>${esc(l.gid ? gname(l.gid, b.type) : l.n || '')}${l.memo ? `<small> ${esc(l.memo)}</small>` : ''}</td><td class="n">${fmtQ(l.qty)}</td><td>${esc(l.unit === 'a' ? (C.g[l.gid]?.aunit || '') : l.u || C.g[l.gid]?.unit || l.unit || '')}</td><td class="n">${fp4(l.price)}</td><td class="n">${fmt(lineAmt(l))}</td></tr>`).join('');
   const css = `@page{size:A4;margin:12mm}body{font-family:"Microsoft JhengHei","微軟正黑體","PingFang TC","Noto Sans TC",sans-serif;font-size:11pt;color:#000;margin:0}h1{text-align:center;font-size:18pt;margin:0 0 2mm}.co{text-align:center;font-size:10pt;margin-bottom:4mm}.meta{display:grid;grid-template-columns:1fr 1fr;gap:1mm 10mm;margin-bottom:4mm;font-size:10.5pt}table{width:100%;border-collapse:collapse}th,td{border:.5pt solid #000;padding:1.5mm 2mm;text-align:left}th{background:#eee;font-weight:600}td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}td.c{text-align:center}small{color:#555}tfoot td{font-weight:600}.sig{display:flex;justify-content:space-between;margin-top:12mm;font-size:10.5pt}.sig span{flex:1}`;
   const html = `<div class="co">${esc(co.name || '志瑞螺絲企業有限公司')}　統編 ${esc(co.taxId || '')}　電話 ${esc(co.phone || '')}　傳真 ${esc(co.fax || '')}<br>${esc(co.addr || '')}</div><h1>${esc(title)}</h1>
     <div class="meta"><div>${T.party === 'C' ? '客戶' : '廠商'}：${esc(c.name ? printName(c.name) : (b.cn || ''))}</div><div>單號：${esc(b.no)}</div><div>電話：${esc(c.phone || '')}</div><div>日期：${esc(slash(b.date))}</div><div>地址：${esc(c.addr || '')}</div><div>${b.type === 'PO' && b.deliv ? '交期：' + esc(slash(b.deliv)) : b.type === 'QUO' && b.valid ? '有效期限：' + esc(slash(b.valid)) : ''}</div></div>
