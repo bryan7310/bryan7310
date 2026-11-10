@@ -2,7 +2,7 @@
 import { $, esc, money, today, roc, rocLong, parseNum, uid, cnMoney, slash, qTerms, matchQ } from '../core/util.js';
 import { store } from '../core/store.js';
 import { toast, modal, confirm, tabs, combo, printHTML, pager } from '../core/ui.js';
-import { suppliers } from '../core/calc.js';
+import { suppliers, cshort } from '../core/calc.js';
 import { printName } from '../core/names.js';
 
 const ui = { tab: 'pending', q: '', page: 0 };
@@ -30,7 +30,7 @@ function draw(el) {
   const [s, e, pg] = pager('co', list.length, ui.page);
   el.innerHTML = `<div class="head"><h1>支票開立</h1><span class="sp"></span>${tabs('co', [['pending', `待列印 ${all.filter(c => !c.printedAt).length || ''}`], ['done', '已列印']], ui.tab)}<button class="btn" id="coLayout">套印位置</button><button class="btn pri" id="coNew">＋ 開立支票</button></div>
     <div class="panel"><div class="tools"><input type="search" id="coQ" placeholder="搜尋抬頭、票號、金額" value="${esc(ui.q)}"><span class="muted small">${list.length} 張・合計 ${money(list.reduce((a, c) => a + (+c.amount || 0), 0))}</span><span class="sp"></span>${ui.tab === 'pending' && list.length ? `<button class="btn sm pri" id="coPrintAll">列印全部待列印（${list.length} 張）</button>` : ''}</div>
-    <div class="tw" style="margin-top:10px"><table><thead><tr><th>票載日期</th><th>抬頭</th><th class="n">金額</th><th>國字</th><th>支票號碼</th><th>備註</th><th></th></tr></thead><tbody>${list.slice(s, e).map(c => `<tr class="row" data-id="${c.id}"><td class="nowrap">${esc(roc(c.date))}</td><td><b>${esc(c.payee)}</b></td><td class="n">${money(c.amount)}</td><td class="muted small">${esc(cnMoney(c.amount))}</td><td class="mono">${esc(c.no || '')}</td><td class="muted">${esc(c.note || '')}</td><td class="nowrap"><button class="btn xs" data-print="${c.id}">${c.printedAt ? '重印' : '列印'}</button></td></tr>`).join('') || `<tr><td colspan="7"><div class="empty"><b>${ui.tab === 'pending' ? '沒有待列印的支票' : '還沒有列印過的支票'}</b></div></td></tr>`}</tbody></table></div>${pg}</div>`;
+    <div class="tw" style="margin-top:10px"><table><thead><tr><th>票載日期</th><th>抬頭</th><th class="n">金額</th><th>國字</th><th>支票號碼</th><th>備註</th><th></th></tr></thead><tbody>${list.slice(s, e).map(c => `<tr class="row" data-id="${c.id}"><td class="nowrap">${esc(roc(c.date))}</td><td><b>${esc(c.cid ? cshort(c.cid) : c.payee)}</b></td><td class="n">${money(c.amount)}</td><td class="muted small">${esc(cnMoney(c.amount))}</td><td class="mono">${esc(c.no || '')}</td><td class="muted">${esc(c.note || '')}</td><td class="nowrap"><button class="btn xs" data-print="${c.id}">${c.printedAt ? '重印' : '列印'}</button></td></tr>`).join('') || `<tr><td colspan="7"><div class="empty"><b>${ui.tab === 'pending' ? '沒有待列印的支票' : '還沒有列印過的支票'}</b></div></td></tr>`}</tbody></table></div>${pg}</div>`;
   el.addEventListener('tab', ev => { ui.tab = ev.detail.val; ui.page = 0; draw(el); }, { once: true });
   $('#coQ', el).addEventListener('input', ev => { ui.q = ev.target.value; ui.page = 0; draw(el); const i = $('#coQ', el); i.focus(); i.setSelectionRange(i.value.length, i.value.length); });
   el.querySelectorAll('[data-page]').forEach(b => b.addEventListener('click', () => { ui.page = +b.dataset.to; draw(el); }));

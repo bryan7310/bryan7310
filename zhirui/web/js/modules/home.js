@@ -48,10 +48,10 @@ function draw(el) {
         <div class="tw"><table><tbody>${recent.map(b => `<tr class="row" data-href="#${href(b)}?open=${b.id}"><td class="nowrap">${esc(slash(b.date))}</td><td>${esc(TYPES[b.type].name)}</td><td>${esc(b.cid ? cshort(b.cid) : '')}</td><td class="n">${fmt(TYPES[b.type].lines ? C.tot[b.id]?.total : b.amount)}</td></tr>`).join('') || '<tr><td class="muted">還沒有單據</td></tr>'}</tbody></table></div>
       </div>
       <div class="panel"><div class="ptitle">訂貨進行中<small>${orders.length} 筆</small></div>
-        <div class="tw"><table><tbody>${orders.sort((a, b) => (a.due || '9').localeCompare(b.due || '9')).slice(0, 8).map(o => `<tr><td>${esc(o.vendor)}</td><td>${esc(o.prod)}</td><td class="n">${esc(o.qty)}</td><td class="nowrap ${o.due && o.due < t ? 'muted' : ''}" style="${o.due && o.due < t ? 'color:var(--bad)' : ''}">${o.due ? esc(roc(o.due)) : ''}</td></tr>`).join('') || '<tr><td class="muted">沒有進行中的訂貨</td></tr>'}</tbody></table></div>
+        <div class="tw"><table><tbody>${orders.sort((a, b) => (a.due || '9').localeCompare(b.due || '9')).slice(0, 8).map(o => `<tr><td>${esc(o.cid ? cshort(o.cid) : o.vendor)}</td><td>${esc(o.prod)}</td><td class="n">${esc(o.qty)}</td><td class="nowrap ${o.due && o.due < t ? 'muted' : ''}" style="${o.due && o.due < t ? 'color:var(--bad)' : ''}">${o.due ? esc(roc(o.due)) : ''}</td></tr>`).join('') || '<tr><td class="muted">沒有進行中的訂貨</td></tr>'}</tbody></table></div>
       </div>
       <div class="panel"><div class="ptitle">即將到期客票<small>7 天內</small></div>
-        <div class="tw"><table><tbody>${[...late, ...soon].sort((a, b) => a.due.localeCompare(b.due)).slice(0, 8).map(c => `<tr><td class="nowrap" style="${c.due < t ? 'color:var(--bad)' : ''}">${esc(roc(c.due))}</td><td>${esc(c.name)}</td><td class="muted">${esc(c.bank || '')}</td><td class="n">${money(c.amt)}</td></tr>`).join('') || '<tr><td class="muted">沒有 7 天內到期的客票</td></tr>'}</tbody></table></div>
+        <div class="tw"><table><tbody>${[...late, ...soon].sort((a, b) => a.due.localeCompare(b.due)).slice(0, 8).map(c => `<tr><td class="nowrap" style="${c.due < t ? 'color:var(--bad)' : ''}">${esc(roc(c.due))}</td><td>${esc(c.cid ? cshort(c.cid) : c.name)}</td><td class="muted">${esc(c.bank || '')}</td><td class="n">${money(c.amt)}</td></tr>`).join('') || '<tr><td class="muted">沒有 7 天內到期的客票</td></tr>'}</tbody></table></div>
       </div>
     </div>`;
   el.querySelectorAll('tr[data-href]').forEach(tr => tr.addEventListener('click', () => location.hash = tr.dataset.href));
