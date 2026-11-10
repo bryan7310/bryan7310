@@ -24,9 +24,11 @@ const incNo = no => { const m = String(no || '').match(/^(.*?)(\d+)$/); return m
 export function lastNo() { const s = store.setting('check_print'); if (s.lastNo) return s.lastNo; const w = store.list('checks_out').filter(c => c.no).sort((a, b) => (b.seq || 0) - (a.seq || 0)); return w.length ? w[0].no : ''; }
 const rocDate = iso => { const [y, m, d] = iso.split('-').map(Number); return { y: y - 1911, m, d }; };
 
+// 開票順序：金額由小到大，金額最小的支票號碼最小（同額依票載日期）
+const byAmt = (a, b) => (+a.amount || 0) - (+b.amount || 0) || (a.date || '').localeCompare(b.date || '');
 function draw(el) {
   const all = store.list('checks_out'); const q = qTerms(ui.q);
-  const list = all.filter(c => (ui.tab === 'pending' ? !c.printedAt : !!c.printedAt) && (!q.length || matchQ([c.payee, c.no, c.note, money(c.amount)].join(' '), q))).sort((a, b) => ui.tab === 'pending' ? (a.date || '').localeCompare(b.date || '') : (b.date || '').localeCompare(a.date || ''));
+  const list = all.filter(c => (ui.tab === 'pending' ? !c.printedAt : !!c.printedAt) && (!q.length || matchQ([c.payee, c.no, c.note, money(c.amount)].join(' '), q))).sort((a, b) => ui.tab === 'pending' ? byAmt(a, b) : (b.date || '').localeCompare(a.date || ''));
   const [s, e, pg] = pager('co', list.length, ui.page);
   el.innerHTML = `<div class="head"><h1>支票開立</h1><span class="sp"></span>${tabs('co', [['pending', `待列印 ${all.filter(c => !c.printedAt).length || ''}`], ['done', '已列印']], ui.tab)}<button class="btn" id="coLayout">套印位置</button><button class="btn pri" id="coNew">＋ 開立支票</button></div>
     <div class="panel"><div class="tools"><input type="search" id="coQ" placeholder="搜尋抬頭、票號、金額" value="${esc(ui.q)}"><span class="muted small">${list.length} 張・合計 ${money(list.reduce((a, c) => a + (+c.amount || 0), 0))}</span><span class="sp"></span>${ui.tab === 'pending' && list.length ? `<button class="btn sm pri" id="coPrintAll">列印全部待列印（${list.length} 張）</button>` : ''}</div>
@@ -68,10 +70,11 @@ export function newCheckOut(preset, cb) {
 // 支票抬頭印全名：抬頭寫的是該供應商的簡稱／別名時，換成全名（拿掉備註括號）；自己打的其他抬頭照印
 function payeeOut(c) { const s = c.cid && store.get('contacts', c.cid); const p = String(c.payee || '').trim(); if (s && (p === s.short || p === s.name || (s.aliases || []).includes(p))) return printName(s.name); return p; }
 async function printChecks(list) {
+  list = [...list].sort(byAmt);
   // 沒票號的先補：從上一張 +1
   const need = list.filter(c => !c.no);
   if (need.length) {
-    const first = await new Promise(res => modal({ title: '填支票號碼', width: 420, body: `<p>有 ${need.length} 張沒有支票號碼。輸入第一張的號碼，其餘自動 +1。</p><div class="f"><input id="cn1" class="mono" value="${esc(incNo(lastNo()))}" autofocus></div>`, footer: '<span class="sp"></span><button class="btn" data-close>取消</button><button class="btn pri" id="cnOk">繼續</button>', onOpen(el, close) { el.querySelector('#cnOk').onclick = () => { res(el.querySelector('#cn1').value.trim().toUpperCase()); close(); }; }, onClose: () => res(null) }));
+    const first = await new Promise(res => modal({ title: '填支票號碼', width: 420, body: `<p>有 ${need.length} 張沒有支票號碼。依金額由小到大配號：輸入金額最小那張的號碼，其餘自動 +1。</p><div class="f"><input id="cn1" class="mono" value="${esc(incNo(lastNo()))}" autofocus></div>`, footer: '<span class="sp"></span><button class="btn" data-close>取消</button><button class="btn pri" id="cnOk">繼續</button>', onOpen(el, close) { el.querySelector('#cnOk').onclick = () => { res(el.querySelector('#cn1').value.trim().toUpperCase()); close(); }; }, onClose: () => res(null) }));
     if (!first) return;
     let no = first; for (const c of need) { c.no = no; no = incNo(no); }
   }
@@ -85,7 +88,7 @@ async function printChecks(list) {
   const css = `@page{size:${L.pageW}mm ${L.pageH}mm;margin:0}body{margin:0}.check{position:relative;color:#000;font-family:"PMingLiU","新細明體","MingLiU","Noto Serif TC",serif;font-weight:700;overflow:hidden;break-after:page;page-break-after:always}.f{position:absolute;display:flex;white-space:nowrap;padding-left:.6mm;line-height:1}.f.vb{align-items:flex-end;padding-bottom:.4mm}.f.vc{align-items:center}.f.vt{align-items:flex-start;padding-top:.4mm}.f.ha-c{justify-content:center}.f.ha-r{justify-content:flex-end}`;
   printHTML('支票套印', css, html, { tip: `把支票放進印表機，紙張 ${L.pageW}×${L.pageH} mm、邊界「無」、縮放 100%。共 ${list.length} 張。` });
   const ops = list.map(c => ({ col: 'checks_out', id: c.id, data: { ...store.get('checks_out', c.id), no: c.no, printedAt: Date.now(), seq: Date.now() } }));
-  const last = list[list.length - 1].no; const s = store.setting('check_print');
+  const last = (need.length ? need : list)[(need.length ? need : list).length - 1].no; const s = store.setting('check_print');
   ops.push({ col: 'settings', id: 'check_print', data: { ...s, lastNo: last } });
   for (const o of ops) delete o.data.id;
   await store.batch(ops);
