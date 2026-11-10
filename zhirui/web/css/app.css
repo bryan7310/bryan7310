@@ -554,3 +554,10 @@ tfoot td { border-top: 1px solid var(--line-strong); }
   .lines .csrc { max-width: none; white-space: normal; }
   .lines .pwarn { white-space: normal; }
 }
+
+/* ---------- iOS Safari：modal 以百分比寬度放在 auto 欄的 grid 裡會被算成內容寬（比螢幕寬、欄位重疊），改成明確的欄寬 ---------- */
+.modal-bg { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, auto); justify-items: center; align-items: center; }
+.modal { width: 100%; max-width: min(var(--mw, 720px), 100%); box-sizing: border-box; }
+.modal .mh, .modal .mb, .modal .mf { box-sizing: border-box; max-width: 100%; }
+.f input[type=date], .f input[type=month], .f input[type=time] { min-width: 0; width: 100%; -webkit-appearance: none; appearance: none; }
+.grid { grid-template-columns: repeat(auto-fit, minmax(min(160px, 100%), 1fr)); }
