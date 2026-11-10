@@ -113,18 +113,43 @@ function scanCheck() {
       const image = await shrinkImage(file, 1800, 0.85);
       const r = await api.post('/api/ocr/check', { image });
       wait.close(); wait = null;
-      const f = r.fields || {};
-      const drawer = String(f.drawer || '').trim();
-      const c = drawer ? matchCustomer(drawer) : null;
-      const bank = [f.bank, f.branch].map(x => String(x || '').trim()).filter(Boolean).join(' ');
-      const pre = { name: c ? (c.short || c.name) : drawer, cid: c ? c.id : undefined, bank, no: toHalf(String(f.checkNo || '')).replace(/\s+/g, '').toUpperCase(), acct: toHalf(String(f.account || '')).replace(/\s+/g, ''), due: /^\d{4}-\d{2}-\d{2}$/.test(f.dueDate || '') ? f.dueDate : '', amt: +f.amount > 0 ? +f.amount : '', _ocr: { drawer, matched: !!c, notes: String(f.notes || '').trim() } };
-      editCheck(null, pre);
+      const list = (Array.isArray(r.checks) && r.checks.length ? r.checks : [r.fields || {}]).map(preOf);
+      if (list.length === 1) editCheck(null, list[0]);
+      else reviewChecks(list);
     } catch (e) {
       if (wait) wait.close();
       toast(e.message || '辨識失敗');
     }
   });
   inp.click();
+}
+/** AI 辨識的一張支票 → 登記客票的預填值 */
+function preOf(f) {
+  const drawer = String(f.drawer || '').trim();
+  const c = drawer ? matchCustomer(drawer) : null;
+  const bank = [f.bank, f.branch].map(x => String(x || '').trim()).filter(Boolean).join(' ');
+  return { name: c ? (c.short || c.name) : drawer, cid: c ? c.id : undefined, bank, no: toHalf(String(f.checkNo || '')).replace(/\s+/g, '').toUpperCase(), acct: toHalf(String(f.account || '')).replace(/\s+/g, ''), due: /^\d{4}-\d{2}-\d{2}$/.test(f.dueDate || '') ? f.dueDate : '', amt: +f.amount > 0 ? +f.amount : '', _ocr: { drawer, matched: !!c, notes: String(f.notes || '').trim() } };
+}
+/** 一張照片辨識到好幾張支票：先列清單，逐張打開登記客票核對；登記完自動接下一張 */
+function reviewChecks(list) {
+  const done = new Set();
+  const m = modal({
+    title: `辨識到 ${list.length} 張支票`, width: 860, closeOnBg: false,
+    body: '<div id="rvBody"></div>',
+    footer: '<span class="muted small" id="rvSum"></span><span class="sp"></span><button class="btn" data-close>關閉</button><button class="btn pri" id="rvNext">登記下一張</button>',
+    onOpen(el) {
+      const draw = () => {
+        el.querySelector('#rvBody').innerHTML = `<p class="muted small" style="margin:0 0 8px">每一張都要人工核對後才會登記。發票人對不到客戶的，打開後請自行選客戶。</p><div class="tw"><table><thead><tr><th>#</th><th>發票人 → 客戶</th><th>付款銀行</th><th>票號</th><th class="n">金額</th><th>到期日</th><th></th></tr></thead><tbody>${list.map((p, i) => `<tr class="${done.has(i) ? 'muted' : ''}"><td>${i + 1}</td><td>${p._ocr.matched ? `<b>${esc(p.name)}</b>` : p._ocr.drawer ? `${esc(p._ocr.drawer)} <span class="pill">找不到客戶</span>` : '<span class="pill">沒讀到</span>'}${p._ocr.notes ? `<div class="muted small">${esc(p._ocr.notes)}</div>` : ''}</td><td>${esc(p.bank)}</td><td class="mono">${esc(p.no)}</td><td class="n">${p.amt !== '' ? money(p.amt) : '—'}</td><td class="nowrap">${p.due ? roc(p.due) : '—'}</td><td class="r nowrap">${done.has(i) ? '<span class="pill ok">已登記</span>' : `<button class="btn xs pri" data-rv="${i}">登記</button>`}</td></tr>`).join('')}</tbody></table></div>`;
+        el.querySelector('#rvSum').textContent = `已登記 ${done.size} / ${list.length} 張`;
+        el.querySelectorAll('[data-rv]').forEach(b => b.onclick = () => open(+b.dataset.rv));
+        const nb = el.querySelector('#rvNext'); const next = list.findIndex((_, i) => !done.has(i)); nb.disabled = next < 0; nb.textContent = next < 0 ? '全部登記完成' : `登記第 ${next + 1} 張`;
+      };
+      const open = i => editCheck(null, list[i], () => { done.add(i); draw(); const next = list.findIndex((_, k) => !done.has(k)); if (next >= 0) setTimeout(() => open(next), 250); else toast(`${list.length} 張都登記好了`); });
+      el.querySelector('#rvNext').onclick = () => { const next = list.findIndex((_, i) => !done.has(i)); if (next >= 0) open(next); };
+      draw();
+    },
+  });
+  return m;
 }
 /** 發票人名稱對到客戶：全名、簡稱、別名互相包含就算 */
 function matchCustomer(drawer) {
@@ -147,7 +172,7 @@ function shrinkImage(file, max, q) {
     img.src = url;
   });
 }
-function editCheck(c, pre) {
+function editCheck(c, pre, onSaved) {
   const d = c ? { ...c } : { name: '', bank: '', no: '', acct: '', due: '', amt: '', note: '', recv: today(), ...(pre || {}) };
   const ocr = d._ocr; delete d._ocr;
   const hist = name => store.list('checks_in').filter(x => x.name === name).sort((a, b) => (b.recv || b.due || '').localeCompare(a.recv || a.due || ''));
@@ -171,7 +196,8 @@ function editCheck(c, pre) {
         const out = { ...d, cid, name, bank: $('#ck-bank', el).value.trim(), no: toHalf($('#ck-no', el).value).trim().toUpperCase(), acct: $('#ck-acct', el).value.trim(), due: $('#ck-due', el).value, amt, recv: $('#ck-recv', el).value, note: $('#ck-note', el).value.trim() }; delete out.id;
         if (c?.col) { const a = $('#ck-col-a', el).value; out.col = { d: $('#ck-col-d', el).value || '', a, raw: a ? '' : (d.col.raw || '') }; }
         await store.save('checks_in', d.id || uid('ci'), out); toast(`已登記 ${name} ${money(amt)}`);
-        if (c) close(); else { ['ck-no', 'ck-amt', 'ck-note', 'ck-due'].forEach(id => $('#' + id, el).value = ''); $('#ck-name', el).focus(); }
+        if (c || pre) close(); else { ['ck-no', 'ck-amt', 'ck-note', 'ck-due'].forEach(id => $('#' + id, el).value = ''); $('#ck-name', el).focus(); }
+        onSaved && onSaved(out);
       };
       $('#ck-del', el)?.addEventListener('click', async () => { if (await confirm('刪除這張客票？', { danger: true, ok: '刪除' })) { await store.remove('checks_in', c.id); close(); } });
       $('#ck-undo', el)?.addEventListener('click', async () => { const { col, id, ...rest } = c; await store.save('checks_in', c.id, rest); toast('已退回待代收'); close(); });

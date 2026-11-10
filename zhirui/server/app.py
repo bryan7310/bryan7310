@@ -303,10 +303,12 @@ class Handler(BaseHTTPRequestHandler):
         if path == '/api/ocr/check' and method == 'POST':
             img = str((body or {}).get('image') or '')
             try:
-                fields = ocr_check(self.state.data_dir, img)
+                checks = ocr_check(self.state.data_dir, img)
             except OcrError as e:
                 return self.error(str(e), e.status)
-            return self.send_json({'ok': True, 'fields': fields})
+            if not checks:
+                return self.error('照片裡沒有讀到支票，請重拍（對準、光線夠、整張入鏡）', 422)
+            return self.send_json({'ok': True, 'checks': checks, 'fields': checks[0]})
         return self.error('not found', 404)
 
     # ---------- 附檔（客戶圖面）：存在 data/files，檔名是亂數＋副檔名 ----------
@@ -350,7 +352,7 @@ class Handler(BaseHTTPRequestHandler):
 
 # ---------- AI 辨識：支票拍照 → Claude 擷取欄位 ----------
 AI_MODEL = 'claude-opus-5-5'
-OCR_SCHEMA = {
+OCR_ITEM = {
     'type': 'object',
     'properties': {
         'drawer': {'type': 'string', 'description': '發票人（開票的公司或個人名稱）'},
@@ -365,9 +367,16 @@ OCR_SCHEMA = {
     'required': ['drawer', 'bank', 'branch', 'checkNo', 'account', 'amount', 'dueDate', 'notes'],
     'additionalProperties': False,
 }
+OCR_SCHEMA = {
+    'type': 'object',
+    'properties': {'checks': {'type': 'array', 'items': OCR_ITEM, 'description': '照片裡的每一張支票，由上到下、由左到右'}},
+    'required': ['checks'],
+    'additionalProperties': False,
+}
 OCR_PROMPT = (
-    '你在幫台灣的螺絲公司登記收到的客戶支票（客票）。使用者會給你一張支票照片，照片可能是橫的、斜的或倒的，先自行轉正再讀。\n'
-    '請擷取：\n'
+    '你在幫台灣的螺絲公司登記收到的客戶支票（客票）。使用者會給你一張照片，裡面可能只有一張支票，也可能桌上排了好幾張（例如 6 張）；'
+    '照片可能是橫的、斜的或倒的，先自行轉正再讀。每一張支票各輸出一筆，順序由上到下、由左到右，不要漏掉也不要重複。\n'
+    '每張請擷取：\n'
     '1. drawer 發票人：開這張票的公司或個人。通常是票面上方印刷的公司名，或下方「發票人簽章」印鑑上的名稱。'
     '注意「憑票支付」後面寫的是受款人（通常是志瑞螺絲企業有限公司），不是發票人。\n'
     '2. bank 付款銀行、branch 分行：票面印的付款行，例如「華南商業銀行」「南台中分行」；農會、信用合作社也算銀行。\n'
@@ -489,9 +498,9 @@ def ocr_gemini(cfg, media, b64):
     if not key:
         raise OcrError('還沒設定 Gemini API 金鑰：請到「設定備份 → AI 辨識」貼上', 409)
     model = cfg['gemini_model']
-    schema_txt = json.dumps({k: v.get('description', '') for k, v in OCR_SCHEMA['properties'].items()}, ensure_ascii=False)
+    schema_txt = json.dumps({k: v.get('description', '') for k, v in OCR_ITEM['properties'].items()}, ensure_ascii=False)
     req = {
-        'systemInstruction': {'parts': [{'text': OCR_PROMPT + '\n只回傳一個 JSON 物件，鍵與說明如下（amount 是數字，其餘字串）：' + schema_txt}]},
+        'systemInstruction': {'parts': [{'text': OCR_PROMPT + '\n只回傳一個 JSON 物件：{"checks": [ … ]}，陣列裡每張支票一個物件，鍵與說明如下（amount 是數字，其餘字串）：' + schema_txt}]},
         'contents': [{'role': 'user', 'parts': [
             {'inlineData': {'mimeType': media, 'data': b64}},
             {'text': '請辨識這張支票，只回傳 JSON。'},
@@ -521,8 +530,30 @@ def ocr_gemini(cfg, media, b64):
     return fields
 
 
+def _ocr_list(fields):
+    """AI 回傳的東西整理成支票清單（舊格式單一物件也接受）"""
+    if isinstance(fields, dict) and isinstance(fields.get('checks'), list):
+        items = fields['checks']
+    elif isinstance(fields, list):
+        items = fields
+    else:
+        items = [fields]
+    out = []
+    for it in items:
+        if not isinstance(it, dict):
+            continue
+        if not any(it.get(k) for k in ('drawer', 'checkNo', 'amount', 'dueDate', 'bank')):
+            continue
+        out.append(it)
+    return out
+
+
 def ocr_check(data_dir, data_url):
-    """data_url：瀏覽器送來的 data:image/jpeg;base64,... → 回傳欄位 dict"""
+    """data_url：瀏覽器送來的 data:image/jpeg;base64,... → 回傳支票清單 list[dict]"""
+    return _ocr_list(_ocr_raw(data_dir, data_url))
+
+
+def _ocr_raw(data_dir, data_url):
     mock = os.environ.get('ZR_OCR_MOCK')
     if mock:
         with open(mock, encoding='utf-8') as f:
