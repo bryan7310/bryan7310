@@ -14,6 +14,7 @@ API（全部回 JSON；除了登入與 /api/status 之外都要先登入）
   GET  /api/hist?...         歷史單據查詢（cid、gid、type、q、from、to、limit、offset）
   GET  /api/hist/prices?gid= 某商品歷史單價
   POST /api/hist/save         修改一張舊系統歷史單據（仍是歷史單據，不計庫存帳款）
+  POST /api/optimize          一鍵優化資料庫（先備份，再檢查、整理）
   POST /api/files?name=      上傳附檔（客戶圖面；內容直接放在 body）→ {id,name,type,size}
   GET  /api/files/<id>       讀附檔（?n=顯示檔名  ?dl=1 下載）   POST /api/files/<id>/delete 刪除
   GET  /api/users            帳號清單   POST /api/users {name,login,pw} 新增
@@ -324,6 +325,13 @@ class Handler(BaseHTTPRequestHandler):
             disp = 'attachment' if q('dl') else 'inline'
             return self.send_bytes(data, FILE_TYPES.get(ext, 'application/octet-stream'), cache=True,
                                    headers={'Content-Disposition': f"{disp}; filename*=UTF-8''{quote(name)}"})
+        if path == '/api/optimize' and method == 'POST':
+            # 先備份；備份失敗就不整理，避免沒有退路
+            ok, msg = run_backup(self.state, manual=True)
+            if not ok:
+                return self.send_json({'ok': False, 'msg': msg})
+            r = self.state.db.optimize()
+            return self.send_json(dict(r, backup=msg, msg='資料庫檢查發現問題，未整理：' + r['check'] if not r['ok'] else '已優化'))
         if path == '/api/backup' and method == 'POST':
             ok, msg = run_backup(self.state, manual=True)
             return self.send_json({'ok': ok, 'msg': msg, 'backup': self.state.backup})

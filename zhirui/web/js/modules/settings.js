@@ -32,7 +32,7 @@ async function draw(el) {
     box.innerHTML = `<p class="muted" style="margin:0">伺服器每天在指定時間自動把資料庫壓縮備份到下面的資料夾（伺服器電腦上的路徑，可以是 BeeStation 的網路磁碟機，例如 <span class="mono">Z:\\志瑞備份</span>），只保留最近 N 份。不需要有人開著網頁。</p>
       <div class="grid"><div class="f" style="grid-column:1/-1"><label for="bk-dir">備份資料夾（空白＝伺服器 data\\backup）</label><input id="bk-dir" value="${esc(bk.dir || '')}" placeholder="C:\\zhirui\\data\\backup"></div><div class="f"><label for="bk-time">每天時間</label><input type="time" id="bk-time" value="${esc(bk.time || '12:00')}"></div><div class="f"><label for="bk-keep">保留份數</label><input id="bk-keep" class="num" value="${bk.keep || 30}"></div><label class="check" style="align-self:end"><input type="checkbox" id="bk-on" ${bk.on === false ? '' : 'checked'}> 啟用自動備份</label></div>
       <div class="banner ${st.err ? '' : 'info'}">${st.err ? '上次備份失敗：' + esc(st.err) : st.last ? `上次備份：${new Date(st.last).toLocaleString('zh-TW')}　${esc(st.file || '')}` : '還沒有備份過'}</div>
-      <div class="tools"><button class="btn" id="bkNow">立即備份</button><button class="btn" id="svRestart" title="伺服器程式（server 資料夾）更新後按這個，約 5 秒，大家的畫面會自動重新連線">重新啟動伺服器</button><span class="sp"></span><button class="btn pri" id="bkSave">儲存設定</button></div>
+      <div class="tools"><button class="btn" id="bkNow">立即備份</button><button class="btn" id="svRestart" title="伺服器程式（server 資料夾）更新後按這個，約 5 秒，大家的畫面會自動重新連線">重新啟動伺服器</button><button class="btn" id="dbOpt" title="先備份，再檢查並整理資料庫；建議每幾個月或覺得變慢時按一次">一鍵優化</button><span class="sp"></span><button class="btn pri" id="bkSave">儲存設定</button></div>
       <p class="muted small">還原方式：關掉伺服器，把備份 zip 裡的 zhirui.db 覆蓋 data\\zhirui.db，再啟動伺服器。</p>`;
     $('#svRestart', box).onclick = async () => {
       if (!await confirm('重新啟動伺服器？約 5 秒內所有人會暫時斷線，正在編輯的單據請先儲存。', { ok: '重新啟動' })) return;
@@ -45,6 +45,25 @@ async function draw(el) {
         toast(ok ? '伺服器已重新啟動' : '伺服器還沒回應，請稍後重新整理');
       } catch (e) { toast(e.message); }
       b.disabled = false; b.textContent = '重新啟動伺服器';
+    };
+    $('#dbOpt', box).onclick = async () => {
+      if (!await confirm('一鍵優化資料庫？\n會先自動備份一份，再檢查資料是否完整、整理資料庫檔案、更新查詢統計。\n大約 10 秒內，其他人的畫面可能會短暫停頓。', { ok: '開始優化' })) return;
+      const b = $('#dbOpt', box); b.disabled = true; b.textContent = '優化中…';
+      const mb = n => (n / 1048576).toFixed(1) + ' MB';
+      try {
+        const r = await api.post('/api/optimize', {});
+        if (r.ok) {
+          modal({ title: '資料庫已優化', width: 560, body: `<ul style="margin:0;padding-left:20px;line-height:1.9">
+              <li>資料檢查：<b style="color:var(--ok)">正常</b></li>
+              <li>檔案大小：${mb(r.before)} → <b>${mb(r.after)}</b>${r.before > r.after ? `（少了 ${mb(r.before - r.after)}）` : ''}</li>
+              <li>花費時間：${(r.ms / 1000).toFixed(1)} 秒</li>
+              <li class="muted small">${esc(r.backup || '')}</li></ul>
+            <p class="muted small" style="margin:12px 0 0">這台電腦若還是覺得慢，可以清除瀏覽器暫存：會重新下載一次全部資料（約十幾秒），之後就是最新、最乾淨的。</p>`,
+            footer: '<button class="btn" id="opClr">清除這台電腦的暫存並重新載入</button><span class="sp"></span><button class="btn pri" data-close>完成</button>',
+            onOpen(m) { m.querySelector('#opClr').onclick = async () => { await store.cacheClear(); location.reload(); }; } });
+        } else modal({ title: '沒有優化', width: 520, body: `<div class="banner">${esc(r.msg || '優化失敗')}</div><p class="muted small">資料沒有被改動。${r.backup ? esc(r.backup) : ''}</p>`, footer: '<span class="sp"></span><button class="btn" data-close>關閉</button>' });
+      } catch (e) { toast('優化失敗：' + e.message); }
+      b.disabled = false; b.textContent = '一鍵優化'; draw(el);
     };
     $('#bkSave', box).onclick = async () => { await store.saveSetting('backup', { dir: $('#bk-dir', box).value.trim(), time: $('#bk-time', box).value, keep: +$('#bk-keep', box).value || 30, on: $('#bk-on', box).checked }); toast('已儲存'); };
     $('#bkNow', box).onclick = async () => { $('#bkNow', box).disabled = true; try { const r = await api.backup(); toast(r.msg); } catch (e) { toast('備份失敗：' + e.message); } draw(el); };

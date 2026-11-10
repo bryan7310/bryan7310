@@ -415,6 +415,33 @@ class DB:
         with self.lock:
             self.conn.execute('DELETE FROM sessions WHERE token=?', (token,))
 
+    # ---------- 資料庫優化 ----------
+    def _size(self):
+        n = 0
+        for suf in ('', '-wal'):
+            try:
+                n += os.path.getsize(self.path + suf)
+            except OSError:
+                pass
+        return n
+
+    def optimize(self):
+        """一鍵優化：檢查 → 寫回暫存（WAL）→ 更新查詢統計 → 重整檔案（VACUUM）。資料有損壞就不動。"""
+        t0 = time.time()
+        with self.lock:
+            before = self._size()
+            free = self.conn.execute('PRAGMA freelist_count').fetchone()[0]
+            check = self.conn.execute('PRAGMA quick_check').fetchone()[0]
+            if check != 'ok':
+                return {'ok': False, 'check': check, 'before': before, 'after': before, 'ms': int((time.time() - t0) * 1000)}
+            self.conn.execute('PRAGMA wal_checkpoint(TRUNCATE)')
+            self.conn.execute('ANALYZE')
+            self.conn.execute('VACUUM')
+            self.conn.execute('PRAGMA wal_checkpoint(TRUNCATE)')
+            self.conn.execute('PRAGMA optimize')
+            after = self._size()
+        return {'ok': True, 'check': check, 'before': before, 'after': after, 'free': free, 'ms': int((time.time() - t0) * 1000)}
+
     # ---------- 備份 ----------
     def backup_to(self, path):
         with self.lock:

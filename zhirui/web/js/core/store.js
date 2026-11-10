@@ -65,6 +65,8 @@ class Store {
   /** 其他要留在這台瀏覽器的大資料（例如舊系統歷史單據），讀不到就回 null */
   async cacheGet(key) { try { return (await idb('readonly', s => s.get(key))) ?? null; } catch (e) { return null; } }
   async cachePut(key, val) { try { await idb('readwrite', s => s.put(val, key)); } catch (e) {} }
+  /** 清掉這台瀏覽器的暫存（開機資料、舊系統單據），下次重新向伺服器下載 */
+  async cacheClear() { try { await idb('readwrite', s => s.clear()); } catch (e) {} }
 
   // ---------- 即時同步 ----------
   async loop() {
