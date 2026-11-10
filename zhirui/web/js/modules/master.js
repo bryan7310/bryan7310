@@ -5,7 +5,7 @@ import { toast, modal, confirm, tabs, pager, field, selectField, formData, combo
 import { calc, goodsLabel, qtyAll, customers, suppliers, costOf, cdisp } from '../core/calc.js';
 import { api } from '../core/api.js';
 import { SP_FIELDS, spLab, spParse, spGet, spDims, spSVG, spRows, spTable, spWeight } from '../core/spec.js';
-import { loadHistPur, resetHistCache } from './_bills.js';
+import { loadHistPur, resetHistCache, goodsHistory } from './_bills.js';
 import { loadXlsx } from './purchase_import.js';
 import { shortName, suggestShorts } from '../core/names.js';
 
@@ -78,7 +78,7 @@ export function openMaster(col, doc, kind, onSaved, tpl) {
     ${col === 'warehouses' && doc ? `<label class="check" style="grid-column:1/-1"><input type="checkbox" name="isDefault" ${store.setting('prefs').defaultWh === doc.id ? 'checked' : ''}> 設為預設倉庫</label>` : ''}</div>
     ${tpl ? `<div class="banner" style="margin-top:8px">從「${esc(tpl.code || tpl.name)}」複製，請把料號改成新的（料號相同無法建立）。</div>` : ''}
     ${col === 'goods' ? goodsExtraHTML(tpl && !doc ? { sp: tpl.sp } : d) : ''}
-    ${doc && col === 'goods' ? `<div class="muted small">各倉庫庫存：${store.list('warehouses').map(w => `${esc(w.name)} ${fmtQ((C.stock[doc.id] || {})[w.id] || 0)}`).join('、')}　<a href="#" id="histBtn">查看歷史單價</a></div><div id="histBox"></div>` : ''}
+    ${doc && col === 'goods' ? `<div class="muted small">各倉庫庫存：${store.list('warehouses').map(w => `${esc(w.name)} ${fmtQ((C.stock[doc.id] || {})[w.id] || 0)}`).join('、')}</div><div class="tools" style="gap:8px;margin-top:6px"><button type="button" class="btn sm" id="ghSale">歷史銷貨明細</button><button type="button" class="btn sm" id="ghPur">歷史進貨明細</button></div>` : ''}
     ${doc && col === 'contacts' ? `<div class="muted small">目前${k === 'C' ? '應收' : '應付'}餘額 ${fmt(C.bal[doc.id] || 0)}　<a href="#" id="histBtn">查看歷史單據</a></div><div id="histBox"></div>` : ''}
     <div class="err" id="mErr"></div>`;
   modal({
@@ -112,6 +112,8 @@ export function openMaster(col, doc, kind, onSaved, tpl) {
         store.log(doc ? '修改' : '新增', `${LABEL[k]} ${out.name}`); close(); toast('已儲存'); onSaved && onSaved(id);
       };
       el.querySelector('#mDel')?.addEventListener('click', async () => { if (await confirm(`確定刪除${LABEL[k]}「${d.name}」？`, { danger: true, ok: '刪除' })) { await store.remove(col, d.id); store.log('刪除', `${LABEL[k]} ${d.name}`); close(); toast('已刪除'); } });
+      el.querySelector('#ghSale')?.addEventListener('click', () => goodsHistory(d.id, 'S'));
+      el.querySelector('#ghPur')?.addEventListener('click', () => goodsHistory(d.id, 'P'));
       el.querySelector('#histBtn')?.addEventListener('click', async ev => {
         ev.preventDefault(); const box = el.querySelector('#histBox'); box.innerHTML = '<div class="muted">載入中…</div>';
         if (col === 'goods') {

@@ -259,6 +259,23 @@ function lineRow(l, i) {
     ${cost}${del}</tr>`;
 }
 /** 歷史明細：某客戶／廠商與某商品的全部交易（新平台單據＋舊系統歷史單據） */
+/** 商品的歷史銷貨（kind='S'）或進貨（kind='P'）明細：所有客戶／廠商，新平台＋舊系統 */
+export async function goodsHistory(gid, kind) {
+  const C = calc(); const g = C.g[gid]; if (!g) return;
+  const sale = kind === 'S'; const types = sale ? ['SALE', 'SALE_RET'] : ['PUR', 'PUR_RET'];
+  const unitOf = l => l.unit === 'a' ? (g.aunit || '') : (l.u || g.unit || '');
+  const live = store.list('bills').filter(b => types.includes(b.type)).flatMap(b => (b.lines || []).filter(l => l.gid === gid).map(l => ({ date: b.date || '', type: b.type, no: b.no, id: b.id, cid: b.cid, qty: +l.qty || 0, unit: unitOf(l), price: +l.price || 0, amt: lineAmt(l) })));
+  const m = modal({ title: `歷史${sale ? '銷貨' : '進貨'}明細｜${g.name}`, width: 860, body: '<div class="muted">載入中…</div>', footer: '<span class="muted small" id="ghSum"></span><span class="sp"></span><button class="btn" data-close>關閉</button>' });
+  let hist = [];
+  try { const r = await api.histPrices(gid, 2000); hist = (r.rows || []).filter(x => types.includes(x.type)).map(x => ({ date: x.date || '', type: x.type, no: x.no, hist: true, cid: x.cid, qty: +x.qty || 0, unit: x.u || g.unit || '', price: +x.price || 0, amt: lineAmt({ qty: x.qty, price: x.price, u: x.u }) })); } catch (e) { /* 舊單據載入失敗就只顯示新平台的 */ }
+  const all = [...live, ...hist].sort((a, b) => b.date.localeCompare(a.date) || String(b.no).localeCompare(String(a.no)));
+  const mb = m.el.querySelector('.mb'); const who = sale ? '客戶' : '廠商';
+  mb.innerHTML = all.length ? `<div class="tw"><table><thead><tr><th>日期</th><th>單據</th><th>單號</th><th>${who}</th><th class="n">數量</th><th>單位</th><th class="n">單價</th><th class="n">金額</th></tr></thead><tbody>${all.map(x => `<tr ${x.id ? `class="row" data-open="${x.id}"` : ''}><td class="nowrap">${esc(slash(x.date))}</td><td class="nowrap">${esc(TYPES[x.type]?.name || x.type)}${x.hist ? '<span class="muted small">（舊）</span>' : ''}</td><td class="mono">${esc(x.no || '')}</td><td>${esc(cdisp(C.ct[x.cid]) || '')}</td><td class="n">${fmtQ(x.qty)}</td><td>${esc(x.unit)}</td><td class="n">${fp4(x.price)}</td><td class="n">${fmt(x.amt)}</td></tr>`).join('')}</tbody></table></div><p class="muted small" style="margin:8px 0 0">點新平台的單據可以打開；（舊）是舊系統搬來的，單價 0 的明細不列。</p>`
+    : `<div class="empty"><b>沒有${sale ? '銷貨' : '進貨'}紀錄</b>新平台和舊系統都查不到這個商品的${sale ? '銷貨' : '進貨'}單</div>`;
+  const tq = all.reduce((s, x) => s + (x.type.endsWith('_RET') ? -x.qty : x.qty), 0); const last = all.find(x => x.price > 0);
+  m.el.querySelector('#ghSum').textContent = all.length ? `共 ${all.length} 筆・${new Set(all.map(x => x.cid).filter(Boolean)).size} 家${who}・數量合計 ${fmtQ(tq)}${last ? `・最近單價 ${fp4(last.price)}（${slash(last.date)}）` : ''}` : '';
+  mb.querySelectorAll('[data-open]').forEach(tr => tr.addEventListener('click', () => { const b = store.get('bills', tr.dataset.open); if (b) { m.close(); openBill(b.type, b.id); } }));
+}
 export async function lineHistory(gid, cid) {
   const C = calc(); const g = C.g[gid]; const c = C.ct[cid]; if (!g || !c) return;
   const sale = c.kind === 'C';
