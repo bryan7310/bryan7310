@@ -17,8 +17,14 @@ export default {
 function draw(el) {
   const t = today(); const all = store.list('orders'); const q = qTerms(ui.q);
   const vn = o => o.cid ? cshort(o.cid) : (o.vendor || '');   // 畫面用簡稱
-  // 採購單自動出現在排程（沒有對應列的）
-  const poRows = calc().bills.filter(b => b.type === 'PO' && !b.received && !all.some(o => o.poId === b.id)).map(b => ({ id: 'po:' + b.id, poId: b.id, vendor: cshort(b.cid), date: b.date, prod: (b.lines || []).filter(l => l.gid || l.n).map(l => l.gid ? gname(l.gid) : l.n).join('、'), qty: (b.lines || []).reduce((s, l) => s + (+l.qty || 0), 0), due: b.deliv || '', steps: { order: true }, fromPO: true, note: b.note }));
+  // 採購單自動出現在排程：每一項商品各一列、各自勾進度（勾過才存成一筆；以前整張存一筆的舊紀錄照舊）
+  const poRows = calc().bills.filter(b => b.type === 'PO' && !b.received && !all.some(o => o.poId === b.id && !o.pk)).flatMap(b => {
+    const seen = {};
+    return (b.lines || []).filter(l => l.txt === undefined && (l.gid || l.n)).map(l => {
+      const k0 = l.gid || 'n:' + l.n; seen[k0] = (seen[k0] || 0) + 1; const pk = seen[k0] > 1 ? `${k0}#${seen[k0]}` : k0;
+      return { id: `po:${b.id}:${pk}`, poId: b.id, pk, cid: b.cid, vendor: cshort(b.cid), date: b.date, prod: l.gid ? gname(l.gid) : l.n, qty: +l.qty || '', due: b.deliv || '', steps: { order: true }, fromPO: true, note: l.memo || b.note };
+    }).filter(r => !all.some(o => o.poId === b.id && o.pk === r.pk));
+  });
   let list = [...all, ...poRows].filter(o => (ui.tab === 'active' ? !(o.steps || {}).done : (o.steps || {}).done) && (!ui.vendor || vn(o) === ui.vendor) && (!q.length || matchQ([vn(o), o.vendor, o.prod, o.cust, o.note, o.qty].join(' '), q)));
   list.sort((a, b) => ui.tab === 'active' ? (a.due || '9').localeCompare(b.due || '9') || (a.date || '').localeCompare(b.date || '') : (b.date || '').localeCompare(a.date || ''));
   const vendors = [...new Set([...all, ...poRows].map(vn).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'zh-Hant'));
@@ -36,10 +42,22 @@ function draw(el) {
     if (cb.dataset.step === 'done' && cb.checked) steps.doneAt = today();
     const data = { ...o, steps }; delete data.id; delete data.fromPO;
     await store.save('orders', o.fromPO ? uid('o') : o.id, data);
-    if (cb.dataset.step === 'done' && cb.checked && o.poId && !store.get('bills', o.poId)?.received) toast('已完成。記得到「進貨／採購」把採購單轉成進貨單。');
+    if (cb.dataset.step === 'done' && cb.checked && o.poId && !store.get('bills', o.poId)?.received) {
+      // 同一張採購單的每一項都完成了，才提醒轉進貨單
+      const rest = poLeft(o.poId);
+      toast(rest ? `已完成。這張採購單還有 ${rest} 項沒完成。` : '這張採購單都完成了，記得到「採購進貨」把採購單轉成進貨單。');
+    }
   }));
   el.querySelectorAll('[data-edit]').forEach(b => b.addEventListener('click', () => editOrder(list[+b.dataset.edit])));
   el.querySelectorAll('[data-po]').forEach(b => b.addEventListener('click', () => openBill(null, b.dataset.po)));
+}
+/** 某張採購單還有幾項沒完成（存過的列看 steps.done，還沒存過的列一律算沒完成） */
+function poLeft(poId) {
+  const b = store.get('bills', poId); if (!b) return 0; const docs = store.list('orders').filter(o => o.poId === poId);
+  if (docs.some(o => !o.pk)) return docs.filter(o => !(o.steps || {}).done).length;
+  const seen = {}; let n = 0;
+  for (const l of b.lines || []) { if (l.txt !== undefined || !(l.gid || l.n)) continue; const k0 = l.gid || 'n:' + l.n; seen[k0] = (seen[k0] || 0) + 1; const pk = seen[k0] > 1 ? `${k0}#${seen[k0]}` : k0; if (!(docs.find(o => o.pk === pk)?.steps || {}).done) n++; }
+  return n;
 }
 function editOrder(o) {
   const d = o ? { ...o } : { vendor: '', date: today(), prod: '', qty: '', cust: '', due: '', note: '', steps: { order: true } };
