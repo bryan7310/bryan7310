@@ -29,7 +29,8 @@ export function apRows(ym) {
     out.push({ ...r, amt, tax, auto: a, total: amt + tax, name: r.cid ? cshort(r.cid) : r.vendor });
   }
   for (const [cid, a] of auto) if (!used.has(cid)) { if (Math.abs(a.amt) < 0.5) continue; out.push({ id: null, ym, cid, vendor: cshort(cid), name: cshort(cid), amt: a.amt, tax: a.tax, total: a.amt + a.tax, auto: a, pay: null }); }
-  return out.sort((x, y) => (x.ord || 999) - (y.ord || 999) || String(x.name).localeCompare(String(y.name), 'zh-Hant'));
+  // 依總額由大到小；同額再依廠商名稱
+  return out.sort((x, y) => (+y.total || 0) - (+x.total || 0) || String(x.name).localeCompare(String(y.name), 'zh-Hant'));
 }
 export function apSummary() {
   const months = new Set([...store.list('payables').map(r => r.ym), ...calc().bills.filter(b => b.type === 'PUR' && b.cid).map(b => (b.date || '').slice(0, 7))].filter(Boolean));

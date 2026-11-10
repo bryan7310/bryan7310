@@ -8,7 +8,7 @@ import { makeInvoiceFromBill } from './invoices.js';
 
 const ui = {};
 export default {
-  id: 'sales', name: '出貨銷貨', group: '業務', icon: 'sales',
+  id: 'sales', name: '出貨銷貨', icon: 'sales',
   render(el, { params }) { this.el = el; draw(el); if (params.open) openBill(null, params.open); },
   onChange(ch) { if (this.el?.isConnected && (ch.has('bills') || ch.has('contacts') || ch.has('goods') || ch.has('invoices'))) draw(this.el); },
 };

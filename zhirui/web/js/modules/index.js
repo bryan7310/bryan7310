@@ -21,4 +21,5 @@ import reports from './reports.js';
 import master from './master.js';
 import settings from './settings.js';
 
-export const MODULES = [home, retail, pricing, quotes, sales, orders, faxes, drawing, purchase, stock, labels, receivables, mail, payables, invoices, checksOut, checksIn, money, reports, master, settings];
+// 門市銷售、出貨銷貨、採購進貨三個最常用的排在最上面（不分組）
+export const MODULES = [home, retail, sales, purchase, pricing, quotes, orders, faxes, drawing, stock, labels, receivables, mail, payables, invoices, checksOut, checksIn, money, reports, master, settings];
