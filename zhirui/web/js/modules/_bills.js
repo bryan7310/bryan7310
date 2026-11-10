@@ -1,8 +1,8 @@
 // 單據共用：清單、編輯器、列印（銷貨、進貨、報價、採購、出入庫、調撥、收付款）
-import { $, $$, esc, fmt, fmtQ, fp4, today, uid, matchQ, qTerms, roc, slash, thisMonth, money, isoOf, downloadText, ls } from '../core/util.js';
+import { $, $$, esc, fmt, fmtQ, fp4, today, uid, matchQ, qTerms, roc, slash, thisMonth, money, isoOf, downloadText, ls, dayN } from '../core/util.js';
 import { store } from '../core/store.js';
 import { toast, modal, confirm, combo, pager, tabs, printHTML } from '../core/ui.js';
-import { TYPES, totals, lineAmt, calc, nextNo, cname, cshort, cdisp, wname, gname, goodsLabel, customers, suppliers, defWh, qtyAt, bqty, uRate, lastSale, unitPrice, unitFactor, setHistPur, setHistSale, histSaleReady, costOf } from '../core/calc.js';
+import { TYPES, totals, lineAmt, calc, nextNo, cname, cshort, cdisp, wname, gname, goodsLabel, customers, suppliers, defWh, qtyAt, bqty, uRate, lastSale, unitPrice, unitFactor, setHistPur, setHistSale, histSaleReady, costOf, lineUnit } from '../core/calc.js';
 import { api } from '../core/api.js';
 import { printName } from '../core/names.js';
 import { labelPicker } from './labels.js';
@@ -229,7 +229,7 @@ function lineRow(l, i) {
   return `<tr data-i="${i}"><td><div class="combo"><input data-f="gid" value="${esc(g ? goodsLabel(g) : l.n || '')}" placeholder="打料號、品名、客料號搜尋"></div>${have != null ? `<div class="have ${(T.stock === -1 || T.transfer) && bqty(l, g) > have ? 'bad' : ''}">${esc(wname(edit.wid))}庫存 ${fmtQ(have)} ${esc(g?.unit || '')}</div>` : ''}${l._lp ? `<div class="lp">${esc(l._lp)}</div>` : ''}${g ? `<div class="glinks"><a href="#" data-spec="${i}">規格・圖面${g.dwg ? '（附客戶圖）' : ''}</a><a href="#" data-gedit="${i}">修改商品</a></div>` : ''}</td>
     <td><input data-f="qty" class="num" inputmode="decimal" value="${esc(l.qty)}"></td>
     <td>${g ? `<select data-f="unit">${units.map(([v, lb]) => `<option value="${v}" ${(l.unit === 'a' ? 'a' : l.u || g.unit || 'PCS') === v ? 'selected' : ''}>${esc(lb)}</option>`).join('')}</select>` : `<input data-f="nu" value="${esc(l.unit || '')}" placeholder="單位">`}</td>
-    ${priced ? `<td><input data-f="price" class="num" inputmode="decimal" value="${esc(l.price)}"></td><td class="n" id="ls-${i}">${fmt(lineAmt(l))}</td>` : ''}
+    ${priced ? `<td><input data-f="price" class="num" inputmode="decimal" value="${esc(l.price)}">${(w => w ? `<div class="pwarn">${esc(w)}</div>` : '')(priceWarn(l, g))}</td><td class="n" id="ls-${i}">${fmt(lineAmt(l))}</td>` : ''}
     <td><input data-f="memo" value="${esc(l.memo || '')}" placeholder="${edit.type === 'SALE' || edit.type === 'SALE_RET' ? '例如採購單號' : ''}"></td>
     ${cost}${del}</tr>`;
 }
@@ -304,6 +304,40 @@ function applyLast(l, g) {
   else { l.unit = ''; l.rate = 1; l.price = x.price; }
   l._lp = `上次 ${slash(x.date)} 單價 ${fp4(x.price)}${x.u ? ' / ' + x.u : x.unit === 'a' ? ' / ' + g.aunit : ''}（${x.no}）`; return true;
 }
+/** 單價提醒：進貨單高於上次進價（優先同一廠商）；出貨單低於同客戶上次單價或低於成本 */
+function priceWarn(l, g) {
+  if (!g || !l.gid) return ''; const p = +l.price; if (!(p > 0)) return '';
+  const C = calc(); const [cls, f] = lineUnit(l, g);
+  if (edit.type === 'PUR') {
+    const d0 = dayN(edit.date || today());
+    const li = (C.purIdx[g.id] || []).filter(x => x.cls === cls && x.d <= d0 && x.no !== edit.no).sort((a, b) => b.d - a.d);
+    const x = li.find(y => y.cid && y.cid === edit.cid) || li[0]; if (!x) return '';
+    const last = x.per * f;
+    return p > last * 1.0001 ? `高於上次進價 ${fp4(last)}（${slash(x.date)} ${x.no}${x.cid && x.cid !== edit.cid ? '・' + cdisp(C.ct[x.cid]) : ''}）` : '';
+  }
+  if (edit.type === 'SALE') {
+    const out = [];
+    const x = lastSale(edit.cid, g.id, edit.date, edit.id);
+    if (x) {
+      let c2, perBase;
+      if (x.u) { const [c, f2] = unitFactor(x.u); c2 = c; perBase = x.price / f2; }
+      else if (x.unit === 'a' && g.aunit) { c2 = unitFactor(g.unit || '')[0]; perBase = x.price / (+x.rate || +g.arate || 1); }
+      else { c2 = unitFactor(g.unit || '')[0]; perBase = x.price; }
+      if (c2 === cls) { const last = perBase * f; if (p < last * 0.9999) out.push(`低於上次單價 ${fp4(last)}（${slash(x.date)}）`); }
+    }
+    const r = costOf(l, edit.date) || costOf(l, edit.date, null, null, null, true);
+    if (r && p < r.c * 0.9999) out.push(`低於成本 ${fp4(r.c)}`);
+    return out.join('；');
+  }
+  return '';
+}
+function showWarn(tr, l) {
+  const td = tr.querySelector('[data-f="price"]')?.closest('td'); if (!td) return;
+  const w = priceWarn(l, calc().g[l.gid]); let d = td.querySelector('.pwarn');
+  if (!w) { d?.remove(); return; }
+  if (!d) { d = document.createElement('div'); d.className = 'pwarn'; td.appendChild(d); }
+  d.textContent = w;
+}
 function bindLines(el) {
   const C = calc();
   el.querySelectorAll('#lines tbody tr').forEach(tr => {
@@ -317,7 +351,7 @@ function bindLines(el) {
           onBlur: val => { if (!l.gid && TYPES[edit.type].doc) { l.n = val; } },
         });
       } else if (f === 'unit') inp.addEventListener('change', () => { const g = C.g[l.gid]; if (inp.value === 'a') { l.unit = 'a'; l.rate = +g.arate || 1; l.u = ''; } else { l.unit = ''; delete l.rate; l.u = inp.value === (g.unit || 'PCS') ? '' : inp.value; } redrawLines(el); });
-      else inp.addEventListener('input', () => { edit._dirty = true; l[f === 'nu' ? 'unit' : f] = inp.value; if (f === 'qty' || f === 'price') { delete l._lp; } updateTotals(el); });
+      else inp.addEventListener('input', () => { edit._dirty = true; l[f === 'nu' ? 'unit' : f] = inp.value; if (f === 'qty' || f === 'price') { delete l._lp; showWarn(tr, l); } updateTotals(el); });
     });
     tr.querySelector('[data-spec]')?.addEventListener('click', ev => { ev.preventDefault(); const g = calc().g[l.gid]; if (g) specView(g); });
     tr.querySelector('[data-gedit]')?.addEventListener('click', ev => { ev.preventDefault(); const g = store.get('goods', l.gid); if (g) openMaster('goods', g, null, () => redrawLines(el)); });

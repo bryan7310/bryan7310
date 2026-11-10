@@ -17,7 +17,7 @@ function draw(el) {
   const hm = ms => { if (!ms) return ''; const d = new Date(ms); return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
   el.innerHTML = `<div class="head"><h1>門市銷售</h1><span class="sub">輸入金額、按 Enter，就自動開一張出貨單（客戶 門市銷售、單價 1 元、現金收訖）</span></div>
     <div class="panel">
-      <div class="tools" style="align-items:flex-end;gap:14px"><div class="f"><label for="rsDate">日期</label><input type="date" id="rsDate" value="${esc(day)}" style="font-size:18px;padding:10px 12px"></div><div class="f" style="width:220px"><label for="rsAmt">金額</label><input id="rsAmt" class="num" inputmode="numeric" placeholder="例如 350" style="font-size:26px;padding:10px 14px"></div><button class="btn pri" id="rsAdd" style="font-size:18px;padding:12px 24px">登記</button></div>
+      <div class="tools" style="align-items:flex-end;gap:14px"><div class="f"><label for="rsDate">日期</label><input type="date" id="rsDate" value="${esc(day)}" style="font-size:20px;padding:0 12px;height:56px;box-sizing:border-box"></div><div class="f" style="width:220px"><label for="rsAmt">金額</label><input id="rsAmt" class="num" inputmode="numeric" placeholder="例如 350" style="font-size:26px;padding:0 14px;height:56px;box-sizing:border-box"></div><button class="btn pri" id="rsAdd" style="font-size:18px;padding:0 24px;height:56px;box-sizing:border-box">登記</button></div>
       ${retailCustomerExists() ? '' : '<div class="banner" style="margin-top:10px">找不到客戶「門市銷售」，請先到基本資料新增。</div>'}
     </div>
     <div class="panel"><div class="ptitle">${esc(slash(day))} 門市銷售<small>${list.length} 筆・合計 ${fmt(sum)}</small></div>
