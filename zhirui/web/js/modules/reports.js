@@ -2,13 +2,13 @@
 import { $, esc, fmt, fmtQ, fp4, money, today, thisMonth, slash, roc, downloadText, sum, ls, matchQ, isoOf } from '../core/util.js';
 import { store } from '../core/store.js';
 import { api } from '../core/api.js';
-import { tabs, combo, printHTML, toast } from '../core/ui.js';
+import { tabs, combo, printHTML, toast, onSearch } from '../core/ui.js';
 import { calc, TYPES, totals, lineAmt, cname, cshort, gname, customers, suppliers } from '../core/calc.js';
 import { openBill } from './_bills.js';
 import { printName } from '../core/names.js';
 import { mailImport } from './mail.js';
 
-const ui = { tab: 'ar', from: thisMonth() + '-01', to: today(), cid: '', q: '', mail: new Set() };
+const ui = { tab: 'ar', from: thisMonth() + '-01', to: today(), cid: '', q: '', gq: '', mail: new Set() };
 // 應收帳款明細：勾選要統計的客戶（null＝全部），記在這台瀏覽器
 let arSel = (() => { const v = ls.get('rp-ar-sel'); return Array.isArray(v) ? new Set(v) : null; })();
 const arSave = () => ls.set('rp-ar-sel', arSel ? [...arSel] : null);
@@ -20,11 +20,12 @@ export default {
 };
 const TABS = [['ar', '應收帳款明細'], ['ship', '客戶出貨明細'], ['sales', '銷售利潤'], ['goods', '商品銷售彙總'], ['customer', '客戶對帳單'], ['purchase', '進貨統計'], ['stock', '庫存金額']];
 const NEED_CUST = { ship: 1, customer: 1 };
+const NEED_GOODS = { ship: 1, goods: 1, stock: 1 };  // 這些報表可以用商品篩選
 const dstr = d => isoOf(d);
 function draw(el) {
   const hasRange = ui.tab !== 'stock';
   el.innerHTML = `<div class="head"><h1>報表</h1><span class="sp"></span>${tabs('rp', TABS, ui.tab)}</div>
-    <div class="panel" style="display:grid;gap:12px"><div class="tools" style="align-items:center">${hasRange ? `<div class="f"><label for="rpFrom">從</label><input type="date" id="rpFrom" value="${ui.from}"></div><div class="f"><label for="rpTo">到</label><input type="date" id="rpTo" value="${ui.to}"></div><button class="btn sm" data-q="c25" title="上上月 26 日到上月 25 日">上月25結帳</button><button class="btn sm" data-q="cme" title="上月 1 日到上月底">上月底結</button>` : ''}${NEED_CUST[ui.tab] ? `<div class="f" style="flex:1 1 220px"><label for="rpC">客戶</label><div class="combo"><input id="rpC" value="${esc(ui.cid ? cshort(ui.cid) : '')}" placeholder="打客戶代號、名稱或簡稱"></div></div>` : ''}<span class="sp"></span>${ui.tab === 'ar' ? `<span class="muted small">勾選 <b id="rpMailN">${ui.mail.size}</b> 家：</span><button class="btn sm" id="rpMail" ${ui.mail.size ? '' : 'disabled'}>導入郵寄掛號</button>` : ''}<button class="btn sm" id="rpCsv">匯出 Excel (CSV)</button><button class="btn sm" id="rpPrint">列印</button></div><div id="rpBody"></div></div>`;
+    <div class="panel" style="display:grid;gap:12px"><div class="tools" style="align-items:center">${hasRange ? `<div class="f"><label for="rpFrom">從</label><input type="date" id="rpFrom" value="${ui.from}"></div><div class="f"><label for="rpTo">到</label><input type="date" id="rpTo" value="${ui.to}"></div><button class="btn sm" data-q="c25" title="上上月 26 日到上月 25 日">上月25結帳</button><button class="btn sm" data-q="cme" title="上月 1 日到上月底">上月底結</button>` : ''}${NEED_CUST[ui.tab] ? `<div class="f" style="flex:1 1 220px"><label for="rpC">客戶</label><div class="combo"><input id="rpC" value="${esc(ui.cid ? cshort(ui.cid) : '')}" placeholder="打客戶代號、名稱或簡稱"></div></div>` : ''}${NEED_GOODS[ui.tab] ? `<div class="f" style="flex:1 1 220px"><label for="rpG">商品篩選</label><input type="search" id="rpG" value="${esc(ui.gq)}" placeholder="料號、品名、客料號、廠商料號"></div>` : ''}<span class="sp"></span>${ui.tab === 'ar' ? `<span class="muted small">勾選 <b id="rpMailN">${ui.mail.size}</b> 家：</span><button class="btn sm" id="rpMail" ${ui.mail.size ? '' : 'disabled'}>導入郵寄掛號</button>` : ''}<button class="btn sm" id="rpCsv">匯出 Excel (CSV)</button><button class="btn sm" id="rpPrint">列印</button></div><div id="rpBody"></div></div>`;
   el.addEventListener('tab', ev => { ui.tab = ev.detail.val; draw(el); }, { once: true });
   $('#rpFrom', el)?.addEventListener('change', ev => { ui.from = ev.target.value; body(el); });
   $('#rpTo', el)?.addEventListener('change', ev => { ui.to = ev.target.value; body(el); });
@@ -34,6 +35,7 @@ function draw(el) {
     else { ui.from = dstr(new Date(y, m - 1, 1)); ui.to = dstr(new Date(y, m, 0)); }
     draw(el);
   }));
+  onSearch($('#rpG', el), v => { ui.gq = v; body(el); });
   if ($('#rpC', el)) combo($('#rpC', el), { items: () => customers(true).map(c => ({ id: c.id, label: c.short || c.name, sub: c.short ? c.name : '', text: [c.code, c.name, c.short, ...(c.aliases || [])].join(' ') })), onPick: it => { ui.cid = it.id; body(el); }, onClear: () => { ui.cid = ''; body(el); } });
   body(el);
 }
@@ -59,6 +61,7 @@ async function histSales(from, to) {
 const histTot = b => totals(b);
 async function body(el) {
   const C = calc(); const inR = b => (b.date || '') >= ui.from && (b.date || '') <= ui.to;
+  const gmatch = gid => { if (!ui.gq.trim()) return true; const g = C.g[gid]; return !!g && matchQ([g.code, g.name, g.spec, g.vcode].join(' '), ui.gq); };
   const box = $('#rpBody', el);
   const bindRows = () => box.querySelectorAll('tr[data-bid]').forEach(tr => tr.addEventListener('click', ev => { if (ev.target.closest('input,button')) return; if (tr.dataset.hist) return toast('舊系統的歷史單據，請到「基本資料 → 客戶」查看'); openBill(null, tr.dataset.bid); }));
   if (ui.tab === 'ar' || ui.tab === 'ship') {
@@ -117,7 +120,7 @@ async function body(el) {
       const c = C.ct[ui.cid]; const out = [];
       const bills = sales.filter(b => b.cid === ui.cid).sort((a, b) => (a.date || '').localeCompare(b.date || '') || String(a.no).localeCompare(String(b.no)));
       for (const b of bills) {
-        const s = b.type === 'SALE' ? 1 : -1; const lines = (b.lines || []).filter(l => l.txt === undefined && (l.gid || l.n));
+        const s = b.type === 'SALE' ? 1 : -1; const lines = (b.lines || []).filter(l => l.txt === undefined && (l.gid || l.n)).filter(l => !ui.gq.trim() || (l.gid ? gmatch(l.gid) : matchQ(String(l.n || ''), ui.gq)));
         lines.forEach((l, i) => { const g = C.g[l.gid]; out.push({ b, s, first: i === 0, pn: g?.spec || '', name: g ? g.name : String(l.n || ''), qty: s * (+l.qty || 0), unit: l.u || (l.unit === 'a' ? g?.aunit : g?.unit) || '', price: +l.price || 0, amt: s * lineAmt(l), memo: l.memo || (lines.every(x => !x.memo) && i === 0 ? b.note || '' : '') }); });
       }
       let sub = 0, tax = 0, total = 0;
@@ -149,6 +152,7 @@ async function body(el) {
   } else if (ui.tab === 'goods') {
     const m = new Map();
     for (const b of C.bills) { if (b.type !== 'SALE' && b.type !== 'SALE_RET') continue; if (!inR(b)) continue; const s = b.type === 'SALE' ? 1 : -1; (b.lines || []).forEach((l, i) => { if (!l.gid) return; const x = m.get(l.gid) || m.set(l.gid, { q: 0, a: 0, c: 0, n: 0 }).get(l.gid); x.q += s * (+l.qty || 0); x.a += s * Math.round((+l.qty || 0) * (+l.price || 0)); x.c += s * ((C.lineCogs[b.id] || [])[i] || 0); x.n++; }); }
+    for (const k of [...m.keys()]) if (!gmatch(k)) m.delete(k);
     const rows = [...m.entries()].sort((a, b) => b[1].a - a[1].a).map(([gid, x]) => [C.g[gid]?.code || '', gname(gid), fmtQ(x.q), fmt(x.a), fmt(x.c), fmt(x.a - x.c), x.a ? Math.round((x.a - x.c) / x.a * 100) + '%' : '', String(x.n)]);
     last = { title: `商品銷售彙總 ${ui.from}～${ui.to}`, head: ['料號', '商品', '銷售數量', '銷售金額', '成本', '毛利', '毛利率', '筆數'], rows, foot: ['合計', '', '', fmt(sum([...m.values()], x => x.a)), fmt(sum([...m.values()], x => x.c)), fmt(sum([...m.values()], x => x.a - x.c)), '', ''] };
     box.innerHTML = table(last);
@@ -160,7 +164,7 @@ async function body(el) {
     box.innerHTML = table(last);
   } else if (ui.tab === 'stock') {
     const rows = []; let tv = 0;
-    for (const g of store.list('goods')) { const q = Object.values(C.stock[g.id] || {}).reduce((a, b) => a + b, 0); if (!q) continue; const c = C.cost[g.id]?.avg || +g.purPrice || 0; tv += q * c; rows.push([g.code, g.name + ' ' + (g.spec || ''), fmtQ(q), g.unit || '', fmtQ(c), fmt(q * c)]); }
+    for (const g of store.list('goods')) { if (!gmatch(g.id)) continue; const q = Object.values(C.stock[g.id] || {}).reduce((a, b) => a + b, 0); if (!q) continue; const c = C.cost[g.id]?.avg || +g.purPrice || 0; tv += q * c; rows.push([g.code, g.name + ' ' + (g.spec || ''), fmtQ(q), g.unit || '', fmtQ(c), fmt(q * c)]); }
     rows.sort((a, b) => parseFloat(b[5].replace(/,/g, '')) - parseFloat(a[5].replace(/,/g, '')));
     last = { title: `庫存金額 ${today()}`, head: ['料號', '商品', '數量', '單位', '平均成本', '金額'], rows, foot: ['合計', `${rows.length} 項`, '', '', '', fmt(tv)] };
     box.innerHTML = table(last);
