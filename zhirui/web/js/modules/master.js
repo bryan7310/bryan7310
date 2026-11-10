@@ -37,11 +37,12 @@ function draw(el) {
   const [s, e, pg] = pager('m', rows.length, ui.page);
   el.innerHTML = `<div class="head"><h1>基本資料</h1><span class="sp"></span>${col === 'contacts' ? `<button class="btn" id="dupBtn" title="找出名稱重複的${label}，以舊系統那筆為主合併">檢查重複</button><button class="btn" id="shortBtn" title="幫還沒有簡稱的${label}從全名擷取簡稱（介面顯示用；列印一律用全名）">擷取簡稱</button><button class="btn" id="fillExp" title="匯出還沒停用、缺統編／電話／地址的${label}，填好後用「匯入${label}資料」匯回">匯出待補資料</button><button class="btn" id="fillImp">匯入${label}資料</button>` : ''}${t === 'goods' || col === 'contacts' ? `<button class="btn" id="expBtn">匯出 CSV</button>` : ''}<button class="btn pri" id="addBtn">＋ 新增${label}</button></div>
     <div class="panel"><div class="tools">${tabs('m', TABS, t)}<input type="search" id="mq" placeholder="搜尋${label}" value="${esc(ui.q)}"><span class="muted small">${rows.length} 筆</span>${offN ? `<button type="button" class="btn sm ${ui.off ? 'pri' : ''}" id="offBtn">${ui.off ? '隱藏' : '顯示'}停用（${offN}）</button>` : ''}</div>
-    <div class="tw" style="margin-top:10px"><table><thead><tr>${head.map(h => `<th>${h}</th>`).join('')}</tr></thead><tbody>${rows.slice(s, e).map(([d, cells]) => `<tr class="row" data-id="${d.id}">${cells.map(c => `<td>${c}</td>`).join('')}</tr>`).join('') || `<tr><td colspan="${head.length}"><div class="empty"><b>沒有資料</b></div></td></tr>`}</tbody></table></div>${pg}</div>`;
+    <div class="tw" style="margin-top:10px"><table><thead><tr>${head.map(h => `<th>${h}</th>`).join('')}${col === 'goods' ? '<th></th>' : ''}</tr></thead><tbody>${rows.slice(s, e).map(([d, cells]) => `<tr class="row" data-id="${d.id}">${cells.map(c => `<td>${c}</td>`).join('')}${col === 'goods' ? `<td class="r"><button type="button" class="btn sm" data-copy="${d.id}" title="用這個商品的資料新增一筆（料號要改成不一樣的）">複製</button></td>` : ''}</tr>`).join('') || `<tr><td colspan="${head.length}"><div class="empty"><b>沒有資料</b></div></td></tr>`}</tbody></table></div>${pg}</div>`;
   el.addEventListener('tab', ev => { ui.tab = ev.detail.val; ui.q = ''; ui.page = 0; location.hash = '#master/' + ui.tab; }, { once: true });
   onSearch($('#mq', el), v => { ui.q = v; ui.page = 0; draw(el); const i = $('#mq', el); i.focus(); i.setSelectionRange(i.value.length, i.value.length); });
   el.querySelectorAll('[data-page]').forEach(b => b.addEventListener('click', () => { ui.page = +b.dataset.to; draw(el); }));
   el.querySelectorAll('tr.row').forEach(tr => tr.addEventListener('click', () => openMaster(col, store.get(col, tr.dataset.id))));
+  el.querySelectorAll('[data-copy]').forEach(b => b.addEventListener('click', ev => { ev.stopPropagation(); copyGoods(store.get('goods', b.dataset.copy)); }));
   $('#addBtn', el).addEventListener('click', () => openMaster(col, null, t === 'suppliers' ? 'S' : 'C'));
   $('#offBtn', el)?.addEventListener('click', () => { ui.off = !ui.off; ui.page = 0; draw(el); });
   $('#shortBtn', el)?.addEventListener('click', () => extractShorts(t === 'customers' ? 'C' : 'S'));
@@ -58,25 +59,34 @@ const FIELDS = {
   warehouses: [['name', '倉庫名稱', 'req']],
   accounts: [['name', '帳戶名稱', 'req'], ['bank', '銀行／帳號'], ['init', '期初餘額', 'num']],
 };
+/** 複製商品：帶入同樣的品名、規格、單位、價格等開「新增商品」，料號要改成不一樣的才能存（圖面、庫存不帶） */
+export function copyGoods(g, onSaved) {
+  if (!g) return;
+  const tpl = {}; for (const [n] of FIELDS.goods) if (g[n] != null && g[n] !== '') tpl[n] = g[n];
+  if (g.sp && Object.keys(g.sp).length) tpl.sp = { ...g.sp };
+  openMaster('goods', null, null, onSaved, tpl);
+}
 const LABEL = { goods: '商品', C: '客戶', S: '供應商', warehouses: '倉庫', accounts: '結算帳戶' };
-export function openMaster(col, doc, kind, onSaved) {
+export function openMaster(col, doc, kind, onSaved, tpl) {
   const k = col === 'contacts' ? (doc ? doc.kind : kind) : col;
-  const fs = FIELDS[k]; const d = doc || {};
+  const fs = FIELDS[k]; const d = doc || {}; const v = doc ? d : (tpl || {});   // v：表單預填值（複製時是來源商品）
   const C = calc();
   const refs = doc ? refCount(col, doc.id) : 0;
-  const body = `<div class="grid">${fs.map(([n, l, t]) => `<div class="f" ${n === 'addr' || n === 'note' || n === 'name' ? 'style="grid-column:1/-1"' : ''}><label for="f-${n}">${esc(l)}</label><input id="f-${n}" name="${n}" value="${esc(d[n] ?? '')}" ${t === 'num' ? 'class="num" inputmode="decimal"' : ''} ${t === 'req' ? 'required' : ''} ${n === 'unit' || n === 'aunit' ? 'list="unitList" autocomplete="off"' : ''}></div>`).join('')}${col === 'goods' ? `<datalist id="unitList">${['PCS', 'KG', '包', '組', '盒', '箱', '件', 'SET', 'H', 'K', '批', '袋'].map(u => `<option value="${u}">`).join('')}</datalist>` : ''}
+  const body = `<div class="grid">${fs.map(([n, l, t]) => `<div class="f" ${n === 'addr' || n === 'note' || n === 'name' ? 'style="grid-column:1/-1"' : ''}><label for="f-${n}">${esc(l)}</label><input id="f-${n}" name="${n}" value="${esc(v[n] ?? '')}" ${t === 'num' ? 'class="num" inputmode="decimal"' : ''} ${t === 'req' ? 'required' : ''} ${n === 'unit' || n === 'aunit' ? 'list="unitList" autocomplete="off"' : ''}></div>`).join('')}${col === 'goods' ? `<datalist id="unitList">${['PCS', 'KG', '包', '組', '盒', '箱', '件', 'SET', 'H', 'K', '批', '袋'].map(u => `<option value="${u}">`).join('')}</datalist>` : ''}
     ${col === 'contacts' ? `<div class="f" style="grid-column:1/-1"><label for="f-aliases">別名（作業平台、支票、發票上用過的其他寫法，用逗號隔開）</label><input id="f-aliases" name="aliases" value="${esc((d.aliases || []).join('、'))}"></div>
       <label class="check" style="grid-column:1/-1"><input type="checkbox" name="inactive" ${d.inactive ? 'checked' : ''}> 停用（開單、挑選${k === 'C' ? '客戶' : '供應商'}時不顯示；歷史單據、報表照常查得到）</label>` : ''}
     ${col === 'warehouses' && doc ? `<label class="check" style="grid-column:1/-1"><input type="checkbox" name="isDefault" ${store.setting('prefs').defaultWh === doc.id ? 'checked' : ''}> 設為預設倉庫</label>` : ''}</div>
-    ${col === 'goods' ? goodsExtraHTML(d) : ''}
+    ${tpl ? `<div class="banner" style="margin-top:8px">從「${esc(tpl.code || tpl.name)}」複製，請把料號改成新的（料號相同無法建立）。</div>` : ''}
+    ${col === 'goods' ? goodsExtraHTML(tpl && !doc ? { sp: tpl.sp } : d) : ''}
     ${doc && col === 'goods' ? `<div class="muted small">各倉庫庫存：${store.list('warehouses').map(w => `${esc(w.name)} ${fmtQ((C.stock[doc.id] || {})[w.id] || 0)}`).join('、')}　<a href="#" id="histBtn">查看歷史單價</a></div><div id="histBox"></div>` : ''}
     ${doc && col === 'contacts' ? `<div class="muted small">目前${k === 'C' ? '應收' : '應付'}餘額 ${fmt(C.bal[doc.id] || 0)}　<a href="#" id="histBtn">查看歷史單據</a></div><div id="histBox"></div>` : ''}
     <div class="err" id="mErr"></div>`;
   modal({
-    title: `${doc ? '修改' : '新增'}${LABEL[k]}`, body, width: col === 'goods' ? 900 : 760,
+    title: `${doc ? '修改' : tpl ? '複製' : '新增'}${LABEL[k]}`, body, width: col === 'goods' ? 900 : 760,
     footer: `${doc ? `<button class="btn danger" id="mDel" ${refs ? `title="有 ${refs} 張單據用到，無法刪除" disabled` : ''}>刪除${refs ? `（${refs} 張單據用到）` : ''}</button>` : ''}<span class="sp"></span><button class="btn" data-close>取消</button><button class="btn pri" id="mSave">儲存</button>`,
     onOpen(el, close) {
       if (col === 'goods') goodsExtraBind(el, d);
+      if (tpl) setTimeout(() => { const ci = el.querySelector('#f-code'); ci?.focus(); ci?.select(); }, 50);   // 複製：游標停在料號，直接改
       if (col === 'contacts') {   // 簡稱欄：空白時灰字顯示會自動帶入的簡稱
         const sh = el.querySelector('#f-short'), nm = el.querySelector('#f-name'), al = el.querySelector('#f-aliases');
         const ph = () => { sh.placeholder = nm.value.trim() ? '空白＝自動：' + shortName(nm.value, String(al?.value || '').split(/[,，、]/)) : ''; };
@@ -94,7 +104,7 @@ export function openMaster(col, doc, kind, onSaved) {
           if (out.code && store.list('contacts').some(c => c.code === out.code && c.id !== d.id)) { el.querySelector('#mErr').textContent = `編號 ${out.code} 已經有人用了`; return; }
         }
         if (col === 'goods') { const sp = spForm(el); if (Object.keys(sp).length) out.sp = sp; else delete out.sp; }
-        if (col === 'goods' && out.code && store.list('goods').some(g => g.code === out.code && g.id !== d.id)) { el.querySelector('#mErr').textContent = '料號重複'; return; }
+        if (col === 'goods' && out.code && store.list('goods').some(g => g.code === out.code && g.id !== d.id)) { el.querySelector('#mErr').textContent = `料號 ${out.code} 已經有了，請改成不一樣的料號`; const ci = el.querySelector('#f-code'); ci?.focus(); ci?.select(); return; }
         const id = d.id || uid(col === 'goods' ? 'g' : col === 'contacts' ? 'c' : 'w');
         delete out.id;
         await store.save(col, id, out);
