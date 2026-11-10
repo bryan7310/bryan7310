@@ -46,6 +46,23 @@ from db import DB  # noqa: E402
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 WEB = os.path.normpath(os.path.join(HERE, '..', 'web'))
+# 網頁版本號：js／css 任何一個檔案改過就變。index.html 把 js/、css/ 改成 v<版本>/js/…，
+# 瀏覽器（尤其 iPhone Safari，沒有 Ctrl+F5）一定拿到新檔；同版本的檔案可以放心長期快取。
+VER_RE = re.compile(r'^/v[0-9a-f]{4,16}(/.*)$')
+_webver = {'at': 0.0, 'v': ''}
+def web_version():
+    now = time.time()
+    if now - _webver['at'] > 2:
+        m = 0.0
+        for sub in ('js', 'css', 'img'):
+            for root, _dirs, files in os.walk(os.path.join(WEB, sub)):
+                for fn in files:
+                    try:
+                        m = max(m, os.path.getmtime(os.path.join(root, fn)))
+                    except OSError:
+                        pass
+        _webver.update(at=now, v='%x' % int(m))
+    return _webver['v']
 
 # 用戶端一開始就整批載入、之後即時同步的集合
 LIVE_COLS = ['settings', 'contacts', 'goods', 'warehouses', 'accounts', 'bills',
@@ -95,7 +112,7 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header('Content-Length', str(len(body)))
         if gz:
             self.send_header('Content-Encoding', 'gzip')
-        self.send_header('Cache-Control', 'public, max-age=3600' if cache else 'no-store')
+        self.send_header('Cache-Control', cache if isinstance(cache, str) else ('public, max-age=3600' if cache else 'no-store'))
         for k, v in (headers or {}).items():
             self.send_header(k, v)
         self.end_headers()
@@ -163,6 +180,9 @@ class Handler(BaseHTTPRequestHandler):
                 pass
 
     def static(self, path):
+        vm = VER_RE.match(path)
+        if vm:
+            path = vm.group(1)
         if path == '/':
             path = '/index.html'
         fp = os.path.normpath(os.path.join(WEB, path.lstrip('/')))
@@ -174,9 +194,30 @@ class Handler(BaseHTTPRequestHandler):
         ctype = mimetypes.guess_type(fp)[0] or 'application/octet-stream'
         if ctype.startswith('text/') or ctype in ('application/javascript', 'application/json'):
             ctype += '; charset=utf-8'
+        if fp.endswith('.html'):
+            with open(fp, 'rb') as f:
+                body = f.read()
+            if os.path.basename(fp) == 'index.html' and os.path.dirname(fp) == WEB:
+                v = web_version().encode()
+                body = body.replace(b'href="css/', b'href="v' + v + b'/css/').replace(b'src="js/', b'src="v' + v + b'/js/')
+            return self.send_bytes(body, ctype, cache='no-store')
+        if vm:
+            # 有版本號的網址：內容永遠不變，快取一年
+            with open(fp, 'rb') as f:
+                body = f.read()
+            return self.send_bytes(body, ctype, cache='public, max-age=31536000, immutable')
+        # 沒版本號（舊頁面、legacy、vendor）：每次都問伺服器有沒有改，沒改回 304
+        mt = int(os.path.getmtime(fp))
+        lm = time.strftime('%a, %d %b %Y %H:%M:%S GMT', time.gmtime(mt))
+        if self.headers.get('If-Modified-Since') == lm:
+            self.send_response(304)
+            self.send_header('Last-Modified', lm)
+            self.send_header('Cache-Control', 'no-cache')
+            self.end_headers()
+            return
         with open(fp, 'rb') as f:
             body = f.read()
-        self.send_bytes(body, ctype, cache=not fp.endswith('.html'))
+        self.send_bytes(body, ctype, headers={'Last-Modified': lm}, cache='no-cache')
 
     def api(self, method, path, qs, body):
         db = self.state.db
