@@ -26,7 +26,8 @@ export function modal(opts) {
   document.addEventListener('keydown', onKey);
   bg.addEventListener('mousedown', e => { if (e.target === bg && opts.closeOnBg !== false) close(); });
   el.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', () => close()));
-  setTimeout(() => { const f = el.querySelector('[autofocus], input:not([type=hidden]), select, textarea, button.pri'); f && f.focus(); }, 30);
+  // 電腦：自動把游標放進第一個欄位。手機（觸控）不要：iPhone 不准程式叫出鍵盤，會變成欄位選中了、鍵盤卻出不來，再點也叫不出來
+  if (!(window.matchMedia && matchMedia('(pointer: coarse)').matches)) setTimeout(() => { const f = el.querySelector('[autofocus], input:not([type=hidden]), select, textarea, button.pri'); f && f.focus(); }, 30);
   opts.onOpen && opts.onOpen(el, close);
   return { el, close };
 }

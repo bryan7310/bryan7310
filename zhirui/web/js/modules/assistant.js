@@ -433,7 +433,7 @@ function draw(el) {
     const d = DRAFTS.get(b.dataset.draft); if (!d) return;
     openBill(d.type, null, null, { cid: d.cid, date: d.date, no: nextNo(d.type, d.date), note: d.note, lines: d.lines.map(l => ({ ...l })) });
   }));
-  if (!ui.busy) setTimeout(() => inp.focus(), 0);
+  if (!ui.busy && !(window.matchMedia && matchMedia('(pointer: coarse)').matches)) setTimeout(() => inp.focus(), 0);   // 手機不自動聚焦（iPhone 會叫不出鍵盤）
 }
 
 // ---------- 語音：錄音 → 伺服器 Breeze-ASR-26（國語、台語 → 華語文字）；回答可朗讀 ----------
