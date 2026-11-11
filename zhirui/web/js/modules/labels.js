@@ -186,7 +186,7 @@ function addrDialog(c) {
     },
   });
 }
-const ALB_CSS = `.alb{width:50mm;height:40mm;padding:3mm 3mm 2.6mm;display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:auto 1fr 1fr auto;align-items:center;row-gap:.6mm;overflow:hidden;line-height:1.15;color:#000;font-family:"PMingLiU","MingLiU","新細明體","細明體","Noto Serif TC","Songti TC",serif}
+const ALB_CSS = `.alb{width:50mm;height:40mm;padding:3mm 3mm 2.6mm;display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:auto 1fr 1fr auto;align-items:center;row-gap:.6mm;overflow:hidden;line-height:1.15;color:#000;font-family:"Microsoft JhengHei","微軟正黑體","PingFang TC","Noto Sans TC",sans-serif}
 .alb>div{white-space:nowrap;overflow:hidden;transform-origin:left center}.alb .z{font-size:15pt;font-weight:bold;letter-spacing:1.5pt;font-family:Arial,Helvetica,sans-serif}.alb .a{font-size:12.5pt}.alb .n{font-size:16pt;font-weight:bold;text-align:right;transform-origin:right center}`;
 function addrLabelHTML(F, screen) {
   return `${screen ? `<style>${ALB_CSS}</style>` : ''}<div class="alb"><div class="z">${esc(F.zip)}</div><div class="a">${esc(F.l2)}</div><div class="a">${esc(F.l3)}</div><div class="n">${esc(F.l4)}</div></div>`;
