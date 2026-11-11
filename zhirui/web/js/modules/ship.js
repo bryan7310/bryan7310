@@ -356,10 +356,10 @@ export function printSongquan(b) {
     const parts = paginate(ls.map(row)); const pages = parts.length;
     parts.forEach((part, p) => { html += `<div class="pg">${copy(s, part, p, pages)}<div class="cut"></div>${copy(s, part, p, pages)}</div>`; });
   }
-  const css = `@page{size:A4 portrait;margin:8mm 10mm}*{box-sizing:border-box}body{margin:0;font-family:"MingLiU","PMingLiU","新細明體",serif;font-size:13pt;color:#000}
-.pg{height:280mm;display:flex;flex-direction:column;page-break-after:always;overflow:hidden}.pg:last-child{page-break-after:auto}
-@media screen{body{background:#eee}.pg{width:190mm;background:#fff;margin:0 auto 6mm;padding:0 2mm;box-shadow:0 0 0 1px #ccc}}
-.cp{height:139mm;overflow:hidden;padding-top:2mm}.hdr{display:flex;align-items:flex-start;gap:3mm}.hl{flex:1;min-width:0}.qr{width:17mm;height:17mm;image-rendering:pixelated;flex:none}.cut{border-top:1px dashed #888;margin:0 -2mm}
+  const css = `@page{size:A4 portrait;margin:5mm 6mm}*{box-sizing:border-box}body{margin:0;font-family:"MingLiU","PMingLiU","新細明體",serif;font-size:13pt;color:#000}
+.pg{display:flex;flex-direction:column;page-break-after:always;page-break-inside:avoid}.pg:last-child{page-break-after:auto}
+@media screen{body{background:#eee}.pg{width:198mm;min-height:287mm;background:#fff;margin:0 auto 6mm;padding:0 2mm;box-shadow:0 0 0 1px #ccc}}
+.cp{height:141mm;overflow:hidden;padding-top:2mm}.cp:last-child{height:auto;max-height:141mm}.hdr{display:flex;align-items:flex-start;gap:3mm}.hl{flex:1;min-width:0}.qr{width:17mm;height:17mm;image-rendering:pixelated;flex:none}.cut{border-top:1px dashed #888;margin:0 -2mm}
 .top{display:flex;align-items:baseline;justify-content:center;position:relative}.top h1{font-size:15pt;font-weight:bold;margin:0 0 1.5mm;letter-spacing:3pt}.pno{position:absolute;right:0;top:0;font-size:10pt}
 .hd{display:grid;grid-template-columns:repeat(3,max-content);justify-content:space-between;white-space:nowrap;row-gap:.8mm;column-gap:4mm;margin-bottom:1.8mm;font-size:10.5pt}.hd .w{grid-column:1/-1;white-space:normal}
 table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:12.5pt}th,td{border:1px solid #000;padding:.8mm 1.2mm;vertical-align:middle;text-align:left;font-weight:normal;word-break:break-all;line-height:1.25}
@@ -367,5 +367,5 @@ th{background:#f2f2f2;font-size:10.5pt;white-space:nowrap;padding-top:.5mm;paddi
 td:nth-child(1),td:nth-child(3),td:nth-child(5),td.n{white-space:nowrap;overflow:hidden;word-break:normal;font-size:11pt}
 tbody td{height:10mm;vertical-align:top}td.pn,td.n{font-weight:bold;font-size:11.5pt}td.nm{font-size:10pt}
 .n{text-align:right}.c{text-align:center}.sg{display:flex;justify-content:space-around;margin-top:5mm}`;
-  printHTML(`崧泉出貨憑證 ${b.no}`, css, html, { tip: '紙張 A4 直式、邊界「無」或「預設」、縮放 100%。每張 A4 上下各印一份，中間虛線可裁開；每份放得下就放（約 9～10 項），放不下會續印下一張。' });
+  printHTML(`崧泉出貨憑證 ${b.no}`, css, html, { tip: '紙張 A4 直式、邊界選「預設」（已內建約 5mm 安全邊，不要選「無」，印表機印不到紙邊會切掉）、縮放「預設」100%。每張 A4 上下各印一份，中間虛線可裁開；每份放得下就放（約 9～10 項），放不下會續印下一張。' });
 }
