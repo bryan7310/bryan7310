@@ -96,7 +96,9 @@ export function combo(input, opts) {
   };
   const pick = it => { if (!it) return; input.value = it.label; close(); opts.onPick(it); };
   input.setAttribute('autocomplete', 'off');
-  input.addEventListener('focus', () => { render(); input.select && input.select(); });
+  // 手機（觸控）：不在聚焦時全選、清單晚一點再出來，避免 iPhone 鍵盤叫不出來或注音打不進去
+  const touch = window.matchMedia && matchMedia('(pointer: coarse)').matches;
+  input.addEventListener('focus', () => { if (touch) setTimeout(() => { if (document.activeElement === input) render(); }, 350); else { render(); input.select && input.select(); } });
   input.addEventListener('input', () => { idx = -1; render(); if (opts.onClear && !input.value) opts.onClear(); });
   input.addEventListener('blur', () => setTimeout(() => { close(); opts.onBlur && opts.onBlur(input.value); }, 120));
   input.addEventListener('keydown', e => {
