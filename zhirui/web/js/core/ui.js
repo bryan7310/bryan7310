@@ -96,7 +96,11 @@ export function combo(input, opts) {
     list.querySelectorAll('[data-i]').forEach(d => d.addEventListener('mousedown', e => { e.preventDefault(); pick(cur[+d.dataset.i]); }));
   };
   const pick = it => { if (!it) return; input.value = it.label; close(); opts.onPick(it); };
-  input.setAttribute('autocomplete', 'off');
+  // 標成「搜尋用的下拉選單」：Safari 才不會把「客戶／供應商」欄當成可自動填入的公司名稱（iPhone 會卡住、叫不出鍵盤）
+  input.setAttribute('autocomplete', 'off'); input.setAttribute('autocorrect', 'off'); input.setAttribute('autocapitalize', 'off'); input.spellcheck = false;
+  input.setAttribute('role', 'combobox'); input.setAttribute('aria-autocomplete', 'list'); input.setAttribute('enterkeyhint', 'search');
+  if (!input.name) input.name = 'search_' + (input.id || input.dataset.f || 'q').replace(/[^\w]/g, '');
+  input.setAttribute('data-1p-ignore', ''); input.setAttribute('data-lpignore', 'true'); input.setAttribute('data-form-type', 'other');
   // 手機（觸控）：不在聚焦時全選、清單晚一點再出來，避免 iPhone 鍵盤叫不出來或注音打不進去
   const touch = isTouch();
   // 手機：點進去先只叫鍵盤，開始打字才出清單（一點就蓋上浮動清單，iPhone 有時會叫不出鍵盤）；欄位已有內容時才直接列出
