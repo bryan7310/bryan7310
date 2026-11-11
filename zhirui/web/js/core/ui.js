@@ -158,9 +158,47 @@ export const ICONS = {
   mail: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/>',
 };
 /** 列表搜尋框：中文輸入法組字中不觸發（重畫會打斷組字、打不出中文），組字完成或一般輸入才觸發 fn(value) */
+// ---------- 打字時重畫畫面：保留正在打字的輸入框（手機鍵盤才不會收起來、跳回英文） ----------
+let KEEP = null;
+/** 把 el 換成新的 html，但正在打字的輸入框（有 id）原封不動留著；結構對不上就整個換。回傳是否有保留 */
+export function morphKeep(el, html) {
+  const a = document.activeElement;
+  const tmp = document.createElement(el.tagName); tmp.innerHTML = html;
+  const nu = a && a.id && el.contains(a) && /^(INPUT|TEXTAREA)$/.test(a.tagName) ? tmp.querySelector('#' + CSS.escape(a.id)) : null;
+  const plain = () => { HTML.set.call(el, html); return false; };
+  if (!nu || nu.tagName !== a.tagName) return plain();
+  const pn = []; for (let n = nu; n && n !== tmp; n = n.parentNode) pn.unshift(n);
+  const po = []; for (let n = a; n && n !== el; n = n.parentNode) po.unshift(n);
+  if (pn.length !== po.length || pn.some((n, i) => n.tagName !== po[i].tagName)) return plain();
+  let parent = el;
+  for (let i = 0; i < po.length; i++) {
+    const co = po[i], cn = pn[i];
+    while (co.previousSibling) parent.removeChild(co.previousSibling);
+    while (co.nextSibling) parent.removeChild(co.nextSibling);
+    const before = []; for (let x = cn.previousSibling; x; x = x.previousSibling) before.unshift(x);
+    const after = []; for (let x = cn.nextSibling; x; x = x.nextSibling) after.push(x);
+    for (const x of before) parent.insertBefore(x, co);
+    for (const x of after) parent.appendChild(x);
+    if (co !== a) { for (const at of [...co.attributes]) if (!cn.hasAttribute(at.name)) co.removeAttribute(at.name); for (const at of [...cn.attributes]) co.setAttribute(at.name, at.value); }
+    parent = co;
+  }
+  return true;
+}
+const HTML = Object.getOwnPropertyDescriptor(Element.prototype, 'innerHTML');
+Object.defineProperty(Element.prototype, 'innerHTML', {
+  configurable: true, enumerable: HTML.enumerable,
+  get() { return HTML.get.call(this); },
+  set(v) { if (KEEP && KEEP.isConnected && this.contains(KEEP)) { morphKeep(this, v); return; } HTML.set.call(this, v); },
+});
+/** 搜尋框打字觸發的重畫用這個包起來：期間 innerHTML 會保留這個輸入框 */
+export function keepWhile(inp, fn) { const prev = KEEP; KEEP = document.activeElement === inp ? inp : null; try { return fn(); } finally { KEEP = prev; } }
+
 export function onSearch(inp, fn) {
-  if (!inp) return; let comp = false, last = inp.value;
-  const run = () => { if (inp.value === last) return; last = inp.value; fn(last); };
+  if (!inp) return;
+  if (inp._zrSearch) { inp._zrSearch.fn = fn; return; }   // 重畫後保留下來的同一個輸入框：只換回呼，不重複綁
+  const box = inp._zrSearch = { fn };
+  let comp = false, last = inp.value;
+  const run = () => { if (inp.value === last) return; last = inp.value; keepWhile(inp, () => box.fn(last)); };
   inp.addEventListener('compositionstart', () => { comp = true; });
   inp.addEventListener('compositionend', () => { comp = false; run(); });
   inp.addEventListener('input', ev => { if (comp || ev.isComposing) return; run(); });

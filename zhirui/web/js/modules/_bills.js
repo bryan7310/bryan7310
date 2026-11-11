@@ -1,7 +1,7 @@
 // 單據共用：清單、編輯器、列印（銷貨、進貨、報價、採購、出入庫、調撥、收付款）
 import { $, $$, esc, fmt, fmtQ, fp4, today, uid, matchQ, qTerms, roc, slash, thisMonth, money, isoOf, downloadText, ls, dayN, lineSeq } from '../core/util.js';
 import { store } from '../core/store.js';
-import { toast, modal, confirm, combo, pager, tabs, printHTML } from '../core/ui.js';
+import { toast, modal, confirm, combo, pager, tabs, printHTML, keepWhile } from '../core/ui.js';
 import { TYPES, totals, lineAmt, calc, nextNo, cname, cshort, cdisp, wname, gname, goodsLabel, customers, suppliers, defWh, qtyAt, bqty, uRate, lastSale, unitPrice, unitFactor, setHistPur, setHistSale, histSaleReady, costOf, lineUnit } from '../core/calc.js';
 import { api } from '../core/api.js';
 import { printName } from '../core/names.js';
@@ -43,8 +43,10 @@ function bindPeriod(el, ui, redraw) {
 }
 /** 搜尋框：中文輸入法組字中不重畫（否則打不出中文），組字完成或一般輸入才重畫 */
 function bindSearch(el, ui, redraw, delay = 0) {
-  const inp = $('#bq', el); if (!inp) return; let timer = null;
-  const go = () => { ui.q = inp.value; ui.page = 0; clearTimeout(timer); timer = setTimeout(() => { if (!el.isConnected) return; redraw(); setTimeout(() => { const i = $('#bq', el); if (i) { i.focus(); i.setSelectionRange(i.value.length, i.value.length); } }, 0); }, delay); };
+  const inp = $('#bq', el); if (!inp) return;
+  if (inp._zrBind) { inp._zrBind.redraw = redraw; return; }   // 重畫後保留下來的同一個搜尋框：不重複綁
+  const box = inp._zrBind = { redraw }; let timer = null;
+  const go = () => { ui.q = inp.value; ui.page = 0; clearTimeout(timer); timer = setTimeout(() => { if (!el.isConnected) return; keepWhile(inp, () => box.redraw()); const i = $('#bq', el); if (i && document.activeElement !== i) { i.focus(); i.setSelectionRange(i.value.length, i.value.length); } }, delay); };
   inp.addEventListener('input', e2 => { if (e2.isComposing) return; go(); });
   inp.addEventListener('compositionend', go);
 }
