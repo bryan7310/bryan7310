@@ -638,3 +638,6 @@ tr.row.on td { background: color-mix(in srgb, var(--blue-soft) 60%, transparent)
 .ai-in { display: flex; gap: 8px; align-items: flex-end; }
 .ai-in textarea { flex: 1; resize: vertical; min-height: 44px; max-height: 200px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; font: inherit; background: var(--surface); color: inherit; }
 .ai-sug { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; margin-top: 12px; }
+
+.ai-mic { white-space: nowrap; min-height: 44px; }
+.ai-mic.on { background: var(--bad); color: #fff; border-color: var(--bad); animation: aiPulse 1.2s ease-in-out infinite; }

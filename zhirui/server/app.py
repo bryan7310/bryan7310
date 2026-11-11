@@ -69,7 +69,7 @@ def web_version():
 # 用戶端一開始就整批載入、之後即時同步的集合
 LIVE_COLS = ['settings', 'contacts', 'goods', 'warehouses', 'accounts', 'bills',
              'pricing_cats', 'pricing', 'discounts', 'receivables', 'payables', 'invoices', 'purch_invoices',
-             'checks_out', 'checks_in', 'orders', 'drawings', 'labels', 'mail', 'logs']
+             'checks_out', 'checks_in', 'orders', 'drawings', 'labels', 'mail', 'logs', 'faxjobs']
 COOKIE = 'zr_session'
 LONG_POLL = 25
 # 附檔（客戶圖面）
@@ -77,6 +77,53 @@ FILE_TYPES = {'.jpg': 'image/jpeg', '.png': 'image/png', '.gif': 'image/gif', '.
 FILE_MAX = 25 * 1024 * 1024
 START_AT = int(time.time() * 1000)
 FILE_RE = re.compile(r'^/api/files/([0-9a-f]{16}\.(?:jpg|png|gif|webp|pdf))(/delete)?$')
+
+
+FAX_HELPER = {}
+ASR = {'model': None}
+ASR_LOCK = threading.Lock()
+ASR_PROMPT = ('螺絲、螺帽、華司、彈簧華司、平華司、六角、十字、內六角、外六角、平頭、圓頭、大扁、喇叭頭、尖尾、鑽尾、鐵板牙、機械牙、'
+              '全牙、半牙、馬車螺絲、法蘭螺帽、止付螺絲、牙條、拉釘、白鐵、鍍鋅、三價、錏黑、染黑、鍍鎳、二分、三分、四分、五分、吋、'
+              '報價單、銷貨單、出貨單、採購單、進貨單、傳真。M6*20、M8*25、1/4*38、一萬支、五千個。')
+
+
+def asr_transcribe(pcm):
+    """16kHz 單聲道 16-bit PCM → 文字；第一次用到才載入模型（約 10 秒、1.6 GB 記憶體），同一時間只辨識一段"""
+    model_dir = os.path.join(HERE, '..', 'models', 'breeze-asr-26')
+    if not os.path.exists(os.path.join(model_dir, 'model.bin')):
+        raise OcrError('伺服器還沒有語音辨識模型（models/breeze-asr-26）', 500)
+    import types
+    sys.modules.setdefault('av', types.ModuleType('av'))   # faster-whisper 只有讀音檔才用到 av；我們直接給 PCM
+    try:
+        import numpy as np
+        from faster_whisper import WhisperModel
+    except Exception as e:
+        raise OcrError('伺服器沒有安裝語音辨識元件（faster-whisper）：%s' % e, 500)
+    with ASR_LOCK:
+        if ASR['model'] is None:
+            ASR['model'] = WhisperModel(model_dir, device='cpu', compute_type='int8', cpu_threads=max(2, (os.cpu_count() or 4)))
+        a = np.frombuffer(pcm[:len(pcm) // 2 * 2], dtype=np.int16).astype(np.float32) / 32768.0
+        t = time.time()
+        segs, _ = ASR['model'].transcribe(a, language='zh', beam_size=1, vad_filter=False,
+                                          condition_on_previous_text=False, initial_prompt=ASR_PROMPT)
+        text = ''.join(x.text for x in segs).strip()
+        return text, time.time() - t
+
+
+def fax_token(data_dir):
+    """傳真小幫手用的 token：data/fax_helper.json，沒有就建立"""
+    f = os.path.join(data_dir, 'fax_helper.json')
+    try:
+        with open(f, encoding='utf-8') as fh:
+            t = (json.load(fh) or {}).get('token')
+            if t:
+                return t
+    except Exception:
+        pass
+    t = secrets.token_urlsafe(24)
+    with open(f, 'w', encoding='utf-8') as fh:
+        json.dump({'token': t, 'server': 'http://127.0.0.1:8080'}, fh)
+    return t
 
 
 ZIP_CACHE = {}
@@ -174,6 +221,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self.upload(parse_qs(u.query))
             if u.path == '/api/pdf/parse':
                 return self.pdf_parse()
+            if u.path == '/api/asr':
+                return self.asr()
             body = self.body_json()
             return self.api('POST', u.path, parse_qs(u.query), body)
         except (BrokenPipeError, ConnectionResetError):
@@ -249,6 +298,9 @@ class Handler(BaseHTTPRequestHandler):
                 time.sleep(0.5)
                 return self.error('帳號或密碼不對', 401)
             return self.send_json({'ok': True, 'user': db.session_user(token)}, headers={'Set-Cookie': self.set_cookie(token)})
+
+        if path.startswith('/api/fax/helper/'):
+            return self.fax_helper_api(method, path, qs, body or {})
 
         me = self.user()
         if not me:
@@ -379,6 +431,9 @@ class Handler(BaseHTTPRequestHandler):
             sys.stderr.write('restart requested by %s\n' % me.get('login'))
             threading.Timer(0.6, lambda: os._exit(3)).start()
             return
+        if path == '/api/fax/helper' and method == 'GET':
+            seen = FAX_HELPER.get('seen') or 0
+            return self.send_json({'online': time.time() - seen < 30, 'seen': seen, 'busy': FAX_HELPER.get('busy') or ''})
         if path == '/api/agent' and method == 'POST':
             try:
                 return self.send_json(agent_step(self.state.data_dir, body or {}, me))
@@ -441,6 +496,61 @@ class Handler(BaseHTTPRequestHandler):
             except Exception:
                 pass
         return self.send_json({'ok': True, **out})
+
+    def asr(self):
+        """語音 → 文字（Breeze-ASR-26，華語／台語，輸出華語漢字）；body 是 16kHz 單聲道 16-bit PCM"""
+        n = int(self.headers.get('Content-Length') or 0)
+        if not self.user():
+            if 0 < n <= FILE_MAX:
+                self.rfile.read(n)
+            else:
+                self.close_connection = True
+            return self.error('請先登入', 401)
+        if n <= 0:
+            return self.error('沒有收到聲音')
+        if n > 16000 * 2 * 120:
+            self.rfile.read(n)
+            return self.error('錄音太長（上限 2 分鐘）')
+        pcm = self.rfile.read(n)
+        try:
+            text, secs = asr_transcribe(pcm)
+        except OcrError as e:
+            return self.error(str(e), e.status)
+        sys.stderr.write('asr %.1fs audio -> %.1fs: %s\n' % (len(pcm) / 32000, secs, text[:60]))
+        return self.send_json({'ok': True, 'text': text, 'secs': round(secs, 1)})
+
+    def fax_helper_api(self, method, path, qs, body):
+        """傳真小幫手（在使用者桌面執行）：/next 取下一張待傳真、/report 回報結果；用 data/fax_helper.json 的 token 驗證"""
+        tok = (qs.get('token') or [''])[0] or body.get('token') or ''
+        if not tok or tok != fax_token(self.state.data_dir):
+            return self.error('token 不對', 403)
+        db = self.state.db
+        FAX_HELPER['seen'] = time.time()
+        if path == '/api/fax/helper/next' and method == 'GET':
+            FAX_HELPER['busy'] = ''
+            jobs = [j for j in db.list('faxjobs') if j.get('status') == 'queued']
+            if not jobs:
+                return self.send_json({'job': None})
+            j = sorted(jobs, key=lambda x: x.get('at') or '')[0]
+            d = {k: v for k, v in j.items() if k != 'id'}
+            d['status'] = 'sending'
+            d['startAt'] = datetime.datetime.now().isoformat(timespec='seconds')
+            db.put('faxjobs', j['id'], d)
+            FAX_HELPER['busy'] = j.get('no') or j['id']
+            return self.send_json({'job': j})
+        if path == '/api/fax/helper/report' and method == 'POST':
+            jid = str(body.get('id') or '')
+            j = db.get('faxjobs', jid)
+            if not j:
+                return self.error('找不到這個傳真工作', 404)
+            st = body.get('status') if body.get('status') in ('sent', 'failed') else 'failed'
+            d = {k: v for k, v in j.items() if k != 'id'}
+            d.update(status=st, msg=str(body.get('msg') or '')[:300], doneAt=datetime.datetime.now().isoformat(timespec='seconds'), html='')
+            db.put('faxjobs', jid, d)
+            FAX_HELPER['busy'] = ''
+            sys.stderr.write('fax %s %s %s %s\n' % (j.get('no'), j.get('to'), st, d['msg']))
+            return self.send_json({'ok': True})
+        return self.error('not found', 404)
 
     def pdf_parse(self):
         """讀 PDF（內容直接放在 body）→ 每頁的文字與表格（給匯入客戶 ERP 出貨單用；需要 pymupdf）"""
@@ -812,6 +922,14 @@ AGENT_PROMPT = """你是「志瑞螺絲企業有限公司」作業平台裡的 A
 - 用 draft_bill 建草稿。草稿只會顯示在畫面上，要使用者按「開啟草稿」檢查後自己存檔；你不能直接存檔，也不要說已經存檔。
 - 不要刪除或修改任何既有資料；被要求時說明需要使用者自己在平台上操作。
 
+語音輸入：
+- 使用者可能用語音（國語或台語）下指令，文字是語音辨識轉出來的，常有同音錯字，例如「螺拳／羅斯」＝螺絲、「滑絲／華詩」＝華司、「螺母／螺絲母」＝螺帽、「一萬隻」＝一萬支。依螺絲業常識和平台資料判斷，真的不確定再問。
+- 台語、業界常用說法：二分＝1/4 吋、三分＝3/8 吋、四分＝1/2 吋、五分＝5/8 吋、六分＝3/4 吋、一分＝1/8 吋；「一吋半」＝1-1/2 吋；「M6 乘 20」＝M6*20；白鐵＝不鏽鋼；錏黑＝黑色鍍鋅；三價＝三價鍍鋅；鑽尾＝鑽尾螺絲；鐵板牙＝自攻牙；牙條＝全牙螺桿；「一千支」可能說「一千枝／一千粒」。
+- 回答會被唸出來，所以結論放第一句，數字講清楚。
+
+傳真：
+- 使用者要傳真報價單、採購單、詢價單給客戶或廠商時，用 fax_bill。它只會顯示確認卡，使用者按「確認傳真」才會由傳真小幫手自動送出；不要說已經傳出去了。
+
 使用者訊息開頭會附上今天日期。"""
 
 
@@ -939,6 +1057,10 @@ def main():
     os.makedirs(data_dir, exist_ok=True)
     db = DB(os.path.join(data_dir, 'zhirui.db'))
     state = State(db, data_dir)
+    try:
+        fax_token(data_dir)   # 傳真小幫手要讀的 token 檔，先建好
+    except Exception:
+        pass
     st = db.get('settings', 'backup_state')
     if st:
         state.backup = {'last': st.get('last'), 'file': st.get('file'), 'err': st.get('err')}

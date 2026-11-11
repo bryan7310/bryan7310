@@ -1,19 +1,22 @@
 // AI 助理：用中文問平台資料、請它擬單據草稿（存檔一定要使用者自己按）
 // 工具都在瀏覽器執行（直接用平台現有的庫存、應收應付、上次單價計算），伺服器 /api/agent 只負責呼叫 Claude
-import { $, esc, fmt, fmtQ, fp4, today, thisMonth, shiftMonth, qTerms, matchQ } from '../core/util.js';
+import { $, esc, fmt, fmtQ, fp4, today, thisMonth, shiftMonth, qTerms, matchQ, ls } from '../core/util.js';
 import { store } from '../core/store.js';
 import { toast } from '../core/ui.js';
 import { calc, TYPES, totals, goodsLabel, cdisp, lastSale, costOf, nextNo, wname, unitFactor } from '../core/calc.js';
 import { api } from '../core/api.js';
 import { openBill, billText } from './_bills.js';
 import { arRows } from './receivables.js';
+import { queueFax, faxDial, faxPill } from './faxes.js';
 import { apRows } from './payables.js';
 
 const ui = { conv: [], busy: false, stop: false, err: '', usd: 0, steps: 0 };
 const DRAFTS = new Map();   // tool_use_id → 草稿
+const FAXES = new Map();    // tool_use_id → 待確認的傳真 { billId, to, cover, job }
 export default {
   id: 'assistant', name: 'AI 助理', group: '業務', icon: 'ai',
   render(el) { this.el = el; draw(el); },
+  onChange(ch) { if (this.el?.isConnected && ch.has('faxjobs') && FAXES.size && !ui.busy) draw(this.el); },
 };
 
 // ---------- 工具定義（給 Claude 看的說明） ----------
@@ -32,6 +35,7 @@ const TOOLS = [
   { name: 'payables', description: '應付帳款。給 month 看那個月各供應商的應付；不給 month 就列出所有還沒付款的。月份以 25 日結帳。', input_schema: S({ month: str('YYYY-MM，可省略'), contact_id: str('只看某供應商，可省略') }) },
   { name: 'stock_alerts', description: '低於安全庫存、或庫存是負數的商品。', input_schema: S({}) },
   { name: 'checks', description: '支票：out＝開給供應商的支票（待列印、待兌現），in＝收到的客票（依到期日）。', input_schema: S({ kind: { type: 'string', enum: ['out', 'in'] }, date_from: str('到期日起 YYYY-MM-DD，可省略'), date_to: str('到期日迄 YYYY-MM-DD，可省略') }, ['kind']) },
+  { name: 'fax_bill', description: '準備傳真一張報價單、採購單或詢價單給對方。只會顯示確認卡（對象、號碼），使用者按「確認傳真」後由傳真小幫手自動印到 PC-FAX 送出；這個工具本身不會送出。fax_number 省略就用對方資料上的傳真號碼。', input_schema: S({ bill_no: str('單號'), fax_number: str('傳真號碼，可省略'), cover: { type: 'boolean', description: '要不要加傳真封面頁，預設不加' } }, ['bill_no']) },
   { name: 'draft_bill', description: '擬一張單據草稿（報價單 QUO、銷貨單 SALE、採購單 PO、進貨單 PUR）。草稿只顯示在畫面上，使用者按「開啟草稿」檢查後自己存檔；這個工具不會存檔。price 省略時：QUO／SALE 用該客戶上次單價，PO／PUR 用該廠商上次進價。', input_schema: S({ type: { type: 'string', enum: ['QUO', 'SALE', 'PO', 'PUR'] }, contact_id: str('客戶（QUO、SALE）或供應商（PO、PUR）id'), date: str('日期 YYYY-MM-DD，省略＝今天'), note: str('備註，可省略'), lines: { type: 'array', items: S({ goods_id: str('商品 id'), qty: { type: 'number', description: '數量（商品的基本單位）' }, price: { type: 'number', description: '單價，可省略' }, memo: str('這一行的備註，例如客戶採購單號，可省略') }, ['goods_id', 'qty']) } }, ['type', 'contact_id', 'lines']) },
 ];
 const LABEL = {
@@ -39,7 +43,7 @@ const LABEL = {
   contact_detail: i => `看 ${cname(i.contact_id)} 的資料`, price_history: i => `查 ${gcode(i.goods_id)} 的歷史單價${i.contact_id ? `（${cname(i.contact_id)}）` : ''}`,
   search_bills: i => `搜尋單據${[i.type && TYPES[i.type]?.name, i.contact_id && cname(i.contact_id), i.goods_id && gcode(i.goods_id), i.keyword].filter(Boolean).map(x => '・' + x).join('')}`,
   bill_detail: i => `看單據 ${i.bill_no}`, receivables: i => `看應收帳款${i.month ? ' ' + i.month : '（未收）'}`, payables: i => `看應付帳款${i.month ? ' ' + i.month : '（未付）'}`,
-  stock_alerts: () => '看低庫存商品', checks: i => i.kind === 'out' ? '看開出的支票' : '看收到的客票', draft_bill: i => `擬 ${TYPES[i.type]?.name || '單據'} 草稿`,
+  stock_alerts: () => '看低庫存商品', fax_bill: i => `準備傳真 ${i.bill_no}`, checks: i => i.kind === 'out' ? '看開出的支票' : '看收到的客票', draft_bill: i => `擬 ${TYPES[i.type]?.name || '單據'} 草稿`,
 };
 const gcode = id => store.get('goods', id)?.code || id;
 const cname = id => { const c = store.get('contacts', id); return c ? cdisp(c) : id; };
@@ -145,7 +149,7 @@ export async function runTool(name, input, id) {   // export：方便測試
     }
     case 'bill_detail': {
       const no = String(input.bill_no || '').trim(); if (!no) return { 錯誤: '請給單號' };
-      let b = C.bills.find(x => x.no === no);
+      const same = C.bills.filter(x => x.no === no); let b = same.find(x => TYPES[x.type]?.lines && !['IN', 'OUT'].includes(x.type)) || same[0];
       if (!b) { const h = await api.hist({ q: no, limit: 10 }).catch(() => ({ rows: [] })); b = (h.rows || []).find(x => x.no === no); if (b) b = { ...b, hist: true }; }
       if (!b) return { 錯誤: `找不到單號 ${no}` };
       const o = billSum(b); delete o.明細;
@@ -176,6 +180,16 @@ export async function runTool(name, input, id) {   // export：方便測試
       }
       const rows = store.list('checks_in').filter(c => inR(c.due || '')).sort((a, b) => String(a.due).localeCompare(String(b.due)));
       return { 筆數: rows.length, 合計: Math.round(rows.reduce((s, c) => s + (+c.amt || 0), 0)), 支票: rows.slice(-60).map(c => ({ 到期日: c.due, 發票人: c.name || '', 客戶: c.cid ? cname(c.cid) : '', 銀行: c.bank || '', 票號: c.no || '', 金額: +c.amt || 0, ...(c.recv ? { 收票日: c.recv } : {}) })) };
+    }
+    case 'fax_bill': {
+      const no = String(input.bill_no || '').trim(); const b = C.bills.find(x => x.no === no && ['QUO', 'PO', 'RFQ'].includes(x.type)) || C.bills.find(x => x.no === no);
+      if (!b) return { 錯誤: `新平台找不到單號 ${no}（舊系統的單據不能傳真；草稿要先存檔才有單號）` };
+      const T = TYPES[b.type]; if (!['QUO', 'PO', 'RFQ'].includes(b.type)) return { 錯誤: `${T?.name || b.type} 不能用傳真，只有報價單、採購單、詢價單可以` };
+      const c = C.ct[b.cid]; if (!c) return { 錯誤: '這張單沒有客戶／廠商' };
+      const to = String(input.fax_number || b.faxTo || c.fax || '').trim();
+      if (!to) return { 錯誤: `${cdisp(c)} 的資料沒有傳真號碼，請問使用者號碼` };
+      FAXES.set(id, { billId: b.id, to, cover: !!input.cover });
+      return { 狀態: '確認卡已顯示，使用者按「確認傳真」才會送出', 單據: `${T.name} ${b.no}`, 對象: cdisp(c), 傳真號碼: to, 撥號: faxDial(c, to), ...((b.faxLog || []).length ? { 之前傳過: b.faxLog.slice(-2).map(x => `${String(x.at).slice(0, 10)} → ${x.to}`) } : {}) };
     }
     case 'draft_bill': {
       const T = TYPES[input.type]; if (!T || !['QUO', 'SALE', 'PO', 'PUR'].includes(input.type)) return { 錯誤: '只能擬報價單、銷貨單、採購單、進貨單' };
@@ -210,8 +224,8 @@ const WEEK = '日一二三四五六';
 const datePrefix = () => { const d = new Date(); return `[今天 ${today()}（星期${WEEK[d.getDay()]}）]\n`; };
 const PRICE = { in: 4, out: 20, cr: 0.2, cw: 5 };   // Claude Opus 5.5 每百萬 token 美元
 function addCost(u) { if (!u) return; ui.usd += ((u.input_tokens || 0) * PRICE.in + (u.output_tokens || 0) * PRICE.out + (u.cache_read_input_tokens || 0) * PRICE.cr + (u.cache_creation_input_tokens || 0) * PRICE.cw) / 1e6; }
-function save() { try { sessionStorage.setItem('zr.ai', JSON.stringify({ conv: ui.conv, usd: ui.usd, drafts: [...DRAFTS] })); } catch (e) { /* 太大或不能存就算了 */ } }
-function load() { try { const s = JSON.parse(sessionStorage.getItem('zr.ai') || 'null'); if (s && !ui.conv.length) { ui.conv = s.conv || []; ui.usd = s.usd || 0; for (const [k, v] of s.drafts || []) DRAFTS.set(k, v); } } catch (e) { /* 忽略 */ } }
+function save() { try { sessionStorage.setItem('zr.ai', JSON.stringify({ conv: ui.conv, usd: ui.usd, drafts: [...DRAFTS], faxes: [...FAXES] })); } catch (e) { /* 太大或不能存就算了 */ } }
+function load() { try { const s = JSON.parse(sessionStorage.getItem('zr.ai') || 'null'); if (s && !ui.conv.length) { ui.conv = s.conv || []; ui.usd = s.usd || 0; for (const [k, v] of s.drafts || []) DRAFTS.set(k, v); for (const [k, v] of s.faxes || []) FAXES.set(k, v); } } catch (e) { /* 忽略 */ } }
 load();
 
 async function loop(el) {
@@ -238,6 +252,7 @@ async function loop(el) {
     }
   } catch (e) { ui.err = e.status === 404 || /not found/i.test(e.message || '') ? '伺服器還沒更新，請到「設定備份」重新啟動伺服器後再試。' : (e.message || String(e)); }
   ui.busy = false; save(); draw(el);
+  if (ui.speak && !ui.err) { const last = ui.conv.at(-1); if (last?.role === 'assistant') speak((last.content || []).filter(b => b.type === 'text').map(b => b.text).join('\n')); }
 }
 function send(el, text) {
   text = String(text || '').trim(); if (!text || ui.busy) return;
@@ -275,6 +290,12 @@ function draftCard(id, d) {
     <div class="tw"><table><thead><tr><th>商品</th><th class="n">數量</th><th class="n">單價</th><th class="n">金額</th></tr></thead><tbody>${d.lines.map(l => { const g = C.g[l.gid]; return `<tr><td>${esc(g ? goodsLabel(g) : l.gid)}${l.memo ? `<div class="muted small">${esc(l.memo)}</div>` : ''}</td><td class="n">${fmtQ(l.qty)} ${esc(l.u || g?.unit || '')}</td><td class="n">${l.price === '' ? '<span class="muted">未填</span>' : fp4(l.price)}</td><td class="n">${fmt(Math.round((+l.qty || 0) * (+l.price || 0)))}</td></tr>`; }).join('')}</tbody></table></div>
     <div class="muted small">未稅合計 ${fmt(amt)} 元${d.note ? `・備註：${esc(d.note)}` : ''}・還沒存檔，請開啟檢查後自己按儲存。</div></div>`;
 }
+function faxCard(id, f) {
+  const b = store.get('bills', f.billId); if (!b) return '';
+  const T = TYPES[b.type]; const j = f.job && store.get('faxjobs', f.job);
+  return `<div class="ai-draft"><div class="ai-dh"><b>傳真${esc(T.name)} ${esc(b.no)}</b>　${esc(cname(b.cid))}　號碼 <b>${esc(f.to)}</b>${f.cover ? '・加封面' : ''}<span class="sp"></span>${f.job ? (j ? faxPill(j) : '<span class="pill">已排入</span>') : `<button class="btn pri sm" data-fax="${esc(id)}">確認傳真</button>`}</div>
+    <div class="muted small">${f.job ? (j?.msg ? esc(j.msg) : '傳真小幫手會自動印到 PC-FAX、填號碼、按開始。') : '按「確認傳真」才會送出；送出後不能收回，請先確認號碼。'}</div></div>`;
+}
 function convHTML() {
   let h = '';
   for (const m of ui.conv) {
@@ -286,7 +307,7 @@ function convHTML() {
     }
     for (const b of blocks) {
       if (b.type === 'text' && b.text.trim()) h += `<div class="ai-msg bot"><div class="ai-b">${md(b.text)}</div></div>`;
-      else if (b.type === 'tool_use') { h += `<div class="ai-act">· ${esc((LABEL[b.name] || (() => b.name))(b.input || {}))}</div>`; if (b.name === 'draft_bill' && DRAFTS.has(b.id)) h += draftCard(b.id, DRAFTS.get(b.id)); }
+      else if (b.type === 'tool_use') { h += `<div class="ai-act">· ${esc((LABEL[b.name] || (() => b.name))(b.input || {}))}</div>`; if (b.name === 'draft_bill' && DRAFTS.has(b.id)) h += draftCard(b.id, DRAFTS.get(b.id)); if (b.name === 'fax_bill' && FAXES.has(b.id)) h += faxCard(b.id, FAXES.get(b.id)); }
     }
   }
   return h;
@@ -298,7 +319,8 @@ function draw(el) {
   el.innerHTML = `<div class="head"><h1>AI 助理</h1><span class="sp"></span><span class="muted small">本頁對話約 NT$${(ui.usd * 32).toFixed(1)}</span><button class="btn" id="aiNew" ${ui.busy || !ui.conv.length ? 'disabled' : ''}>新對話</button></div>
     <div class="panel ai-wrap"><div class="ai-log" id="aiLog">${ui.conv.length ? convHTML() : `<div class="empty"><b>用中文問平台的資料，或請它幫你擬單據草稿</b>它會自己查商品、庫存、客戶、單據、應收應付；擬好的單據要你按「開啟草稿」檢查後自己存檔。<div class="ai-sug">${SUGGEST.map(s => `<button class="btn sm" data-sug="${esc(s)}">${esc(s)}</button>`).join('')}</div></div>`}
       ${ui.busy ? '<div class="ai-act ai-wait">思考中…</div>' : ''}${ui.err ? `<div class="banner" style="margin-top:8px">${esc(ui.err)}${ui.conv.at(-1)?.role === 'user' ? ' <button class="btn sm" id="aiRetry">重試</button>' : ''}</div>` : ''}</div>
-      <div class="ai-in"><textarea id="aiIn" rows="2" placeholder="例如：新能上個月的應收收了嗎？（Enter 送出，Shift+Enter 換行）" ${ui.busy ? 'disabled' : ''}>${esc(keep)}</textarea>${ui.busy ? '<button class="btn" id="aiStop">停止</button>' : '<button class="btn pri" id="aiSend">送出</button>'}</div>
+      <div class="ai-in"><button class="btn ai-mic ${rec.on ? 'on' : ''}" id="aiMic" title="${rec.on ? '再按一次結束錄音' : '按一下開始講（國語、台語都可以），講完再按一次'}" ${ui.busy || rec.busy ? 'disabled' : ''}>${rec.busy ? '辨識中…' : rec.on ? '● 停止錄音' : '🎤 講話'}</button><textarea id="aiIn" rows="2" placeholder="打字或按「🎤 講話」，例如：幫我開報價單給新能，二分一吋半馬車螺絲五千支（Enter 送出）" ${ui.busy ? 'disabled' : ''}>${esc(keep)}</textarea>${ui.busy ? '<button class="btn" id="aiStop">停止</button>' : '<button class="btn pri" id="aiSend">送出</button>'}</div>
+      <div class="tools" style="gap:14px"><label class="check small"><input type="checkbox" id="aiSpeak" ${ui.speak ? 'checked' : ''}> 朗讀回答</label><label class="check small"><input type="checkbox" id="aiAuto" ${ui.autoSend ? 'checked' : ''}> 講完直接送出</label>${rec.msg ? `<span class="small" style="color:var(--bad)">${esc(rec.msg)}</span>` : ''}</div>
       <div class="muted small">AI 會出錯，金額、數量請以平台資料為準。每問一題大約 NT$1～3。</div></div>`;
   const log = $('#aiLog', el); log.scrollTop = log.scrollHeight;
   const inp = $('#aiIn', el);
@@ -308,9 +330,67 @@ function draw(el) {
   $('#aiRetry', el)?.addEventListener('click', () => loop(el));
   $('#aiNew', el)?.addEventListener('click', () => { ui.conv = []; ui.usd = 0; ui.err = ''; DRAFTS.clear(); save(); draw(el); });
   el.querySelectorAll('[data-sug]').forEach(b => b.addEventListener('click', () => send(el, b.dataset.sug)));
+  $('#aiMic', el)?.addEventListener('click', () => rec.on ? stopRec(el) : startRec(el));
+  $('#aiSpeak', el)?.addEventListener('change', ev => { ui.speak = ev.target.checked; ls.set('zr.ai.speak', ui.speak); if (!ui.speak) speechSynthesis.cancel(); });
+  $('#aiAuto', el)?.addEventListener('change', ev => { ui.autoSend = ev.target.checked; ls.set('zr.ai.auto', ui.autoSend); });
+  el.querySelectorAll('[data-fax]').forEach(b => b.addEventListener('click', async () => {
+    const f = FAXES.get(b.dataset.fax); const bill = f && store.get('bills', f.billId); if (!bill) return toast('找不到這張單');
+    const c = calc().ct[bill.cid]; const T = TYPES[bill.type];
+    b.disabled = true;
+    try {
+      f.job = await queueFax(bill, c, { to: f.to, attn: bill.attn || c.person || '', subj: `${T.name} ${bill.no}`, msg: bill.type === 'PO' ? '敬請依採購單內容安排交貨，收到後請簽回確認，謝謝。' : bill.type === 'RFQ' ? '敬請報價並回傳，謝謝。' : '報價如上，敬請參考，謝謝。', cover: f.cover });
+      save(); toast(`已排入自動傳真：${f.to}`); draw(el);
+      api.get('/api/fax/helper').then(r => { if (!r.online) toast('注意：傳真小幫手目前沒有在執行，傳真會等它開啟後才送出'); }).catch(() => {});
+    } catch (e) { b.disabled = false; toast('排入傳真失敗：' + (e.message || e)); }
+  }));
   el.querySelectorAll('[data-draft]').forEach(b => b.addEventListener('click', () => {
     const d = DRAFTS.get(b.dataset.draft); if (!d) return;
     openBill(d.type, null, null, { cid: d.cid, date: d.date, no: nextNo(d.type, d.date), note: d.note, lines: d.lines.map(l => ({ ...l })) });
   }));
   if (!ui.busy) setTimeout(() => inp.focus(), 0);
+}
+
+// ---------- 語音：錄音 → 伺服器 Breeze-ASR-26（國語、台語 → 華語文字）；回答可朗讀 ----------
+ui.speak = !!ls.get('zr.ai.speak', false); ui.autoSend = ls.get('zr.ai.auto', true) !== false;
+const rec = { on: false, busy: false, msg: '', mr: null, chunks: [], stream: null };
+async function startRec(el) {
+  rec.msg = '';
+  if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) { rec.msg = '這個網址不能用麥克風：請改用 https://zhirui.tailabeaf1.ts.net，或在伺服器電腦上開 http://localhost:8080'; draw(el); return; }
+  try {
+    rec.stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true } });
+    rec.chunks = []; rec.mr = new MediaRecorder(rec.stream);
+    rec.mr.ondataavailable = e => { if (e.data.size) rec.chunks.push(e.data); };
+    rec.mr.onstop = () => transcribe(el);
+    rec.mr.start(); rec.on = true; speechSynthesis.cancel();
+    rec.timer = setTimeout(() => { if (rec.on) stopRec(el); }, 60000);   // 最長 1 分鐘
+  } catch (e) { rec.msg = '開不了麥克風：' + (e.message || e.name); }
+  draw(el);
+}
+function stopRec(el) { clearTimeout(rec.timer); rec.on = false; rec.busy = true; try { rec.mr.stop(); } catch (e) { rec.busy = false; } rec.stream?.getTracks().forEach(t => t.stop()); draw(el); }
+async function transcribe(el) {
+  try {
+    const blob = new Blob(rec.chunks, { type: rec.mr.mimeType || 'audio/webm' });
+    const buf = await blob.arrayBuffer();
+    const ctx = new AudioContext(); const audio = await ctx.decodeAudioData(buf); ctx.close();
+    if (audio.duration < 0.4) throw new Error('沒有錄到聲音');
+    const off = new OfflineAudioContext(1, Math.ceil(audio.duration * 16000), 16000);
+    const src = off.createBufferSource(); src.buffer = audio; src.connect(off.destination); src.start();
+    const pcm = (await off.startRendering()).getChannelData(0);
+    const i16 = new Int16Array(pcm.length); for (let i = 0; i < pcm.length; i++) i16[i] = Math.max(-1, Math.min(1, pcm[i])) * 32767;
+    const r = await fetch('/api/asr', { method: 'POST', body: i16.buffer, credentials: 'same-origin', headers: { 'Content-Type': 'application/octet-stream' } });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(r.status === 404 ? '伺服器還沒更新，請重新啟動伺服器' : (j.error || 'HTTP ' + r.status));
+    const text = String(j.text || '').trim();
+    rec.busy = false;
+    if (!text) { rec.msg = '沒有聽清楚，請再講一次'; draw(el); return; }
+    if (ui.autoSend) { draw(el); send(el, text); }
+    else { draw(el); const inp = $('#aiIn', el); inp.value = (inp.value ? inp.value + ' ' : '') + text; inp.focus(); }
+  } catch (e) { rec.busy = false; rec.msg = '語音辨識失敗：' + (e.message || e); draw(el); }
+}
+function speak(text) {
+  if (!('speechSynthesis' in window) || !text) return;
+  const plain = String(text).split('\n').filter(l => !/^\s*\|/.test(l)).join('。').replace(/\*\*|`|#+\s|^[-*•]\s/gm, '').replace(/。{2,}/g, '。').slice(0, 600);
+  const u = new SpeechSynthesisUtterance(plain); u.lang = 'zh-TW';
+  const v = speechSynthesis.getVoices().find(x => x.lang === 'zh-TW') || speechSynthesis.getVoices().find(x => /zh/i.test(x.lang)); if (v) u.voice = v;
+  u.rate = 1.05; speechSynthesis.cancel(); speechSynthesis.speak(u);
 }
