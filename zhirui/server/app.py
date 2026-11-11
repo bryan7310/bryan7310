@@ -419,7 +419,19 @@ class Handler(BaseHTTPRequestHandler):
                         tables.append([[c if c is not None else '' for c in row] for row in t.extract()])
                 except Exception:
                     pass
-                pages.append({'text': p.get_text(), 'tables': tables})
+                images = []
+                for im in p.get_images(full=True)[:10]:
+                    try:
+                        info = doc.extract_image(im[0])
+                        if len(info['image']) > 200000:
+                            continue
+                        rects = p.get_image_rects(im[0])
+                        r = rects[0] if rects else None
+                        images.append({'ext': info['ext'], 'w': info['width'], 'h': info['height'], 'rect': [r.x0, r.y0, r.x1, r.y1] if r else None,
+                                       'data': base64.b64encode(info['image']).decode('ascii')})
+                    except Exception:
+                        pass
+                pages.append({'text': p.get_text(), 'tables': tables, 'images': images, 'size': [p.rect.width, p.rect.height]})
         except Exception as e:
             return self.error('PDF 讀取失敗：%s' % e)
         return self.send_json({'ok': True, 'pages': pages})

@@ -287,6 +287,10 @@ export async function songquanParse(file) {
   const fld = k => { const m = text.match(new RegExp(k + '[:：][ \\t]*([^\\n]*)')); return m ? m[1].trim() : ''; };
   const head = { sn: fld('出貨單號'), date: fld('出貨日期'), inv: fld('發票號碼'), invDate: fld('發票日期'), addr: fld('送貨地址'), note: fld('備註'), vendor: fld('供應商名') };
   if (!head.sn) throw new Error('找不到出貨單號');
+  // QR 碼（內容就是出貨單號）：第一頁上方、接近正方形的小圖，原圖存下來，崧泉列印照印
+  const pg0 = j.pages[0] || {}; const ph = (pg0.size || [0, 842])[1];
+  const qr = (pg0.images || []).find(im => im.rect && im.w && Math.abs(im.w - im.h) <= im.w * 0.1 && im.rect[1] < ph * 0.3);
+  if (qr) head.qr = `data:image/${qr.ext === 'jpg' ? 'jpeg' : qr.ext};base64,${qr.data}`;
   // 儲存格裡的換行接回去：英數字接英數字中間補空白，其餘（中文、連字號結尾）直接接
   const J = x => String(x ?? '').split('\n').map(s => s.trim()).filter(Boolean).reduce((a, s) => a && /[A-Za-z0-9"]$/.test(a) && /^[A-Za-z0-9]/.test(s) ? a + ' ' + s : a + s, '');
   const num = x => +String(x ?? '').replace(/[,\s]/g, '') || 0;
@@ -324,7 +328,7 @@ export function songquanLines(P, edit) {
   }
   return { add, miss, multi };
 }
-/** 崧泉列印：照崧泉「訂單出貨憑證」的欄位重印（一張崧泉出貨單一份；沒匯入的行另成一份）。版面之後可再調整 */
+/** 崧泉列印：一張 A4 直式印上下兩份（中間虛線可裁開），版面緊湊、字放大；一張崧泉出貨單一組，沒匯入的行另成一組 */
 export function printSongquan(b) {
   const C = calc(); const co = store.setting('company'); const e2 = s => esc(s ?? '');
   const lines = (b.lines || []).filter(l => l.txt === undefined && (l.gid || l.n) && +l.qty > 0);
@@ -336,24 +340,32 @@ export function printSongquan(b) {
   const q2 = n => (+n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const row = l => { const g = C.g[l.gid]; const x = l.sq || {};
     return { po: x.po || l.memo || '', item: x.item || '', pn: x.pn || g?.spec || '', name: x.name || g?.custName || g?.name || l.n || '', spec: x.spec != null ? x.spec : (g?.spec2 || ''), unit: x.unit || unitOf(l), poQty: x.poQty != null ? x.poQty : +l.qty, qty: +l.qty }; };
-  const PER = 18; let html = '';
+  // 依品名實際寬度估每行高度：用列印字型量品名會折成幾行（品名欄約 21% 寬、10pt），每行至少 10mm（數量格下方留白可寫備註）
+  const cv = document.createElement('canvas').getContext('2d'); cv.font = '13.33px "MingLiU","PMingLiU","新細明體",serif';
+  const AVAIL = 190 * 3.7795 * 0.21 - 2.4 * 3.7795 - 2;
+  const linesOf = t => { let n = 1, w = 0; for (const ch of String(t || '')) { const cw = cv.measureText(ch).width; if (w + cw > AVAIL && w > 0) { n++; w = cw; } else w += cw; } return n; };
+  const rowH = r => Math.max(10, linesOf(r.name) * 4.42 + 1.9);
+  const paginate = rs => { const out = []; let cur = [], h = 0; for (const r of rs) { const rh = rowH(r); if (cur.length && h + rh > 100) { out.push(cur); cur = []; h = 0; } cur.push(r); h += rh; } if (cur.length) out.push(cur); return out.length ? out : [[]]; };
+  const copy = (s, rs, p, pages) => `<div class="cp"><div class="hdr"><div class="hl"><div class="top"><h1>訂單出貨憑證</h1><span class="pno">頁次:${p + 1}/${pages}</span></div>
+    <div class="hd"><div>供應商名:${e2(co.name || '志瑞螺絲企業有限公司')}</div><div>出貨單號:<b>${e2(s.sn)}</b></div><div>出貨日期:${e2(s.date)}</div><div>發票號碼:${e2(s.inv || '')}</div><div>發票日期:${e2(s.invDate || '')}</div><div>送貨地址:${e2(s.addr || '')}</div>${s.note ? `<div class="w">備註:${e2(s.note)}</div>` : ''}</div></div>${s.qr ? `<img class="qr" src="${s.qr}" alt="QR">` : ''}</div>
+    <table><thead><tr><th>採購單號</th><th>項次</th><th>品號</th><th>品名</th><th>規格</th><th>單位</th><th class="n">採購數量</th><th class="n">交貨數量</th></tr></thead><tbody>
+    ${rs.map(r => `<tr><td>${e2(r.po)}</td><td class="c">${e2(r.item)}</td><td class="pn">${e2(r.pn)}</td><td class="nm">${e2(r.name)}</td><td>${e2(r.spec)}</td><td class="c">${e2(r.unit)}</td><td class="n">${q2(r.poQty)}</td><td class="n">${q2(r.qty)}</td></tr>`).join('')}
+    </tbody></table><div class="sg"><span>收貨人員：____________________</span><span>廠商簽章：____________________</span></div></div>`;
+  let html = '';
   for (const { s, ls } of groups.filter(g => g.ls.length)) {
-    const rs = ls.map(row); const pages = Math.max(1, Math.ceil(rs.length / PER));
-    for (let p = 0; p < pages; p++) {
-      html += `<div class="pg"><div class="pno">頁次:${p + 1}/${pages}</div><h1>訂單出貨憑證</h1>
-        <div class="hd"><div>供應商名:${e2(co.name || '志瑞螺絲企業有限公司')}</div><div></div><div>出貨單號:${e2(s.sn)}</div><div>出貨日期:${e2(s.date)}</div><div>發票號碼:${e2(s.inv || '')}</div><div>發票日期:${e2(s.invDate || '')}</div><div class="w">送貨地址:${e2(s.addr || '')}</div><div class="w">備註:${e2(s.note || '')}</div></div>
-        <table><thead><tr><th>採購單號</th><th>項次</th><th>品號</th><th>品名</th><th>規格</th><th>單位</th><th class="n">採購數量</th><th class="n">交貨數量</th></tr></thead><tbody>
-        ${rs.slice(p * PER, (p + 1) * PER).map(r => `<tr><td>${e2(r.po)}</td><td>${e2(r.item)}</td><td>${e2(r.pn)}</td><td>${e2(r.name)}</td><td>${e2(r.spec)}</td><td>${e2(r.unit)}</td><td class="n">${q2(r.poQty)}</td><td class="n">${q2(r.qty)}</td></tr>`).join('')}
-        </tbody></table><div class="sp"></div><div class="sg"><span>收貨人員：___________________</span><span>廠商簽章：___________________</span></div></div>`;
-    }
+    const parts = paginate(ls.map(row)); const pages = parts.length;
+    parts.forEach((part, p) => { html += `<div class="pg">${copy(s, part, p, pages)}<div class="cut"></div>${copy(s, part, p, pages)}</div>`; });
   }
-  const css = `@page{size:A4 portrait;margin:12mm 12mm}*{box-sizing:border-box}body{margin:0;font-family:"MingLiU","PMingLiU","新細明體",serif;font-size:10.5pt;color:#000}
-.pg{min-height:270mm;display:flex;flex-direction:column;page-break-after:always;position:relative}.pg:last-child{page-break-after:auto}
-@media screen{.pg{width:186mm;border:1px dashed #bbb;padding:6mm;margin:0 auto 6mm}}
-.pno{text-align:right}h1{text-align:center;font-size:15pt;font-weight:normal;margin:2mm 0 4mm}
-.hd{display:grid;grid-template-columns:1fr 1fr;row-gap:1.6mm;margin-bottom:2mm}.hd .w{grid-column:1/-1}
-table{width:100%;border-collapse:collapse;table-layout:fixed}th,td{border:1px solid #000;padding:.6mm 1mm;vertical-align:top;text-align:left;font-weight:normal;word-break:break-all}
-th:nth-child(1){width:15%}th:nth-child(2){width:7%}th:nth-child(3){width:11%}th:nth-child(4){width:18%}th:nth-child(5){width:17%}th:nth-child(6){width:7%}th:nth-child(7),th:nth-child(8){width:12.5%}
-.n{text-align:right}.sp{flex:1}.sg{display:flex;justify-content:space-around;margin:10mm 0 8mm}`;
-  printHTML(`崧泉出貨憑證 ${b.no}`, css, html, { tip: '紙張 A4 直式、縮放 100%。每張崧泉出貨單印一份；不是從崧泉 PDF 匯入的品項另印一份。' });
+  const css = `@page{size:A4 portrait;margin:8mm 10mm}*{box-sizing:border-box}body{margin:0;font-family:"MingLiU","PMingLiU","新細明體",serif;font-size:13pt;color:#000}
+.pg{height:280mm;display:flex;flex-direction:column;page-break-after:always;overflow:hidden}.pg:last-child{page-break-after:auto}
+@media screen{body{background:#eee}.pg{width:190mm;background:#fff;margin:0 auto 6mm;padding:0 2mm;box-shadow:0 0 0 1px #ccc}}
+.cp{height:139mm;overflow:hidden;padding-top:2mm}.hdr{display:flex;align-items:flex-start;gap:3mm}.hl{flex:1;min-width:0}.qr{width:17mm;height:17mm;image-rendering:pixelated;flex:none}.cut{border-top:1px dashed #888;margin:0 -2mm}
+.top{display:flex;align-items:baseline;justify-content:center;position:relative}.top h1{font-size:15pt;font-weight:bold;margin:0 0 1.5mm;letter-spacing:3pt}.pno{position:absolute;right:0;top:0;font-size:10pt}
+.hd{display:grid;grid-template-columns:repeat(3,max-content);justify-content:space-between;white-space:nowrap;row-gap:.8mm;column-gap:4mm;margin-bottom:1.8mm;font-size:10.5pt}.hd .w{grid-column:1/-1;white-space:normal}
+table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:12.5pt}th,td{border:1px solid #000;padding:.8mm 1.2mm;vertical-align:middle;text-align:left;font-weight:normal;word-break:break-all;line-height:1.25}
+th{background:#f2f2f2;font-size:10.5pt;white-space:nowrap;padding-top:.5mm;padding-bottom:.5mm}th:nth-child(1){width:20%}th:nth-child(2){width:5.5%}th:nth-child(3){width:11%}th:nth-child(4){width:21%}th:nth-child(5){width:12%}th:nth-child(6){width:4.5%}th:nth-child(7),th:nth-child(8){width:13%}
+td:nth-child(1),td:nth-child(3),td:nth-child(5),td.n{white-space:nowrap;overflow:hidden;word-break:normal;font-size:11pt}
+tbody td{height:10mm;vertical-align:top}td.pn,td.n{font-weight:bold;font-size:11.5pt}td.nm{font-size:10pt}
+.n{text-align:right}.c{text-align:center}.sg{display:flex;justify-content:space-around;margin-top:5mm}`;
+  printHTML(`崧泉出貨憑證 ${b.no}`, css, html, { tip: '紙張 A4 直式、邊界「無」或「預設」、縮放 100%。每張 A4 上下各印一份，中間虛線可裁開；每份放得下就放（約 9～10 項），放不下會續印下一張。' });
 }
