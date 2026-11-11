@@ -2,7 +2,7 @@
 // 工具都在瀏覽器執行（直接用平台現有的庫存、應收應付、上次單價計算），伺服器 /api/agent 只負責呼叫 Claude
 import { $, esc, fmt, fmtQ, fp4, today, thisMonth, shiftMonth, qTerms, matchQ, ls, uid, money, toHalf } from '../core/util.js';
 import { store } from '../core/store.js';
-import { toast } from '../core/ui.js';
+import { toast, isTouch } from '../core/ui.js';
 import { calc, TYPES, totals, goodsLabel, cdisp, lastSale, costOf, nextNo, wname, unitFactor } from '../core/calc.js';
 import { api } from '../core/api.js';
 import { openBill, billText } from './_bills.js';
@@ -433,7 +433,7 @@ function draw(el) {
     const d = DRAFTS.get(b.dataset.draft); if (!d) return;
     openBill(d.type, null, null, { cid: d.cid, date: d.date, no: nextNo(d.type, d.date), note: d.note, lines: d.lines.map(l => ({ ...l })) });
   }));
-  if (!ui.busy && !(window.matchMedia && matchMedia('(pointer: coarse)').matches)) setTimeout(() => inp.focus(), 0);   // 手機不自動聚焦（iPhone 會叫不出鍵盤）
+  if (!ui.busy && !isTouch()) setTimeout(() => inp.focus(), 0);   // 手機不自動聚焦（iPhone 會叫不出鍵盤）
 }
 
 // ---------- 語音：錄音 → 伺服器 Breeze-ASR-26（國語、台語 → 華語文字）；回答可朗讀 ----------

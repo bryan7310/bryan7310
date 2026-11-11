@@ -27,7 +27,7 @@ export function modal(opts) {
   bg.addEventListener('mousedown', e => { if (e.target === bg && opts.closeOnBg !== false) close(); });
   el.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', () => close()));
   // 電腦：自動把游標放進第一個欄位。手機（觸控）不要：iPhone 不准程式叫出鍵盤，會變成欄位選中了、鍵盤卻出不來，再點也叫不出來
-  if (!(window.matchMedia && matchMedia('(pointer: coarse)').matches)) setTimeout(() => { const f = el.querySelector('[autofocus], input:not([type=hidden]), select, textarea, button.pri'); f && f.focus(); }, 30);
+  if (!isTouch()) setTimeout(() => { const f = el.querySelector('[autofocus], input:not([type=hidden]), select, textarea, button.pri'); f && f.focus(); }, 30);
   opts.onOpen && opts.onOpen(el, close);
   return { el, close };
 }
@@ -98,7 +98,7 @@ export function combo(input, opts) {
   const pick = it => { if (!it) return; input.value = it.label; close(); opts.onPick(it); };
   input.setAttribute('autocomplete', 'off');
   // 手機（觸控）：不在聚焦時全選、清單晚一點再出來，避免 iPhone 鍵盤叫不出來或注音打不進去
-  const touch = window.matchMedia && matchMedia('(pointer: coarse)').matches;
+  const touch = isTouch();
   // 手機：點進去先只叫鍵盤，開始打字才出清單（一點就蓋上浮動清單，iPhone 有時會叫不出鍵盤）；欄位已有內容時才直接列出
   input.addEventListener('focus', () => { if (touch) { if (input.value) setTimeout(() => { if (document.activeElement === input) render(); }, 400); } else { render(); input.select && input.select(); } });
   input.addEventListener('input', () => { idx = -1; render(); if (opts.onClear && !input.value) opts.onClear(); });
@@ -162,6 +162,9 @@ export const ICONS = {
   mail: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/>',
 };
 /** 列表搜尋框：中文輸入法組字中不觸發（重畫會打斷組字、打不出中文），組字完成或一般輸入才觸發 fn(value) */
+/** 觸控裝置（手機、平板）：有觸控點或粗指標就算；iPhone 開「電腦版網站」也算 */
+export const isTouch = () => (navigator.maxTouchPoints || 0) > 0 || !!(window.matchMedia && matchMedia('(pointer: coarse)').matches);
+
 // ---------- 打字時重畫畫面：保留正在打字的輸入框（手機鍵盤才不會收起來、跳回英文） ----------
 let KEEP = null;
 /** 把 el 換成新的 html，但正在打字的輸入框（有 id）原封不動留著；結構對不上就整個換。回傳是否有保留 */

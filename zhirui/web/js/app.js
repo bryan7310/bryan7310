@@ -2,7 +2,7 @@
 import { $, $$, esc, ls, debounce, money, qTerms, matchQ } from './core/util.js';
 import { api } from './core/api.js';
 import { store } from './core/store.js';
-import { toast, icon, ICONS, modal } from './core/ui.js';
+import { toast, icon, ICONS, modal, isTouch } from './core/ui.js';
 import { MODULES } from './modules/index.js';
 import { calc, goodsLabel, cdisp } from './core/calc.js';
 import { preloadHist } from './modules/_bills.js';
@@ -123,7 +123,8 @@ function navOrderDialog() {
   });
 }
 function renderMe() {
-  $('#me').innerHTML = `<span>${esc(store.user.name)}</span><span class="sp"></span><button type="button" id="navOrderBtn" title="調整左側選單的上下順序">選單排序</button><button type="button" id="logoutBtn">登出</button>`;
+  const ver = (import.meta.url.match(/\/v([0-9a-f]+)\//) || [])[1] || 'dev';
+  $('#me').innerHTML = `<span>${esc(store.user.name)}<small class="muted" style="margin-left:6px;font-size:10px" title="網頁程式版本${isTouch() ? '（觸控裝置）' : ''}">v${ver.slice(-4)}${isTouch() ? '・觸控' : ''}</small></span><span class="sp"></span><button type="button" id="navOrderBtn" title="調整左側選單的上下順序">選單排序</button><button type="button" id="logoutBtn">登出</button>`;
   $('#navOrderBtn').onclick = () => { document.body.classList.remove('open'); navOrderDialog(); };
   $('#logoutBtn').onclick = async () => { await api.logout().catch(() => {}); await store.clearCache(); location.reload(); };
 }
