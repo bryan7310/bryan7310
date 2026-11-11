@@ -601,3 +601,9 @@ table.ary th a:hover { color: var(--blue); }
 .co-due-c b { font-size: 17px; font-variant-numeric: tabular-nums; }
 .co-selbar { margin-top: 10px; padding: 8px 10px; border-radius: 8px; background: var(--blue-soft); }
 tr.row.on td { background: color-mix(in srgb, var(--blue-soft) 60%, transparent); }
+/* 選單排序視窗 */
+.no-list { display: grid; gap: 4px; max-height: 60vh; overflow: auto; }
+.no-grp { font-size: 12px; color: var(--muted); font-weight: 600; margin: 8px 0 2px; }
+.no-row { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+.no-row svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.6; flex: none; }
+.me .sp { flex: 1; }

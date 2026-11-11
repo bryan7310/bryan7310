@@ -62,10 +62,18 @@ function showSetup() {
 }
 
 // ---------- 導覽 ----------
+// 使用者自訂選單順序：存在設定 nav_order（每個帳號各自一份）；只在同一區塊（常用／業務／倉儲／財務／管理）內調整上下
+const navOrder = () => (store.setting('nav_order') || {})[store.user?.id] || null;
+function orderedModules() {
+  const vis = MODULES.filter(m => !m.hidden); const ord = navOrder(); if (!ord) return vis;
+  const secs = []; for (const m of vis) { const k = m.group || ''; let s = secs.find(x => x.k === k); if (!s) secs.push(s = { k, items: [] }); s.items.push(m); }
+  const idx = id => { const i = ord.indexOf(id); return i < 0 ? 1e6 : i; };
+  return secs.flatMap(s => s.items.map((m, i) => ({ m, i })).sort((a, b) => idx(a.m.id) - idx(b.m.id) || a.i - b.i).map(x => x.m));
+}
+let navSig = '';
 function renderNav() {
-  let g = null, h = '';
-  for (const m of MODULES) {
-    if (m.hidden) continue;
+  let g = null, h = ''; const list = orderedModules(); navSig = list.map(m => m.id).join(',');
+  for (const m of list) {
     if (m.group && m.group !== g) { g = m.group; h += `<div class="grp">${esc(g)}</div>`; }
     h += `<a href="#${m.id}" data-m="${m.id}">${icon(ICONS[m.icon] || ICONS.plus)}<span>${esc(m.name)}</span></a>`;
   }
@@ -83,8 +91,40 @@ function refreshNav() {
     else if (el) el.remove();
   }
 }
+function navOrderDialog() {
+  let list = orderedModules().map(m => m.id); const byId = id => MODULES.find(m => m.id === id); const sec = id => byId(id).group || '';
+  modal({
+    title: '調整左側選單順序', width: 440,
+    body: '<p class="muted small" style="margin-top:0">用 ↑ ↓ 在同一個區塊裡調整上下順序。只影響你這個帳號，換電腦登入也一樣。</p><div id="noList" class="no-list"></div>',
+    footer: '<button class="btn" id="noReset">恢復預設</button><span class="sp"></span><button class="btn" data-close>取消</button><button class="btn pri" id="noOk">儲存</button>',
+    onOpen(el, close) {
+      const draw = () => {
+        let g = null, h = '';
+        list.forEach((id, i) => {
+          const m = byId(id), k = sec(id);
+          if (k !== g) { g = k; h += `<div class="no-grp">${esc(k || '常用')}</div>`; }
+          const up = i > 0 && sec(list[i - 1]) === k, dn = i < list.length - 1 && sec(list[i + 1]) === k;
+          h += `<div class="no-row">${icon(ICONS[m.icon] || ICONS.plus)}<span>${esc(m.name)}</span><span class="sp"></span><button type="button" class="btn xs" data-up="${i}" ${up ? '' : 'disabled'} aria-label="${esc(m.name)} 往上">↑</button><button type="button" class="btn xs" data-dn="${i}" ${dn ? '' : 'disabled'} aria-label="${esc(m.name)} 往下">↓</button></div>`;
+        });
+        $('#noList', el).innerHTML = h;
+      };
+      $('#noList', el).addEventListener('click', ev => {
+        const u = ev.target.closest('[data-up]'), d = ev.target.closest('[data-dn]');
+        if (u) { const i = +u.dataset.up; [list[i - 1], list[i]] = [list[i], list[i - 1]]; draw(); }
+        if (d) { const i = +d.dataset.dn; [list[i + 1], list[i]] = [list[i], list[i + 1]]; draw(); }
+      });
+      $('#noReset', el).onclick = () => { list = MODULES.filter(m => !m.hidden).map(m => m.id); draw(); };
+      $('#noOk', el).onclick = async () => {
+        const all = { ...store.setting('nav_order') }; delete all.id; all[store.user.id] = list;
+        await store.saveSetting('nav_order', all); close(); renderNav(); toast('已儲存選單順序');
+      };
+      draw();
+    },
+  });
+}
 function renderMe() {
-  $('#me').innerHTML = `<span>${esc(store.user.name)}</span><button type="button" id="logoutBtn">登出</button>`;
+  $('#me').innerHTML = `<span>${esc(store.user.name)}</span><span class="sp"></span><button type="button" id="navOrderBtn" title="調整左側選單的上下順序">選單排序</button><button type="button" id="logoutBtn">登出</button>`;
+  $('#navOrderBtn').onclick = () => { document.body.classList.remove('open'); navOrderDialog(); };
   $('#logoutBtn').onclick = async () => { await api.logout().catch(() => {}); await store.clearCache(); location.reload(); };
 }
 export function paintSync() {
@@ -124,6 +164,7 @@ function route() {
 }
 function onChange(changed) {
   paintSync();
+  if (changed.has('settings') && orderedModules().map(m => m.id).join(',') !== navSig) renderNav();   // 選單順序在別台電腦改了
   refreshNav();
   if (currentMod && currentMod.onChange) { try { currentMod.onChange(changed); } catch (e) { console.error(e); } }
 }
