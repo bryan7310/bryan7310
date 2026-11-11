@@ -124,14 +124,14 @@ function scanCheck() {
   inp.click();
 }
 /** AI 辨識的一張支票 → 登記客票的預填值 */
-function preOf(f) {
+export function preOf(f) {
   const drawer = String(f.drawer || '').trim();
   const c = drawer ? matchCustomer(drawer) : null;
   const bank = [f.bank, f.branch].map(x => String(x || '').trim()).filter(Boolean).join(' ');
   return { name: c ? (c.short || c.name) : drawer, cid: c ? c.id : undefined, bank, no: toHalf(String(f.checkNo || '')).replace(/\s+/g, '').toUpperCase(), acct: toHalf(String(f.account || '')).replace(/\s+/g, ''), due: /^\d{4}-\d{2}-\d{2}$/.test(f.dueDate || '') ? f.dueDate : '', amt: +f.amount > 0 ? +f.amount : '', _ocr: { drawer, matched: !!c, notes: String(f.notes || '').trim() } };
 }
 /** 一張照片辨識到好幾張支票：先列清單，逐張打開登記客票核對；登記完自動接下一張 */
-function reviewChecks(list) {
+export function reviewChecks(list) {
   const done = new Set();
   const m = modal({
     title: `辨識到 ${list.length} 張支票`, width: 860, closeOnBg: false,

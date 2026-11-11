@@ -140,14 +140,14 @@ function drawPurch(el) {
   $('#pvAdd', el).addEventListener('click', () => editPurch(null));
   el.querySelectorAll('tr.row').forEach(tr => tr.addEventListener('click', () => editPurch(store.get('purch_invoices', tr.dataset.id))));
 }
-function editPurch(p) {
+export function editPurch(p) {   // p 沒有 id＝預填新增（AI 助理辨識發票後用）
   const d = p || { period: thisMonth(), date: today(), name: '', no: '', untaxed: '', tax: '', kind: '進項', note: '' };
   modal({
-    title: p ? `進項發票 ${p.no}` : '新增進項發票', width: 560,
+    title: p?.id ? `進項發票 ${p.no}` : '新增進項發票', width: 560,
     body: `<div class="grid"><div class="f"><label for="pu-period">期別（申報月）</label><input type="month" id="pu-period" value="${esc(d.period)}"></div><div class="f"><label for="pu-date">發票日期</label><input type="date" id="pu-date" value="${esc(d.date)}"></div>
       <div class="f" style="grid-column:span 2"><label for="pu-name">廠商</label><div class="combo"><input id="pu-name" value="${esc(d.name)}"></div></div><div class="f"><label for="pu-no">發票號碼</label><input id="pu-no" class="mono" value="${esc(d.no)}"></div><div class="f"><label for="pu-kind">類別</label><select id="pu-kind">${['進項', '固定資產', '不可扣抵', '其他'].map(k => `<option ${k === d.kind ? 'selected' : ''}>${k}</option>`).join('')}</select></div>
       <div class="f"><label for="pu-untaxed">未稅</label><input id="pu-untaxed" class="num" value="${d.untaxed !== '' ? money(d.untaxed) : ''}"></div><div class="f"><label for="pu-tax">稅額</label><input id="pu-tax" class="num" value="${d.tax !== '' ? money(d.tax) : ''}"></div><div class="f" style="grid-column:1/-1"><label for="pu-note">備註</label><input id="pu-note" value="${esc(d.note || '')}"></div></div>`,
-    footer: `${p ? '<button class="btn danger" id="pu-del">刪除</button>' : ''}<span class="sp"></span><button class="btn" data-close>取消</button><button class="btn pri" id="pu-ok">儲存</button>`,
+    footer: `${p?.id ? '<button class="btn danger" id="pu-del">刪除</button>' : ''}<span class="sp"></span><button class="btn" data-close>取消</button><button class="btn pri" id="pu-ok">儲存</button>`,
     onOpen(el, close) {
       let cid = d.cid;
       combo($('#pu-name', el), { items: () => suppliers().map(c => ({ id: c.id, label: c.name, sub: c.short || '', text: [c.code, c.name, c.short, ...(c.aliases || [])].join(' ') })), allowFree: true, onPick: it => { cid = it.id; } });

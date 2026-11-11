@@ -136,7 +136,7 @@ function bindAddr(el) {
 // 地址拆兩行：郵局標準地址的「縣市區」＋「路段號」；查不到時自己切在鄉鎮市區後面
 const splitAddr = a => { const m = String(a || '').match(/^(.{2,3}[縣市].{1,4}?[區鄉鎮市])(.+)$/); return m ? [m[1], m[2]] : [String(a || ''), '']; };
 const stripZip = a => String(a || '').replace(/\s+/g, '').replace(/^\d{3,6}/, '');
-function addrDialog(c) {
+export function addrDialog(c) {
   const F = { addr: stripZip(c.addr), zip: '', l2: '', l3: '', l4: `${cdisp(c)}公司收`, copies: '1' };
   [F.l2, F.l3] = splitAddr(F.addr);
   const who = c.kind === 'S' ? '供應商' : '客戶';

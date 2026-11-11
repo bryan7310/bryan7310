@@ -1,6 +1,6 @@
 // AI 助理：用中文問平台資料、請它擬單據草稿（存檔一定要使用者自己按）
 // 工具都在瀏覽器執行（直接用平台現有的庫存、應收應付、上次單價計算），伺服器 /api/agent 只負責呼叫 Claude
-import { $, esc, fmt, fmtQ, fp4, today, thisMonth, shiftMonth, qTerms, matchQ, ls } from '../core/util.js';
+import { $, esc, fmt, fmtQ, fp4, today, thisMonth, shiftMonth, qTerms, matchQ, ls, uid, money, toHalf } from '../core/util.js';
 import { store } from '../core/store.js';
 import { toast } from '../core/ui.js';
 import { calc, TYPES, totals, goodsLabel, cdisp, lastSale, costOf, nextNo, wname, unitFactor } from '../core/calc.js';
@@ -8,11 +8,15 @@ import { api } from '../core/api.js';
 import { openBill, billText } from './_bills.js';
 import { arRows } from './receivables.js';
 import { queueFax, faxDial, faxPill } from './faxes.js';
+import { editPurch } from './invoices.js';
+import { preOf, reviewChecks } from './checks_in.js';
+import { addrDialog } from './labels.js';
 import { apRows } from './payables.js';
 
 const ui = { conv: [], busy: false, stop: false, err: '', usd: 0, steps: 0 };
 const DRAFTS = new Map();   // tool_use_id → 草稿
 const FAXES = new Map();    // tool_use_id → 待確認的傳真 { billId, to, cover, job }
+const CARDS = new Map();    // tool_use_id → 其他確認卡：{ kind: 'pinv'|'checks'|'addr', ... }
 export default {
   id: 'assistant', name: 'AI 助理', group: '業務', icon: 'ai',
   render(el) { this.el = el; draw(el); },
@@ -36,14 +40,17 @@ const TOOLS = [
   { name: 'stock_alerts', description: '低於安全庫存、或庫存是負數的商品。', input_schema: S({}) },
   { name: 'checks', description: '支票：out＝開給供應商的支票（待列印、待兌現），in＝收到的客票（依到期日）。', input_schema: S({ kind: { type: 'string', enum: ['out', 'in'] }, date_from: str('到期日起 YYYY-MM-DD，可省略'), date_to: str('到期日迄 YYYY-MM-DD，可省略') }, ['kind']) },
   { name: 'fax_bill', description: '準備傳真一張報價單、採購單或詢價單給對方。只會顯示確認卡（對象、號碼），使用者按「確認傳真」後由傳真小幫手自動印到 PC-FAX 送出；這個工具本身不會送出。fax_number 省略就用對方資料上的傳真號碼。', input_schema: S({ bill_no: str('單號'), fax_number: str('傳真號碼，可省略'), cover: { type: 'boolean', description: '要不要加傳真封面頁，預設不加' } }, ['bill_no']) },
-  { name: 'draft_bill', description: '擬一張單據草稿（報價單 QUO、銷貨單 SALE、採購單 PO、進貨單 PUR）。草稿只顯示在畫面上，使用者按「開啟草稿」檢查後自己存檔；這個工具不會存檔。price 省略時：QUO／SALE 用該客戶上次單價，PO／PUR 用該廠商上次進價。', input_schema: S({ type: { type: 'string', enum: ['QUO', 'SALE', 'PO', 'PUR'] }, contact_id: str('客戶（QUO、SALE）或供應商（PO、PUR）id'), date: str('日期 YYYY-MM-DD，省略＝今天'), note: str('備註，可省略'), lines: { type: 'array', items: S({ goods_id: str('商品 id'), qty: { type: 'number', description: '數量（商品的基本單位）' }, price: { type: 'number', description: '單價，可省略' }, memo: str('這一行的備註，例如客戶採購單號，可省略') }, ['goods_id', 'qty']) } }, ['type', 'contact_id', 'lines']) },
+  { name: 'purchase_invoice_draft', description: '把辨識到的進項發票（廠商開給志瑞的發票，可一次多張）整理成登記卡。卡片顯示在畫面上，使用者按「全部登記」或逐張「開啟」後才會存進「發票作業 → 進項發票」。期別（申報月）預設用發票日期的月份。', input_schema: S({ invoices: { type: 'array', items: S({ date: str('發票日期 YYYY-MM-DD'), no: str('發票號碼，例如 AB12345678'), seller: str('賣方（廠商）名稱'), seller_tax_id: str('賣方統一編號'), untaxed: { type: 'number', description: '未稅金額（銷售額）' }, tax: { type: 'number', description: '稅額' }, period: str('申報月 YYYY-MM，可省略'), kind: { type: 'string', enum: ['進項', '固定資產', '不可扣抵', '其他'] }, note: str('備註，可省略') }, ['date', 'no', 'seller', 'untaxed', 'tax']) } }, ['invoices']) },
+  { name: 'checks_in_draft', description: '把辨識到的客票（客戶開給志瑞的支票，可一次多張）整理成登記卡。使用者按「逐張登記」後會打開「登記客票」逐張核對再存。', input_schema: S({ checks: { type: 'array', items: S({ drawer: str('發票人（印章或抬頭上的公司名）'), bank: str('付款銀行'), branch: str('分行'), checkNo: str('支票號碼'), account: str('帳號'), amount: { type: 'number', description: '金額' }, dueDate: str('到期日 YYYY-MM-DD（民國年要換成西元）'), notes: str('看不清楚或要注意的地方') }, ['amount']) } }, ['checks']) },
+  { name: 'address_label', description: '幫使用者印某個客戶或供應商的地址標籤（5×4 cm）：顯示一張卡，使用者按「地址列印」會打開地址標籤視窗（自動查 3+3 郵遞區號），再按列印。', input_schema: S({ contact_id: str('客戶或供應商 id（先用 find_contacts 查）'), copies: int('張數，預設 1') }, ['contact_id']) },
+  { name: 'draft_bill', description: '擬一張單據草稿（報價單 QUO、銷貨單 SALE、採購單 PO、進貨單 PUR）。草稿只顯示在畫面上，使用者按「開啟草稿」檢查後自己存檔；這個工具不會存檔。price 省略時：QUO／SALE 用該客戶上次單價，PO／PUR 用該廠商上次進價。', input_schema: S({ type: { type: 'string', enum: ['QUO', 'SALE', 'PO', 'PUR'] }, contact_id: str('客戶（QUO、SALE）或供應商（PO、PUR）id'), date: str('日期 YYYY-MM-DD，省略＝今天'), note: str('備註，可省略'), lines: { type: 'array', items: S({ goods_id: str('商品 id；系統裡找不到這個商品時省略，改填 name'), name: str('找不到商品時的品名（照單據寫）'), qty: { type: 'number', description: '數量（商品的基本單位）' }, price: { type: 'number', description: '單價，可省略' }, memo: str('這一行的備註，例如客戶採購單號，可省略') }, ['qty']) } }, ['type', 'contact_id', 'lines']) },
 ];
 const LABEL = {
   find_goods: i => `查商品「${i.query}」`, goods_detail: i => `看商品 ${gcode(i.goods_id)}`, find_contacts: i => `查客戶／廠商「${i.query}」`,
   contact_detail: i => `看 ${cname(i.contact_id)} 的資料`, price_history: i => `查 ${gcode(i.goods_id)} 的歷史單價${i.contact_id ? `（${cname(i.contact_id)}）` : ''}`,
   search_bills: i => `搜尋單據${[i.type && TYPES[i.type]?.name, i.contact_id && cname(i.contact_id), i.goods_id && gcode(i.goods_id), i.keyword].filter(Boolean).map(x => '・' + x).join('')}`,
   bill_detail: i => `看單據 ${i.bill_no}`, receivables: i => `看應收帳款${i.month ? ' ' + i.month : '（未收）'}`, payables: i => `看應付帳款${i.month ? ' ' + i.month : '（未付）'}`,
-  stock_alerts: () => '看低庫存商品', fax_bill: i => `準備傳真 ${i.bill_no}`, checks: i => i.kind === 'out' ? '看開出的支票' : '看收到的客票', draft_bill: i => `擬 ${TYPES[i.type]?.name || '單據'} 草稿`,
+  stock_alerts: () => '看低庫存商品', fax_bill: i => `準備傳真 ${i.bill_no}`, purchase_invoice_draft: i => `整理 ${(i.invoices || []).length} 張進項發票`, checks_in_draft: i => `整理 ${(i.checks || []).length} 張客票`, address_label: i => `準備 ${cname(i.contact_id)} 的地址標籤`, checks: i => i.kind === 'out' ? '看開出的支票' : '看收到的客票', draft_bill: i => `擬 ${TYPES[i.type]?.name || '單據'} 草稿`,
 };
 const gcode = id => store.get('goods', id)?.code || id;
 const cname = id => { const c = store.get('contacts', id); return c ? cdisp(c) : id; };
@@ -191,6 +198,30 @@ export async function runTool(name, input, id) {   // export：方便測試
       FAXES.set(id, { billId: b.id, to, cover: !!input.cover });
       return { 狀態: '確認卡已顯示，使用者按「確認傳真」才會送出', 單據: `${T.name} ${b.no}`, 對象: cdisp(c), 傳真號碼: to, 撥號: faxDial(c, to), ...((b.faxLog || []).length ? { 之前傳過: b.faxLog.slice(-2).map(x => `${String(x.at).slice(0, 10)} → ${x.to}`) } : {}) };
     }
+    case 'purchase_invoice_draft': {
+      const list = (input.invoices || []).map(v => {
+        const tid = String(v.seller_tax_id || '').replace(/\D/g, '');
+        const sup = (tid && store.list('contacts').find(c => c.kind === 'S' && String(c.taxId || '').replace(/\D/g, '') === tid)) || store.list('contacts').find(c => c.kind === 'S' && matchQ([c.name, c.short, ...(c.aliases || [])].join(' '), String(v.seller || '').replace(/(股份)?有限公司|企業社|工業|實業/g, ' ').trim()));
+        const no = toHalf(String(v.no || '')).replace(/[\s-]/g, '').toUpperCase();
+        const dup = store.list('purch_invoices').find(x => x.no === no);
+        const date = /^\d{4}-\d{2}-\d{2}$/.test(v.date || '') ? v.date : today();
+        return { date, period: /^\d{4}-\d{2}$/.test(v.period || '') ? v.period : date.slice(0, 7), no, name: sup ? sup.name : String(v.seller || ''), cid: sup?.id, taxId: tid, untaxed: Math.round(+v.untaxed || 0), tax: Math.round(+v.tax || 0), kind: v.kind || '進項', note: String(v.note || ''), dup: dup ? dup.id : '' };
+      });
+      if (!list.length) return { 錯誤: '沒有發票' };
+      CARDS.set(id, { kind: 'pinv', list });
+      return { 狀態: '登記卡已顯示，使用者按「全部登記」或逐張開啟後才會存檔', 發票: list.map(v => ({ 號碼: v.no, 日期: v.date, 期別: v.period, 廠商: v.name, 對到廠商資料: !!v.cid, 未稅: v.untaxed, 稅: v.tax, ...(v.dup ? { 已經登記過: true } : {}), ...(Math.abs(Math.round(v.untaxed * 0.05) - v.tax) > 1 ? { 注意: '稅額不是未稅的 5%' } : {}) })) };
+    }
+    case 'checks_in_draft': {
+      const list = (input.checks || []).filter(c => +c.amount > 0).map(c => preOf(c));
+      if (!list.length) return { 錯誤: '沒有支票（金額要大於 0）' };
+      CARDS.set(id, { kind: 'checks', list });
+      return { 狀態: '登記卡已顯示，使用者按「逐張登記」核對後才會存', 支票: list.map(c => ({ 發票人: c._ocr.drawer, 對到客戶: c.cid ? cname(c.cid) : '（沒對到）', 銀行: c.bank, 票號: c.no, 金額: c.amt, 到期日: c.due, ...(store.list('checks_in').some(x => x.no && x.no === c.no) ? { 已經登記過: true } : {}) })) };
+    }
+    case 'address_label': {
+      const c = C.ct[input.contact_id]; if (!c) return { 錯誤: '找不到這個 id，請先用 find_contacts 查' };
+      CARDS.set(id, { kind: 'addr', cid: c.id, copies: Math.max(1, +input.copies || 1) });
+      return { 狀態: '已顯示「地址列印」按鈕，使用者按下去會打開地址標籤視窗並自動查郵遞區號，再按列印', 對象: cdisp(c), 地址: c.addr || '（資料上沒有地址，視窗裡要先填；填了會預設勾選「存回資料」，下次就有）' };
+    }
     case 'draft_bill': {
       const T = TYPES[input.type]; if (!T || !['QUO', 'SALE', 'PO', 'PUR'].includes(input.type)) return { 錯誤: '只能擬報價單、銷貨單、採購單、進貨單' };
       const c = C.ct[input.contact_id]; if (!c) return { 錯誤: '找不到客戶／供應商 id，請先用 find_contacts 查' };
@@ -200,8 +231,9 @@ export async function runTool(name, input, id) {   // export：方便測試
       const date = /^\d{4}-\d{2}-\d{2}$/.test(input.date || '') ? input.date : today();
       const errs = [], lines = [], notes = [];
       for (const [i, l] of (input.lines || []).entries()) {
-        const g = C.g[l.goods_id]; if (!g) { errs.push(`第 ${i + 1} 行找不到商品 id ${l.goods_id}`); continue; }
         if (!(+l.qty > 0)) { errs.push(`第 ${i + 1} 行數量不對`); continue; }
+        const g = l.goods_id ? C.g[l.goods_id] : null;
+        if (!g) { if (l.goods_id || !l.name) { errs.push(`第 ${i + 1} 行找不到商品${l.goods_id ? ' id ' + l.goods_id : ''}（找不到的請省略 goods_id、填 name）`); continue; } const fl = { n: String(l.name), qty: +l.qty, price: l.price != null && +l.price >= 0 ? +l.price : '' }; if (l.memo) fl.memo = String(l.memo); lines.push(fl); notes.push(`「${l.name}」系統裡沒有這個商品，先用文字行，存檔前請選商品或新增商品`); continue; }
         const line = { gid: g.id, qty: +l.qty, price: '' }; if (l.memo) line.memo = String(l.memo);
         if (l.price != null && +l.price >= 0) line.price = +l.price;
         else if (sale) { const ls = lastSale(c.id, g.id, date); if (ls) { line.price = ls.price; if (ls.u) line.u = ls.u; if (ls.unit) line.unit = ls.unit; if (ls.rate) line.rate = ls.rate; notes.push(`${g.code} 用上次單價 ${fp4(ls.price)}（${ls.date} ${ls.no}）`); } else { notes.push(`${g.code} 沒有這個客戶的上次單價，單價留空`); } }
@@ -224,8 +256,8 @@ const WEEK = '日一二三四五六';
 const datePrefix = () => { const d = new Date(); return `[今天 ${today()}（星期${WEEK[d.getDay()]}）]\n`; };
 const PRICE = { in: 4, out: 20, cr: 0.2, cw: 5 };   // Claude Opus 5.5 每百萬 token 美元
 function addCost(u) { if (!u) return; ui.usd += ((u.input_tokens || 0) * PRICE.in + (u.output_tokens || 0) * PRICE.out + (u.cache_read_input_tokens || 0) * PRICE.cr + (u.cache_creation_input_tokens || 0) * PRICE.cw) / 1e6; }
-function save() { try { sessionStorage.setItem('zr.ai', JSON.stringify({ conv: ui.conv, usd: ui.usd, drafts: [...DRAFTS], faxes: [...FAXES] })); } catch (e) { /* 太大或不能存就算了 */ } }
-function load() { try { const s = JSON.parse(sessionStorage.getItem('zr.ai') || 'null'); if (s && !ui.conv.length) { ui.conv = s.conv || []; ui.usd = s.usd || 0; for (const [k, v] of s.drafts || []) DRAFTS.set(k, v); for (const [k, v] of s.faxes || []) FAXES.set(k, v); } } catch (e) { /* 忽略 */ } }
+function save() { try { sessionStorage.setItem('zr.ai', JSON.stringify({ conv: ui.conv, usd: ui.usd, drafts: [...DRAFTS], faxes: [...FAXES], cards: [...CARDS] })); } catch (e) { /* 太大或不能存就算了 */ } }
+function load() { try { const s = JSON.parse(sessionStorage.getItem('zr.ai') || 'null'); if (s && !ui.conv.length) { ui.conv = s.conv || []; ui.usd = s.usd || 0; for (const [k, v] of s.drafts || []) DRAFTS.set(k, v); for (const [k, v] of s.faxes || []) FAXES.set(k, v); for (const [k, v] of s.cards || []) CARDS.set(k, v); } } catch (e) { /* 忽略 */ } }
 load();
 
 async function loop(el) {
@@ -255,9 +287,26 @@ async function loop(el) {
   if (ui.speak && !ui.err) { const last = ui.conv.at(-1); if (last?.role === 'assistant') speak((last.content || []).filter(b => b.type === 'text').map(b => b.text).join('\n')); }
 }
 function send(el, text) {
-  text = String(text || '').trim(); if (!text || ui.busy) return;
-  ui.conv.push({ role: 'user', content: [{ type: 'text', text: datePrefix() + text }] });
+  text = String(text || '').trim(); if ((!text && !ui.att.length) || ui.busy) return;
+  const att = ui.att.map(a => a.kind === 'pdf' ? { type: 'document', title: a.name, source: { type: 'base64', media_type: 'application/pdf', data: a.data } } : { type: 'image', source: { type: 'base64', media_type: a.media, data: a.data } });
+  ui.att = [];
+  ui.conv.push({ role: 'user', content: [...att, { type: 'text', text: datePrefix() + (text || '請看附件是什麼文件，幫我辨識並處理（發票→進項發票、廠商出貨單→進貨單、支票→支票登記）。') }] });
   save(); loop(el);
+}
+ui.att = [];
+function shrink(file, max = 2000, q = 0.85) {
+  return new Promise((ok, bad) => { const img = new Image(); img.onload = () => { const k = Math.min(1, max / Math.max(img.width, img.height)); const cv = document.createElement('canvas'); cv.width = Math.round(img.width * k); cv.height = Math.round(img.height * k); cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height); URL.revokeObjectURL(img.src); ok(cv.toDataURL('image/jpeg', q)); }; img.onerror = () => bad(new Error('讀不了這張圖片')); img.src = URL.createObjectURL(file); });
+}
+const b64 = file => new Promise((ok, bad) => { const r = new FileReader(); r.onload = () => ok(String(r.result).split(',')[1]); r.onerror = () => bad(r.error); r.readAsDataURL(file); });
+async function addFiles(el, files) {
+  for (const f of files) {
+    try {
+      if (f.type === 'application/pdf' || /\.pdf$/i.test(f.name)) { if (f.size > 20 * 1024 * 1024) { toast(`${f.name} 太大（上限 20 MB）`); continue; } ui.att.push({ kind: 'pdf', name: f.name, data: await b64(f) }); }
+      else if (f.type.startsWith('image/')) { const u = await shrink(f); ui.att.push({ kind: 'image', name: f.name, media: 'image/jpeg', data: u.split(',')[1] }); }
+      else toast(`${f.name} 不是圖片或 PDF`);
+    } catch (e) { toast(`${f.name}：${e.message || e}`); }
+  }
+  draw(el);
 }
 
 // ---------- 畫面 ----------
@@ -296,30 +345,47 @@ function faxCard(id, f) {
   return `<div class="ai-draft"><div class="ai-dh"><b>傳真${esc(T.name)} ${esc(b.no)}</b>　${esc(cname(b.cid))}　號碼 <b>${esc(f.to)}</b>${f.cover ? '・加封面' : ''}<span class="sp"></span>${f.job ? (j ? faxPill(j) : '<span class="pill">已排入</span>') : `<button class="btn pri sm" data-fax="${esc(id)}">確認傳真</button>`}</div>
     <div class="muted small">${f.job ? (j?.msg ? esc(j.msg) : '傳真小幫手會自動印到 PC-FAX、填號碼、按開始。') : '按「確認傳真」才會送出；送出後不能收回，請先確認號碼。'}</div></div>`;
 }
+function cardHTML(id, k) {
+  if (k.kind === 'pinv') return `<div class="ai-draft"><div class="ai-dh"><b>進項發票 ${k.list.length} 張</b><span class="sp"></span>${k.saved ? '<span class="pill ok">已登記</span>' : `<button class="btn pri sm" data-pinv-all="${esc(id)}">全部登記</button>`}</div>
+    <div class="tw"><table><thead><tr><th>期別</th><th>日期</th><th>號碼</th><th>廠商</th><th class="n">未稅</th><th class="n">稅</th><th class="n">合計</th><th></th></tr></thead><tbody>${k.list.map((v, i) => `<tr><td>${esc(v.period)}</td><td>${esc(v.date)}</td><td class="mono">${esc(v.no)}</td><td>${esc(v.name)}${v.cid ? '' : ' <span class="pill warn">沒對到廠商</span>'}${v.dup ? ' <span class="pill bad">已登記過</span>' : ''}</td><td class="n">${money(v.untaxed)}</td><td class="n">${money(v.tax)}</td><td class="n">${money(v.untaxed + v.tax)}</td><td><button class="btn sm" data-pinv="${esc(id)}" data-i="${i}">開啟</button></td></tr>`).join('')}</tbody></table></div>
+    <div class="muted small">請對照原始發票確認號碼和金額；「全部登記」會跳過已登記過的號碼。</div></div>`;
+  if (k.kind === 'checks') return `<div class="ai-draft"><div class="ai-dh"><b>客票 ${k.list.length} 張</b><span class="sp"></span><button class="btn pri sm" data-ck="${esc(id)}">逐張登記</button></div>
+    <div class="tw"><table><thead><tr><th>發票人 → 客戶</th><th>銀行</th><th>票號</th><th class="n">金額</th><th>到期日</th></tr></thead><tbody>${k.list.map(c => `<tr><td>${esc(c._ocr.drawer)} → ${c.cid ? esc(cname(c.cid)) : '<span class="pill warn">沒對到</span>'}</td><td>${esc(c.bank)}</td><td class="mono">${esc(c.no)}</td><td class="n">${c.amt ? money(c.amt) : ''}</td><td>${esc(c.due)}</td></tr>`).join('')}</tbody></table></div>
+    <div class="muted small">按「逐張登記」會打開登記客票，每一張都要核對後按儲存。</div></div>`;
+  if (k.kind === 'addr') return `<div class="ai-draft"><div class="ai-dh"><b>地址標籤</b>　${esc(cname(k.cid))}<span class="sp"></span><button class="btn pri sm" data-addr="${esc(id)}">地址列印</button></div></div>`;
+  return '';
+}
+function attHTML(b) {
+  if (b.type === 'image' && b.source?.data) return `<img class="ai-att" src="data:${esc(b.source.media_type)};base64,${b.source.data}" alt="">`;
+  if (b.type === 'document') return `<span class="ai-att pdf">📄 ${esc(b.title || 'PDF')}</span>`;
+  return '';
+}
 function convHTML() {
   let h = '';
   for (const m of ui.conv) {
     const blocks = Array.isArray(m.content) ? m.content : [{ type: 'text', text: String(m.content || '') }];
     if (m.role === 'user') {
       const t = blocks.filter(b => b.type === 'text').map(b => b.text.replace(/^\[今天[^\]]*\]\n/, '')).join('\n');
-      if (t) h += `<div class="ai-msg me"><div class="ai-b">${esc(t).replace(/\n/g, '<br>')}</div></div>`;
+      const att = blocks.map(attHTML).join('');
+      if (t || att) h += `<div class="ai-msg me"><div class="ai-b">${att ? `<div class="ai-atts">${att}</div>` : ''}${esc(t).replace(/\n/g, '<br>')}</div></div>`;
       continue;
     }
     for (const b of blocks) {
       if (b.type === 'text' && b.text.trim()) h += `<div class="ai-msg bot"><div class="ai-b">${md(b.text)}</div></div>`;
-      else if (b.type === 'tool_use') { h += `<div class="ai-act">· ${esc((LABEL[b.name] || (() => b.name))(b.input || {}))}</div>`; if (b.name === 'draft_bill' && DRAFTS.has(b.id)) h += draftCard(b.id, DRAFTS.get(b.id)); if (b.name === 'fax_bill' && FAXES.has(b.id)) h += faxCard(b.id, FAXES.get(b.id)); }
+      else if (b.type === 'tool_use') { h += `<div class="ai-act">· ${esc((LABEL[b.name] || (() => b.name))(b.input || {}))}</div>`; if (b.name === 'draft_bill' && DRAFTS.has(b.id)) h += draftCard(b.id, DRAFTS.get(b.id)); if (b.name === 'fax_bill' && FAXES.has(b.id)) h += faxCard(b.id, FAXES.get(b.id)); if (CARDS.has(b.id)) h += cardHTML(b.id, CARDS.get(b.id)); }
     }
   }
   return h;
 }
-const SUGGEST = ['新能這個月的應收是多少？', '哪些商品低於安全庫存？', 'A2AM6*20_18 還有多少庫存？上次賣新能多少錢？', '幫我擬一張給新能的報價單：M6*20 六角十字螺絲 10000 支'];
+const SUGGEST = ['幫我印澤發的地址標籤', '新能這個月的應收是多少？', '哪些商品低於安全庫存？', 'A2AM6*20_18 還有多少庫存？上次賣新能多少錢？', '幫我擬一張給新能的報價單：M6*20 六角十字螺絲 10000 支'];
 function draw(el) {
   if (!el?.isConnected) return;
   const keep = $('#aiIn', el)?.value || '';
   el.innerHTML = `<div class="head"><h1>AI 助理</h1><span class="sp"></span><span class="muted small">本頁對話約 NT$${(ui.usd * 32).toFixed(1)}</span><button class="btn" id="aiNew" ${ui.busy || !ui.conv.length ? 'disabled' : ''}>新對話</button></div>
     <div class="panel ai-wrap"><div class="ai-log" id="aiLog">${ui.conv.length ? convHTML() : `<div class="empty"><b>用中文問平台的資料，或請它幫你擬單據草稿</b>它會自己查商品、庫存、客戶、單據、應收應付；擬好的單據要你按「開啟草稿」檢查後自己存檔。<div class="ai-sug">${SUGGEST.map(s => `<button class="btn sm" data-sug="${esc(s)}">${esc(s)}</button>`).join('')}</div></div>`}
       ${ui.busy ? '<div class="ai-act ai-wait">思考中…</div>' : ''}${ui.err ? `<div class="banner" style="margin-top:8px">${esc(ui.err)}${ui.conv.at(-1)?.role === 'user' ? ' <button class="btn sm" id="aiRetry">重試</button>' : ''}</div>` : ''}</div>
-      <div class="ai-in"><button class="btn ai-mic ${rec.on ? 'on' : ''}" id="aiMic" title="${rec.on ? '再按一次結束錄音' : '按一下開始講（國語、台語都可以），講完再按一次'}" ${ui.busy || rec.busy ? 'disabled' : ''}>${rec.busy ? '辨識中…' : rec.on ? '● 停止錄音' : '🎤 講話'}</button><textarea id="aiIn" rows="2" placeholder="打字或按「🎤 講話」，例如：幫我開報價單給新能，二分一吋半馬車螺絲五千支（Enter 送出）" ${ui.busy ? 'disabled' : ''}>${esc(keep)}</textarea>${ui.busy ? '<button class="btn" id="aiStop">停止</button>' : '<button class="btn pri" id="aiSend">送出</button>'}</div>
+      ${ui.att.length ? `<div class="ai-atts pend">${ui.att.map((a, i) => `<span class="ai-pend">${a.kind === 'pdf' ? `📄 ${esc(a.name)}` : `<img src="data:${a.media};base64,${a.data}" alt="">`}<button class="icon-btn" data-rmatt="${i}" title="拿掉">✕</button></span>`).join('')}</div>` : ''}
+      <div class="ai-in"><input type="file" id="aiFile" accept="image/*,application/pdf" multiple hidden><button class="btn" id="aiClip" title="傳發票、出貨單、支票的照片或 PDF" ${ui.busy ? 'disabled' : ''}>📎</button><button class="btn ai-mic ${rec.on ? 'on' : ''}" id="aiMic" title="${rec.on ? '再按一次結束錄音' : '按一下開始講（國語、台語都可以），講完再按一次'}" ${ui.busy || rec.busy ? 'disabled' : ''}>${rec.busy ? '辨識中…' : rec.on ? '● 停止錄音' : '🎤 講話'}</button><textarea id="aiIn" rows="2" placeholder="打字或按「🎤 講話」，例如：幫我開報價單給新能，二分一吋半馬車螺絲五千支（Enter 送出）" ${ui.busy ? 'disabled' : ''}>${esc(keep)}</textarea>${ui.busy ? '<button class="btn" id="aiStop">停止</button>' : '<button class="btn pri" id="aiSend">送出</button>'}</div>
       <div class="tools" style="gap:14px"><label class="check small"><input type="checkbox" id="aiSpeak" ${ui.speak ? 'checked' : ''}> 朗讀回答</label><label class="check small"><input type="checkbox" id="aiAuto" ${ui.autoSend ? 'checked' : ''}> 講完直接送出</label>${rec.msg ? `<span class="small" style="color:var(--bad)">${esc(rec.msg)}</span>` : ''}</div>
       <div class="muted small">AI 會出錯，金額、數量請以平台資料為準。每問一題大約 NT$1～3。</div></div>`;
   const log = $('#aiLog', el); log.scrollTop = log.scrollHeight;
@@ -331,6 +397,26 @@ function draw(el) {
   $('#aiNew', el)?.addEventListener('click', () => { ui.conv = []; ui.usd = 0; ui.err = ''; DRAFTS.clear(); save(); draw(el); });
   el.querySelectorAll('[data-sug]').forEach(b => b.addEventListener('click', () => send(el, b.dataset.sug)));
   $('#aiMic', el)?.addEventListener('click', () => rec.on ? stopRec(el) : startRec(el));
+  $('#aiClip', el)?.addEventListener('click', () => $('#aiFile', el).click());
+  $('#aiFile', el)?.addEventListener('change', ev => { addFiles(el, [...ev.target.files]); ev.target.value = ''; });
+  el.querySelectorAll('[data-rmatt]').forEach(b => b.addEventListener('click', () => { ui.att.splice(+b.dataset.rmatt, 1); draw(el); }));
+  const wrap = $('.ai-wrap', el);
+  wrap?.addEventListener('dragover', ev => { ev.preventDefault(); });
+  wrap?.addEventListener('drop', ev => { ev.preventDefault(); if (ev.dataTransfer?.files?.length) addFiles(el, [...ev.dataTransfer.files]); });
+  inp.addEventListener('paste', ev => { const fs = [...(ev.clipboardData?.files || [])]; if (fs.length) { ev.preventDefault(); addFiles(el, fs); } });
+  el.querySelectorAll('[data-pinv]').forEach(b => b.addEventListener('click', () => { const k = CARDS.get(b.dataset.pinv); const v = k?.list[+b.dataset.i]; if (!v) return; const { dup, taxId, ...pre } = v; editPurch(dup ? store.get('purch_invoices', dup) : pre); }));
+  el.querySelectorAll('[data-pinv-all]').forEach(b => b.addEventListener('click', async () => {
+    const k = CARDS.get(b.dataset.pinvAll); if (!k) return;
+    const have = new Set(store.list('purch_invoices').map(x => x.no));
+    const todo = k.list.filter(v => v.no && !have.has(v.no));
+    if (!todo.length) return toast('這些發票都已經登記過了');
+    b.disabled = true;
+    await store.batch(todo.map(v => ({ col: 'purch_invoices', id: uid('pi'), data: { cid: v.cid, period: v.period, date: v.date, name: v.name, no: v.no, kind: v.kind, untaxed: v.untaxed, tax: v.tax, total: v.untaxed + v.tax, note: [v.note, 'AI 助理辨識'].filter(Boolean).join('；') } })));
+    store.log('新增', `進項發票 ${todo.length} 張（AI 助理辨識）：${todo.map(v => v.no).join('、')}`);
+    k.saved = true; save(); toast(`已登記 ${todo.length} 張進項發票${k.list.length > todo.length ? `（${k.list.length - todo.length} 張已登記過，跳過）` : ''}`); draw(el);
+  }));
+  el.querySelectorAll('[data-ck]').forEach(b => b.addEventListener('click', () => { const k = CARDS.get(b.dataset.ck); if (k) reviewChecks(k.list.map(c => ({ ...c }))); }));
+  el.querySelectorAll('[data-addr]').forEach(b => b.addEventListener('click', () => { const k = CARDS.get(b.dataset.addr); const c = k && store.get('contacts', k.cid); if (c) addrDialog(c); else toast('找不到這個客戶／供應商'); }));
   $('#aiSpeak', el)?.addEventListener('change', ev => { ui.speak = ev.target.checked; ls.set('zr.ai.speak', ui.speak); if (!ui.speak) speechSynthesis.cancel(); });
   $('#aiAuto', el)?.addEventListener('change', ev => { ui.autoSend = ev.target.checked; ls.set('zr.ai.auto', ui.autoSend); });
   el.querySelectorAll('[data-fax]').forEach(b => b.addEventListener('click', async () => {

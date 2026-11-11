@@ -651,3 +651,11 @@ tr.row.on td { background: color-mix(in srgb, var(--blue-soft) 60%, transparent)
   .ai-in .btn { flex: 1; justify-content: center; }
   .ai-b { max-width: 100%; }
 }
+
+/* AI 助理：附件 */
+.ai-atts { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
+.ai-att { max-width: 160px; max-height: 120px; border-radius: 8px; border: 1px solid rgba(255,255,255,.4); background: #fff; }
+.ai-att.pdf { display: inline-block; padding: 6px 10px; color: #000; font-size: 13px; max-height: none; }
+.ai-atts.pend { margin: 0; }
+.ai-pend { position: relative; display: inline-flex; align-items: center; gap: 4px; padding: 4px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); font-size: 13px; }
+.ai-pend img { height: 56px; border-radius: 6px; }
