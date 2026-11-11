@@ -135,18 +135,28 @@ export function newCheckOut(preset, cb) {
   modal({
     title: isNew ? '開立支票' : '修改支票', width: 560,
     body: `<div class="grid"><div class="f" style="grid-column:1/-1"><label for="co-payee">抬頭（受款人）</label><div class="combo"><input id="co-payee" value="${esc(d.payee)}" placeholder="搜尋供應商或直接輸入"></div></div>
+      <div class="f" id="co-pn-wrap" style="grid-column:1/-1" hidden><label for="co-pn">票據抬頭</label><select id="co-pn"></select></div>
       <div class="f"><label for="co-date">兌現日期</label><input type="date" id="co-date" value="${esc(d.date)}"></div><div class="f"><label for="co-amount">金額</label><input id="co-amount" class="num" value="${d.amount !== '' ? money(d.amount) : ''}"></div>
       <div class="f"><label for="co-no">支票號碼（可列印時再填）</label><input id="co-no" class="mono" value="${esc(d.no || '')}" placeholder="${esc(incNo(lastNo()))}"></div><div class="f"><label for="co-note">備註</label><input id="co-note" value="${esc(d.note || '')}"></div></div>
       <div class="muted" id="co-cn" style="font-size:15px">${cnMoney(d.amount)}</div>`,
     footer: `${!isNew ? '<button class="btn danger" id="co-del">刪除</button>' : ''}<span class="sp"></span><button class="btn" data-close>取消</button><button class="btn pri" id="co-ok">儲存</button>`,
     onOpen(el, close) {
       let cid = d.cid;
-      combo($('#co-payee', el), { items: () => suppliers().map(c => ({ id: c.id, label: printName(c.name), sub: c.short || '', text: [c.code, c.name, c.short, ...(c.aliases || [])].join(' ') })), allowFree: true, onPick: it => { cid = it.id; } });
+      const pnFill = keep => {
+        const s = cid && store.get('contacts', cid); const cp = String(s?.checkPayee || '').trim(); const wrap = $('#co-pn-wrap', el), sel = $('#co-pn', el);
+        if (!cp) { wrap.hidden = true; sel.innerHTML = ''; return; }
+        const v = keep ? sel.value : (d.payeeFixed ? 'orig' : 'cp');
+        sel.innerHTML = `<option value="cp">${esc(cp)}（票據抬頭）</option><option value="orig">${esc(legalName(s.name))}（原本名稱）</option>`; sel.value = v || 'cp'; wrap.hidden = false;
+      };
+      pnFill(false);
+      combo($('#co-payee', el), { items: () => suppliers().map(c => ({ id: c.id, label: printName(c.name), sub: c.short || '', text: [c.code, c.name, c.short, ...(c.aliases || [])].join(' ') })), allowFree: true, onPick: it => { cid = it.id; pnFill(false); } });
       $('#co-amount', el).addEventListener('input', () => { $('#co-cn', el).textContent = cnMoney(parseNum($('#co-amount', el).value) || 0); });
       $('#co-ok', el).onclick = async () => {
         const amount = parseNum($('#co-amount', el).value); const payee = $('#co-payee', el).value.trim();
         if (!payee) return toast('請填抬頭'); if (!(amount > 0)) return toast('金額要大於 0');
         const out = { ...d, cid, payee, amount, date: $('#co-date', el).value, no: $('#co-no', el).value.trim().toUpperCase(), note: $('#co-note', el).value.trim(), createdAt: d.createdAt || Date.now() }; delete out.id;
+        const sc = cid && store.get('contacts', cid);
+        if (!$('#co-pn-wrap', el).hidden && $('#co-pn', el).value === 'orig') { out.payee = legalName(sc.name); out.payeeFixed = true; } else delete out.payeeFixed;
         const id = d.id || uid('co'); const ops = [{ col: 'checks_out', id, data: out }]; apSync({ ...out, id }, ops); await store.batch(ops); store.log(isNew ? '開立' : '修改', `支票 ${payee} ${money(amount)}`); close(); toast('已儲存'); cb && cb({ ...out, id });
       };
       $('#co-del', el)?.addEventListener('click', async () => { close(); await deleteChecks([store.get('checks_out', d.id)]); });
@@ -155,7 +165,13 @@ export function newCheckOut(preset, cb) {
   });
 }
 // 支票抬頭印正式全名：抬頭寫的是該供應商的簡稱／別名時換成全名；拿掉備註括號，(股)公司 寫成 股份有限公司
-function payeeOut(c) { const s = c.cid && store.get('contacts', c.cid); const p = String(c.payee || '').trim(); if (s && (p === s.short || p === s.name || (s.aliases || []).includes(p))) return legalName(s.name); return legalName(p); }
+function payeeOut(c) {
+  const s = c.cid && store.get('contacts', c.cid); const p = String(c.payee || '').trim();
+  if (c.payeeFixed && p) return p;
+  const cp = String(s?.checkPayee || '').trim();
+  if (s && (!p || p === s.short || p === s.name || p === cp || (s.aliases || []).includes(p))) return cp || legalName(s.name);
+  return legalName(p);
+}
 async function printChecks(list) {
   list = [...list].sort(byAmt);
   // 沒票號的先補：從上一張 +1
