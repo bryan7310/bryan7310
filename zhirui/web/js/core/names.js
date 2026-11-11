@@ -21,6 +21,12 @@ export function printName(name) {
   return s.replace(/\s{2,}/g, ' ').replace(/\s*-\s*$/, '').trim() || String(name || '').trim();
 }
 
+/** 支票抬頭用的正式全名：(股)公司 → 股份有限公司、(有)公司 → 有限公司，再拿掉備註括號和尾端代號 */
+export function legalName(name) {
+  const s = String(name || '').replace(/[（(]股[）)]\s*(?:份有限)?公司/g, '股份有限公司').replace(/[（(]股[）)]/g, '股份有限公司').replace(/[（(]有[）)]\s*(?:限)?公司/g, '有限公司');
+  return printName(s).replace(/\s*-\s*[A-Za-z0-9]{0,6}$/, '').replace(/\s{2,}/g, ' ').trim();
+}
+
 /** 從全名擷取核心字 */
 function core(name) {
   let s = n0(name).replace(/[-－].*(分公司|營業所|營運處|門市|廠區|辦事處)$/, '');   // 分公司另外處理

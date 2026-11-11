@@ -44,6 +44,9 @@ export function apSummary() {
   return { open, openN };
 }
 const rowId = r => r.id || ('ap' + r.ym + '_' + r.cid);
+// 這列的支票狀態：none 沒開票／open 已開票、還沒列印（可取消）／printed 已列印／gone 支票已不在
+const ckState = r => { if (!r.checkId) return 'none'; const c = store.get('checks_out', r.checkId); return !c ? 'gone' : c.printedAt ? 'printed' : 'open'; };
+const canSel = r => ['none', 'open'].includes(ckState(r));
 async function saveRow(r, patch) { const base = r.id ? store.get('payables', r.id) : { ym: r.ym, cid: r.cid, vendor: r.name, ord: r.ord }; await store.save('payables', rowId(r), { ...base, ...patch }); }
 
 function draw(el) {
@@ -64,11 +67,13 @@ function draw(el) {
   el.querySelectorAll('[data-pay]').forEach(inp => inp.addEventListener('change', async () => { const r = list[+inp.dataset.pay]; const v = parseNum(inp.value); if (v != null && isNaN(v)) return toast('金額不正確'); await saveRow(r, { pay: v, payDate: v != null ? (r.payDate || today()) : undefined, amt: r.amt, tax: r.tax, manual: !!r.manual }); toast(v != null ? `${r.name} 開票 ${money(v)}` : `${r.name} 改回待開票`); }));
   el.querySelectorAll('[data-edit]').forEach(b => b.addEventListener('click', () => editRow(list[+b.dataset.edit])));
   const selRows = () => list.filter(r => ui.sel.has(rowId(r)) && !r.checkId);
-  const updSel = () => { const n = selRows().length; const b = $('#apSend', el); if (b) { b.disabled = !n; b.textContent = n ? `送待開支票（${n}）` : '送待開支票'; } const all = $('#apSelAll', el); if (all) { const can = list.filter(r => !r.checkId); all.checked = can.length > 0 && can.every(r => ui.sel.has(rowId(r))); } };
+  const cancelRows = () => list.filter(r => ui.sel.has(rowId(r)) && ckState(r) === 'open');
+  const updSel = () => { const n = selRows().length; const b = $('#apSend', el); if (b) { b.disabled = !n; b.textContent = n ? `送待開支票（${n}）` : '送待開支票'; } const k = cancelRows().length; const cb = $('#apCancel', el); if (cb) { cb.hidden = !k; cb.textContent = `取消支票（${k}）`; } const all = $('#apSelAll', el); if (all) { const can = list.filter(canSel); all.checked = can.length > 0 && can.every(r => ui.sel.has(rowId(r))); } };
   el.querySelectorAll('[data-sel]').forEach(cb => cb.addEventListener('change', () => { const id = rowId(list[+cb.dataset.sel]); cb.checked ? ui.sel.add(id) : ui.sel.delete(id); updSel(); }));
-  $('#apSelAll', el)?.addEventListener('change', ev => { for (const r of list) if (!r.checkId) ev.target.checked ? ui.sel.add(rowId(r)) : ui.sel.delete(rowId(r)); el.querySelectorAll('[data-sel]').forEach(cb => { cb.checked = ev.target.checked && !cb.disabled; }); updSel(); });
+  $('#apSelAll', el)?.addEventListener('change', ev => { for (const r of list) if (canSel(r)) ev.target.checked ? ui.sel.add(rowId(r)) : ui.sel.delete(rowId(r)); el.querySelectorAll('[data-sel]').forEach(cb => { cb.checked = ev.target.checked && !cb.disabled; }); updSel(); });
   el.querySelectorAll('[data-due]').forEach(inp => inp.addEventListener('change', async () => { const r = list[+inp.dataset.due]; if (!inp.value) return; await saveRow(r, { dueDate: inp.value, amt: r.amt, tax: r.tax, manual: !!r.manual }); toast(`${r.name} 兌現日 ${roc(inp.value)}`); }));
   $('#apSend', el)?.addEventListener('click', () => sendChecks(selRows()));
+  $('#apCancel', el)?.addEventListener('click', () => cancelChecks(cancelRows()));
   updSel();
   el.querySelectorAll('[data-bills]').forEach(b => b.addEventListener('click', () => { const r = list[+b.dataset.bills]; modal({ title: `${r.name} ${ymLabel(r.ym)} 進貨單`, width: 640, body: `<div class="tw"><table><thead><tr><th>日期</th><th>單號</th><th class="n">未稅</th></tr></thead><tbody>${r.auto.bills.map(x => `<tr class="row" data-id="${x.id}"><td>${esc(slash(x.date))}</td><td class="mono">${esc(x.no)}${x.type === 'PUR_RET' ? ' <span class="pill bad">退出</span>' : ''}</td><td class="n">${money(calc().tot[x.id].net)}</td></tr>`).join('')}</tbody></table></div>`, onOpen(m, close) { m.querySelectorAll('tr.row').forEach(tr => tr.addEventListener('click', () => { close(); openBill(null, tr.dataset.id); })); } }); }));
 }
@@ -79,7 +84,7 @@ function allOpen() {
 function table(list, showYm) {
   if (!list.length) return `<div class="empty"><b>${showYm ? '沒有待開票的應付帳款 ✓' : '這個月沒有應付帳款'}</b></div>`;
   return `<div class="tw"><table><thead><tr><th style="width:32px"><input type="checkbox" id="apSelAll" aria-label="全選"></th>${showYm ? '<th>月份</th>' : ''}<th>廠商</th><th class="n">應付</th><th class="n">稅額</th><th class="n">總額</th><th class="n" style="width:130px">開票金額</th><th style="width:150px">兌現日</th><th></th></tr></thead><tbody>
-    ${list.map((r, i) => `<tr data-i="${i}" class="${r.pay != null ? 'muted' : ''}"><td><input type="checkbox" data-sel="${i}" ${r.checkId ? 'disabled title="已開支票"' : ui.sel.has(rowId(r)) ? 'checked' : ''} aria-label="勾選 ${esc(r.name)}"></td>${showYm ? `<td class="nowrap">${esc(ymLabel(r.ym))}</td>` : ''}<td><b>${esc(r.name)}</b>${r.manual ? ' <span class="pill zinc">手調</span>' : ''}${r.checkId ? ' <span class="pill ok">已開支票</span>' : ''}${r.note ? `<span class="sub">${esc(r.note)}</span>` : ''}${r.auto ? `<span class="sub">${r.auto.bills.length} 張進貨單</span>` : ''}</td><td class="n">${money(r.amt)}</td><td class="n">${money(r.tax)}</td><td class="n"><b>${money(r.total)}</b></td><td class="n"><input data-pay="${i}" class="num" value="${r.pay != null ? money(r.pay) : ''}" placeholder="待開票" style="width:120px;text-align:right;border:1px solid var(--line);border-radius:6px;padding:4px 8px"></td><td><input type="date" data-due="${i}" value="${esc(dueOf(r))}" style="border:1px solid var(--line);border-radius:6px;padding:4px 6px" aria-label="${esc(r.name)} 兌現日"></td><td class="nowrap"><button class="btn xs" data-edit="${i}">修改</button>${r.auto ? ` <button class="btn xs ghost" data-bills="${i}">單據</button>` : ''}</td></tr>`).join('')}
+    ${list.map((r, i) => `<tr data-i="${i}" class="${r.pay != null ? 'muted' : ''}"><td><input type="checkbox" data-sel="${i}" ${!canSel(r) ? `disabled title="${ckState(r) === 'printed' ? '支票已列印；要取消請先到「支票開立」退回待列印' : '支票已不在待列印'}"` : ui.sel.has(rowId(r)) ? 'checked' : ''} aria-label="勾選 ${esc(r.name)}"></td>${showYm ? `<td class="nowrap">${esc(ymLabel(r.ym))}</td>` : ''}<td><b>${esc(r.name)}</b>${r.manual ? ' <span class="pill zinc">手調</span>' : ''}${r.checkId ? ' <span class="pill ok">已開支票</span>' : ''}${r.note ? `<span class="sub">${esc(r.note)}</span>` : ''}${r.auto ? `<span class="sub">${r.auto.bills.length} 張進貨單</span>` : ''}</td><td class="n">${money(r.amt)}</td><td class="n">${money(r.tax)}</td><td class="n"><b>${money(r.total)}</b></td><td class="n"><input data-pay="${i}" class="num" value="${r.pay != null ? money(r.pay) : ''}" placeholder="待開票" style="width:120px;text-align:right;border:1px solid var(--line);border-radius:6px;padding:4px 8px"></td><td><input type="date" data-due="${i}" value="${esc(dueOf(r))}" style="border:1px solid var(--line);border-radius:6px;padding:4px 6px" aria-label="${esc(r.name)} 兌現日"></td><td class="nowrap"><button class="btn xs" data-edit="${i}">修改</button>${r.auto ? ` <button class="btn xs ghost" data-bills="${i}">單據</button>` : ''}</td></tr>`).join('')}
     </tbody><tfoot><tr><td></td>${showYm ? '<td></td>' : ''}<td>合計 ${list.length} 家</td><td class="n">${money(list.reduce((s, r) => s + r.amt, 0))}</td><td class="n">${money(list.reduce((s, r) => s + r.tax, 0))}</td><td class="n">${money(list.reduce((s, r) => s + r.total, 0))}</td><td class="n">${money(list.reduce((s, r) => s + (+r.pay || 0), 0))}</td><td colspan="2"></td></tr></tfoot></table></div>`;
 }
 function editRow(r) {
@@ -114,7 +119,22 @@ function editRow(r) {
 }
 
 function sendBar() {
-  return `<div class="tools" style="margin:4px 0 8px"><button class="btn pri" id="apSend" disabled title="勾選的廠商各開一張支票，送到「支票開立」的待列印">送待開支票</button><span class="muted small">金額用「開票金額」，空白就用總額；票載日期＝兌現日</span></div>`;
+  return `<div class="tools" style="margin:4px 0 8px"><button class="btn pri" id="apSend" disabled title="勾選的廠商各開一張支票，送到「支票開立」的待列印">送待開支票</button><button class="btn danger" id="apCancel" hidden title="刪掉還沒列印的支票，這家改回待開票">取消支票</button><span class="muted small">金額用「開票金額」，空白就用總額；兌現日＝支票上的日期。勾選已開票（支票還沒列印）的廠商可以「取消支票」，改好再重送。</span></div>`;
+}
+/** 取消支票：刪掉還沒列印的支票，應付帳款改回待開票（兌現日保留；開票金額要改就在欄位重填，再重送） */
+async function cancelChecks(rows) {
+  if (!rows.length) return;
+  const items = rows.map(r => ({ r, c: store.get('checks_out', r.checkId) })).filter(x => x.c && !x.c.printedAt);
+  if (!items.length) return toast('勾選的支票都已經列印，不能從這裡取消');
+  if (!await confirm(`取消 ${items.length} 張還沒列印的支票？這幾家會改回「待開票」。\n${items.map(x => `${x.r.name}　${money(x.c.amount)}　兌現 ${roc(x.c.date)}`).join('\n')}`, { danger: true, ok: '取消支票' })) return;
+  const ops = [];
+  for (const { r, c } of items) {
+    ops.push({ col: 'checks_out', id: c.id, delete: true });
+    const d = { ...store.get('payables', rowId(r)) }; delete d.id; delete d.checkId; delete d.payDate; delete d.pay; d.dueDate = c.date;
+    ops.push({ col: 'payables', id: rowId(r), data: d });
+  }
+  await store.batch(ops); for (const { r } of items) ui.sel.delete(rowId(r));
+  store.log('刪除', `取消支票 ${items.length} 張（應付帳款改回待開票）：${items.map(x => `${x.r.name} ${money(x.c.amount)}`).join('、')}`); toast(`已取消 ${items.length} 張支票`);
 }
 /** 勾選的應付帳款各開一張支票（待列印），並把應付帳款標成已開票 */
 async function sendChecks(rows) {
