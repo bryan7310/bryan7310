@@ -143,11 +143,11 @@ export function newCheckOut(preset, cb) {
     onOpen(el, close) {
       let cid = d.cid;
       const pnFill = keep => {
-        const s = cid && store.get('contacts', cid); const cp = String(s?.checkPayee || '').trim(); const wrap = $('#co-pn-wrap', el), sel = $('#co-pn', el);
+        const s = cid && store.get('contacts', cid); const cps = cpList(s); const wrap = $('#co-pn-wrap', el), sel = $('#co-pn', el);
         if (!s) { wrap.hidden = true; sel.innerHTML = ''; return; }
-        const def = cp ? 'cp' : 'orig';
-        const v = keep ? sel.value : d.payeeFixed ? (String(d.payee || '').trim() ? 'orig' : 'blank') : def;
-        sel.innerHTML = `${cp ? `<option value="cp">${esc(cp)}（票據抬頭）</option>` : ''}<option value="orig">${esc(legalName(s.name))}（正式名稱）</option><option value="blank">（空白，不寫抬頭）</option>`; sel.value = [...sel.options].some(o => o.value === v) ? v : def; wrap.hidden = false;
+        const def = cps.length ? 'cp0' : 'orig'; const dp = String(d.payee || '').trim();
+        const v = keep ? sel.value : d.payeeFixed ? (!dp ? 'blank' : cps.includes(dp) ? 'cp' + cps.indexOf(dp) : 'orig') : def;
+        sel.innerHTML = `${cps.map((n, i) => `<option value="cp${i}">${esc(n)}（票據抬頭${cps.length > 1 ? ' ' + (i + 1) : ''}）</option>`).join('')}<option value="orig">${esc(legalName(s.name))}（正式名稱）</option><option value="blank">（空白，不寫抬頭）</option>`; sel.value = [...sel.options].some(o => o.value === v) ? v : def; wrap.hidden = false;
       };
       pnFill(false);
       combo($('#co-payee', el), { items: () => suppliers().map(c => ({ id: c.id, label: printName(c.name), sub: c.short || '', text: [c.code, c.name, c.short, ...(c.aliases || [])].join(' ') })), allowFree: true, onPick: it => { cid = it.id; pnFill(false); } });
@@ -160,7 +160,8 @@ export function newCheckOut(preset, cb) {
         if (!out.payee && sc) out.payee = sc.name;
         const pm = $('#co-pn-wrap', el).hidden ? '' : $('#co-pn', el).value;
         if (pm === 'blank') { out.payee = ''; out.payeeFixed = true; }   // 手動選空白才留空白
-        else if (pm === 'orig' && String(sc?.checkPayee || '').trim()) { out.payee = legalName(sc.name); out.payeeFixed = true; }   // 有票據抬頭但這張要用正式名稱
+        else if (/^cp[1-9]\d*$/.test(pm)) { out.payee = cpList(sc)[+pm.slice(2)]; out.payeeFixed = true; }   // 選第 2 個以後的票據抬頭
+        else if (pm === 'orig' && cpList(sc).length) { out.payee = legalName(sc.name); out.payeeFixed = true; }   // 有票據抬頭但這張要用正式名稱
         else delete out.payeeFixed;
         const id = d.id || uid('co'); const ops = [{ col: 'checks_out', id, data: out }]; apSync({ ...out, id }, ops); await store.batch(ops); store.log(isNew ? '開立' : '修改', `支票 ${payee} ${money(amount)}`); close(); toast('已儲存'); cb && cb({ ...out, id });
       };
@@ -170,11 +171,12 @@ export function newCheckOut(preset, cb) {
   });
 }
 // 支票抬頭印正式全名：抬頭寫的是該供應商的簡稱／別名時換成全名；拿掉備註括號，(股)公司 寫成 股份有限公司
+const cpList = s => String(s?.checkPayee || '').split(/[,，]/).map(x => x.trim()).filter(Boolean);
 function payeeOut(c) {
   const s = c.cid && store.get('contacts', c.cid); const p = String(c.payee || '').trim();
   if (c.payeeFixed) return p;   // 這張指定了抬頭（正式名稱或空白）就照存的印
-  const cp = String(s?.checkPayee || '').trim();
-  if (s && (!p || p === s.short || p === s.name || p === cp || (s.aliases || []).includes(p))) return cp || legalName(s.name);   // 優先票據抬頭，沒有就用正式全名
+  const cps = cpList(s);
+  if (s && (!p || p === s.short || p === s.name || cps.includes(p) || (s.aliases || []).includes(p))) return cps[0] || legalName(s.name);   // 優先第一個票據抬頭，沒有就用正式全名
   return legalName(p);
 }
 async function printChecks(list) {
