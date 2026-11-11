@@ -379,6 +379,11 @@ class Handler(BaseHTTPRequestHandler):
             sys.stderr.write('restart requested by %s\n' % me.get('login'))
             threading.Timer(0.6, lambda: os._exit(3)).start()
             return
+        if path == '/api/agent' and method == 'POST':
+            try:
+                return self.send_json(agent_step(self.state.data_dir, body or {}, me))
+            except OcrError as e:
+                return self.error(str(e), e.status)
         if path == '/api/ocr/check' and method == 'POST':
             img = str((body or {}).get('image') or '')
             try:
@@ -788,6 +793,75 @@ def _ocr_raw(data_dir, data_url):
     u = out.get('usage') or {}
     sys.stderr.write('ocr/check %s in=%s out=%s\n' % (out.get('model'), u.get('input_tokens'), u.get('output_tokens')))
     return fields
+
+
+# ---------- AI 助理：瀏覽器跑工具（查資料、擬單據），伺服器只負責呼叫 Claude（金鑰不出伺服器） ----------
+AGENT_PROMPT = """你是「志瑞螺絲企業有限公司」作業平台裡的 AI 助理。志瑞是台中的螺絲、螺帽、五金零件貿易商，平台管理商品、客戶與供應商、報價單、銷貨單（出貨單）、採購單、進貨單、庫存、應收應付帳款、支票。使用的人是公司同事，對產業很熟。
+
+回答原則：
+- 一律用繁體中文回答，口氣簡潔、像同事之間說話；數字用千分位，金額單位是新台幣元。
+- 平台資料一定先用工具查，不要憑印象回答；查不到就直說查不到，並說明查了什麼。
+- 料號（code）是公司內部料號；「客料號」是客戶那邊的料號；「規格」欄有時放客戶料號。同一個品名可能有多個料號（鍍鋅、三價、白鐵不同），有疑問時列出候選請使用者確認。
+- 應收、應付的「月份」以每月 25 日結帳：當月 26 日以後的單據算到下個月。
+- 舊系統搬來的歷史單據（hist）是唯讀的；平台上新開的單據才能修改。
+- 回答盡量短，列表或表格只放需要的欄位。
+
+開單（代開單據）：
+- 使用者要開報價單、銷貨單、採購單、進貨單時，先用工具確認客戶／供應商和每個商品的 id；不確定是哪一個就先問，不要猜。
+- 單價沒有指定時：銷貨／報價用該客戶上次單價（工具會帶），採購／進貨用上次進價；都沒有就留空，並提醒使用者。
+- 用 draft_bill 建草稿。草稿只會顯示在畫面上，要使用者按「開啟草稿」檢查後自己存檔；你不能直接存檔，也不要說已經存檔。
+- 不要刪除或修改任何既有資料；被要求時說明需要使用者自己在平台上操作。
+
+使用者訊息開頭會附上今天日期。"""
+
+
+def agent_step(data_dir, body, me):
+    """一步對話：messages、tools 由瀏覽器送來（工具在瀏覽器執行），回傳 Claude 的回應內容"""
+    messages = body.get('messages')
+    tools = body.get('tools') or []
+    if not isinstance(messages, list) or not messages:
+        raise OcrError('沒有對話內容')
+    if not isinstance(tools, list) or len(tools) > 40 or any(not isinstance(t, dict) or 'input_schema' not in t for t in tools):
+        raise OcrError('工具定義不正確')
+    key = ai_cfg(data_dir).get('anthropic_api_key') or ''
+    if not key:
+        raise OcrError('還沒設定 Claude（Anthropic）API 金鑰：請到「設定備份 → AI 辨識」選 Claude 並貼上金鑰', 409)
+    try:
+        import anthropic
+    except Exception:
+        raise OcrError('伺服器沒有安裝 Claude 元件，請在伺服器電腦執行：python -m pip install anthropic', 500)
+    client = anthropic.Anthropic(api_key=key, timeout=300.0, max_retries=2)
+    try:
+        resp = client.beta.messages.create(
+            model=AI_MODEL,
+            max_tokens=16000,
+            system=AGENT_PROMPT,
+            tools=tools,
+            messages=messages,
+            output_config={'effort': 'medium'},
+            cache_control={'type': 'ephemeral'},
+            betas=['server-side-fallback-2026-07-01'],
+            fallbacks='default',
+        )
+    except anthropic.AuthenticationError:
+        raise OcrError('Claude 金鑰無效，請到「設定備份 → AI 辨識」重新設定', 502)
+    except anthropic.PermissionDeniedError as e:
+        raise OcrError('Claude 金鑰沒有權限：%s' % e.message, 502)
+    except anthropic.RateLimitError:
+        raise OcrError('Claude 暫時忙碌（額度或速率限制），請稍後再試', 502)
+    except anthropic.BadRequestError as e:
+        raise OcrError('Claude 不接受這次的內容：%s' % e.message, 502)
+    except anthropic.APIStatusError as e:
+        raise OcrError('Claude 服務回應 %d：%s' % (e.status_code, e.message), 502)
+    except anthropic.APIConnectionError:
+        raise OcrError('連不上 Claude 服務，請確認伺服器電腦有網路', 502)
+    out = resp.to_dict()
+    u = out.get('usage') or {}
+    sys.stderr.write('agent %s %s stop=%s in=%s cache_r=%s cache_w=%s out=%s\n' % (
+        (me or {}).get('name', ''), out.get('model'), out.get('stop_reason'), u.get('input_tokens'),
+        u.get('cache_read_input_tokens'), u.get('cache_creation_input_tokens'), u.get('output_tokens')))
+    return {'content': out.get('content') or [], 'stop_reason': out.get('stop_reason'),
+            'stop_details': out.get('stop_details'), 'usage': u, 'model': out.get('model')}
 
 
 # ---------- 每日自動備份 ----------

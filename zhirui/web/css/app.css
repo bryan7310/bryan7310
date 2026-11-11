@@ -617,3 +617,24 @@ tr.row.on td { background: color-mix(in srgb, var(--blue-soft) 60%, transparent)
 .bomt th { position: static; }
 .bomt td { vertical-align: middle; }
 .bomt .combo input { width: 100%; }
+
+/* AI 助理 */
+.ai-wrap { display: grid; grid-template-rows: 1fr auto auto; gap: 10px; height: calc(100dvh - 150px); min-height: 420px; }
+.ai-log { overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding: 4px 2px; }
+.ai-msg { display: flex; }
+.ai-msg.me { justify-content: flex-end; }
+.ai-b { max-width: min(760px, 92%); padding: 9px 13px; border-radius: 14px; line-height: 1.55; overflow-wrap: anywhere; }
+.ai-msg.me .ai-b { background: var(--blue); color: #fff; border-bottom-right-radius: 4px; }
+.ai-msg.bot .ai-b { background: var(--sunken); border-bottom-left-radius: 4px; }
+.ai-b p { margin: 0 0 6px; } .ai-b p:last-child { margin-bottom: 0; }
+.ai-b ul, .ai-b ol { margin: 4px 0 6px; padding-left: 20px; }
+.ai-b .tw { margin: 6px 0; } .ai-b table { font-size: 13px; } .ai-b th, .ai-b td { padding: 4px 8px; }
+.ai-b code { font-size: 12px; background: var(--surface); padding: 0 4px; border-radius: 4px; }
+.ai-act { font-size: 12px; color: var(--muted); padding-left: 4px; }
+.ai-wait { animation: aiPulse 1.2s ease-in-out infinite; }
+@keyframes aiPulse { 50% { opacity: .4; } }
+.ai-draft { border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; max-width: min(760px, 96%); background: var(--surface); display: grid; gap: 6px; }
+.ai-dh { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.ai-in { display: flex; gap: 8px; align-items: flex-end; }
+.ai-in textarea { flex: 1; resize: vertical; min-height: 44px; max-height: 200px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; font: inherit; background: var(--surface); color: inherit; }
+.ai-sug { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; margin-top: 12px; }
