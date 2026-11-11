@@ -607,3 +607,8 @@ tr.row.on td { background: color-mix(in srgb, var(--blue-soft) 60%, transparent)
 .no-row { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
 .no-row svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.6; flex: none; }
 .me .sp { flex: 1; }
+/* 列印下拉選單（往上開，避免被對話框底部切掉） */
+.dd { position: relative; display: inline-flex; }
+.dd-menu { position: absolute; bottom: calc(100% + 6px); left: 0; z-index: 50; display: grid; gap: 4px; min-width: 170px; padding: 6px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow); }
+.dd-menu[hidden] { display: none; }
+.dd-menu .btn { justify-content: flex-start; width: 100%; }

@@ -209,7 +209,7 @@ export async function shipImportLines(file, edit) {
   const head = aoa[hi].map(norm); const ix = {}; for (const k in al) ix[k] = head.findIndex(h => al[k].some(a => a.toUpperCase() === h.toUpperCase()));
   if (ix.qty < 0) throw new Error('找不到「數量」欄');
   const N = x => String(x ?? '').trim().toUpperCase();
-  const goods = store.list('goods'); const bySpec = new Map(); for (const g of goods) { const k = N(g.spec); if (!k) continue; (bySpec.get(k) || bySpec.set(k, []).get(k)).push(g); }
+  const goods = store.list('goods'); const bySpec = new Map(); for (const g of goods) for (const k0 of [g.spec, g.spec2]) { const k = N(k0); if (!k) continue; const a = bySpec.get(k) || bySpec.set(k, []).get(k); if (!a.includes(g)) a.push(g); }
   const byCode = new Map(); for (const g of goods) { const k = N(g.code); if (k && !byCode.has(k)) byCode.set(k, g); }
   const add = [], miss = [], multi = [];
   for (const r of aoa.slice(hi + 1)) {
@@ -277,3 +277,83 @@ export function specView(g) {
 /** 出貨單總重（kg），回傳 {kg, miss} */
 export function billKg(b) { const C = calc(); let kg = 0, miss = 0; for (const l of b.lines || []) { if (!l.gid || l.txt !== undefined) continue; const w = lineKg(l, C.g[l.gid]); if (w > 0) kg += w; else miss++; } return { kg, miss }; }
 export const kgText = ({ kg, miss }) => kg || !miss ? `${kg >= 100 ? Math.round(kg * 10) / 10 : Math.round(kg * 1000) / 1000} kg${miss ? `（${miss} 項無重量）` : ''}` : '—';
+
+// ---------- 崧泉 ERP「訂單出貨憑證」PDF：伺服器拆成文字＋表格，這裡整理成單頭與明細 ----------
+export async function songquanParse(file) {
+  const r = await fetch('/api/pdf/parse', { method: 'POST', body: file, credentials: 'same-origin' });
+  const j = await r.json().catch(() => ({})); if (!r.ok || !j.ok) throw new Error(j.error || ('HTTP ' + r.status));
+  const text = j.pages.map(p => p.text).join('\n');
+  if (!/訂單出貨憑證/.test(text)) throw new Error('這份 PDF 不是崧泉的「訂單出貨憑證」');
+  const fld = k => { const m = text.match(new RegExp(k + '[:：][ \\t]*([^\\n]*)')); return m ? m[1].trim() : ''; };
+  const head = { sn: fld('出貨單號'), date: fld('出貨日期'), inv: fld('發票號碼'), invDate: fld('發票日期'), addr: fld('送貨地址'), note: fld('備註'), vendor: fld('供應商名') };
+  if (!head.sn) throw new Error('找不到出貨單號');
+  // 儲存格裡的換行接回去：英數字接英數字中間補空白，其餘（中文、連字號結尾）直接接
+  const J = x => String(x ?? '').split('\n').map(s => s.trim()).filter(Boolean).reduce((a, s) => a && /[A-Za-z0-9"]$/.test(a) && /^[A-Za-z0-9]/.test(s) ? a + ' ' + s : a + s, '');
+  const num = x => +String(x ?? '').replace(/[,\s]/g, '') || 0;
+  const KEYS = { po: '採購單號', item: '項次', pn: '品號', name: '品名', spec: '規格', unit: '單位', poQty: '採購數量', qty: '交貨數量' };
+  const rows = []; let ix = null;
+  for (const p of j.pages) for (const t of p.tables) {
+    let body = t; const h = (t[0] || []).map(c => J(c).replace(/\s/g, ''));
+    if (h.includes('採購單號') && h.includes('品號')) { ix = {}; for (const k in KEYS) ix[k] = h.indexOf(KEYS[k]); body = t.slice(1); }
+    if (!ix) continue;
+    for (const row of body) {
+      const v = k => ix[k] >= 0 ? J(row[ix[k]]) : '';
+      if (!v('pn') && !v('name')) continue;
+      rows.push({ po: v('po'), item: v('item'), pn: v('pn'), name: v('name'), spec: v('spec'), unit: v('unit'), poQty: num(v('poQty')), qty: num(v('qty')) });
+    }
+  }
+  if (!rows.length) throw new Error('PDF 裡找不到明細表');
+  return { head, rows };
+}
+/** 崧泉明細 → 銷貨單的行：品號／規格比對商品的客料號、第二客料號；帶上次單價；原始資料存在 l.sq（重印用） */
+export function songquanLines(P, edit) {
+  const N = x => String(x ?? '').trim().toUpperCase();
+  const idx = new Map(); const put = (k, g) => { k = N(k); if (!k) return; const a = idx.get(k) || idx.set(k, []).get(k); if (!a.includes(g)) a.push(g); };
+  for (const g of store.list('goods')) { put(g.spec, g); put(g.spec2, g); }
+  const add = [], miss = [], multi = [];
+  for (const r of P.rows) {
+    let cands = [...(idx.get(N(r.pn)) || [])]; if (!cands.length && r.spec) cands = [...(idx.get(N(r.spec)) || [])];
+    let g = null; if (cands.length === 1) g = cands[0]; else if (cands.length > 1) { g = cands.find(x => lastSale(edit.cid, x.id, edit.date, edit.id)) || cands[0]; multi.push(r.pn); }
+    const sq = { sn: P.head.sn, ...r };
+    if (!g) { miss.push(r.pn || r.name); add.push({ gid: '', n: [r.pn, r.name].filter(Boolean).join(' '), qty: r.qty, price: '', memo: r.po, sq }); continue; }
+    const l = { gid: g.id, qty: r.qty, price: '', memo: r.po, sq };
+    const x = lastSale(edit.cid, g.id, edit.date, edit.id);
+    if (x) { l.price = x.price; if (x.u) l.u = x.u; if (x.unit === 'a' && g.aunit) { l.unit = 'a'; l.rate = +g.arate || 1; } }
+    else { const p = unitPrice(g, edit.type); if (p !== '') l.price = p; }
+    add.push(l);
+  }
+  return { add, miss, multi };
+}
+/** 崧泉列印：照崧泉「訂單出貨憑證」的欄位重印（一張崧泉出貨單一份；沒匯入的行另成一份）。版面之後可再調整 */
+export function printSongquan(b) {
+  const C = calc(); const co = store.setting('company'); const e2 = s => esc(s ?? '');
+  const lines = (b.lines || []).filter(l => l.txt === undefined && (l.gid || l.n) && +l.qty > 0);
+  const ships = (b.sq || []).filter(s => s && s.sn);
+  const groups = ships.map(s => ({ s, ls: lines.filter(l => l.sq && l.sq.sn === s.sn) }));
+  const rest = lines.filter(l => !l.sq || !ships.some(s => s.sn === l.sq.sn));
+  if (rest.length) groups.push({ s: { sn: b.no, date: String(b.date || '').replace(/-/g, '/') }, ls: rest });
+  const unitOf = l => { const g = C.g[l.gid]; return l.u || (l.unit === 'a' ? g?.aunit : g?.unit) || ''; };
+  const q2 = n => (+n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const row = l => { const g = C.g[l.gid]; const x = l.sq || {};
+    return { po: x.po || l.memo || '', item: x.item || '', pn: x.pn || g?.spec || '', name: x.name || g?.custName || g?.name || l.n || '', spec: x.spec != null ? x.spec : (g?.spec2 || ''), unit: x.unit || unitOf(l), poQty: x.poQty != null ? x.poQty : +l.qty, qty: +l.qty }; };
+  const PER = 18; let html = '';
+  for (const { s, ls } of groups.filter(g => g.ls.length)) {
+    const rs = ls.map(row); const pages = Math.max(1, Math.ceil(rs.length / PER));
+    for (let p = 0; p < pages; p++) {
+      html += `<div class="pg"><div class="pno">頁次:${p + 1}/${pages}</div><h1>訂單出貨憑證</h1>
+        <div class="hd"><div>供應商名:${e2(co.name || '志瑞螺絲企業有限公司')}</div><div></div><div>出貨單號:${e2(s.sn)}</div><div>出貨日期:${e2(s.date)}</div><div>發票號碼:${e2(s.inv || '')}</div><div>發票日期:${e2(s.invDate || '')}</div><div class="w">送貨地址:${e2(s.addr || '')}</div><div class="w">備註:${e2(s.note || '')}</div></div>
+        <table><thead><tr><th>採購單號</th><th>項次</th><th>品號</th><th>品名</th><th>規格</th><th>單位</th><th class="n">採購數量</th><th class="n">交貨數量</th></tr></thead><tbody>
+        ${rs.slice(p * PER, (p + 1) * PER).map(r => `<tr><td>${e2(r.po)}</td><td>${e2(r.item)}</td><td>${e2(r.pn)}</td><td>${e2(r.name)}</td><td>${e2(r.spec)}</td><td>${e2(r.unit)}</td><td class="n">${q2(r.poQty)}</td><td class="n">${q2(r.qty)}</td></tr>`).join('')}
+        </tbody></table><div class="sp"></div><div class="sg"><span>收貨人員：___________________</span><span>廠商簽章：___________________</span></div></div>`;
+    }
+  }
+  const css = `@page{size:A4 portrait;margin:12mm 12mm}*{box-sizing:border-box}body{margin:0;font-family:"MingLiU","PMingLiU","新細明體",serif;font-size:10.5pt;color:#000}
+.pg{min-height:270mm;display:flex;flex-direction:column;page-break-after:always;position:relative}.pg:last-child{page-break-after:auto}
+@media screen{.pg{width:186mm;border:1px dashed #bbb;padding:6mm;margin:0 auto 6mm}}
+.pno{text-align:right}h1{text-align:center;font-size:15pt;font-weight:normal;margin:2mm 0 4mm}
+.hd{display:grid;grid-template-columns:1fr 1fr;row-gap:1.6mm;margin-bottom:2mm}.hd .w{grid-column:1/-1}
+table{width:100%;border-collapse:collapse;table-layout:fixed}th,td{border:1px solid #000;padding:.6mm 1mm;vertical-align:top;text-align:left;font-weight:normal;word-break:break-all}
+th:nth-child(1){width:15%}th:nth-child(2){width:7%}th:nth-child(3){width:11%}th:nth-child(4){width:18%}th:nth-child(5){width:17%}th:nth-child(6){width:7%}th:nth-child(7),th:nth-child(8){width:12.5%}
+.n{text-align:right}.sp{flex:1}.sg{display:flex;justify-content:space-around;margin:10mm 0 8mm}`;
+  printHTML(`崧泉出貨憑證 ${b.no}`, css, html, { tip: '紙張 A4 直式、縮放 100%。每張崧泉出貨單印一份；不是從崧泉 PDF 匯入的品項另印一份。' });
+}

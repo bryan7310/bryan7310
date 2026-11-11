@@ -168,6 +168,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self.error('not found', 404)
             if u.path == '/api/files':
                 return self.upload(parse_qs(u.query))
+            if u.path == '/api/pdf/parse':
+                return self.pdf_parse()
             body = self.body_json()
             return self.api('POST', u.path, parse_qs(u.query), body)
         except (BrokenPipeError, ConnectionResetError):
@@ -387,6 +389,40 @@ class Handler(BaseHTTPRequestHandler):
         d = os.path.join(self.state.data_dir, 'files')
         os.makedirs(d, exist_ok=True)
         return d
+
+    def pdf_parse(self):
+        """讀 PDF（內容直接放在 body）→ 每頁的文字與表格（給匯入客戶 ERP 出貨單用；需要 pymupdf）"""
+        n = int(self.headers.get('Content-Length') or 0)
+        if not self.user():
+            if 0 < n <= FILE_MAX:
+                self.rfile.read(n)
+            else:
+                self.close_connection = True
+            return self.error('請先登入', 401)
+        if n <= 0:
+            return self.error('沒有收到檔案')
+        if n > FILE_MAX:
+            self.rfile.read(n)
+            return self.error('檔案太大（上限 %d MB）' % (FILE_MAX // 1024 // 1024))
+        data = self.rfile.read(n)
+        try:
+            import pymupdf
+        except Exception:
+            return self.error('伺服器沒有安裝 PDF 讀取元件（pymupdf），請在伺服器電腦執行：pip install pymupdf')
+        try:
+            doc = pymupdf.open(stream=data, filetype='pdf')
+            pages = []
+            for p in doc:
+                tables = []
+                try:
+                    for t in p.find_tables().tables:
+                        tables.append([[c if c is not None else '' for c in row] for row in t.extract()])
+                except Exception:
+                    pass
+                pages.append({'text': p.get_text(), 'tables': tables})
+        except Exception as e:
+            return self.error('PDF 讀取失敗：%s' % e)
+        return self.send_json({'ok': True, 'pages': pages})
 
     def upload(self, qs):
         n = int(self.headers.get('Content-Length') or 0)
