@@ -612,3 +612,8 @@ tr.row.on td { background: color-mix(in srgb, var(--blue-soft) 60%, transparent)
 .dd-menu { position: absolute; bottom: calc(100% + 6px); left: 0; z-index: 50; display: grid; gap: 4px; min-width: 170px; padding: 6px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow); }
 .dd-menu[hidden] { display: none; }
 .dd-menu .btn { justify-content: flex-start; width: 100%; }
+
+/* 螺絲包配方表 */
+.bomt th { position: static; }
+.bomt td { vertical-align: middle; }
+.bomt .combo input { width: 100%; }

@@ -9,6 +9,7 @@ import { loadHistPur, resetHistCache, goodsHistory } from './_bills.js';
 import { loadXlsx } from './purchase_import.js';
 import { shortName, suggestShorts } from '../core/names.js';
 import { imageViewer } from '../core/imgview.js';
+import { bomHTML, bomBind } from './assembly.js';
 
 const ui = { tab: 'goods', q: '', page: 0 };
 const TABS = [['goods', '商品'], ['customers', '客戶'], ['suppliers', '供應商'], ['warehouses', '倉庫'], ['accounts', '結算帳戶'], ['names', '名稱對應']];
@@ -65,6 +66,7 @@ export function copyGoods(g, onSaved) {
   if (!g) return;
   const tpl = {}; for (const [n] of FIELDS.goods) if (g[n] != null && g[n] !== '') tpl[n] = g[n];
   if (g.sp && Object.keys(g.sp).length) tpl.sp = { ...g.sp };
+  if (g.bom?.length) { tpl.bom = g.bom.map(x => ({ ...x })); if (g.labor) tpl.labor = g.labor; if (g.cwid) tpl.cwid = g.cwid; }   // 螺絲包：配方一起複製
   openMaster('goods', null, null, onSaved, tpl);
 }
 const LABEL = { goods: '商品', C: '客戶', S: '供應商', warehouses: '倉庫', accounts: '結算帳戶' };
@@ -80,6 +82,7 @@ export function openMaster(col, doc, kind, onSaved, tpl, opts = {}) {
     ${col === 'warehouses' && doc ? `<label class="check" style="grid-column:1/-1"><input type="checkbox" name="isDefault" ${store.setting('prefs').defaultWh === doc.id ? 'checked' : ''}> 設為預設倉庫</label>` : ''}</div>
     ${tpl ? `<div class="banner" style="margin-top:8px">從「${esc(tpl.code || tpl.name)}」複製，請把料號改成新的（料號相同無法建立）。</div>` : ''}
     ${col === 'goods' ? goodsExtraHTML(tpl && !doc ? { sp: tpl.sp } : d) : ''}
+    ${col === 'goods' ? bomHTML(tpl && !doc ? (tpl.bom ? tpl : {}) : d) : ''}
     ${doc && col === 'goods' ? `<div class="muted small">各倉庫庫存：${store.list('warehouses').map(w => `${esc(w.name)} ${fmtQ((C.stock[doc.id] || {})[w.id] || 0)}`).join('、')}</div><div class="tools" style="gap:8px;margin-top:6px"><button type="button" class="btn sm" id="ghSale">歷史銷貨明細</button><button type="button" class="btn sm" id="ghPur">歷史進貨明細</button></div>` : ''}
     ${doc && col === 'contacts' ? `<div class="muted small">目前${k === 'C' ? '應收' : '應付'}餘額 ${fmt(C.bal[doc.id] || 0)}　<a href="#" id="histBtn">查看歷史單據</a></div><div id="histBox"></div>` : ''}
     <div class="err" id="mErr"></div>`;
@@ -88,6 +91,7 @@ export function openMaster(col, doc, kind, onSaved, tpl, opts = {}) {
     footer: `${doc ? `<button class="btn danger" id="mDel" ${refs ? `title="有 ${refs} 張單據用到，無法刪除" disabled` : ''}>刪除${refs ? `（${refs} 張單據用到）` : ''}</button>` : ''}<span class="sp"></span><button class="btn" data-close>取消</button><button class="btn pri" id="mSave">儲存</button>`,
     onOpen(el, close) {
       if (col === 'goods') goodsExtraBind(el, d);
+      const bomRead = col === 'goods' ? bomBind(el, tpl && !doc ? (tpl.bom ? tpl : {}) : d) : null;
       if (tpl) setTimeout(() => { const ci = el.querySelector('#f-code'); ci?.focus(); ci?.select(); }, 50);   // 複製：游標停在料號，直接改
       if (col === 'contacts') {   // 簡稱欄：空白時灰字顯示會自動帶入的簡稱
         const sh = el.querySelector('#f-short'), nm = el.querySelector('#f-name'), al = el.querySelector('#f-aliases');
@@ -106,6 +110,11 @@ export function openMaster(col, doc, kind, onSaved, tpl, opts = {}) {
           if (out.code && store.list('contacts').some(c => c.code === out.code && c.id !== d.id)) { el.querySelector('#mErr').textContent = `編號 ${out.code} 已經有人用了`; return; }
         }
         if (col === 'goods') { const sp = spForm(el); if (Object.keys(sp).length) out.sp = sp; else delete out.sp; }
+        if (bomRead) {   // 配方（螺絲包）
+          const bm = bomRead(); if (bm.bad) { el.querySelector('#mErr').textContent = `配方有 ${bm.bad} 行沒填每包數量`; return; }
+          if (bm.bom.length) { out.bom = bm.bom; if (bm.labor) out.labor = bm.labor; else delete out.labor; if (bm.cwid) out.cwid = bm.cwid; else delete out.cwid; }
+          else { delete out.bom; delete out.labor; delete out.cwid; }
+        }
         if (col === 'goods' && opts.fromBill && doc && out.code && out.code !== String(d.code || '').trim() && !store.list('goods').some(g => g.code === out.code)) {
           // 單據裡改成新料號：原商品可能還有其他單據在用，改成新建一個商品，這一行換成新商品
           if (!await confirm(`料號「${out.code}」系統裡沒有。\n要用這些資料新建一個商品，並把這一行換成新商品嗎？\n原本的「${d.code || ''} ${d.name}」不會被修改。`, { ok: '新建商品' })) return;
@@ -342,9 +351,9 @@ function dwgBind(el, d) {
 }
 function refCount(col, id) {
   const bills = store.list('bills');
-  if (col === 'goods') return bills.filter(b => (b.lines || []).some(l => l.gid === id)).length;
+  if (col === 'goods') return bills.filter(b => b.kit?.gid === id || (b.lines || []).some(l => l.gid === id)).length + store.list('goods').filter(g => (g.bom || []).some(x => x.gid === id)).length;
   if (col === 'contacts') return bills.filter(b => b.cid === id).length + store.list('receivables').filter(r => r.cid === id).length + store.list('payables').filter(r => r.cid === id).length;
-  if (col === 'warehouses') return bills.filter(b => b.wid === id || b.toWid === id).length;
+  if (col === 'warehouses') return bills.filter(b => b.wid === id || b.toWid === id || b.cwid === id).length;
   if (col === 'accounts') return bills.filter(b => b.aid === id).length;
   return 0;
 }

@@ -8,6 +8,7 @@ import { printName } from '../core/names.js';
 import { labelPicker } from './labels.js';
 import { faxDialog } from './faxes.js';
 import { openMaster } from './master.js';
+import { openAsm, asmContent } from './assembly.js';
 import { printShip, shipFormat, shipImportLines, shipTemplateXlsx, stockAdjust, specView, billKg, kgText, songquanParse, songquanLines, printSongquan } from './ship.js';
 
 export const billText = b => { const C = calc(); const c = C.ct[b.cid]; return [b.no, c?.code, c?.name, c?.short, b.cn, b.note, ...(b.lines || []).flatMap(l => { const g = C.g[l.gid]; return [g?.code, g?.name, g?.spec, l.n, l.memo]; })].filter(Boolean).join(' '); };
@@ -94,7 +95,7 @@ export function billList(el, opts, ui) {
 function billRow(b, opts, C) {
   const T = TYPES[b.type]; const t = C.tot[b.id] || totals(b);
   const lines = (b.lines || []).filter(l => l.txt === undefined);
-  const content = T.lines ? `${lines.slice(0, 2).map(l => esc(l.gid ? gname(l.gid, b.type) : l.n || '')).join('、')}${lines.length > 2 ? `…等 ${lines.length} 項` : ''}` : esc(b.note || b.cat || '');
+  const content = b.type === 'ASM' ? asmContent(b) : T.lines ? `${lines.slice(0, 2).map(l => esc(l.gid ? gname(l.gid, b.type) : l.n || '')).join('、')}${lines.length > 2 ? `…等 ${lines.length} 項` : ''}` : esc(b.note || b.cat || '');
   let status = '';
   if (T.lines && T.party && !T.doc) { const due = t.total - (+b.paid || 0); status = due <= 0 ? '<span class="pill ok">已結清</span>' : +b.paid > 0 ? `<span class="pill warn">尚欠 ${fmt(due)}</span>` : '<span class="pill">未收付</span>'; }
   if (b.type === 'SALE' && b.invNo) status += ` <span class="pill blue">發票 ${esc(b.invNo)}</span>`;
@@ -183,6 +184,7 @@ function histPatch(b, stamp) {
   if (stamp) store.histVer = stamp;
 }
 export function openBill(type, id, onSaved, preset) {
+  if (type === 'ASM' || (id && store.get('bills', id)?.type === 'ASM')) return openAsm(id);   // 組包單有自己的畫面
   onSavedCb = onSaved;
   const C = calc();
   if (id) { const b = store.get('bills', id); if (!b) return toast('找不到這張單據'); edit = JSON.parse(JSON.stringify(b)); edit.lines = edit.lines || []; type = edit.type; }

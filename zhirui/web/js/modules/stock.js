@@ -16,7 +16,7 @@ function draw(el) {
   if (ui.tab === 'moves') {
     const box = document.createElement('div'); box.style.display = 'grid'; box.style.gap = '16px';
     el.innerHTML = ''; el.append(box);
-    billList(box, { key: 'moves', title: '庫存異動', types: ['IN', 'OUT', 'TRANSFER'], tabList: [['all', '全部'], ['IN', '其他入庫'], ['OUT', '其他出庫'], ['TRANSFER', '調撥單']], newTypes: ['IN', 'OUT', 'TRANSFER'], extraHead: tabs('s', [['qty', '庫存數量'], ['low', '低於安全庫存'], ['moves', '出入庫／調撥']], 'moves') }, ui.bills);
+    billList(box, { key: 'moves', title: '庫存異動', types: ['IN', 'OUT', 'TRANSFER', 'ASM'], tabList: [['all', '全部'], ['IN', '其他入庫'], ['OUT', '其他出庫'], ['TRANSFER', '調撥單'], ['ASM', '組包單']], newTypes: ['IN', 'OUT', 'TRANSFER', 'ASM'], extraHead: tabs('s', [['qty', '庫存數量'], ['low', '低於安全庫存'], ['moves', '出入庫／調撥／組包']], 'moves') }, ui.bills);
     el.addEventListener('tab', ev => { if (ev.detail.key === 's') { ui.tab = ev.detail.val; draw(el); } }, { once: true });
     return;
   }
@@ -27,8 +27,8 @@ function draw(el) {
   else if (!ui.q) list = list.filter(g => all(g) !== 0);
   const tv = list.reduce((s, g) => s + all(g) * (C.cost[g.id]?.avg || +g.purPrice || 0), 0);
   const [s, e, pg] = pager('st', list.length, ui.page);
-  el.innerHTML = `<div class="head"><h1>庫存</h1><span class="sp"></span><button class="btn" data-new="IN">＋ 其他入庫</button><button class="btn" data-new="OUT">＋ 其他出庫</button><button class="btn" data-new="TRANSFER">＋ 調撥</button></div>
-    <div class="panel"><div class="tools">${tabs('s', [['qty', '庫存數量'], ['low', '低於安全庫存'], ['moves', '出入庫／調撥']], ui.tab)}<input type="search" id="sq" placeholder="搜尋料號、品名、規格" value="${esc(ui.q)}"><span class="muted small">${list.length} 項${ui.tab === 'qty' && !ui.q ? '（有庫存的）' : ''}・庫存金額約 ${fmt(tv)}</span></div>
+  el.innerHTML = `<div class="head"><h1>庫存</h1><span class="sp"></span><button class="btn" data-new="IN">＋ 其他入庫</button><button class="btn" data-new="OUT">＋ 其他出庫</button><button class="btn" data-new="TRANSFER">＋ 調撥</button><button class="btn" data-new="ASM" title="螺絲包：依配方扣零件、成品加庫存">＋ 組包</button></div>
+    <div class="panel"><div class="tools">${tabs('s', [['qty', '庫存數量'], ['low', '低於安全庫存'], ['moves', '出入庫／調撥／組包']], ui.tab)}<input type="search" id="sq" placeholder="搜尋料號、品名、規格" value="${esc(ui.q)}"><span class="muted small">${list.length} 項${ui.tab === 'qty' && !ui.q ? '（有庫存的）' : ''}・庫存金額約 ${fmt(tv)}</span></div>
     <div class="tw" style="margin-top:10px"><table><thead><tr><th>料號</th><th>品名規格</th>${whs.map(w => `<th class="n">${esc(w.name)}</th>`).join('')}<th class="n">合計</th><th>單位</th><th class="n">安全庫存</th><th class="n">平均成本</th></tr></thead>
     <tbody>${list.slice(s, e).map(g => { const t = all(g); return `<tr class="row" data-id="${g.id}"><td class="mono">${esc(g.code)}</td><td>${esc(g.name)} <span class="muted">${esc(g.spec || '')}</span></td>${whs.map(w => `<td class="n">${fmtQ((C.stock[g.id] || {})[w.id] || 0)}</td>`).join('')}<td class="n" style="${+g.safety > 0 && t < +g.safety ? 'color:var(--bad);font-weight:600' : ''}">${fmtQ(t)}</td><td>${esc(g.unit || '')}</td><td class="n muted">${g.safety ? fmtQ(g.safety) : ''}</td><td class="n muted">${C.cost[g.id]?.avg ? fmtQ(C.cost[g.id].avg) : ''}</td></tr>`; }).join('') || `<tr><td colspan="${6 + whs.length}"><div class="empty"><b>${ui.tab === 'low' ? '沒有低於安全庫存的商品' : '沒有庫存紀錄'}</b></div></td></tr>`}</tbody></table></div>${pg}</div>`;
   el.addEventListener('tab', ev => { ui.tab = ev.detail.val; ui.page = 0; draw(el); }, { once: true });

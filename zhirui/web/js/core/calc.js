@@ -13,6 +13,7 @@ export const TYPES = {
   IN: { name: '其他入庫', pre: 'QR', stock: 1, lines: true },
   OUT: { name: '其他出庫', pre: 'QC', stock: -1, lines: true },
   TRANSFER: { name: '調撥單', pre: 'DB', lines: true, transfer: true },
+  ASM: { name: '組包單', pre: 'ZB', lines: true, asm: true },   // 螺絲包：依配方扣零件（客供件扣客供倉），成品加庫存
   RCV: { name: '收款單', pre: 'SK', party: 'C', money: 1 },
   PAY: { name: '付款單', pre: 'FK', party: 'S', money: -1 },
   INC: { name: '其他收入', pre: 'QS', money: 1 },
@@ -115,6 +116,21 @@ export function calc() {
     const T = TYPES[b.type]; if (!T) continue;
     const t = totals(b); tot[b.id] = t; let cg = 0; const lc = [];
     if (T.doc) { cogs[b.id] = 0; lineCogs[b.id] = []; continue; }
+    if (T.asm) {   // 組包單：零件出庫（客供件從客供倉），成品入庫；成品成本＝自備零件成本＋工錢
+      const k = b.kit || {}; const kq = +k.qty || 0; let own = 0;
+      for (const l of b.lines || []) {
+        if (!l.gid || g[l.gid]?.nostock) continue; const q = +l.qty || 0;
+        add(l.gid, l.cust ? (b.cwid || b.wid) : b.wid, -q);
+        const c = cost[l.gid] ??= { q: 0, avg: +(g[l.gid]?.purPrice) || 0 }; c.q -= q;
+        if (!l.cust) own += q * (costOf({ gid: l.gid, qty: 1 }, b.date, purIdx, g, poIdx, true)?.c || c.avg || 0);
+      }
+      if (k.gid && kq) {
+        add(k.gid, b.wid, kq); const c = cost[k.gid] ??= { q: 0, avg: 0 };
+        if (kq > 0) { const u = (own + (+b.labor || 0) * kq) / kq; const base = Math.max(c.q, 0); c.avg = (base * c.avg + kq * u) / (base + kq); }
+        c.q += kq;
+      }
+      cogs[b.id] = 0; lineCogs[b.id] = []; continue;
+    }
     if (T.lines) (b.lines || []).forEach((l, i) => {
       if (l.txt !== undefined) return;
       const r = +l.rate || (l.u && l.gid ? uRate(l.u, g[l.gid]) || 1 : 1), q = (+l.qty || 0) * r, p = (+l.price || 0) / r, gid = l.gid; const c = cost[gid] ??= { q: 0, avg: +(g[gid]?.purPrice) || 0 }; lc[i] = 0;
@@ -151,7 +167,22 @@ export const suppliers = all => store.list('contacts').filter(c => c.kind === 'S
 export const defWh = () => { const id = store.setting('prefs').defaultWh; const ws = store.list('warehouses'); return ws.find(w => w.id === id) || ws[0] || null; };
 
 // ---------- 每件成本：最接近日期的進貨單 → 採購單 → 查價牌價 → 手動 ----------
-function costG(g, gid, cls, f, date, purIdx, poIdx, sane) {
+/** 配方成本（每 1 個成品基本單位）：自備零件成本 × 數量加總 ＋ 工錢；客供件不算 */
+let bomDepth = 0;
+export function bomCost(g, date, purIdx, gm, poIdx) {
+  const r = { c: +g?.labor || 0, n: 0, miss: 0 };
+  if (!g?.bom?.length || bomDepth > 2) return r;
+  bomDepth++;
+  try {
+    for (const x of g.bom) {
+      if (x.cust || !x.gid) continue; r.n++;
+      const k = costOf({ gid: x.gid, qty: 1 }, date, purIdx, gm, poIdx, true);
+      if (k) r.c += k.c * (+x.qty || 0); else r.miss++;
+    }
+  } finally { bomDepth--; }
+  return r;
+}
+function costG(g, gid, cls, f, date, purIdx, poIdx, sane, gm) {
   const d = dayN(date);
   const pick = (li, lab) => {
     if (!li || !li.length) return null;
@@ -162,6 +193,10 @@ function costG(g, gid, cls, f, date, purIdx, poIdx, sane) {
   let r;
   if (gid && (r = pick(purIdx[gid], '進貨單'))) return r;
   if (gid && (r = pick(poIdx[gid], '採購單'))) return r;
+  if (g?.bom?.length) {   // 螺絲包：用配方算
+    const [bc, bf] = unitFactor(g.unit || '');
+    if (bc === cls) { const b = bomCost(g, date, purIdx, gm, poIdx); if (b.c > 0) return { c: b.c / bf * f, src: `配方成本（自備零件 ${b.n} 項${b.miss ? `，其中 ${b.miss} 項查不到成本` : ''}${+g.labor ? '＋工錢' : ''}）` }; }
+  }
   if (g && cls === 'p') { const pc = platCost(g); if (pc && sane(pc.per * f, 0.01, 5)) return { c: pc.per * f, src: pc.src }; }
   if (g && +g.cost > 0) { const [bc, bf] = unitFactor(g.unit || ''); if (bc === cls) return { c: (+g.cost) / bf * f, src: '商品成本（手動）', manual: true }; }
   return null;
@@ -174,7 +209,7 @@ export function costOf(l, date, purIdx, gm, poIdx, loose) {
   const sp = +l.price || 0;
   let ref = null; if (!sp && !loose && g && cls === 'p') { const pc = platCost(g); if (pc) ref = pc.per * f; }
   const sane = (c, lo, hi) => loose ? c > 0 : sp ? (c >= sp * lo && c <= sp * hi) : ref ? (c >= ref * 0.2 && c <= ref * 5) : true;
-  return costG(g, l.gid, cls, f, date, purIdx, poIdx, sane);
+  return costG(g, l.gid, cls, f, date, purIdx, poIdx, sane, gm || calc().g);
 }
 
 // 同一客戶上一次銷貨單價（新平台＋舊系統歷史銷貨單）
