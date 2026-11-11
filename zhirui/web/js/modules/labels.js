@@ -1,8 +1,9 @@
-// 標籤列印：豐餘標籤（從銷貨單導入，依每包數量拆張）、一般標籤（品名／規格／數量／日期）
+// 標籤列印：豐餘標籤（從銷貨單導入，依每包數量拆張）、一般標籤（品名／規格／數量／日期）、地址標籤（客戶／供應商，3+3 郵遞區號）
 import { $, esc, fmtQ, today, uid, ls, qTerms, matchQ } from '../core/util.js';
 import { store } from '../core/store.js';
 import { toast, modal, confirm, tabs, combo, printHTML } from '../core/ui.js';
-import { calc, goodsLabel, bqty } from '../core/calc.js';
+import { calc, goodsLabel, bqty, customers, suppliers, cdisp } from '../core/calc.js';
+import { api } from '../core/api.js';
 
 export const LBL_TYPES = [['fy', '豐餘標籤'], ['fm', '豐民標籤'], ['cc', '朝程標籤'], ['yb', '元貝標籤'], ['gen', '一般標籤']];
 const LBL_READY = { fy: 1, gen: 1 };
@@ -38,7 +39,7 @@ function draw(el) {
   if (t === 'gen') {
     const F = ui.genF; let total = 0; items.forEach(x => total += Math.max(0, Math.round(+x.copies || 0)));
     const fld = (k, l, ph, attr = '') => `<div class="f" style="width:${k === 'name' ? 220 : k === 'spec' ? 180 : 110}px"><label for="gen-${k}">${l}</label><input id="gen-${k}" data-gen="${k}" value="${esc(F[k])}" placeholder="${ph}" ${attr}></div>`;
-    el.innerHTML = `<div class="head"><h1>標籤列印</h1><span class="sp"></span>${tabs('lt', LBL_TYPES, t)}</div>
+    el.innerHTML = `<div class="head"><h1>標籤列印</h1><span class="sp"></span>${tabs('lt', LBL_TYPES, t)}</div>${addrBar()}
       <div class="panel" style="display:grid;gap:10px"><div class="ptitle">新增一般標籤</div>
         ${tabs('gm', [['goods', '從商品帶入'], ['manual', '自己填']], ui.genMode)}
         ${ui.genMode === 'goods' ? `<div class="f" style="max-width:640px"><label for="gen-q">找商品（料號、品名、規格，多個字用空白隔開）</label><div class="combo"><input id="gen-q" value="${esc(F.q)}" placeholder="例如：喇叭 8#"></div></div>` : ''}
@@ -54,7 +55,7 @@ function draw(el) {
   } else {
     let total = 0; items.forEach(it => split(it).forEach(s => total += s.n));
     const C = calc();
-    el.innerHTML = `<div class="head"><h1>標籤列印</h1><span class="sp"></span>${tabs('lt', LBL_TYPES, t)}</div>
+    el.innerHTML = `<div class="head"><h1>標籤列印</h1><span class="sp"></span>${tabs('lt', LBL_TYPES, t)}</div>${addrBar()}
       ${!LBL_READY[t] ? `<div class="banner">${esc(name)}的格式還沒定義。告訴我這種標籤要印哪些欄位和版面，就可以開始使用；已導入的商品會先保留在這裡。</div>` : ''}
       <div class="panel" style="display:grid;gap:10px"><div class="tools"><div class="f" style="width:160px"><label for="lbl-date">交貨日期</label><input type="date" id="lbl-date" value="${ui.date}"></div>${t === 'fy' ? `<div class="f" style="width:130px"><label for="lbl-vendor">廠商代號</label><input id="lbl-vendor" value="${esc(cfg().vendor || '501823')}"></div>` : ''}${sizeSel}<span class="muted small" style="align-self:flex-end">在銷貨單按「標籤」勾選商品導入。</span><span class="sp"></span>${items.length ? `<button class="btn" id="lblClear">清空${esc(name)}</button>` : ''}${LBL_READY[t] ? `<button class="btn pri" id="lblPrint" ${items.length ? '' : 'disabled'}>列印 <span id="lblTotal">${total}</span> 張</button>` : ''}</div>
         <div class="tw"><table><thead><tr><th>銷貨單／商品</th><th>單號（採購單號）</th><th>料號（客料號）</th><th>短文（品名數字）</th><th class="n">數量</th><th class="n">單重 (g)</th><th class="n">每包數量</th><th>會印出</th><th></th></tr></thead><tbody>
@@ -73,6 +74,7 @@ function draw(el) {
   $('#lbl-size', el).addEventListener('change', ev => store.saveSetting('labels', { ...cfg(), size: ev.target.value }));
   el.querySelectorAll('[data-gi]').forEach(inp => inp.addEventListener('change', async () => { const it = store.get('labels', inp.dataset.id); if (!it) return; const d = { ...it, [inp.dataset.gi]: inp.value }; delete d.id; await store.save('labels', it.id, d); }));
   el.querySelectorAll('[data-del]').forEach(b => b.addEventListener('click', () => store.remove('labels', b.dataset.del)));
+  bindAddr(el);
   $('#lblClear', el)?.addEventListener('click', async () => { if (await confirm(`清空${name}？`, { danger: true, ok: '清空' })) await store.batch(items.map(x => ({ col: 'labels', id: x.id, delete: true }))); });
 }
 // 8×8 cm：把 5×4 cm 的版面等比放大
@@ -119,4 +121,80 @@ export function labelPicker(bill) {
       el.querySelector('#lp-add').onclick = () => go(false); el.querySelector('#lp-go').onclick = () => go(true);
     },
   });
+}
+
+// ---------- 地址標籤：選客戶／供應商 → 向郵局查 3+3 郵遞區號 → 印 5×4 cm（郵遞區號／地址兩行／簡稱＋公司收） ----------
+let addrPick = null;
+const addrBar = () => `<div class="panel"><div class="tools" style="align-items:flex-end;gap:10px"><div class="f" style="width:min(420px,100%)"><label for="ad-c">地址標籤：客戶或供應商</label><div class="combo"><input id="ad-c" placeholder="打名稱、簡稱或編號搜尋" value="${esc(addrPick ? cdisp(store.get('contacts', addrPick)) : '')}"></div></div><button class="btn pri" id="adGo">地址列印</button><span class="muted small">會向郵局查 3+3 郵遞區號，印之前可以先看、可以改。</span></div></div>`;
+function bindAddr(el) {
+  const inp = $('#ad-c', el); if (!inp) return;
+  const kindName = c => c.kind === 'S' ? '供應商' : '客戶';
+  combo(inp, { items: () => [...customers(), ...suppliers()].map(c => ({ id: c.id, label: cdisp(c), sub: `${kindName(c)}${c.addr ? '' : '・沒有地址'}`, text: [c.code, c.name, c.short, ...(c.aliases || [])].join(' ') })), minWidth: 420, onPick: it => { addrPick = it.id; }, onClear: () => { addrPick = null; } });
+  inp.addEventListener('keydown', ev => { if (ev.key === 'Enter' && !ev.isComposing && addrPick) setTimeout(() => $('#adGo', el)?.focus(), 0); });
+  $('#adGo', el).addEventListener('click', () => { const c = addrPick && store.get('contacts', addrPick); if (!c) { toast('請先選客戶或供應商'); inp.focus(); return; } addrDialog(c); });
+}
+// 地址拆兩行：郵局標準地址的「縣市區」＋「路段號」；查不到時自己切在鄉鎮市區後面
+const splitAddr = a => { const m = String(a || '').match(/^(.{2,3}[縣市].{1,4}?[區鄉鎮市])(.+)$/); return m ? [m[1], m[2]] : [String(a || ''), '']; };
+const stripZip = a => String(a || '').replace(/\s+/g, '').replace(/^\d{3,6}/, '');
+function addrDialog(c) {
+  const F = { addr: stripZip(c.addr), zip: '', l2: '', l3: '', l4: `${cdisp(c)}公司收`, copies: '1' };
+  [F.l2, F.l3] = splitAddr(F.addr);
+  const who = c.kind === 'S' ? '供應商' : '客戶';
+  modal({
+    title: `地址標籤：${cdisp(c)}`, width: 640,
+    body: `<div class="grid">
+      <div class="f" style="grid-column:1/-1"><label for="ad-addr">地址（${c.addr ? `${who}資料上的地址，可以改` : `${who}資料沒有地址，請填`}）</label><div style="display:flex;gap:8px"><input id="ad-addr" value="${esc(F.addr)}" style="flex:1"><button type="button" class="btn" id="adQ">查郵遞區號</button></div><div class="small" id="adMsg" style="margin-top:4px"></div></div>
+      <div class="f"><label for="ad-zip">第一行：郵遞區號 3+3</label><input id="ad-zip" data-k="zip" inputmode="numeric" maxlength="6" value=""></div>
+      <div class="f"><label for="ad-copies">張數</label><input id="ad-copies" data-k="copies" type="number" min="1" value="1"></div>
+      <div class="f" style="grid-column:1/-1"><label for="ad-l2">第二行</label><input id="ad-l2" data-k="l2" value="${esc(F.l2)}"></div>
+      <div class="f" style="grid-column:1/-1"><label for="ad-l3">第三行</label><input id="ad-l3" data-k="l3" value="${esc(F.l3)}"></div>
+      <div class="f" style="grid-column:1/-1"><label for="ad-l4">第四行</label><input id="ad-l4" data-k="l4" value="${esc(F.l4)}"></div>
+      <label class="check" style="grid-column:1/-1"><input type="checkbox" id="ad-save"> 把地址和郵遞區號存回${who}資料</label></div>
+      <div class="muted small" style="margin-top:10px">預覽（5 × 4 cm）</div><div id="adPv" style="margin-top:4px"></div>`,
+    footer: '<span class="sp"></span><button class="btn" data-close>取消</button><button class="btn pri" id="adPrint">列印</button>',
+    onOpen(el, close) {
+      const pv = () => { $('#adPv', el).innerHTML = `<div style="width:50mm;height:40mm;border:1px dashed #999;background:#fff;color:#000;overflow:hidden">${addrLabelHTML(F, true)}</div>`; };
+      const msg = (t, bad) => { const m = $('#adMsg', el); m.textContent = t; m.style.color = bad ? 'var(--bad)' : 'var(--muted)'; };
+      const saveBox = $('#ad-save', el);
+      const syncSave = () => { const changed = stripZip(c.addr) !== F.addr || (!!F.zip && c.zip !== F.zip); saveBox.parentElement.style.display = changed && F.addr ? '' : 'none'; if (!c.addr && F.addr) saveBox.checked = true; };
+      const query = async () => {
+        F.addr = stripZip($('#ad-addr', el).value); if (!F.addr) { msg('請填地址', true); return; }
+        msg('向郵局查詢中…');
+        try {
+          const r = await api.get('/api/zip33?addr=' + encodeURIComponent(F.addr));
+          if (!r.ok) { msg('郵局查不到：' + (r.error || '') + '。請確認地址，或自己填郵遞區號。', true); [F.l2, F.l3] = splitAddr(F.addr); }
+          else { F.zip = r.zip; F.l2 = r.city || splitAddr(F.addr)[0]; F.l3 = r.street || splitAddr(F.addr)[1]; msg(`郵局標準地址：${r.zip} ${r.city}${r.street}${r.cached ? '（之前查過）' : ''}`); }
+        } catch (e) { msg((e.status === 404 || /not found/i.test(e.message) ? '伺服器還沒更新，請到「設定備份」重新啟動伺服器後再試。' : '查詢失敗：' + e.message + '。') + '也可以自己填郵遞區號。', true); [F.l2, F.l3] = splitAddr(F.addr); }
+        for (const k of ['zip', 'l2', 'l3']) $('#ad-' + k, el).value = F[k];
+        syncSave(); pv();
+      };
+      el.querySelectorAll('[data-k]').forEach(i => i.addEventListener('input', () => { F[i.dataset.k] = i.value.trim(); if (i.dataset.k === 'zip') syncSave(); pv(); }));
+      $('#ad-addr', el).addEventListener('keydown', ev => { if (ev.key === 'Enter' && !ev.isComposing) { ev.preventDefault(); query(); } });
+      $('#ad-addr', el).addEventListener('input', () => { F.addr = stripZip($('#ad-addr', el).value); syncSave(); });
+      $('#adQ', el).addEventListener('click', query);
+      syncSave(); pv();
+      if (F.addr) query(); else setTimeout(() => $('#ad-addr', el).focus(), 50);
+      $('#adPrint', el).addEventListener('click', async () => {
+        if (!F.l2 && !F.l3) return toast('沒有地址');
+        if (F.zip && !/^\d{6}$/.test(F.zip) && !await confirm(`郵遞區號「${F.zip}」不是 6 碼，確定要印嗎？`, { ok: '照印' })) return;
+        if (saveBox.checked && saveBox.parentElement.style.display !== 'none') {
+          const d = { ...store.get('contacts', c.id) }; delete d.id; d.addr = F.addr; if (F.zip) d.zip = F.zip;
+          await store.save('contacts', c.id, d); store.log('修改', `${who} ${c.name}：地址 ${F.zip} ${F.addr}（地址標籤）`);
+        }
+        printAddr(F, Math.max(1, Math.round(+F.copies || 1))); close();
+      });
+    },
+  });
+}
+const ALB_CSS = `.alb{width:50mm;height:40mm;padding:3mm 3mm 2.6mm;display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:auto 1fr 1fr auto;align-items:center;row-gap:.6mm;overflow:hidden;line-height:1.15;color:#000;font-family:"PMingLiU","MingLiU","新細明體","細明體","Noto Serif TC","Songti TC",serif}
+.alb>div{white-space:nowrap;overflow:hidden;transform-origin:left center}.alb .z{font-size:15pt;font-weight:bold;letter-spacing:1.5pt;font-family:Arial,Helvetica,sans-serif}.alb .a{font-size:12.5pt}.alb .n{font-size:16pt;font-weight:bold;text-align:right;transform-origin:right center}`;
+function addrLabelHTML(F, screen) {
+  return `${screen ? `<style>${ALB_CSS}</style>` : ''}<div class="alb"><div class="z">${esc(F.zip)}</div><div class="a">${esc(F.l2)}</div><div class="a">${esc(F.l3)}</div><div class="n">${esc(F.l4)}</div></div>`;
+}
+function printAddr(F, n) {
+  let html = ''; for (let k = 0; k < n; k++) html += addrLabelHTML(F);
+  const [css, tip] = sized(`@page{size:50mm 40mm;margin:0}*{box-sizing:border-box}body{margin:0}
+${ALB_CSS}
+.alb{page-break-after:always}.alb:last-child{page-break-after:auto}@media screen{.alb{border:1px dashed #999;margin:4mm;display:inline-grid;vertical-align:top}}`, '列印方式：按 Ctrl+P，紙張選 5 × 4 cm 標籤（寬 50 mm、高 40 mm），邊界「無」，縮放 100%。');
+  printHTML(`地址標籤 ${F.l4}`, css, html + FIT.replace('.lb>div', '.alb>div'), { tip });
 }

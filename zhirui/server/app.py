@@ -79,6 +79,10 @@ START_AT = int(time.time() * 1000)
 FILE_RE = re.compile(r'^/api/files/([0-9a-f]{16}\.(?:jpg|png|gif|webp|pdf))(/delete)?$')
 
 
+ZIP_CACHE = {}
+ZIP_LOCK = threading.Lock()
+
+
 class State:
     def __init__(self, db, data_dir):
         self.db = db
@@ -250,6 +254,8 @@ class Handler(BaseHTTPRequestHandler):
         if not me:
             return self.error('請先登入', 401)
 
+        if path == '/api/zip33' and method == 'GET':
+            return self.zip33(q('addr', ''))
         if path == '/api/logout' and method == 'POST':
             db.logout(self.cookie())
             return self.send_json({'ok': True}, headers={'Set-Cookie': f'{COOKIE}=; Path=/; Max-Age=0; SameSite=Lax'})
@@ -389,6 +395,47 @@ class Handler(BaseHTTPRequestHandler):
         d = os.path.join(self.state.data_dir, 'files')
         os.makedirs(d, exist_ok=True)
         return d
+
+    def zip33(self, addr):
+        """地址 → 3+3 郵遞區號（向中華郵政「全國標準郵遞地址服務平臺」查；查過的存在 data/zip33_cache.json）"""
+        import ssl
+        addr = re.sub(r'\s+', '', str(addr or ''))
+        addr = re.sub(r'^\d{3,6}', '', addr)   # 地址前面已經有的郵遞區號先拿掉
+        if not addr:
+            return self.error('沒有地址')
+        cf = os.path.join(self.state.data_dir, 'zip33_cache.json')
+        with ZIP_LOCK:
+            if not ZIP_CACHE and os.path.exists(cf):
+                try:
+                    ZIP_CACHE.update(json.load(open(cf, encoding='utf-8')))
+                except Exception:
+                    pass
+            hit = ZIP_CACHE.get(addr)
+        if hit:
+            return self.send_json({'ok': True, 'cached': True, **hit})
+        body = json.dumps({'Address': addr, 'AddressResultType': ['1', '2', '3'], 'StandardAddressType': '1'}).encode('utf-8')
+        req = urllib.request.Request('https://nsda.post.gov.tw/StandardAddress_Public_Api/Api/AddressTrans/GetOneAddress', data=body, headers={'Content-Type': 'application/json', 'User-Agent': 'ZhiruiServer/1.0'})
+        ctx = ssl.create_default_context()
+        ctx.verify_flags &= ~getattr(ssl, 'VERIFY_X509_STRICT', 0)   # 臺灣 TWCA 根憑證較舊，新版 Python 的嚴格檢查會擋，仍照常驗證憑證鏈
+        try:
+            with urllib.request.urlopen(req, timeout=15, context=ctx) as f:
+                r = json.loads(f.read().decode('utf-8'))
+        except Exception as e:
+            return self.error('郵局查詢服務連不上：%s' % e, 502)
+        d = (r or {}).get('data') or {}
+        z = str(d.get('zipCode') or '')
+        if not r.get('isSuccess') or not re.fullmatch(r'\d{6}', z):
+            return self.send_json({'ok': False, 'error': d.get('errMesg') or (r or {}).get('message') or '郵局查不到這個地址'})
+        out = {'zip': z, 'city': d.get('transAddress2') or '', 'street': d.get('transAddress3') or '', 'addr': addr}
+        with ZIP_LOCK:
+            ZIP_CACHE[addr] = out
+            try:
+                tmp = cf + '.tmp'
+                json.dump(ZIP_CACHE, open(tmp, 'w', encoding='utf-8'), ensure_ascii=False)
+                os.replace(tmp, cf)
+            except Exception:
+                pass
+        return self.send_json({'ok': True, **out})
 
     def pdf_parse(self):
         """讀 PDF（內容直接放在 body）→ 每頁的文字與表格（給匯入客戶 ERP 出貨單用；需要 pymupdf）"""
