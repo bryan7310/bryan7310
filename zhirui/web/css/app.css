@@ -641,3 +641,13 @@ tr.row.on td { background: color-mix(in srgb, var(--blue-soft) 60%, transparent)
 
 .ai-mic { white-space: nowrap; min-height: 44px; }
 .ai-mic.on { background: var(--bad); color: #fff; border-color: var(--bad); animation: aiPulse 1.2s ease-in-out infinite; }
+
+/* AI 助理：手機版 */
+.ai-sug .btn { white-space: normal; max-width: 100%; text-align: center; height: auto; line-height: 1.4; padding-top: 6px; padding-bottom: 6px; }
+@media (max-width: 640px) {
+  .ai-wrap { height: calc(100dvh - 130px); }
+  .ai-in { flex-wrap: wrap; }
+  .ai-in textarea { flex: 1 1 100%; order: -1; min-height: 64px; font-size: 16px; }
+  .ai-in .btn { flex: 1; justify-content: center; }
+  .ai-b { max-width: 100%; }
+}
