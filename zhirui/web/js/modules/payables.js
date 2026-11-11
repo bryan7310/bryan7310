@@ -146,7 +146,7 @@ async function sendChecks(rows) {
   const ops = [];
   for (const { r, amt, due } of items) {
     const c = store.get('contacts', r.cid); const ckId = uid('co');
-    ops.push({ col: 'checks_out', id: ckId, data: { payee: c?.name || r.name, cid: r.cid, amount: amt, date: due, no: '', note: `${ymLabel(r.ym)} 貨款`, apId: rowId(r), createdAt: Date.now() } });
+    ops.push({ col: 'checks_out', id: ckId, data: { payee: c?.name || r.name, cid: r.cid, amount: amt, date: due, no: '', note: `${r.name} ${ymLabel(r.ym)} 應付帳款`, apId: rowId(r), createdAt: Date.now() } });
     const base = r.id ? store.get('payables', r.id) : { ym: r.ym, cid: r.cid, vendor: r.name, ord: r.ord };
     const data = { ...base, pay: amt, payDate: today(), dueDate: due, checkId: ckId, amt: r.amt, tax: r.tax, manual: !!r.manual }; delete data.id;
     ops.push({ col: 'payables', id: rowId(r), data });

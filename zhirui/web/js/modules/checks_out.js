@@ -29,7 +29,7 @@ const byAmt = (a, b) => (+a.amount || 0) - (+b.amount || 0) || (a.date || '').lo
 // 分頁：待列印（還沒印）／已列印（印好、還沒到兌現日）／票據明細（印好、兌現日已過）
 const isPast = c => !!c.printedAt && (c.date || '') < today();
 const tabOf = c => !c.printedAt ? 'pending' : isPast(c) ? 'hist' : 'done';
-const nameOf = c => payeeOut(c);   // 抬頭一律顯示正式全名
+const nameOf = c => payeeOut(c) || (c.cid ? cshort(c.cid) : String(c.payee || ''));   // 抬頭空白時用廠商簡稱稱呼這張支票
 const WD = '日一二三四五六';
 const wd = iso => WD[new Date(iso + 'T00:00:00').getDay()] || '';
 // 還沒兌現的支票（兌現日今天以後）依兌現日期統計
@@ -65,7 +65,7 @@ function draw(el) {
     <div class="panel"><div class="tools">${hist ? `<div class="f" style="width:220px"><label for="coCust">客戶名稱</label><input type="search" id="coCust" placeholder="輸入抬頭／客戶名稱篩選" value="${esc(ui.cust)}"></div>` : ''}<input type="search" id="coQ" placeholder="搜尋抬頭、票號、金額、備註" value="${esc(ui.q)}"><span class="muted small">${list.length} 張・合計 ${money(list.reduce((a, c) => a + (+c.amount || 0), 0))}${!hist && ui.day ? `（兌現日 ${esc(roc(ui.day))}）` : ''}</span><span class="sp"></span>${ui.tab === 'pending' && list.length ? `<button class="btn sm pri" id="coPrintAll">列印全部待列印（${list.length} 張）</button>` : ''}</div>
     ${hist ? '<p class="muted small" style="margin:6px 0 0">已列印、兌現日期已過的支票會自動移到這裡。</p>' : ''}
     <div class="tools co-selbar"${sel.length ? '' : ' hidden'}><b>已勾選 ${sel.length} 張</b><span class="muted small">合計 ${money(selSum)}</span><span class="sp"></span>${sel.some(c => c.printedAt) ? `<button class="btn sm" id="coBackSel">退回待列印${sel.length > 1 ? `（${sel.filter(c => c.printedAt).length}）` : ''}</button>` : ''}<button class="btn sm" id="coEditSel">修改</button><button class="btn sm danger" id="coDelSel">刪除</button><button class="btn sm ghost" id="coClrSel">取消勾選</button></div>
-    <div class="tw" style="margin-top:10px"><table><thead><tr><th><input type="checkbox" id="coSelAll" aria-label="全選這一頁" ${page.length && page.every(c => ui.sel.has(c.id)) ? 'checked' : ''}></th><th>兌現日期</th><th>抬頭</th><th class="n">金額</th><th>國字</th><th>支票號碼</th><th>備註</th>${ui.tab === 'pending' ? '' : '<th>列印日</th>'}<th></th></tr></thead><tbody>${page.map(c => `<tr class="row${ui.sel.has(c.id) ? ' on' : ''}" data-id="${c.id}"><td><input type="checkbox" data-sel="${c.id}" ${ui.sel.has(c.id) ? 'checked' : ''} aria-label="勾選 ${esc(nameOf(c))}"></td><td class="nowrap">${esc(roc(c.date))}</td><td><b>${esc(nameOf(c))}</b></td><td class="n">${money(c.amount)}</td><td class="muted small">${esc(cnMoney(c.amount))}</td><td class="mono">${esc(c.no || '')}</td><td class="muted">${esc(c.note || '')}</td>${ui.tab === 'pending' ? '' : `<td class="nowrap muted small">${c.printedAt ? esc(roc(new Date(c.printedAt - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10))) : ''}</td>`}<td class="nowrap"><button class="btn xs" data-print="${c.id}">${c.printedAt ? '重印' : '列印'}</button></td></tr>`).join('') || `<tr><td colspan="9"><div class="empty"><b>${ui.tab === 'pending' ? '沒有待列印的支票' : ui.tab === 'done' ? '沒有還沒兌現的已列印支票' : '沒有兌現日已過的支票'}</b></div></td></tr>`}</tbody></table></div>${pg}</div>`;
+    <div class="tw" style="margin-top:10px"><table><thead><tr><th><input type="checkbox" id="coSelAll" aria-label="全選這一頁" ${page.length && page.every(c => ui.sel.has(c.id)) ? 'checked' : ''}></th><th>兌現日期</th><th>抬頭</th><th class="n">金額</th><th>國字</th><th>支票號碼</th><th>備註</th>${ui.tab === 'pending' ? '' : '<th>列印日</th>'}<th></th></tr></thead><tbody>${page.map(c => `<tr class="row${ui.sel.has(c.id) ? ' on' : ''}" data-id="${c.id}"><td><input type="checkbox" data-sel="${c.id}" ${ui.sel.has(c.id) ? 'checked' : ''} aria-label="勾選 ${esc(nameOf(c))}"></td><td class="nowrap">${esc(roc(c.date))}</td><td>${payeeOut(c) ? `<b>${esc(payeeOut(c))}</b>` : `<span class="muted">（空白）</span><span class="sub">${esc(c.cid ? cshort(c.cid) : '')}</span>`}</td><td class="n">${money(c.amount)}</td><td class="muted small">${esc(cnMoney(c.amount))}</td><td class="mono">${esc(c.no || '')}</td><td class="muted">${esc(c.note || '')}</td>${ui.tab === 'pending' ? '' : `<td class="nowrap muted small">${c.printedAt ? esc(roc(new Date(c.printedAt - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10))) : ''}</td>`}<td class="nowrap"><button class="btn xs" data-print="${c.id}">${c.printedAt ? '重印' : '列印'}</button></td></tr>`).join('') || `<tr><td colspan="9"><div class="empty"><b>${ui.tab === 'pending' ? '沒有待列印的支票' : ui.tab === 'done' ? '沒有還沒兌現的已列印支票' : '沒有兌現日已過的支票'}</b></div></td></tr>`}</tbody></table></div>${pg}</div>`;
   el.addEventListener('tab', ev => { ui.tab = ev.detail.val; ui.page = 0; ui.sel.clear(); draw(el); }, { once: true });
   onSearch($('#coQ', el), v => { ui.q = v; ui.page = 0; draw(el); const i = $('#coQ', el); i.focus(); i.setSelectionRange(i.value.length, i.value.length); });
   if ($('#coCust', el)) onSearch($('#coCust', el), v => { ui.cust = v; ui.page = 0; draw(el); const i = $('#coCust', el); i.focus(); i.setSelectionRange(i.value.length, i.value.length); });
@@ -144,9 +144,9 @@ export function newCheckOut(preset, cb) {
       let cid = d.cid;
       const pnFill = keep => {
         const s = cid && store.get('contacts', cid); const cp = String(s?.checkPayee || '').trim(); const wrap = $('#co-pn-wrap', el), sel = $('#co-pn', el);
-        if (!cp) { wrap.hidden = true; sel.innerHTML = ''; return; }
+        if (!s) { wrap.hidden = true; sel.innerHTML = ''; return; }
         const v = keep ? sel.value : (d.payeeFixed ? 'orig' : 'cp');
-        sel.innerHTML = `<option value="cp">${esc(cp)}（票據抬頭）</option><option value="orig">${esc(legalName(s.name))}（原本名稱）</option>`; sel.value = v || 'cp'; wrap.hidden = false;
+        sel.innerHTML = `<option value="cp">${cp ? `${esc(cp)}（票據抬頭）` : '（空白，不寫抬頭）'}</option><option value="orig">${esc(legalName(s.name))}（原本名稱）</option>`; sel.value = v || 'cp'; wrap.hidden = false;
       };
       pnFill(false);
       combo($('#co-payee', el), { items: () => suppliers().map(c => ({ id: c.id, label: printName(c.name), sub: c.short || '', text: [c.code, c.name, c.short, ...(c.aliases || [])].join(' ') })), allowFree: true, onPick: it => { cid = it.id; pnFill(false); } });
@@ -169,7 +169,7 @@ function payeeOut(c) {
   const s = c.cid && store.get('contacts', c.cid); const p = String(c.payee || '').trim();
   if (c.payeeFixed && p) return p;
   const cp = String(s?.checkPayee || '').trim();
-  if (s && (!p || p === s.short || p === s.name || p === cp || (s.aliases || []).includes(p))) return cp || legalName(s.name);
+  if (s && (!p || p === s.short || p === s.name || p === cp || (s.aliases || []).includes(p))) return cp;   // 沒填票據抬頭＝抬頭留空白
   return legalName(p);
 }
 async function printChecks(list) {
