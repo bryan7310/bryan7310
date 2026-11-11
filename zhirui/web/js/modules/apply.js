@@ -1,7 +1,8 @@
 // 待確認匯入：Claude 整理好的資料（web/pending/<名稱>.json）先預覽，使用者按「確認寫入」才用自己的帳號寫入。
 // 網址：#apply?f=<名稱>。不在側邊選單顯示；寫入後資料檔會被移除。
 // 資料可含：newgoods（新建商品）、wt（補單重）、bills（新建進貨單）、updates（修改既有資料：{col,id,label,from,set}）、
-// dwgs（商品掛客戶圖面：{gid,label,file,name,why}，file 是 web/pending 底下的圖檔）
+// dwgs（商品掛客戶圖面：{gid,label,file,name,why}，file 是 web/pending 底下的圖檔）、
+// newwh（新建倉庫：{name}，同名已有就沿用）、kits（螺絲包配方：{gid,label,bom:[{gid|code,qty,cust}],labor,cwh(客供倉名稱),custName}）
 import { $, esc, fmt, fmtQ, fp4, slash, uid } from '../core/util.js';
 import { store } from '../core/store.js';
 import { calc, totals, nextNo, defWh, cname } from '../core/calc.js';
@@ -44,6 +45,16 @@ async function draw(el, f) {
     else if (g.dwg) errs.push(`${d.label} 已經有圖面（${g.dwg.name}），不會覆蓋`);
   }
   const dwTodo = (P.dwgs || []).filter(d => !dwDone.has(d.gid));
+  // 螺絲包配方：商品已經有配方就不覆蓋
+  const whByName = n => store.list('warehouses').find(w => w.name === n);
+  const newCodes = new Set((P.newgoods || []).map(g => g.code));
+  for (const k of P.kits || []) {
+    const g = C.g[k.gid]; if (!g) { errs.push(`找不到商品 ${k.label}`); continue; }
+    if ((g.bom || []).length) errs.push(`${k.label} 已經有配方，不會覆蓋（要改請到商品資料裡改）`);
+    for (const x of k.bom) if (x.gid ? !C.g[x.gid] : !newCodes.has(x.code)) errs.push(`${k.label} 的配方零件 ${x.code || x.gid} 找不到`);
+    if (k.cwh && !whByName(k.cwh) && !(P.newwh || []).some(w => w.name === k.cwh)) errs.push(`找不到客供倉 ${k.cwh}`);
+  }
+  const whTodo = (P.newwh || []).filter(w => !whByName(w.name));
   const newName = Object.fromEntries((P.newgoods || []).map(g => [g.code, g.name]));
   const gl = l => l.gid ? (C.g[l.gid]?.code + ' ' + C.g[l.gid]?.name) : newName[l.code] ? `${l.code} ${newName[l.code]}（新建）` : (l.n || '');
   const rows = (P.bills || []).map(b => { const t = totals({ lines: b.lines.map(l => ({ qty: l.qty, price: l.price })), tax: b.tax }); return { b, t, ok: t.sub === b.expect[0] && t.tax === b.expect[1] }; });
@@ -54,6 +65,10 @@ async function draw(el, f) {
     ${P.wt ? `<h3>修改商品</h3><p>${esc(C.g[P.wt.gid]?.code + ' ' + C.g[P.wt.gid]?.name)}：單重填 ${P.wt.wt} g／支</p>` : ''}
     ${P.updates?.length ? `<h3>修改既有資料（${P.updates.length}）</h3><ul>${P.updates.map(u => `<li>${esc(u.label)}：${Object.keys(u.set).map(k => `${esc(FIELD[k] || k)} ${esc(show(k, u.from[k]))} → <b>${esc(show(k, u.set[k]))}</b>`).join('、')}${u.why ? `<br><span class="muted small">${esc(u.why)}</span>` : ''}</li>`).join('')}</ul>` : ''}
     ${P.dwgs?.length ? `<h3>掛客戶圖面（${dwTodo.length}${dwDone.size ? `，另 ${dwDone.size} 個已掛好` : ''}）</h3><div class="tw"><table><thead><tr><th>圖面</th><th>商品</th><th>圖檔</th><th>配對依據</th></tr></thead><tbody>${P.dwgs.map(d => `<tr${dwDone.has(d.gid) ? ' class="muted"' : ''}><td><a href="/pending/${esc(d.file)}" target="_blank" rel="noopener" title="開新分頁看大圖"><img src="/pending/${esc(d.file)}" alt="" loading="lazy" style="width:150px;height:110px;object-fit:contain;background:#fff;border:1px solid var(--line);border-radius:6px"></a></td><td><b>${esc(C.g[d.gid]?.code || '')}</b><br>${esc(C.g[d.gid]?.name || d.label)}${dwDone.has(d.gid) ? '<br><span class="pill ok">已掛好</span>' : ''}</td><td class="small">${esc(d.name)}</td><td class="small muted">${esc(d.why || '')}</td></tr>`).join('')}</tbody></table></div>` : ''}
+    ${P.newwh?.length ? `<h3>新建倉庫</h3><ul>${P.newwh.map(w => `<li>${esc(w.name)}${whByName(w.name) ? ' <span class="pill ok">已經有了，沿用</span>' : ''}</li>`).join('')}</ul>` : ''}
+    ${(P.kits || []).map(k => `<h3>螺絲包配方：${esc(C.g[k.gid]?.code || '')} ${esc(C.g[k.gid]?.name || k.label)}</h3>
+      <p class="small">每包工錢 <b>${fp4(k.labor || 0)}</b> 元${k.laborNote ? `（${esc(k.laborNote)}）` : ''}　客供倉 <b>${esc(k.cwh || '未指定')}</b>${k.custName ? `　客戶品名 <b>${esc(k.custName)}</b>` : ''}</p>
+      <div class="tw"><table><thead><tr><th>#</th><th>零件</th><th>來源</th><th class="n">每包</th><th>單位</th><th>說明</th></tr></thead><tbody>${k.bom.map((x, i) => { const g = x.gid ? C.g[x.gid] : (P.newgoods || []).find(n => n.code === x.code); return `<tr><td class="muted">${i + 1}</td><td>${esc(g ? g.code + ' ' + g.name : x.code || x.gid)}${x.gid ? '' : ' <span class="pill blue">新建</span>'}</td><td>${x.cust ? '<span class="pill warn">客供</span>' : '<span class="pill">自備</span>'}</td><td class="n">${fp4(x.qty)}</td><td>${esc(g?.unit || '')}</td><td class="small muted">${esc(x.why || '')}</td></tr>`; }).join('')}</tbody></table></div>`).join('')}
     ${rows.length ? `<h3>進貨單（${rows.length}）</h3>` : ''}
     ${rows.map(({ b, t, ok }, i) => `<details class="panel" style="padding:8px 12px;margin:6px 0"><summary><b>${esc(cname(b.sup))}</b>　${esc(slash(b.date))}　合計 ${fmt(t.sub)}　稅 ${fmt(t.tax)}　總額 <b>${fmt(t.total)}</b>　${ok ? '<span class="pill ok">與對帳單一致</span>' : '<span class="pill bad">與對帳單不符</span>'}</summary>
       <p class="muted small">${esc(b.note)}</p>
@@ -61,16 +76,27 @@ async function draw(el, f) {
     <div class="tools" style="margin-top:12px"><span class="muted small">按下之前不會寫入任何資料。</span><span class="sp"></span><button class="btn pri" id="apGo" ${errs.length || rows.some(r => !r.ok) ? 'disabled' : ''}>確認寫入</button></div>
     <div id="apOut"></div>`;
   $('#apGo', el)?.addEventListener('click', async ev => {
-    const what = [P.newgoods?.length ? `新建 ${P.newgoods.length} 個商品` : '', P.wt ? '修改 1 個商品' : '', rows.length ? `建立 ${rows.length} 張進貨單` : '', P.updates?.length ? `修改 ${P.updates.length} 筆資料` : '', dwTodo.length ? `掛 ${dwTodo.length} 張客戶圖面` : ''].filter(Boolean).join('、');
+    const what = [P.newgoods?.length ? `新建 ${P.newgoods.length} 個商品` : '', P.wt ? '修改 1 個商品' : '', rows.length ? `建立 ${rows.length} 張進貨單` : '', P.updates?.length ? `修改 ${P.updates.length} 筆資料` : '', dwTodo.length ? `掛 ${dwTodo.length} 張客戶圖面` : '', whTodo.length ? `新建 ${whTodo.length} 個倉庫` : '', P.kits?.length ? `設定 ${P.kits.length} 個螺絲包配方` : ''].filter(Boolean).join('、');
     if (!await confirm(`確定寫入？\n${what}。`, { ok: '確認寫入' })) return;
     ev.target.disabled = true; ev.target.textContent = '寫入中…';
     const out = $('#apOut', el);
     try {
       const ops = []; const newId = {};
-      for (const g of P.newgoods || []) { const id = uid('g'); newId[g.code] = id; ops.push({ col: 'goods', id, data: { code: g.code, name: g.name, spec: '', vcode: g.vcode || '', cat: g.cat, unit: g.unit, salePrice: 0, purPrice: g.purPrice, cost: 0, safety: 0, note: P.goodsNote || '' } }); }
+      for (const g of P.newgoods || []) { const id = uid('g'); newId[g.code] = id; ops.push({ col: 'goods', id, data: { code: g.code, name: g.name, spec: '', vcode: g.vcode || '', cat: g.cat, unit: g.unit, salePrice: 0, purPrice: g.purPrice, cost: 0, safety: 0, note: g.note || P.goodsNote || '' } }); }
+      const whId = {}; for (const w of P.newwh || []) { const ex = whByName(w.name); if (ex) whId[w.name] = ex.id; else { const id = uid('w'); whId[w.name] = id; ops.push({ col: 'warehouses', id, data: { name: w.name } }); } }
+      for (const k of P.kits || []) {
+        const d = { ...store.get('goods', k.gid) }; delete d.id;
+        d.bom = k.bom.map(x => ({ gid: x.gid || newId[x.code], qty: +x.qty, ...(x.cust ? { cust: true } : {}) }));
+        if (+k.labor) d.labor = +k.labor;
+        const cw = k.cwh && (whId[k.cwh] || whByName(k.cwh)?.id); if (cw) d.cwid = cw;
+        if (k.custName && !d.custName) d.custName = k.custName;
+        ops.push({ col: 'goods', id: k.gid, data: d });
+      }
       if (P.wt) { const w = { ...store.get('goods', P.wt.gid) }; delete w.id; w.wt = P.wt.wt; ops.push({ col: 'goods', id: P.wt.gid, data: w }); }
       for (const u of P.updates || []) { const d = { ...store.get(u.col, u.id), ...u.set, updatedAt: Date.now(), updatedBy: store.user.id }; delete d.id; ops.push({ col: u.col, id: u.id, data: d }); }
       if (ops.length) await store.batch(ops);
+      for (const w of whTodo) store.log('新增', `倉庫 ${w.name}（${P.title || f}）`);
+      for (const k of P.kits || []) store.log('修改', `商品 ${k.label}：設定螺絲包配方 ${k.bom.length} 項（${P.title || f}）`);
       for (const u of P.updates || []) store.log('修改', `${u.label}：${Object.keys(u.set).map(k => `${FIELD[k] || k} ${show(k, u.from[k])} → ${show(k, u.set[k])}`).join('、')}`);
       let dwN = 0;
       for (const d of dwTodo) {
@@ -90,7 +116,7 @@ async function draw(el, f) {
         const t = totals(doc); made.push({ no, b, t, ok: t.sub === b.expect[0] && t.tax === b.expect[1] });
         store.log('新增', `進貨單 ${no}｜${cname(b.sup)}｜${fmt(t.total)} 元（${P.title || f}）`);
       }
-      out.innerHTML = `<div class="banner info" style="margin-top:12px">已寫入。${P.updates?.length ? `<br>已修改：${P.updates.map(u => esc(u.label)).join('、')}` : ''}${dwN ? `<br>已掛客戶圖面 ${dwN} 張` : ''}${made.length ? '<br>進貨單：<br>' : ''}${made.map(m => `${esc(m.no)}　${esc(cname(m.b.sup))}　合計 ${fmt(m.t.sub)}　稅 ${fmt(m.t.tax)}　總額 ${fmt(m.t.total)}　${m.ok ? '✓' : '✗ 與對帳單不符'}`).join('<br>')}</div>`;
+      out.innerHTML = `<div class="banner info" style="margin-top:12px">已寫入。${P.updates?.length ? `<br>已修改：${P.updates.map(u => esc(u.label)).join('、')}` : ''}${dwN ? `<br>已掛客戶圖面 ${dwN} 張` : ''}${whTodo.length ? `<br>已新建倉庫：${whTodo.map(w => esc(w.name)).join('、')}` : ''}${P.kits?.length ? `<br>已設定配方：${P.kits.map(k => esc(k.label)).join('、')}` : ''}${made.length ? '<br>進貨單：<br>' : ''}${made.map(m => `${esc(m.no)}　${esc(cname(m.b.sup))}　合計 ${fmt(m.t.sub)}　稅 ${fmt(m.t.tax)}　總額 ${fmt(m.t.total)}　${m.ok ? '✓' : '✗ 與對帳單不符'}`).join('<br>')}</div>`;
       ev.target.textContent = '已寫入'; toast('已寫入');
     } catch (e) { out.innerHTML = `<div class="banner">寫入中斷：${esc(e.message)}。請把這個畫面截圖給 Claude，不要再按一次。</div>`; ev.target.textContent = '已中斷'; }
   });
