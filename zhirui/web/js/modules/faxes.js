@@ -93,7 +93,10 @@ function draw(el) {
   const C = calc(); const all = rows(); const q = qTerms(ui.q);
   const list = all.filter(r => (ui.month === 'all' || r.m === ui.month) && (!q.length || matchQ([r.b.no, cname(r.b.cid), C.ct[r.b.cid]?.short, r.f.to, r.f.attn, TYPES[r.b.type]?.name].join(' '), q)));
   const byM = {}; all.forEach(r => byM[r.m] = (byM[r.m] || 0) + 1); const months = Object.keys(byM).sort().reverse();
-  el.innerHTML = `<div class="head"><h1>傳真紀錄</h1><span class="sub">在採購單、詢價單、報價單按「傳真」產生傳真稿後，會記錄在這裡</span></div>
+  const jobs = store.list('faxjobs').sort((a, b) => String(b.at).localeCompare(String(a.at))).slice(0, 8);
+  el.innerHTML = `<div class="head"><h1>傳真紀錄</h1><span class="sp"></span><span class="muted small" id="fxHelper"></span><button class="btn" id="fxTest">傳真測試頁</button></div>
+    ${jobs.length ? `<div class="panel"><div class="ptitle">最近的自動傳真</div><div class="tw"><table><thead><tr><th>排入時間</th><th>單據</th><th>對象</th><th>號碼</th><th>頁數</th><th>狀態</th><th>說明</th></tr></thead><tbody>${jobs.map(j => `<tr><td class="nowrap">${esc((d => isNaN(d) ? String(j.at || '').slice(0, 16) : `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`)(new Date(j.at)))}</td><td class="mono">${esc(j.no || '')}</td><td>${esc(j.cid ? cshort(j.cid) : j.toName || '')}</td><td class="mono">${esc(j.dial || j.to || '')}</td><td class="n">${j.pages || ''}</td><td>${faxPill(j)}</td><td class="small muted">${esc(j.msg || '')}</td></tr>`).join('')}</tbody></table></div></div>` : ''}
+    <div style="display:none"></div><div class="muted small" style="margin:-4px 0 8px">在採購單、詢價單、報價單按「傳真」後，會記錄在這裡</div>
     <div class="panel" style="display:grid;gap:10px"><div class="tools"><button class="btn sm" id="fxPrev">‹</button><input type="month" id="fxMonth" value="${ui.month === 'all' ? '' : ui.month}"><button class="btn sm" id="fxNext">›</button><button class="btn sm ${ui.month === 'all' ? 'pri' : ''}" id="fxAll">全部</button><input type="search" id="fxQ" placeholder="搜尋單號、廠商、傳真號碼、收件人" value="${esc(ui.q)}"><span class="muted small">${list.length} 筆</span></div>
     ${months.length ? `<div class="tools">${months.slice(0, 12).map(m => `<button class="btn sm ${m === ui.month ? 'pri' : ''}" data-m="${m}">${m.replace('-', '/')}（${byM[m]}）</button>`).join('')}</div>` : ''}
     <div class="tw"><table><thead><tr><th>傳真時間</th><th>單據</th><th>單號</th><th>對象</th><th>傳真號碼</th><th>收件人</th><th>誰</th><th class="n">金額</th><th></th></tr></thead><tbody>${list.map((r, i) => `<tr class="row" data-id="${r.b.id}"><td class="nowrap">${esc(r.loc)}</td><td>${esc(TYPES[r.b.type]?.name || '')}</td><td class="mono">${esc(r.b.no)}</td><td>${esc(cshort(r.b.cid))}</td><td class="mono">${esc(r.f.to)}${r.f.job ? ' ' + faxPill(store.get('faxjobs', r.f.job)) : ''}</td><td>${esc(r.f.attn || '')}</td><td class="muted">${esc(r.f.by || '')}</td><td class="n">${fmt(C.tot[r.b.id]?.total || 0)}</td><td><button class="btn xs" data-re="${i}">再傳一次</button></td></tr>`).join('') || '<tr><td colspan="9"><div class="empty"><b>這個月沒有傳真紀錄</b></div></td></tr>'}</tbody></table></div></div>`;
@@ -105,4 +108,30 @@ function draw(el) {
   el.querySelectorAll('[data-m]').forEach(b => b.onclick = () => { ui.month = b.dataset.m; draw(el); });
   el.querySelectorAll('tr.row').forEach(tr => tr.addEventListener('click', ev => { if (ev.target.closest('button')) return; openBill(null, tr.dataset.id); }));
   el.querySelectorAll('[data-re]').forEach(b => b.onclick = () => { const r = list[+b.dataset.re]; faxDialog(store.get('bills', r.b.id)); });
+  api.get('/api/fax/helper').then(r => { const h = $('#fxHelper', el); if (h) h.innerHTML = r.online ? '<span class="pill ok">傳真小幫手在線上</span>' : '<span class="pill bad">傳真小幫手沒有在執行</span>'; }).catch(() => {});
+  $('#fxTest', el).onclick = () => faxTestDialog();
+}
+/** 傳真測試頁：只傳一張「測試，請忽略」，用來確認自動傳真能不能用 */
+function faxTestDialog() {
+  const co = store.setting('company');
+  modal({
+    title: '傳真測試頁', width: 560,
+    body: `<div class="grid"><div class="f"><label for="ft-to">傳真號碼</label><input id="ft-to" placeholder="例如 04-22712196"></div><div class="f"><label for="ft-name">收件公司</label><input id="ft-name" placeholder="例如 和輪工業"></div>
+      <div class="f" style="grid-column:1/-1"><label for="ft-msg">內容</label><textarea id="ft-msg" rows="4">這是${esc(co.name || '志瑞螺絲企業有限公司')}的傳真測試，收到請不用處理，謝謝。\n如方便，請回電 ${esc(co.phone || '')} 告知是否清楚，感謝您。</textarea></div></div>
+      <div class="muted small">按「傳送測試頁」後由傳真小幫手自動印到 PC-FAX 送出，送出後不能收回。</div><div class="err" id="ft-err"></div>`,
+    footer: '<span class="sp"></span><button class="btn" data-close>取消</button><button class="btn pri" id="ft-go">傳送測試頁</button>',
+    onOpen(el, close) {
+      el.querySelector('#ft-go').onclick = async () => {
+        const v = id => el.querySelector('#' + id).value.trim();
+        const to = v('ft-to'), name = v('ft-name'), msg = v('ft-msg');
+        let dial = toHalf(to).replace(/[^\d#*+]/g, ''); if (/^04(?!9)/.test(dial) && dial.length >= 9) dial = dial.slice(2);   // 台中市話：跟平常一樣去掉 04
+        if (!dial) return el.querySelector('#ft-err').textContent = '請填傳真號碼';
+        const html = `<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><style>@page{size:A4;margin:18mm}body{font-family:"Microsoft JhengHei","微軟正黑體",sans-serif;color:#000}h1{font-size:28pt;text-align:center;letter-spacing:.2em;border-bottom:2pt solid #000;padding-bottom:4mm}table{width:100%;border-collapse:collapse;margin:8mm 0}th,td{border:.8pt solid #000;padding:3mm;font-size:13pt;text-align:left}th{width:30mm}.m{border:.8pt solid #000;padding:6mm;font-size:15pt;line-height:1.8;min-height:60mm}</style></head><body><h1>傳真測試</h1><table><tr><th>收件公司</th><td>${esc(name)}</td></tr><tr><th>傳真號碼</th><td>${esc(to)}</td></tr><tr><th>寄件公司</th><td>${esc(co.name || '志瑞螺絲企業有限公司')}　電話 ${esc(co.phone || '')}　傳真 ${esc(co.fax || '')}</td></tr><tr><th>日期</th><td>${esc(slash(today()))}</td></tr></table><div class="m">${esc(msg).replace(/\n/g, '<br>')}</div></body></html>`;
+        const id = uid('fx');
+        await store.save('faxjobs', id, { status: 'queued', no: '傳真測試', type: 'TEST', toName: name, to, dial, pages: 1, html, printer: ls.get('zr.faxprn', 'Brother PC-FAX v.3.2'), by: store.user.name, at: new Date().toISOString() });
+        store.log('傳真', `傳真測試頁 → ${name} ${to}`);
+        toast('已排入傳真測試頁，結果會顯示在「最近的自動傳真」'); close();
+      };
+    },
+  });
 }
