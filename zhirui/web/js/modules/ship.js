@@ -104,7 +104,8 @@ export function shipDoc(b, opt = {}) {
 .ex{font-size:${+TP.footSize}pt;padding:.5mm 1mm;line-height:1.35}
 .foot{display:flex;align-items:baseline;gap:4mm;padding:1mm 1mm 0;white-space:nowrap;overflow:hidden;font-size:${+TP.footSize}pt}.co{color:${ink};font-size:${+TP.coSize}pt;font-weight:bold;letter-spacing:.1em}`;
   // 太長的字自動壓扁塞進欄寬
-  const fit = `<script>window.addEventListener('load',()=>{document.querySelectorAll('.ln>span>i').forEach(t=>{const w=t.parentElement.clientWidth,s=t.offsetWidth;if(s>w+0.5)t.style.transform='scaleX('+(w/s).toFixed(3)+')';});});<\/script>`;
+  // 列印前自動調整：明細放不下（表頭、合計佔掉高度）就縮小行距，必要時一起縮字，確保這頁的每一筆都印得出來；太寬的字壓窄
+  const fit = `<script>window.addEventListener('load',()=>{document.querySelectorAll('.page .body').forEach(b=>{const ls=b.querySelectorAll('.ln');if(!ls.length)return;const cs=getComputedStyle(ls[0]);let lh=parseFloat(cs.lineHeight),fs=parseFloat(cs.fontSize),n=0;while(b.scrollHeight>b.clientHeight+0.5&&n++<60){lh*=0.97;if(lh<fs*1.15)fs*=0.97;ls.forEach(x=>{x.style.lineHeight=lh+'px';x.style.fontSize=fs+'px';});}});document.querySelectorAll('.ln>span>i').forEach(t=>{const w=t.parentElement.clientWidth,s=t.offsetWidth;if(s>w+0.5)t.style.transform='scaleX('+(w/s).toFixed(3)+')';});});<\/script>`;
   return { css, html: html + fit, tip: `列印方式：按 Ctrl+P，紙張選 ${+TP.paperW}×${+TP.paperH} mm（中一刀為 241×140），邊界「無」，縮放「預設」或 100%，不要勾「頁首和頁尾」。虛線框是內容範圍；格式和位置可按出貨單上的「格式」修改。` };
 }
 export function printShip(b, opt = {}) {
