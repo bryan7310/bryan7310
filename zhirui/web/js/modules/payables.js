@@ -5,13 +5,13 @@ import { toast, modal, confirm, tabs, combo } from '../core/ui.js';
 import { calc, suppliers, cshort } from '../core/calc.js';
 import { openBill } from './_bills.js';
 
-const ui = { ym: thisMonth(), tab: 'month', filter: 'all', sel: new Set() };
+const ui = { ym: thisMonth(), tab: 'month', filter: 'all', sel: new Set(), year: thisMonth().slice(0, 4), yc: '' };
 /** 兌現日預設：該月份往後兩個月的 10 日（115/10 的帳 → 115/12/10） */
 const defDue = ym => shiftMonth(ym, 2) + '-10';
 const dueOf = r => r.dueDate || defDue(r.ym);
 export default {
   id: 'payables', name: '應付帳款', group: '財務', icon: 'payables',
-  render(el, { sub }) { this.el = el; if (sub === 'open') ui.tab = 'open'; draw(el); },
+  render(el, { sub }) { this.el = el; if (sub === 'open' || sub === 'year') ui.tab = sub; draw(el); },
   onChange(ch) { if (this.el?.isConnected && ['bills', 'payables', 'contacts', 'checks_out'].some(c => ch.has(c))) draw(this.el); },
   badge() { const s = apSummary(); return { cnt: s.openN }; },
 };
@@ -53,13 +53,14 @@ function draw(el) {
   const ym = ui.ym; const rows = apRows(ym);
   const list = ui.tab === 'open' ? allOpen() : rows.filter(r => ui.filter === 'all' || (ui.filter === 'open' ? r.pay == null : r.pay != null));
   const tot = f => rows.reduce((s, r) => s + f(r), 0); const paid = rows.filter(r => r.pay != null);
-  el.innerHTML = `<div class="head"><h1>應付帳款</h1><span class="sp"></span>${tabs('ap', [['month', '本月'], ['open', '待開票']], ui.tab)}<button class="btn pri" id="apAdd">＋ 手動新增</button></div>
-    ${ui.tab === 'month' ? `<div class="panel" style="display:grid;gap:12px">
+  el.innerHTML = `<div class="head"><h1>應付帳款</h1><span class="sp"></span>${tabs('ap', [['month', '本月'], ['open', '待開票'], ['year', '年度彙總']], ui.tab)}${ui.tab === 'year' ? '' : '<button class="btn pri" id="apAdd">＋ 手動新增</button>'}</div>
+    ${ui.tab === 'year' ? yearView() : ui.tab === 'month' ? `<div class="panel" style="display:grid;gap:12px">
       <div class="tools"><button class="btn sm" id="prevM">‹</button><input type="month" id="ym" value="${ym}" style="font-weight:600"><button class="btn sm" id="nextM">›</button><span class="muted">${ymLabel(ym)}（${roc(apRange(ym)[0])}～${roc(apRange(ym)[1])}）</span><span class="sp"></span>${tabs('f', [['all', '全部'], ['open', '待開票'], ['done', '已開票']], ui.filter)}</div>
       <div class="kpis"><div class="kpi"><span>應付（未稅）</span><b>${money(tot(r => r.amt))}</b></div><div class="kpi"><span>稅額</span><b>${money(tot(r => r.tax))}</b></div><div class="kpi"><span>總額</span><b>${money(tot(r => r.total))}</b></div><div class="kpi ok"><span>已開票 ${paid.length} 家</span><b>${money(paid.reduce((s, r) => s + (+r.pay || 0), 0))}</b></div><div class="kpi ${rows.length - paid.length ? 'alert' : ''}"><span>待開票 ${rows.length - paid.length} 家</span><b>${money(rows.filter(r => r.pay == null).reduce((s, r) => s + r.total, 0))}</b></div></div>
       <p class="muted small" style="margin:0">金額由該月進貨單自動加總（25 結：上月 26 日～本月 25 日；進貨退出扣除，稅額以 5% 計）。在「開票金額」欄輸入金額並按 Enter 即完成。勾選要付的廠商、確認兌現日，按「送待開支票」會送到「支票開立」的待列印（兌現日＝票載日期）。</p>
       ${sendBar()}${table(list, false)}</div>` : `<div class="panel">${sendBar()}${table(list, true)}</div>`}`;
   el.addEventListener('tab', ev => { if (ev.detail.key === 'ap') ui.tab = ev.detail.val; else ui.filter = ev.detail.val; draw(el); }, { once: true });
+  if (ui.tab === 'year') { bindYear(el); return; }
   $('#ym', el)?.addEventListener('change', ev => { ui.ym = ev.target.value; draw(el); });
   $('#prevM', el)?.addEventListener('click', () => { ui.ym = shiftMonth(ui.ym, -1); draw(el); });
   $('#nextM', el)?.addEventListener('click', () => { ui.ym = shiftMonth(ui.ym, 1); draw(el); });
@@ -155,4 +156,67 @@ async function sendChecks(rows) {
   for (const { r } of items) ui.sel.delete(rowId(r));
   store.log('開立', `支票 ${items.length} 張送待列印（應付帳款）：${items.map(x => `${x.r.name} ${money(x.amt)}`).join('、')}`);
   toast(`已送 ${items.length} 張到支票開立的待列印，合計 ${money(sum)}`);
+}
+
+// 年度彙總：每家廠商 1～12 月應付總額（含稅，25 結），依全年合計由大到小；點廠商看整年明細
+const mm = (y, i) => y + '-' + String(i + 1).padStart(2, '0');
+const vkey = r => r.cid || 'n:' + r.name;
+let yRows = [];
+function apYears() {
+  const ys = new Set([thisMonth().slice(0, 4), ui.year]);
+  for (const r of store.list('payables')) if (r.ym) ys.add(r.ym.slice(0, 4));
+  for (const b of calc().bills) if ((b.type === 'PUR' || b.type === 'PUR_RET') && b.date) ys.add(apYm(b.date).slice(0, 4));
+  return [...ys].filter(y => /^\d{4}$/.test(y)).sort().reverse();
+}
+function yearData(y) {
+  const map = new Map();
+  for (let i = 0; i < 12; i++) for (const r of apRows(mm(y, i))) {
+    const k = vkey(r); const o = map.get(k) || map.set(k, { k, name: r.name, cid: r.cid, m: Array(12).fill(0), rows: [] }).get(k);
+    o.m[i] += +r.total || 0; o.rows.push(r);
+  }
+  return [...map.values()].map(o => ({ ...o, tot: o.m.reduce((a, v) => a + v, 0) }))
+    .sort((a, b) => b.tot - a.tot || String(a.name).localeCompare(String(b.name), 'zh-Hant'));
+}
+const ckLabel = r => { const st = ckState(r); return st === 'open' ? '<span class="pill ok">已開支票</span>' : st === 'printed' ? '<span class="pill ok">支票已列印</span>' : st === 'gone' ? '<span class="pill ok">已開支票</span>' : r.pay != null ? '<span class="pill zinc">已開票</span>' : r.total > 0 ? '<span class="pill bad">待開票</span>' : ''; };
+function yearView() {
+  const y = ui.year; const list = yearData(y);
+  const cell = v => Math.round(v) ? money(v) : '<span class="muted">·</span>';
+  const mt = Array.from({ length: 12 }, (_, i) => list.reduce((a, o) => a + o.m[i], 0)); const grand = mt.reduce((a, v) => a + v, 0);
+  const sel = list.find(o => o.k === ui.yc);
+  yRows = sel ? sel.rows.slice().sort((a, b) => a.ym < b.ym ? -1 : a.ym > b.ym ? 1 : 0) : [];
+  return `<div class="panel" style="display:grid;gap:12px">
+    <div class="tools"><button class="btn sm" id="prevY" aria-label="上一年">‹</button><select id="yy" style="font-weight:600">${apYears().map(v => `<option value="${v}" ${v === y ? 'selected' : ''}>${+v - 1911} 年（${v}）</option>`).join('')}</select><button class="btn sm" id="nextY" aria-label="下一年">›</button><span class="muted">${list.length} 家廠商・全年合計 <b>${money(grand)}</b></span></div>
+    <p class="muted small" style="margin:0">各月應付總額（含稅，25 結：上月 26 日～本月 25 日），依全年合計由大到小。點廠商看整年明細；點月份跳到那個月的應付帳款。</p>
+    ${list.length ? `<div class="tw"><table class="ary"><thead><tr><th>廠商</th>${Array.from({ length: 12 }, (_, i) => `<th class="n"><a href="#" data-ym="${mm(y, i)}" title="看 ${i + 1} 月應付">${i + 1} 月</a></th>`).join('')}<th class="n">全年</th></tr></thead><tbody>
+      ${list.map(o => `<tr class="row${o.k === ui.yc ? ' on' : ''}" data-yc="${esc(o.k)}"><td><b>${esc(o.name)}</b></td>${o.m.map(v => `<td class="n">${cell(v)}</td>`).join('')}<td class="n"><b>${money(o.tot)}</b></td></tr>`).join('')}
+    </tbody><tfoot><tr><td class="nowrap">合計（${list.length} 家）</td>${mt.map(v => `<td class="n">${money(v)}</td>`).join('')}<td class="n">${money(grand)}</td></tr></tfoot></table></div>`
+    : `<div class="empty"><b>${+y - 1911} 年沒有應付帳款</b></div>`}
+  </div>
+  ${sel ? yearDetail(sel, y) : ''}`;
+}
+function yearDetail(o, y) {
+  const rows = yRows; const sum = f => rows.reduce((a, r) => a + f(r), 0);
+  return `<div class="panel" id="apYd" style="margin-top:12px;scroll-margin-top:64px">
+    <div class="tools"><h3 style="margin:0">${esc(o.name)}　${+y - 1911} 年明細</h3><span class="muted">${rows.length} 筆</span><span class="sp"></span><button class="btn sm ghost" id="ydClose">關閉</button></div>
+    <div class="tw"><table><thead><tr><th>月份</th><th class="n">應付</th><th class="n">稅額</th><th class="n">總額</th><th class="n">開票金額</th><th>兌現日</th><th>狀態</th><th>備註</th><th></th></tr></thead><tbody>
+    ${rows.map((r, i) => `<tr class="${r.pay != null ? 'muted' : ''}"><td class="nowrap"><b>${+r.ym.slice(5)} 月</b>${r.manual ? ' <span class="pill zinc">手調</span>' : ''}</td><td class="n">${money(r.amt)}</td><td class="n">${r.tax ? money(r.tax) : '—'}</td><td class="n"><b>${money(r.total)}</b></td><td class="n">${r.pay != null ? money(r.pay) : ''}</td><td class="nowrap">${r.pay != null || r.checkId ? esc(roc(dueOf(r))) : ''}</td><td class="nowrap">${ckLabel(r)}</td><td class="small">${esc(r.note || '')}</td><td class="nowrap"><button class="btn xs" data-yedit="${i}">修改</button>${r.auto ? ` <button class="btn xs ghost" data-ybills="${i}">單據</button>` : ''}</td></tr>`).join('')}
+    </tbody><tfoot><tr><td>合計</td><td class="n">${money(sum(r => r.amt))}</td><td class="n">${money(sum(r => r.tax))}</td><td class="n">${money(sum(r => r.total))}</td><td class="n">${money(sum(r => +r.pay || 0))}</td><td colspan="4">${rows.some(r => r.pay == null && r.total > 0) ? `<span class="muted">待開票 ${money(sum(r => r.pay == null ? r.total : 0))}</span>` : ''}</td></tr></tfoot></table></div></div>`;
+}
+function bindYear(el) {
+  const go = y => { ui.year = String(y); ui.yc = ''; draw(el); };
+  $('#yy', el)?.addEventListener('change', ev => go(ev.target.value));
+  $('#prevY', el)?.addEventListener('click', () => go(+ui.year - 1));
+  $('#nextY', el)?.addEventListener('click', () => go(+ui.year + 1));
+  el.querySelectorAll('a[data-ym]').forEach(a => a.addEventListener('click', ev => { ev.preventDefault(); ui.ym = a.dataset.ym; ui.tab = 'month'; draw(el); }));
+  el.querySelectorAll('tr[data-yc]').forEach(tr => tr.addEventListener('click', () => {
+    ui.yc = ui.yc === tr.dataset.yc ? '' : tr.dataset.yc; draw(el);
+    if (ui.yc) $('#apYd', el)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }));
+  $('#ydClose', el)?.addEventListener('click', () => { ui.yc = ''; draw(el); });
+  el.querySelectorAll('[data-yedit]').forEach(b => b.addEventListener('click', () => editRow(yRows[+b.dataset.yedit])));
+  el.querySelectorAll('[data-ybills]').forEach(b => b.addEventListener('click', () => {
+    const r = yRows[+b.dataset.ybills]; const C = calc();
+    modal({ title: `${r.name} ${ymLabel(r.ym)} 進貨單`, width: 640, body: `<div class="tw"><table><thead><tr><th>日期</th><th>單號</th><th class="n">未稅</th><th class="n">稅</th></tr></thead><tbody>${r.auto.bills.map((x, k) => `<tr class="row" data-k="${k}"><td>${esc(slash(x.date))}</td><td class="mono">${esc(x.no)}${x.type === 'PUR_RET' ? ' <span class="pill bad">退出</span>' : ''}</td><td class="n">${money(C.tot[x.id]?.net || 0)}</td><td class="n">${money(C.tot[x.id]?.tax || 0)}</td></tr>`).join('')}</tbody></table></div>`,
+      onOpen(m, close) { m.querySelectorAll('tr.row').forEach(tr => tr.addEventListener('click', () => { const x = r.auto.bills[+tr.dataset.k]; close(); openBill(null, x.id); })); } });
+  }));
 }
