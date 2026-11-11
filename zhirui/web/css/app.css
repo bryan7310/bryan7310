@@ -659,3 +659,13 @@ tr.row.on td { background: color-mix(in srgb, var(--blue-soft) 60%, transparent)
 .ai-atts.pend { margin: 0; }
 .ai-pend { position: relative; display: inline-flex; align-items: center; gap: 4px; padding: 4px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); font-size: 13px; }
 .ai-pend img { height: 56px; border-radius: 6px; }
+
+/* 手機：下拉選單改成全螢幕選擇畫面 */
+.csheet { position: fixed; inset: 0; z-index: 500; background: var(--bg); display: flex; flex-direction: column; padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom); }
+.csh-top { display: flex; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--line); }
+.csh-q { flex: 1; font-size: 17px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); color: inherit; }
+.csh-list { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+.csh-it { display: flex; gap: 8px; align-items: baseline; padding: 13px 16px; border-bottom: 1px solid var(--sep, var(--line)); font-size: 16px; }
+.csh-it small { color: var(--muted); margin-left: auto; text-align: right; }
+.csh-it.free, .csh-it.clr { color: var(--blue); }
+.csh-none { padding: 24px 16px; color: var(--muted); text-align: center; }

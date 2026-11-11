@@ -451,7 +451,7 @@ function bindLines(el) {
       const f = inp.dataset.f;
       if (f === 'gid') {
         combo(inp, {
-          items: () => store.list('goods').map(g => ({ id: g.id, label: goodsLabel(g, edit.type), sub: g.unit || '', text: goodsLabel(g) + ' ' + (g.vcode || '') })), allowFree: TYPES[edit.type].doc,
+          items: () => store.list('goods').map(g => ({ id: g.id, label: goodsLabel(g, edit.type), sub: g.unit || '', text: goodsLabel(g) + ' ' + (g.vcode || '') })), allowFree: TYPES[edit.type].doc, inline: true,
           onPick: it => { const g = C.g[it.id]; l.gid = it.id; delete l.n; l.u = ''; l.unit = ''; delete l.rate; if (!applyLast(l, g)) { const p = unitPrice(g, edit.type); if (p !== '') l.price = p; } if (!l.qty) l.qty = ''; redrawLines(el); setTimeout(() => el.querySelector(`tr[data-i="${i}"] [data-f="qty"]`)?.focus(), 0); },
           onBlur: val => { if (!l.gid && TYPES[edit.type].doc) { l.n = val; } },
         });

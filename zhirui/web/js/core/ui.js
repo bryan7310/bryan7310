@@ -71,6 +71,7 @@ export function pager(key, n, page, size = 100) {
  * opts: {items(): [{id, label, sub, text}], value, onPick(item), onClear(), allowFree}
  */
 export function combo(input, opts) {
+  if (isTouch() && !opts.inline) return comboSheet(input, opts);   // 手機：改用全螢幕選擇畫面（iPhone Safari 在原欄位常叫不出鍵盤）
   let list = null, idx = -1, cur = [];
   const wrap = input.parentElement.classList.contains('combo') ? input.parentElement : (() => { const w = document.createElement('div'); w.className = 'combo'; input.replaceWith(w); w.append(input); return w; })();
   // 下拉清單浮在整個畫面最上層（position:fixed 掛在 body），不會被表格外框、對話框捲動區裁掉
@@ -117,6 +118,48 @@ export function combo(input, opts) {
     else if (e.key === 'Tab' && list && cur.length && idx >= 0) pick(cur[idx]);
   });
   return { close, render };
+}
+
+
+/** 手機用的全螢幕選擇畫面：點欄位 → 跳出搜尋頁（一般 search 輸入框）→ 點選後帶回原欄位並呼叫 onPick */
+function comboSheet(input, opts) {
+  if (input._zrSheet) { input._zrSheet.opts = opts; return input._zrSheet.api; }
+  const st = input._zrSheet = { opts };
+  input.setAttribute('autocomplete', 'off'); input.setAttribute('inputmode', 'none'); input.readOnly = true;
+  const open = ev => {
+    if (ev) ev.preventDefault();
+    const o = st.opts; let pick = null;
+    const sh = document.createElement('div'); sh.className = 'csheet';
+    sh.innerHTML = `<div class="csh-top"><input type="search" class="csh-q" placeholder="${esc(input.placeholder || '搜尋')}" enterkeyhint="search" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" value="${esc(input.value)}"><button type="button" class="btn csh-x">取消</button></div><div class="csh-list"></div>`;
+    document.body.append(sh);
+    const q = sh.querySelector('.csh-q'), box = sh.querySelector('.csh-list');
+    const close = () => { sh.remove(); };
+    const draw = () => {
+      const t = q.value.trim(); const terms = qTerms(t); const all = o.items();
+      const cur = (terms.length ? all.filter(it => matchQ(it.text || it.label + ' ' + (it.sub || ''), terms)) : all).slice(0, 80);
+      box.innerHTML = (o.allowFree && t ? `<div class="csh-it free" data-free="1"><span>使用「${esc(t)}」</span></div>` : '')
+        + (input.value ? '<div class="csh-it clr" data-clr="1"><span>清除這一欄</span></div>' : '')
+        + (cur.map((it, i) => `<div class="csh-it" data-i="${i}"><span>${esc(it.label)}</span>${it.sub ? `<small>${esc(it.sub)}</small>` : ''}</div>`).join('') || `<div class="csh-none">${t ? '找不到符合的資料' : '打字搜尋'}</div>`);
+      pick = cur;
+    };
+    box.addEventListener('click', e => {
+      const d = e.target.closest('.csh-it'); if (!d) return;
+      if (d.dataset.free) { input.value = q.value.trim(); close(); o.onBlur && o.onBlur(input.value); input.dispatchEvent(new Event('change', { bubbles: true })); return; }
+      if (d.dataset.clr) { input.value = ''; close(); o.onClear && o.onClear(); input.dispatchEvent(new Event('change', { bubbles: true })); return; }
+      const it = pick[+d.dataset.i]; if (!it) return; input.value = it.label; close(); o.onPick(it); input.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    sh.querySelector('.csh-x').addEventListener('click', close);
+    q.addEventListener('input', draw);
+    q.addEventListener('compositionend', draw);
+    draw();
+    q.focus();   // 在使用者點擊當下聚焦，iPhone 才會叫出鍵盤
+  };
+  let t0 = null;   // 手指有移動（在捲動頁面）就不開
+  input.addEventListener('touchstart', e => { const t = e.touches[0]; t0 = t ? { x: t.clientX, y: t.clientY } : null; }, { passive: true });
+  input.addEventListener('touchend', e => { const t = e.changedTouches[0]; if (t0 && t && Math.hypot(t.clientX - t0.x, t.clientY - t0.y) > 10) return; open(e); });
+  input.addEventListener('click', e => { if (!document.querySelector('.csheet')) open(e); });
+  st.api = { close() {}, render() {}, open };
+  return st.api;
 }
 
 /** 把 <form> 裡的欄位讀成物件 */
