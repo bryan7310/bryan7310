@@ -99,7 +99,8 @@ export function combo(input, opts) {
   input.setAttribute('autocomplete', 'off');
   // 手機（觸控）：不在聚焦時全選、清單晚一點再出來，避免 iPhone 鍵盤叫不出來或注音打不進去
   const touch = window.matchMedia && matchMedia('(pointer: coarse)').matches;
-  input.addEventListener('focus', () => { if (touch) setTimeout(() => { if (document.activeElement === input) render(); }, 350); else { render(); input.select && input.select(); } });
+  // 手機：點進去先只叫鍵盤，開始打字才出清單（一點就蓋上浮動清單，iPhone 有時會叫不出鍵盤）；欄位已有內容時才直接列出
+  input.addEventListener('focus', () => { if (touch) { if (input.value) setTimeout(() => { if (document.activeElement === input) render(); }, 400); } else { render(); input.select && input.select(); } });
   input.addEventListener('input', () => { idx = -1; render(); if (opts.onClear && !input.value) opts.onClear(); });
   input.addEventListener('blur', () => setTimeout(() => { close(); opts.onBlur && opts.onBlur(input.value); }, 120));
   input.addEventListener('keydown', e => {
