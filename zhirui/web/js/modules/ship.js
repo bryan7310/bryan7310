@@ -109,6 +109,8 @@ export function shipDoc(b, opt = {}) {
   const fit = `<script>window.addEventListener('load',()=>{document.querySelectorAll('.page .body').forEach(b=>{const ls=b.querySelectorAll('.ln');if(!ls.length)return;const cs=getComputedStyle(ls[0]);let lh=parseFloat(cs.lineHeight),fs=parseFloat(cs.fontSize),n=0;while(b.scrollHeight>b.clientHeight+0.5&&n++<60){lh*=0.97;if(lh<fs*1.15)fs*=0.97;ls.forEach(x=>{x.style.lineHeight=lh+'px';x.style.fontSize=fs+'px';});}});document.querySelectorAll('.ln>span>i').forEach(t=>{const w=t.parentElement.clientWidth,s=t.offsetWidth;if(s>w+0.5)t.style.transform='scaleX('+(w/s).toFixed(3)+')';});});<\/script>`;
   return { css, html: html + fit, tip: `列印方式：按 Ctrl+P，紙張選 ${+TP.paperW}×${+TP.paperH} mm（中一刀為 241×140），邊界「無」，縮放「預設」或 100%，不要勾「頁首和頁尾」。虛線框是內容範圍；格式和位置可按出貨單上的「格式」修改。` };
 }
+/** 如陽列印：照如陽舊系統出貨單的樣子（Times New Roman＋新細明體、明細不加粗、欄名「品名規格」）；其他設定沿用出貨單格式 */
+export function ruyangTpl() { const t = shipTpl(); t.font = 'times'; t.bold = false; const c = t.cols.find(x => x.k === 'pnname'); if (c) c.label = '品　　名　　規　　格'; return t; }
 export function printShip(b, opt = {}) {
   const T = TYPES[b.type] || TYPES.SALE; const d = shipDoc(b, opt);
   printHTML(`${T.name} ${b.no}`, d.css, d.html, { tip: d.tip, delay: 500 });

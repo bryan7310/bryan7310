@@ -9,7 +9,7 @@ import { labelPicker } from './labels.js';
 import { faxDialog } from './faxes.js';
 import { openMaster } from './master.js';
 import { openAsm, asmContent } from './assembly.js';
-import { printShip, shipFormat, shipImportLines, shipTemplateXlsx, stockAdjust, specView, billKg, kgText, songquanParse, songquanLines, printSongquan, ruyangRead, ruyangLines } from './ship.js';
+import { printShip, shipFormat, shipImportLines, shipTemplateXlsx, stockAdjust, specView, billKg, kgText, songquanParse, songquanLines, printSongquan, ruyangRead, ruyangLines, ruyangTpl } from './ship.js';
 
 export const billText = b => { const C = calc(); const c = C.ct[b.cid]; return [b.no, c?.code, c?.name, c?.short, b.cn, b.note, ...(b.lines || []).flatMap(l => { const g = C.g[l.gid]; return [g?.code, g?.name, g?.spec, l.n, l.memo]; })].filter(Boolean).join(' '); };
 export const partyLabel = b => { const C = calc(); const c = C.ct[b.cid]; return c ? cdisp(c) : (b.cn || '—'); };
@@ -340,7 +340,7 @@ function bindBill(el, close) {
   el.querySelector('#printShipPn')?.addEventListener('click', () => hasLines() && printShip(e, { pn: true }));
   el.querySelector('#printShipNa')?.addEventListener('click', () => hasLines() && printShip(e, { noAmt: true }));
   el.querySelector('#printShipPnNa')?.addEventListener('click', () => hasLines() && printShip(e, { pn: true, noAmt: true }));
-  el.querySelector('#printRy')?.addEventListener('click', () => hasLines() && printShip(e, { pn: true, label: '如陽列印' }));
+  el.querySelector('#printRy')?.addEventListener('click', () => hasLines() && printShip(e, { pn: true, label: '如陽列印', tpl: ruyangTpl() }));
   el.querySelector('#printSq')?.addEventListener('click', () => hasLines() && printSongquan(e));
   // 列印下拉選單
   const prDD = el.querySelector('#prDD');
