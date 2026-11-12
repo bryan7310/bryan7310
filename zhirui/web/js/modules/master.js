@@ -70,10 +70,21 @@ export function copyGoods(g, onSaved) {
   openMaster('goods', null, null, onSaved, tpl);
 }
 const LABEL = { goods: '商品', C: '客戶', S: '供應商', warehouses: '倉庫', accounts: '結算帳戶' };
+/** 下一個客戶／供應商編號：在還沒用到 999 號的開頭字母裡，挑用最多的那個（供應商 A、客戶 D），最大號 + 1，補滿 3 位 */
+export function nextContactCode(kind) {
+  const codes = store.list('contacts').filter(c => c.kind === kind).map(c => String(c.code || '').trim().toUpperCase());
+  const by = {}; for (const x of codes) { const m = x.match(/^([A-Z]+)(\d+)$/); if (m) (by[m[1]] ??= []).push(+m[2]); }
+  const pre = Object.keys(by).filter(p => Math.max(...by[p]) < 999).sort((a, b) => by[b].length - by[a].length)[0];
+  if (!pre) return '';
+  const used = new Set(codes); let n = Math.max(...by[pre]) + 1;
+  while (used.has(pre + String(n).padStart(3, '0')) && n < 999) n++;
+  return pre + String(n).padStart(3, '0');
+}
 /** opts.fromBill：從單據的「修改商品」打開；料號改成系統沒有的 → 提示後新建商品，不動原商品，onSaved(新id, {created:true}) */
 export function openMaster(col, doc, kind, onSaved, tpl, opts = {}) {
   const k = col === 'contacts' ? (doc ? doc.kind : kind) : col;
-  const fs = FIELDS[k]; const d = doc || {}; const v = doc ? d : (tpl || {});   // v：表單預填值（複製時是來源商品）
+  const fs = FIELDS[k]; const d = doc || {}; const v = doc ? d : { ...(tpl || {}) };   // v：表單預填值（複製時是來源商品）
+  if (!doc && (k === 'C' || k === 'S') && !v.code) v.code = nextContactCode(k);   // 新增客戶／供應商：自動帶下一個編號
   const C = calc();
   const refs = doc ? refCount(col, doc.id) : 0;
   const body = `<div class="grid">${fs.map(([n, l, t]) => `<div class="f" ${n === 'addr' || n === 'note' || n === 'name' ? 'style="grid-column:1/-1"' : ''}><label for="f-${n}">${esc(l)}</label><input id="f-${n}" name="${n}" value="${esc(v[n] ?? '')}" ${t === 'num' ? 'class="num" inputmode="decimal"' : ''} ${t === 'req' ? 'required' : ''} ${n === 'unit' || n === 'aunit' ? 'list="unitList" autocomplete="off"' : ''}></div>`).join('')}${col === 'goods' ? `<datalist id="unitList">${['PCS', 'KG', '包', '組', '盒', '箱', '件', 'SET', 'H', 'K', '批', '袋'].map(u => `<option value="${u}">`).join('')}</datalist>` : ''}
