@@ -18,7 +18,7 @@ export const MAT_NAME = { A: '鐵', B: '白鐵', C: '中碳鋼', D: '合金鋼',
 export const CLS_NAME = { 1: '無牙零件', 2: '機械牙', 3: '自攻類' };
 export const TH_NAME = { M: '公制', W: '英制', U: '美規號數' };
 // 品名尾段的材質字（取最後出現的那個；「彈簧華司…鍍鋅鐵」是鐵）
-const MATW = [['鋅合金', 'H'], ['鈦合金', 'N'], ['不鏽鋼', 'B'], ['不銹鋼', 'B'], ['白鐵', 'B'], ['SUS', 'B'], ['合金', 'D'], ['中碳', 'C'], ['彈簧', 'E'], ['彈鋼', 'E'], ['壓鑄', 'H'], ['黃銅', 'F'], ['銅', 'F'], ['鋁', 'G'], ['橡膠', 'J'], ['鈦', 'N'], ['鐵', 'A']];
+const MATW = [['鋅合金', 'H'], ['鈦合金', 'N'], ['不鏽鋼', 'B'], ['不銹鋼', 'B'], ['白鐵', 'B'], ['SUS', 'B'], ['合金', 'D'], ['中碳', 'C'], ['彈簧', 'E'], ['彈鋼', 'E'], ['壓鑄', 'H'], ['黃銅', 'F'], ['銅', 'F'], ['鋁', 'G'], ['橡膠', 'J'], ['塑膠', 'J'], ['鈦', 'N'], ['鐵', 'A']];
 // 表面處理字（長的先比）
 const FINW = ['三價白鋅', '三價黑鋅', '三價鋅', '三價', '鍍錏黑', '錏黑', '黑鎳', '鍍鎳', '鍍鋅', '染黑', '五彩', '鍍鉻', '紅古銅', '青古銅', '古銅', '鍍青銅', '鍍銅', '磷酸', '達克羅', '黑身', '電黑', '鈍化', '黑鋅', '白鋅', '鍍黑', '烤'];
 const NOT_MAT = /鍍青銅|鍍銅|紅古銅|青古銅|古銅|白鐵包\S*|白鐵頭/g;   // 這些不是本體材質
@@ -121,4 +121,61 @@ export function checkCode(g) {
   const t = extra ? null : top(I.head[p.head]);
   if (t && t.p >= 0.8 && t.all >= 5 && t.v !== m[2] + m[6] && rare(I.head[p.head], m[2] + m[6])) out.push({ k: '品項', code: `${m[2]}…_${m[6]}`, expect: `${t.v[0]}…_${t.v.slice(1)}`, why: `品名「${p.head}」（其他 ${t.n} 個商品用 _${t.v.slice(1)}）` });
   return out;
+}
+
+// ---------- 廠商品名 → 志瑞品名＋料號 ----------
+// 志瑞品名規則：品項（頭型＋種類）＋尺寸（公制加 M、英制不加、番數 8#）＋描述（無字、耐落…）＋兩個空白＋表面處理＋材質，
+// 例如「⊕圓頭鐵板螺絲M4*12  鍍鋅鐵」「CAP全牙內六角螺絲M6*20  染黑合金」「平華司3/8*19*1.5  白鐵」。
+const SYN = [[/十字/g, '⊕'], [/一字/g, 'Θ'], [/自攻/g, '鐵板'], [/TP牙/g, '快速牙'], [/有頭內六角|杯頭內六角/g, 'CAP全牙內六角'], [/六角頭螺絲|六角頭螺栓|六角螺栓/g, '六角全牙螺絲'], [/六角帽/g, '六角螺帽'], [/螺母/g, '螺帽'], [/墊圈|墊片/g, '華司'], [/沉頭/g, '皿頭'], [/膨脹/g, '壁虎'], [/皿\+喇叭頭|皿\+喇叭/g, '喇叭']];
+const NOUNS = ['螺絲', '螺帽', '華司', '壁虎', '吊環', '牙條', '鉚釘', '拉釘', '拉帽', '扣環', '梢', '釘', '環', '帽'];
+const NOISE = /標準|注意|特殊|以上|恕不退貨|退貨|代鍍|MOQ\S*|(?<!\d)(?:20[1-4]|30[1-4]|316|410|420)(?=白鐵|SUS|\s|$)/g;
+const FIN_SUP = [[/黑鎳/, '黑鎳'], [/鎳/, '鍍鎳'], [/五彩/, '五彩'], [/三價/, '三價鋅'], [/錏黑/, '錏黑'], [/黑鋅/, '黑鋅'], [/白鋅|鍍鋅|電鋅|(?<!鋅)鋅(?!合金)/, '鍍鋅'], [/黑身|白皮/, '黑身'], [/染黑|發黑/, '染黑'], [/鉻/, '鍍鉻']];
+const MAT_WORD = { A: '鐵', B: '白鐵', C: '中碳', D: '合金', E: '彈簧', F: '銅', G: '鋁', H: '壓鑄', J: '塑膠', N: '鈦' };
+const MAT_CAT = { A: '鐵', B: '不鏽鋼', C: '中碳鋼', D: '合金鋼', E: '彈簧鋼', F: '銅', G: '鋁', H: '壓鑄', J: '橡膠', N: '鈦' };
+const cnt = o => Object.values(o || {}).reduce((a, b) => a + b, 0);
+function charSim(a, b) { const m = {}; for (const c of b) m[c] = (m[c] || 0) + 1; let common = 0; for (const c of a) if (m[c]) { m[c]--; common++; } return common - 0.6 * (b.length - common) - 1.0 * (a.length - common); }
+/** 廠商的品項寫法 → 現有的志瑞品項（同一種東西用最多人用的那個寫法）；找不到回傳 '' */
+function bestHead(want) {
+  const I = codeIndex();
+  if (cnt(I.head[want]) >= 3) return want;
+  const noun = NOUNS.find(n => want.includes(n)); if (!noun) return '';
+  const cs = [];
+  for (const k of I.heads) { const n = cnt(I.head[k]); if (n < 3 || !k.includes(noun) || /[0-9A-Z]{3,}/.test(k)) continue; cs.push({ k, s: charSim(want, k), n }); }
+  if (!cs.length) return '';
+  const top = Math.max(...cs.map(x => x.s)); if (top < want.length * 0.6) return '';
+  return cs.filter(x => x.s >= top - 1.5).sort((a, b) => b.n - a.n || b.s - a.s)[0].k;
+}
+/**
+ * 把廠商品名（可含材質、表面處理、規格）整理成志瑞品名並建議料號。
+ * 回傳 { name, code, cat } ；認不出品項、尺寸、材質時回傳 null（那就用廠商料號和品名建立）。
+ */
+export function stdGoods(text) {
+  let t = norm(text).replace(/[（]/g, '(').replace(/[）]/g, ')');
+  for (const [re, v] of SYN) t = t.replace(re, v);
+  // 括號：只有中文描述的留下（無字、皿頭…），其他（廠商儲位 J2、(8邊*4T)、(標準7邊)…）拿掉
+  t = t.replace(/\(([^()]*)\)/g, (m0, x) => /^[一-鿿]+$/.test(x) && !/邊|標準|注意|特殊/.test(x) ? ' ' + x + ' ' : ' ');
+  t = t.replace(NOISE, ' ').replace(/\bP\d+(\.\d+)?\b/g, ' ').replace(/\s[A-LN-TV-Z]\d{1,2}(?![*#.\d])/g, ' ').replace(/邊\*/g, '*').replace(/(\d)\s*(厚|邊)/g, '$1').replace(/[-－]$/, '');
+  // 表面處理、材質
+  const fin = (FIN_SUP.find(([re]) => re.test(t)) || [])[1] || '';
+  const tm = t.replace(/彈簧(?=華司|梢|銷|墊|固定)/g, '');   // 彈簧華司的「彈簧」不是材質
+  let mat = matOf(tm); if (!mat && /鋼-?|碳鋼/.test(t)) return null;
+  if (!mat && fin) mat = 'A';   // 有電鍍、沒寫材質＝鐵
+  if (!mat) return null;
+  let core = t.replace(new RegExp([...FIN_SUP.map(x => x[0].source), '原色', '電(?=五彩|鍍)', '乳白', '鍍', ...MATW.map(x => x[0] === '彈簧' ? '彈簧(?!華司|梢|銷|墊|固定)' : x[0]), '不鏽|不銹'].join('|'), 'g'), ' ').replace(/^[\s\-]+/, '');
+  const p = parseName(core); if (!p.size) return null;
+  let head = p.head.replace(/[\s\-]/g, '');
+  if (head.includes('⊕')) head = '⊕' + head.replace(/⊕/g, '');
+  if (!NOUNS.some(n => head.includes(n))) head += '螺絲';
+  const tailWords = p.tail.replace(/[\d\s.*/#()"\-]/g, ' ').split(/\s+/).filter(w => w && /[一-鿿]/.test(w));
+  const half = /半牙/.test(t) && !head.includes('半牙');
+  const want = half ? (head.includes('全牙') ? head.replace('全牙', '半牙') : head.replace(/(CAP|六角)/, '$1半牙')) : head;
+  const H = bestHead(want); if (!H) return null;
+  const desc = tailWords.filter(w => w !== '半牙' && w !== '全牙' && !H.includes(w)).join(' ');
+  const finW = fin || (mat === 'D' ? '染黑' : '');
+  const size = (p.th === 'M' ? 'M' : '') + p.size;
+  const name = `${H}${size}${desc ? '  ' + desc : ''}  ${finW}${MAT_WORD[mat] || ''}`;
+  const cat = MAT_CAT[mat] || '';
+  const s = suggestCode(name, cat);
+  if (!s.code || s.typeNote) return null;
+  return { name, code: s.code, base: s.base, cat, parts: s.parts };
 }

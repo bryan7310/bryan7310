@@ -6,6 +6,9 @@ import { store } from '../core/store.js';
 import { toast, modal } from '../core/ui.js';
 import { calc, TYPES, costOf, suppliers, uRate } from '../core/calc.js';
 import { diaValue, lenValue } from '../core/pricing.js';
+import { stdGoods } from '../core/codegen.js';
+/** 新建商品時：能依志瑞料號品名規則歸類就用整理過的品名＋自動料號，不行才用廠商料號和品名 */
+const piStd = it => it._std === undefined ? (it._std = stdGoods([it.mat, it.name, it.spec, it.fin].filter(Boolean).join(' '))) : it._std;
 
 const PI_COLS = {
   code: ['產品代號', '廠商料號', '料號', '代號', '貨號', '品號', '產品編號'], name: ['品名規格', '品名/規格', '品名', '商品名稱', '名稱', '品名及規格'], mat: ['材質'], spec: ['規格', '尺寸'], fin: ['電鍍', '表面處理', '處理', '電鍍處理'],
@@ -181,14 +184,14 @@ function piOpen(PI, onDone) {
         body.innerHTML = `<div class="muted small" style="margin-bottom:8px">${esc(PI.fname)}・${its.length} 項・${new Set(its.map(x => x.date + '|' + x.no)).size} 張單</div>
           <div class="grid"><div class="f"><label>供應商</label><select data-pif="cid"><option value="">（請選擇）</option>${suppliers().map(c => `<option value="${c.id}" ${c.id === PI.cid ? 'selected' : ''}>${esc(c.code ? c.code + ' ' : '')}${esc(c.name)}</option>`).join('')}</select></div>
             <div class="f"><label>入庫倉庫</label><select data-pif="wid">${store.list('warehouses').map(w => `<option value="${w.id}" ${w.id === PI.wid ? 'selected' : ''}>${esc(w.name)}</option>`).join('')}</select></div></div>
-          <p class="muted small">系統依「材質、品名、規格、電鍍」比對商品，再用「單價」和商品成本接近程度加分。每行可改選其他候選或「新建商品」；新建的商品以廠商料號當料號，備註「匯入進貨單新增」。按「建立進貨單」後，同一張廠商單號會建成一張進貨單，配對結果會記住，下次同料號直接對上。</p>
+          <p class="muted small">系統依「材質、品名、規格、電鍍」比對商品，再用「單價」和商品成本接近程度加分。每行可改選其他候選或「新建商品」；新建的商品會依志瑞料號品名規則整理品名、自動編料號（廠商料號記在「廠商料號」）；真的無法歸類的才用廠商料號和品名建立。按「建立進貨單」後，同一張廠商單號會建成一張進貨單，配對結果會記住，下次同料號直接對上。</p>
           <div class="tools" style="align-items:center"><input type="search" id="pi-q" placeholder="篩選：關鍵字（例如 鐵板牙、白鐵、M4），多個字用逗號隔開" value="${esc(PI.q)}" style="max-width:420px">${[['all', '全部'], ['高', '信心高'], ['中', '信心中'], ['低', '信心低'], ['new', '新建'], ['cost', '成本異常'], ['chk', '需確認']].map(([k, l]) => `<button type="button" class="btn sm ${PI.f === k ? 'pri' : ''}" data-pif-f="${k}">${l}（${its.filter(x => piF(x, k)).length}）</button>`).join('')}<span class="muted small">顯示 ${vis.length} / ${its.length} 項</span></div>
           ${bad + warn ? `<div class="banner">成本異常 <b>${bad}</b> 項（單價和商品成本差 2 倍以上）、偏差 <b>${warn}</b> 項（差 25%～2 倍）。可能是配錯商品、單位不同，或商品成本登錯；滑鼠移到成本欄看原因。</div>` : ''}
           ${nDup ? `<div class="banner">有 ${nDup} 項的廠商單號已經匯入過（已預設略過，可取消勾選「略過」）。</div>` : ''}
           <div class="tw" style="margin-top:8px"><table><thead><tr><th class="nowrap"><label class="check small"><input type="checkbox" data-pi-all ${vis.length && vis.every(x => x.skip ?? x.dup) ? 'checked' : ''}> 略過</label></th><th>廠商單號／日期</th><th>廠商料號</th><th>品名規格</th><th class="n">數量</th><th>單位</th><th class="n">單價</th><th>配對商品</th><th>信心</th><th class="n">成本對照</th></tr></thead><tbody>
           ${its.map((it, i) => { if (!piShow(PI, it)) return ''; const sel = it.cands.find(x => x.o.g.id === it.pick); const skip = it.skip ?? it.dup; const ca = piCost(it);
             return `<tr class="${skip ? 'muted' : ''}" style="${ca && ca.lvl === 'bad' ? 'background:rgba(220,60,60,.10)' : ca && ca.lvl === 'warn' ? 'background:rgba(240,160,30,.12)' : ''}"><td><input type="checkbox" data-pis="${i}" ${skip ? 'checked' : ''}></td><td class="small">${esc(it.no)}<br><span class="muted">${esc(it.date)}</span></td><td class="mono">${esc(it.code)}</td><td style="white-space:normal;min-width:200px">${esc([it.mat, it.name, it.spec, it.fin].filter(Boolean).join(' '))}</td><td class="n">${fmtQ(it.qty)}${it.conv ? `<div class="muted small" title="${esc(it.conv)}">原 ${esc(it.conv.split(' →')[0])}</div>` : ''}</td><td>${esc(it.uRaw || it.unit)}</td><td class="n">${fp4(it.price)}</td>
-              <td style="min-width:300px"><select data-pip="${i}" style="width:100%">${it.cands.map(x => `<option value="${x.o.g.id}" ${x.o.g.id === it.pick ? 'selected' : ''}>${esc(x.o.g.code)} ${esc(x.o.g.name)}（${Math.round(x.s)} 分）</option>`).join('')}<option value="new" ${it.pick === 'new' ? 'selected' : ''}>＋ 新建商品：${esc(it.code || '(無料號)')} ${esc(it.name)}</option></select></td>
+              <td style="min-width:300px"><select data-pip="${i}" style="width:100%">${it.cands.map(x => `<option value="${x.o.g.id}" ${x.o.g.id === it.pick ? 'selected' : ''}>${esc(x.o.g.code)} ${esc(x.o.g.name)}（${Math.round(x.s)} 分）</option>`).join('')}<option value="new" ${it.pick === 'new' ? 'selected' : ''}>＋ 新建商品：${(st => st ? `${esc(st.code)} ${esc(st.name)}（志瑞規則）` : `${esc(it.code || '(無料號)')} ${esc(it.name)}（廠商料號）`)(piStd(it))}</option></select></td>
               <td>${it.pick === 'new' ? `<span class="pill">新建</span>${it.conf === '低' ? '<br><span class="muted small">原配對信心低</span>' : ''}` : confPill(it.conf)}</td>
               <td class="n small" ${ca ? `title="${esc(ca.hint)}"` : ''}>${sel && sel.c ? `${fp4(sel.c)}<br>${ca ? `<span class="${ca.lvl === 'ok' ? 'muted' : 'pill ' + (ca.lvl === 'bad' ? 'bad' : 'warn')}">${Math.round(ca.q * 100)}%${ca.lvl !== 'ok' ? ' ' + (ca.lvl === 'bad' ? '異常' : '偏差') : ''}</span>` : ''}` : '<span class="muted">無成本</span>'}</td></tr>`; }).join('')}</tbody></table></div>`;
         body.scrollTop = sc;
@@ -214,12 +217,16 @@ async function piGo(PI, m, close, onDone) {
   btn.disabled = true; btn.textContent = '建立中…';
   try {
     const C = calc(); const vm = JSON.parse(JSON.stringify(vmap())); const mine = vm[PI.cid] = vm[PI.cid] || {}; const madeByCode = {}; const vfill = new Map();
-    const ops = []; let nG = 0, nB = 0; const newGoods = {};
+    const ops = []; let nG = 0, nB = 0; const newGoods = {}; const madeCodes = new Set();
     for (const it of use) {
       if (it.pick !== 'new') { if (it.code) { mine[it.code] = it.pick; const g = C.g[it.pick]; if (g && !g.vcode) vfill.set(g.id, it.code); } continue; }
       const key = it.code || it.name; if (madeByCode[key]) { it.pick = madeByCode[key]; continue; }
-      const nm = [it.mat, it.name, it.spec, it.fin].filter(Boolean).join(' ').trim() || it.code; const t = piText(it);
-      const doc = { code: it.code || '', vcode: it.code || '', name: nm, spec: '', cat: matCls(t), unit: it.unit === 'KG' ? 'KG' : 'PCS', purPrice: it.unit === 'KG' ? 0 : +it.price || 0, salePrice: 0, safety: 0, note: '匯入進貨單新增' };
+      const nm = [it.mat, it.name, it.spec, it.fin].filter(Boolean).join(' ').trim() || it.code; const t = piText(it); const st = piStd(it);
+      // 依志瑞規則：料號同一批裡也不能重複（自動料號只檢查了已存在的商品）
+      let code = st ? st.code : '';
+      if (st) { let k = 0; const base = st.base; while (madeCodes.has(code.toUpperCase()) || C.g && Object.values(C.g).some(g => String(g.code || '').toUpperCase() === code.toUpperCase())) code = `${base}-${++k}`; madeCodes.add(code.toUpperCase()); }
+      const doc = st ? { code, vcode: it.code || '', name: st.name, spec: '', cat: st.cat, unit: it.unit === 'KG' ? 'KG' : 'PCS', purPrice: it.unit === 'KG' ? 0 : +it.price || 0, salePrice: 0, safety: 0, note: `匯入進貨單新增（廠商品名：${nm}）` }
+        : { code: it.code || '', vcode: it.code || '', name: nm, spec: '', cat: matCls(t), unit: it.unit === 'KG' ? 'KG' : 'PCS', purPrice: it.unit === 'KG' ? 0 : +it.price || 0, salePrice: 0, safety: 0, note: '匯入進貨單新增（無法歸類，用廠商料號）' };
       const id = uid('g'); ops.push({ col: 'goods', id, data: doc }); newGoods[id] = doc; it.pick = id; madeByCode[key] = id; if (it.code) mine[it.code] = id; nG++;
     }
     const used = new Set(store.list('bills').map(b => b.no)); const groups = new Map();
