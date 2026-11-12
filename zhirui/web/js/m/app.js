@@ -26,6 +26,7 @@ const IC = {
   cam: '<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>',
   tag: '<path d="M3 12V4h8l10 10-8 8z"/><circle cx="7.5" cy="8" r="1.3"/>',
   po: '<path d="M7 3h10v18H7z"/><path d="M10 7h4M10 11h4M10 15h2"/><path d="M4 8h3M4 12h3"/>',
+  mail: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/>',
   fax: '<path d="M7 9V3h10v6"/><rect x="3" y="9" width="18" height="9" rx="2"/><path d="M7 14h10v7H7z"/>',
 };
 // 底部選單（固定 5 項）；還沒做好的頁先顯示「第 N 階段」，並提供電腦版連結
@@ -147,6 +148,7 @@ function home() {
       <a href="#lbl"><i>${SVG(IC.tag)}</i>印標籤</a>
       <a href="#po"><i>${SVG(IC.po)}</i>採購單${(n => n ? `（${n}）` : '')((ls.get('zr.m.po', null)?.lines || []).length)}</a>
       <a href="#fax"><i>${SVG(IC.fax)}</i>收傳真${faxUnread() ? `（${faxUnread()}）` : ''}</a>
+      <a href="https://webmail.hinet.net/" target="_blank" rel="noopener"><i>${SVG(IC.mail)}</i>瀏覽信箱</a>
     </div>
     <div class="sec">待處理</div>
     <div class="card list">${td.length ? td.map(([, txt, h]) => `<a href="${h}"><span class="dot"></span>${esc(txt)}<span class="go">›</span></a>`).join('') : '<div class="row muted">目前沒有需要處理的事 ✓</div>'}</div>
