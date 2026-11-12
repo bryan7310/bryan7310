@@ -35,6 +35,7 @@ async function addRetail(el) { const date = el.querySelector('#rtDate').value ||
 /** 某天的門市銷售單 */
 export function retailBills(C, day) { const c = retailCustomer(); return c ? C.bills.filter(b => b.type === 'SALE' && b.cid === c.id && b.date === day).sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0)) : []; }
 export const retailCustomerExists = () => !!retailCustomer();
+export const retailCustomerId = () => retailCustomer()?.id || '';
 function retailPanel(C, t) {
   const c = retailCustomer(); const day = ui.rdate || t;
   const list = retailBills(C, day);
