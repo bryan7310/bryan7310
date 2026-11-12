@@ -5,6 +5,7 @@ import { store } from '../core/store.js';
 import { calc } from '../core/calc.js';
 import { arSummary } from '../modules/receivables.js';
 import { preloadHist } from '../modules/_bills.js';
+import { stockPage, goodsPage } from './stock.js';
 
 const $ = s => document.querySelector(s);
 const view = $('#view'), bar = $('#tabbar');
@@ -20,7 +21,7 @@ const IC = {
 // 底部選單（固定 5 項）；還沒做好的頁先顯示「第 N 階段」，並提供電腦版連結
 const TABS = [
   ['home', '首頁', IC.home],
-  ['stock', '庫存', IC.stock, 2, '/#stock'],
+  ['stock', '庫存', IC.stock],
   ['bill', '開單', IC.bill, 3, '/#sales'],
   ['ar', '帳款', IC.money, 4, '/#receivables/open'],
   ['up', '上傳', IC.cam, 7, ''],
@@ -36,7 +37,7 @@ async function boot() {
   window.addEventListener('hashchange', route);
   route();
   // 舊系統進貨單會影響成本（毛利），載入後重算一次，跟電腦版一致
-  setTimeout(() => preloadHist().then(() => { if (cur === 'home') route(); }), 800);
+  setTimeout(() => preloadHist().then(() => { if (cur === 'home' || cur === 'g') route(); }), 800);
 }
 function showLogin(msg) {
   bar.hidden = true;
@@ -60,10 +61,13 @@ function notBoss() {
 // ---------- 路由 ----------
 let cur = '';
 function route() {
-  const id = (location.hash.replace(/^#\/?/, '').split(/[/?]/)[0]) || 'home';
-  const t = TABS.find(x => x[0] === id) || TABS[0]; cur = t[0];
-  bar.innerHTML = TABS.map(([k, n, ic]) => `<a href="#${k}" class="${k === cur ? 'on' : ''}">${SVG(ic)}<span>${n}</span></a>`).join('');
-  if (cur === 'home') home(); else placeholder(t);
+  const parts = location.hash.replace(/^#\/?/, '').split('/'); const id = parts[0].split('?')[0] || 'home';
+  const t = TABS.find(x => x[0] === (id === 'g' ? 'stock' : id)) || TABS[0]; cur = id === 'g' ? 'g' : t[0];
+  bar.innerHTML = TABS.map(([k, n, ic]) => `<a href="#${k}" class="${k === t[0] ? 'on' : ''}">${SVG(ic)}<span>${n}</span></a>`).join('');
+  if (cur === 'home') home();
+  else if (cur === 'stock') stockPage(view);
+  else if (cur === 'g') { goodsPage(view, decodeURIComponent(parts.slice(1).join('/'))); window.scrollTo(0, 0); }
+  else placeholder(t);
 }
 function placeholder([, name, , stage, desk]) {
   view.innerHTML = `<div class="hd"><h1>${esc(name)}</h1></div><div class="card ph"><b>第 ${stage} 階段會做好</b>
@@ -113,7 +117,7 @@ function home() {
     </div>
     <div class="sec">快捷</div>
     <div class="card quick">
-      <a href="/#stock"><i>${SVG(IC.stock)}</i>查庫存</a>
+      <a href="#stock"><i>${SVG(IC.stock)}</i>查庫存</a>
       <a href="/#sales"><i>${SVG(IC.bill)}</i>開出貨單</a>
       <a class="off" href="#up"><i>${SVG(IC.cam)}</i>拍照上傳</a>
       <a href="/#labels/gen"><i>${SVG(IC.tag)}</i>印標籤</a>

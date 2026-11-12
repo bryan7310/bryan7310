@@ -59,3 +59,31 @@ button { font: inherit; }
 .toast { position: fixed; left: 16px; right: 16px; bottom: calc(env(safe-area-inset-bottom) + 70px); background: #222; color: #fff; padding: 10px 14px; border-radius: 12px; font-size: 14px; z-index: 20; }
 .ph { text-align: center; padding: 40px 10px; }
 .ph b { display: block; font-size: 18px; margin-bottom: 6px; }
+/* 查庫存 */
+.mono { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: .92em; }
+.search input { width: 100%; font: inherit; font-size: 17px; padding: 11px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); color: var(--text); -webkit-appearance: none; appearance: none; }
+.chips { display: flex; gap: 8px; overflow-x: auto; margin: 10px 0 12px; padding-bottom: 2px; scrollbar-width: none; }
+.chips::-webkit-scrollbar { display: none; }
+.chip { flex: none; border: 1px solid var(--line); background: var(--card); color: var(--text); border-radius: 999px; padding: 6px 14px; font-size: 14px; max-width: 60vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chip.on { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.hd .chip { font-size: 13px; padding: 5px 12px; }
+.list a.gi { align-items: flex-start; }
+.gm { flex: 1; min-width: 0; }
+.gm b { display: block; font-weight: 600; font-size: 15px; word-break: break-all; }
+.gm small, .gr small { display: block; color: var(--muted); font-size: 12px; }
+.gr { text-align: right; flex: none; max-width: 42%; }
+.gr b { font-variant-numeric: tabular-nums; }
+.tag { display: inline-block; font-size: 11px; font-weight: 600; padding: 1px 7px; border-radius: 999px; margin-top: 3px; }
+.tag.bad { background: color-mix(in srgb, var(--bad) 16%, transparent); color: var(--bad); }
+.tag.warn { background: color-mix(in srgb, var(--warn) 16%, transparent); color: var(--warn); }
+.list .row { justify-content: space-between; }
+.list .row.src { font-size: 12px; color: var(--muted); padding-top: 0; border-top: 0; margin-top: -6px; }
+.list .go { text-align: right; font-variant-numeric: tabular-nums; }
+.back { font-size: 17px; }
+.gname { font-size: 19px; font-weight: 700; word-break: break-all; margin-bottom: 4px; }
+.sheet { position: fixed; inset: 0; background: var(--bg); z-index: 30; overflow-y: auto; padding: calc(env(safe-area-inset-top) + 8px) 16px calc(env(safe-area-inset-bottom) + 20px); }
+.sheet-hd { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.sheet .search { margin-bottom: 10px; }
+.link { border: 0; background: none; color: var(--accent); font-size: 16px; padding: 8px 0; }
+body.noscroll { overflow: hidden; }
+.list a .mono { min-width: 48px; }
