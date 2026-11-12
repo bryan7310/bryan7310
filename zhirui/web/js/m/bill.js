@@ -56,7 +56,7 @@ export function billPage(view, sub) {
     <div class="sec">備註</div>
     <div class="card"><textarea id="note" rows="2" placeholder="選填">${esc(e.note)}</textarea></div>
     <div class="sec">列印格式</div>
-    <div class="chips">${[['std', '一般'], ['pn', '含客料號'], ['na', '不含金額'], ...(ry ? [['ry', '如陽格式']] : [])].map(([k, n]) => `<button class="chip ${e.fmt === k ? 'on' : ''}" data-fmt="${k}">${n}</button>`).join('')}</div>
+    <div class="chips">${[['std', '一般'], ['pn', '料號列印'], ['na', '不含金額'], ['fy', '豐餘列印'], ...(ry ? [['ry', '如陽列印']] : [])].map(([k, n]) => `<button class="chip ${e.fmt === k ? 'on' : ''}" data-fmt="${k}">${n}</button>`).join('')}</div>
     <div id="err" class="err"></div>
     <div class="acts"><button class="btn ghost" id="draft">存草稿</button><button class="btn ghost" id="save">送出</button></div>
     <p><button class="btn" id="saveprint">送出並列印（中一刀）</button></p>
@@ -69,7 +69,7 @@ export function billPage(view, sub) {
   const $ = s => view.querySelector(s);
   const redraw = () => billPage(view);
   drawTot(view);
-  $('#pc').onclick = ev => { ev.preventDefault(); pickCustomer(redraw, id => { e.cid = id; e.lines.forEach(l => { if (l.ap || l.price === '' || l.price == null) priceFor(l, e.cid, e.date); }); keep(); }); };
+  $('#pc').onclick = ev => { ev.preventDefault(); pickCustomer(redraw, id => { e.cid = id; { const nm = store.get('contacts', id)?.name || ''; if (/豐餘/.test(nm)) e.fmt = 'fy'; else if (/如陽/.test(nm)) e.fmt = 'ry'; else if (e.fmt === 'fy' || e.fmt === 'ry') e.fmt = 'std'; } e.lines.forEach(l => { if (l.ap || l.price === '' || l.price == null) priceFor(l, e.cid, e.date); }); keep(); }); };
   $('#dt').onchange = ev => { e.date = ev.target.value || today(); keep(); };
   $('#note').oninput = ev => { e.note = ev.target.value; keep(); };
   $('#add').onclick = () => pickGoods(redraw);
@@ -137,20 +137,20 @@ async function submit(view, print) {
   catch (err2) { toast('送出失敗：' + err2.message); view.querySelectorAll('.acts button, #saveprint').forEach(b => b.disabled = false); return; }
   store.log('新增', `銷貨單 ${no}｜${cname(doc.cid)}｜${fmt(totals(doc).total)} 元（手機）`);
   if (e.draftId && store.get('drafts', e.draftId)) await store.remove('drafts', e.draftId).catch(() => {});
-  lastSent = { billId: id, no, jobId: '' };
+  lastSent = { billId: id, no, jobId: '', fmt: e.fmt };
   if (print) lastSent.jobId = await queuePrint({ ...doc, id }, e.fmt).catch(err3 => { toast('排入列印失敗：' + err3.message); return ''; });
   cur = blank(); keep(); toast(`銷貨單 ${no} 已送出${print ? '，已排入列印' : ''}`); billPage(view); window.scrollTo(0, 0);
 }
 /** 出貨單交給主機的列印小幫手印中一刀（格式、位置用平台設定；印表機名稱在設定 mprint） */
 export async function queuePrint(b, f) {
   const set = store.setting('mprint') || {};
-  const opt = f === 'pn' ? { pn: true } : f === 'na' ? { noAmt: true } : f === 'ry' ? { pn: true, label: '如陽列印', tpl: ruyangTpl() } : {};
+  const opt = f === 'pn' ? { pn: true } : f === 'na' ? { noAmt: true } : f === 'fy' ? { pn: true, noAmt: true, label: '豐餘列印' } : f === 'ry' ? { pn: true, label: '如陽列印', tpl: ruyangTpl() } : {};
   if (set.off) opt.off = set.off;
   const d = shipDoc(b, opt);
   const html = `<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><title>銷貨單 ${esc(b.no)}</title><style>${d.css}</style></head><body>${d.html}</body></html>`;
   const id = uid('pj');
   await store.save('printjobs', id, { status: 'queued', billId: b.id, no: b.no, type: b.type, fmt: f || 'std', printer: set.printer || PRINTER_DEF, html, by: store.user.name, at: new Date().toISOString() });
-  store.log('列印', `銷貨單 ${b.no}（手機，主機列印）`);
+  store.log('列印', `銷貨單 ${b.no}（手機，主機列印${opt.label ? '，' + opt.label : ''}）`);
   return id;
 }
 const ST = { queued: '排隊中，等主機列印', printing: '列印中…', done: '已印出', failed: '列印失敗' };
@@ -161,7 +161,7 @@ function sentCard() {
 }
 async function helperState(view) {
   const ph = view.querySelector('#ph'); const rp = view.querySelector('#rp');
-  if (rp) rp.onclick = async () => { const b = store.get('bills', lastSent.billId); if (!b) return; rp.disabled = true; lastSent.jobId = await queuePrint(b, 'std').catch(err => { toast(err.message); return ''; }); billPage(view); };
+  if (rp) rp.onclick = async () => { const b = store.get('bills', lastSent.billId); if (!b) return; rp.disabled = true; lastSent.jobId = await queuePrint(b, lastSent.fmt || 'std').catch(err => { toast(err.message); return ''; }); billPage(view); };
   try { const s = await api.get('/api/print/helper'); if (ph?.isConnected) ph.textContent = s.online ? '主機列印小幫手：運作中' : '⚠ 主機的列印小幫手沒有開，列印會排隊，等它開了才印'; } catch (e) {}
 }
 /** 列印狀態更新時重畫已送出卡片 */
