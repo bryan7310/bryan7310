@@ -20,8 +20,8 @@ const cfg = () => ({ printer: PRINTER_DEF, mode: 'tspl', invert: false, dir: 1, 
 
 /** 品名 → 標籤文字；ok=false 表示拆不準、要人確認（why 說原因） */
 export function lblParse(g) {
-  // 開頭的 ⊕、Θ 等符號先去掉（跟網頁版如陽標籤一樣），再照規則拆
-  const raw = String(g?.name || '').trim().replace(/^[^\p{L}\p{N}]+/u, '').trim();
+  // 開頭的 ⊕、Θ 等符號先去掉（跟網頁版如陽標籤一樣），CAP 改成「有頭」，再照規則拆
+  const raw = String(g?.name || '').trim().replace(/^[^\p{L}\p{N}]+/u, '').trim().replace(/^CAP\s*/i, '有頭');   // CAP 開頭改成「有頭」
   const f = fixes()[g?.id];
   const tok = raw.split(/\s+/)[0] || ''; const lead = (tok.match(RE_LEAD) || [''])[0]; const rest = tok.slice(lead.length);
   let others = raw.slice(tok.length); const fin = [];
