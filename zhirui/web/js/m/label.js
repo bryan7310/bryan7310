@@ -124,6 +124,7 @@ export function labelPage(view, sub, arg) {
     <div class="btn2"><button class="btn ghost" id="add">＋ 加品項</button><button class="btn ghost" id="scan">掃 QR 碼加入</button></div>
     ${bad ? `<div class="err">${bad} 種品名拆字需要確認（黃色框），確認後才會印。</div>` : ''}
     <p><button class="btn" id="go" ${s.items.length && !bad ? '' : 'disabled'}>列印 ${total} 張標籤</button></p>
+    <div class="note" style="margin-top:-6px">標籤方向：${c.rot === 'land' ? '橫放（50 mm 橫過印字頭）' : '直放（40 mm 橫過印字頭，整張轉 90 度）'}・可在下面「標籤機設定」改</div>
     ${s.items.length ? '<p><button class="btn ghost danger" id="clr">清空清單</button></p>' : ''}
     <div class="note" id="ph"></div>
     <details class="card set"><summary>標籤機設定</summary>

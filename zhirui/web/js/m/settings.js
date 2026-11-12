@@ -38,7 +38,7 @@ export function settingsPage(view) {
       <a href="#po"><span>採購單</span><span class="go">›</span></a>
       <a href="#rep"><span>經營報表</span><span class="go">›</span></a></div>
     <p><button class="btn ghost danger" id="lo">登出</button></p>
-    <div class="note">志瑞手機版</div>`;
+    <div class="note">志瑞手機版・版本 ${esc((import.meta.url.match(/\/v([0-9a-f]+)\//) || [, '開發中'])[1])}</div>`;
   const save = x => { ls.set(KEY, { ...pref(), ...x }); applyTheme(); settingsPage(view); };
   view.querySelectorAll('[data-t]').forEach(b => b.onclick = () => save({ t: b.dataset.t }));
   view.querySelector('#auto').onchange = ev => save({ auto: ev.target.checked });
