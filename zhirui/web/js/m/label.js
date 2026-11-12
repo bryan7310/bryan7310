@@ -67,8 +67,14 @@ export async function drawLabel(cv, it, opt = {}) {
   let px = fitText(cx, it.name, full, 54, true); cx.fillText(it.name, P, P + px * 0.92);
   const l2 = [it.spec, it.fin].filter(Boolean).join('　');
   px = fitText(cx, l2, full, 42, true); cx.fillText(l2, P, 128);
-  px = fitText(cx, it.qty, half, 46, true); cx.fillText(it.qty, P, 212);
-  px = fitText(cx, it.date, half, 32, false); cx.fillText(it.date, P, H - P - 8);
+  if (it.wt) {   // 有單重：數量往上一點，單重放在數量下面一行
+    fitText(cx, it.qty, half, 44, true); cx.fillText(it.qty, P, 194);
+    fitText(cx, it.wt, half, 36, true); cx.fillText(it.wt, P, 244);
+    fitText(cx, it.date, half, 30, false); cx.fillText(it.date, P, H - P - 6);
+  } else {
+    fitText(cx, it.qty, half, 46, true); cx.fillText(it.qty, P, 212);
+    fitText(cx, it.date, half, 32, false); cx.fillText(it.date, P, H - P - 8);
+  }
   toBW(cx); return cv;
 }
 /** 轉純黑白（熱感印表機沒有灰階） */
@@ -110,7 +116,7 @@ let st = null;
 const load = () => { if (!st) { const x = ls.get(KEY, null); st = x && Array.isArray(x.items) ? x : { items: [], date: '' }; } return st; };
 const keep = () => ls.set(KEY, st);
 export function addLabel(gid, per, n, unit) { const s = load(); const g = store.get('goods', gid); if (!g) return; s.items.push({ gid, per: per || '', n: n || 1, unit: unit || g.unit || 'PCS' }); keep(); }
-const itemOf = (x, date) => { const g = store.get('goods', x.gid) || {}; const p = lblParse(g); return { name: p.name, spec: p.spec, fin: p.fin, qty: qtyText(x.per, x.unit) + (String(x.wt || '').trim() ? `  ${String(x.wt).trim()}g` : ''), date, code: g.code || '', p, g }; };
+const itemOf = (x, date) => { const g = store.get('goods', x.gid) || {}; const p = lblParse(g); return { name: p.name, spec: p.spec, fin: p.fin, qty: qtyText(x.per, x.unit), wt: String(x.wt || '').trim() ? `${String(x.wt).trim()}g` : '', date, code: g.code || '', p, g }; };
 
 const MODES = [['goods', '商品標籤'], ['addr', '地址標籤']];
 const modeTabs = m => `<div class="chips">${MODES.map(([k, n]) => `<button class="chip ${m === k ? 'on' : ''}" data-mode="${k}">${n}</button>`).join('')}</div>`;
@@ -177,7 +183,7 @@ function itemCard(x, i) {
     <canvas class="lblcv" data-cv="${i}" width="${W}" height="${H}"></canvas>
     ${p.ok ? '' : `<div class="err" style="margin:6px 0 0">拆字需要確認：${esc(p.why)}</div>`}
     <div class="lnr"><label>每張數量<input data-f="per" inputmode="decimal" value="${esc(x.per)}"></label><span class="u">${esc(x.unit)}</span><label>張數（箱數）<input data-f="n" inputmode="numeric" value="${esc(x.n)}"></label><button class="chip" data-fix="${i}">${p.ok ? '改文字' : '確認文字'}</button></div>
-    <div class="lnr wtr"><label>單重（g，選填；有填會印在數量後面）<input data-f="wt" inputmode="decimal" value="${esc(x.wt || '')}" placeholder="例如 2.5"></label></div></div>`;
+    <div class="lnr wtr"><label>單重（g，選填；有填會印在數量下面）<input data-f="wt" inputmode="decimal" value="${esc(x.wt || '')}" placeholder="例如 2.5"></label></div></div>`;
 }
 /** 標籤交給主機列印小幫手（TSPL 直送或 Windows 驅動）；回傳列印工作 id */
 async function queueLabels(labels, what) {
