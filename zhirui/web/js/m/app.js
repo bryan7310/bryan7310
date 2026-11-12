@@ -1,5 +1,5 @@
 // 志瑞手機版（/m/）：老闆專用。和電腦版共用同一份資料（store）與計算（calc），數字算法跟電腦版總覽一致。
-import { esc, fmt, today, thisMonth, roc } from '../core/util.js';
+import { esc, fmt, today, thisMonth, roc, ls } from '../core/util.js';
 import { api } from '../core/api.js';
 import { store } from '../core/store.js';
 import { calc } from '../core/calc.js';
@@ -25,6 +25,7 @@ const IC = {
   money: '<rect x="3" y="6" width="18" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/>',
   cam: '<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>',
   tag: '<path d="M3 12V4h8l10 10-8 8z"/><circle cx="7.5" cy="8" r="1.3"/>',
+  po: '<path d="M7 3h10v18H7z"/><path d="M10 7h4M10 11h4M10 15h2"/><path d="M4 8h3M4 12h3"/>',
   fax: '<path d="M7 9V3h10v6"/><rect x="3" y="9" width="18" height="9" rx="2"/><path d="M7 14h10v7H7z"/>',
 };
 // 底部選單（固定 5 項）；還沒做好的頁先顯示「第 N 階段」，並提供電腦版連結
@@ -144,6 +145,7 @@ function home() {
       <a href="#bill"><i>${SVG(IC.bill)}</i>開出貨單</a>
       <a href="#up"><i>${SVG(IC.cam)}</i>拍照上傳</a>
       <a href="#lbl"><i>${SVG(IC.tag)}</i>印標籤</a>
+      <a href="#po"><i>${SVG(IC.po)}</i>採購單${(n => n ? `（${n}）` : '')((ls.get('zr.m.po', null)?.lines || []).length)}</a>
       <a href="#fax"><i>${SVG(IC.fax)}</i>收傳真${faxUnread() ? `（${faxUnread()}）` : ''}</a>
     </div>
     <div class="sec">待處理</div>
