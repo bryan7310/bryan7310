@@ -301,8 +301,9 @@ async function drawAddr(cv, F) {
   cx.fillStyle = '#fff'; cx.fillRect(0, 0, W, H); cx.fillStyle = '#000'; cx.textBaseline = 'alphabetic';
   const P = 24, full = W - P * 2;
   // 第一行郵遞區號：粗體、字距拉開
-  cx.font = 'bold 42px Arial,Helvetica,sans-serif'; let x = P; for (const ch of String(F.zip || '')) { cx.fillText(ch, x, P + 36); x += cx.measureText(ch).width + 4; }
-  if (F.zx) { x += 18; fitText(cx, F.zx, W - P - x, 40, true); cx.fillText(F.zx, x, P + 36); }   // 郵遞區號後面接的字（例如志瑞地址的「台中市大里區」）
+  if (F.zx) {   // 郵遞區號後面接的字（例如志瑞地址的「台中市大里區」）：跟數字一樣大，整行一起縮到放得下
+    const t = `${F.zip || ''}  ${F.zx}`; fitText(cx, t, full, 42, true); cx.fillText(t, P, P + 36);
+  } else { cx.font = 'bold 42px Arial,Helvetica,sans-serif'; let x = P; for (const ch of String(F.zip || '')) { cx.fillText(ch, x, P + 36); x += cx.measureText(ch).width + 4; } }
   fitText(cx, F.l2, full, 36, true); cx.fillText(F.l2, P, 140);
   fitText(cx, F.l3, full, 36, true); cx.fillText(F.l3, P, 208);
   fitText(cx, F.l4, full, 46, true); cx.textAlign = 'right'; cx.fillText(F.l4, W - P, H - 26); cx.textAlign = 'left';
