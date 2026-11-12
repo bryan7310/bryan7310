@@ -87,3 +87,18 @@ button { font: inherit; }
 .link { border: 0; background: none; color: var(--accent); font-size: 16px; padding: 8px 0; }
 body.noscroll { overflow: hidden; }
 .list a .mono { min-width: 48px; }
+/* QR 掃描與顯示 */
+.srow { display: flex; gap: 8px; }
+.srow input { flex: 1; min-width: 0; }
+.scanbtn { flex: none; width: 48px; border: 0; border-radius: 12px; background: var(--accent); color: var(--accent-ink); display: grid; place-items: center; }
+.scanbtn svg { width: 24px; height: 24px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; }
+.qrbox { text-align: center; }
+.qrbox svg { width: 160px; height: 160px; background: #fff; border-radius: 8px; }
+.qrbox .mono { margin-top: 4px; color: var(--muted); }
+.scan { position: fixed; inset: 0; background: #000; z-index: 40; }
+.scan video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.scan-box { position: absolute; left: 50%; top: 50%; width: min(70vw, 70vh); aspect-ratio: 1; transform: translate(-50%, -50%); border: 3px solid rgba(255,255,255,.9); border-radius: 18px; box-shadow: 0 0 0 100vmax rgba(0,0,0,.35); }
+.scan-hd { position: absolute; left: 0; right: 0; top: 0; display: flex; justify-content: space-between; align-items: center; padding: calc(env(safe-area-inset-top) + 10px) 16px 10px; color: #fff; }
+.scan-x { border: 0; background: rgba(255,255,255,.2); color: #fff; padding: 8px 16px; border-radius: 999px; font-size: 16px; }
+.scan-msg { position: absolute; left: 16px; right: 16px; bottom: calc(env(safe-area-inset-bottom) + 40px); color: #fff; text-align: center; font-size: 15px; }
+.scan-msg.err { background: rgba(194,65,12,.9); padding: 10px; border-radius: 12px; }

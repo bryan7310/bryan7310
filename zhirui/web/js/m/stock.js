@@ -4,8 +4,11 @@ import { api } from '../core/api.js';
 import { store } from '../core/store.js';
 import { calc, costOf, lastSale, uRate, cdisp, customers, goodsLabel } from '../core/calc.js';
 import { platCost } from '../core/pricing.js';
+import { qrSvg, scanQR } from '../core/qr.js';
 
-const FINS = [['', '全部'], ['白皮', '白皮', /白皮/], ['染黑', '染黑', /染黑/], ['鍍鎳', '鍍鎳', /鎳/], ['防鬆', '防鬆', /防鬆|耐落|nylok/i]];
+// 材質篩選（商品「類別」欄）：鐵、白鐵（不鏽鋼）、合金（合金鋼）、其他（中碳鋼、彈簧鋼、銅、鋁、代工…）
+const MAIN = ['鐵', '不鏽鋼', '合金鋼'];
+const FINS = [['', '全部'], ['鐵', '鐵', g => g.cat === '鐵'], ['白鐵', '白鐵', g => g.cat === '不鏽鋼'], ['合金', '合金', g => g.cat === '合金鋼'], ['其他', '其他', g => !MAIN.includes(g.cat)]];
 const ui = { q: '', fin: '', scroll: 0 };
 const custId = () => { const id = ls.get('zr.m.cid', ''); return id && store.get('contacts', id) ? id : ''; };
 const p2 = n => (Math.round((+n || 0) * 100) / 100).toLocaleString('zh-TW', { maximumFractionDigits: 4 });
@@ -29,7 +32,7 @@ export function search(q, fin) {
   if (!ts.length && !f) return [];
   const Q = String(q || '').trim().toUpperCase();
   const out = [];
-  for (const x of index()) { if (f && !f.test(x.g.name)) continue; if (ts.length && !matchQ(x.t, ts)) continue; out.push(x.g); }
+  for (const x of index()) { if (f && !f(x.g)) continue; if (ts.length && !matchQ(x.t, ts)) continue; out.push(x.g); }
   const C = calc();
   const rank = g => (String(g.code).toUpperCase() === Q ? 0 : String(g.code).toUpperCase().startsWith(Q) ? 1 : 2) * 2 + (total(C, g.id) > 0 ? 0 : 1);
   return out.sort((a, b) => rank(a) - rank(b) || String(a.code).localeCompare(String(b.code))).slice(0, 80);
@@ -39,13 +42,13 @@ export function search(q, fin) {
 export function stockPage(view) {
   const cid = custId(); const c = cid ? store.get('contacts', cid) : null;
   view.innerHTML = `<div class="hd"><h1>查庫存</h1><span class="sp"></span><button class="chip" id="cust">${c ? '客戶：' + esc(cdisp(c)) : '選客戶（看上次成交價）'}</button></div>
-    <div class="search"><input type="search" id="q" placeholder="規格或品名，例如 M6*20 白皮" value="${esc(ui.q)}" autocomplete="off" autocorrect="off" autocapitalize="off" enterkeyhint="search"></div>
+    <div class="search srow"><input type="search" id="q" placeholder="規格或品名，例如 M6*20" value="${esc(ui.q)}" autocomplete="off" autocorrect="off" autocapitalize="off" enterkeyhint="search"><button type="button" class="scanbtn" id="scan" aria-label="掃 QR 碼"><svg viewBox="0 0 24 24"><path d="M4 8V4h4M16 4h4v4M20 16v4h-4M8 20H4v-4"/><path d="M7 12h10"/></svg></button></div>
     <div class="chips">${FINS.map(([k, n]) => `<button class="chip ${ui.fin === k ? 'on' : ''}" data-fin="${k}">${n}</button>`).join('')}</div>
     <div id="res"></div>`;
   const q = view.querySelector('#q'), res = view.querySelector('#res');
   const draw = () => {
     const list = search(ui.q, ui.fin); const C = calc();
-    if (!qTerms(ui.q).length && !ui.fin) { res.innerHTML = '<div class="note">輸入規格或品名開始搜尋，空白隔開多個字（例如「M6 20 白皮」）。</div>'; return; }
+    if (!qTerms(ui.q).length && !ui.fin) { res.innerHTML = '<div class="note">輸入規格或品名開始搜尋，空白隔開多個字（例如「M6 20 鍍鋅」）。</div>'; return; }
     res.innerHTML = list.length ? `<div class="card list">${list.map(g => { const t = total(C, g.id); const lp = cid ? lastSale(cid, g.id, today()) : null; return `<a href="#g/${encodeURIComponent(g.id)}" class="gi"><div class="gm"><b>${esc(g.name)}</b><small>${esc(g.code)}${g.spec ? '・' + esc(g.spec) : ''}</small></div><div class="gr"><b>${C.stock[g.id] ? fmtQ(t) : '—'}</b><small>${esc(g.unit || '')}${lp ? `・上次 ${p2(lp.price)}` : +g.salePrice ? `・售 ${p2(g.salePrice)}` : ''}</small>${stockTag(C, g)}</div></a>`; }).join('')}</div>${list.length >= 80 ? '<div class="note">只列前 80 項，請再多打幾個字縮小範圍。</div>' : ''}`
       : '<div class="card ph"><b>找不到</b><span class="muted">換個寫法試試，例如「M6*20」或「6*20」。</span></div>';
   };
@@ -54,8 +57,16 @@ export function stockPage(view) {
   q.addEventListener('keydown', e => { if (e.key === 'Enter') q.blur(); });
   view.querySelectorAll('[data-fin]').forEach(b => b.onclick = () => { ui.fin = b.dataset.fin; view.querySelectorAll('[data-fin]').forEach(x => x.classList.toggle('on', x === b)); draw(); });
   view.querySelector('#cust').onclick = () => pickCustomer(() => stockPage(view));
+  view.querySelector('#scan').onclick = () => scanQR(text => { const g = findByCode(text); if (g) location.hash = '#g/' + encodeURIComponent(g.id); else { ui.q = text; stockPage(view); } }, { title: '掃商品 QR 碼' });
   draw();
   if (ui.scroll) { window.scrollTo(0, ui.scroll); ui.scroll = 0; }
+}
+
+/** QR 碼內容 → 商品：料號（不分大小寫）；也接受網址裡的 #g/商品 */
+export function findByCode(text) {
+  let t = String(text || '').trim(); const m = t.match(/#g\/([^?#]+)/); if (m) t = decodeURIComponent(m[1]);
+  const u = t.toUpperCase();
+  return store.get('goods', t) || store.list('goods').find(g => String(g.code || '').toUpperCase() === u) || null;
 }
 
 // ---------- 選客戶（全螢幕清單） ----------
@@ -110,8 +121,10 @@ export function goodsPage(view, gid) {
     <div class="sec">最近成交（每個客戶最近一次）</div><div class="card list" id="hs"><div class="row muted">載入中…</div></div>
     <div class="sec">供應商（最近進貨）</div>
     <div class="card list">${purs.slice(0, 3).map(x => `<div class="row"><span>${esc(x.cid ? cdisp(C.ct[x.cid]) : '—')}<small class="muted">　${esc(slash(x.date))}</small></span><span class="go">${p2(x.per)}${cost && (x.per > cost.c * 3 || x.per < cost.c / 3) ? '<small class="muted">（單位可能不同）</small>' : ''}</span></div>`).join('') || '<div class="row muted">查不到進貨紀錄</div>'}</div>
+    <div class="sec">料號 QR 碼</div><div class="card qrbox" id="qr">…</div>
     `;
   view.querySelector('#pick')?.addEventListener('click', e => { e.preventDefault(); pickCustomer(() => goodsPage(view, gid)); });
+  qrSvg(g.code).then(svg => { const b = view.querySelector('#qr'); if (b) b.innerHTML = svg + `<div class="mono">${esc(g.code)}</div>`; }).catch(e => { const b = view.querySelector('#qr'); if (b) b.textContent = e.message; });
   recentSales(view.querySelector('#hs'), g, C).then(rows => {
     const mg = view.querySelector('#mg'); if (!mg) return;
     // 有選客戶且買過：用他的上次價；不然用所有客戶最近一次
