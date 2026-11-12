@@ -90,15 +90,16 @@ async function retry(id) {
 
 // ---------- 待確認：核對後入帳 ----------
 const r4 = n => Math.round(n * 10000) / 10000;
+const zhe = f => { const x = Math.round(f * 100); return (x % 10 ? x : x / 10) + " 折"; };   // 0.8 → 8 折、0.85 → 85 折
 /** 實際單價：有折數就換算（80＝8 折、8.5＝85 折）；沒讀到折數但「數量×單價」跟金額對不上時，用金額回推折數（四捨五入到 1%） */
 function netPrice(r) {
   const p = +r.price || 0, q = +r.qty || 0, a = +r.amount || 0, d = +r.disc || 0;
   if (!p) return { price: q && a ? r4(a / q) : '', note: q && a ? '依金額÷數量算出' : '' };
   const f = d > 10 ? d / 100 : d > 0 ? d / 10 : 0;
-  if (f > 0 && f < 1) return { price: r4(p * f), note: `原價 ${p} × ${Math.round(f * 100)} 折` };
+  if (f > 0 && f < 1) return { price: r4(p * f), note: `原價 ${p} × ${zhe(f)}` };
   if (q && a && Math.abs(q * p - a) > Math.max(1, a * 0.01)) {
     const k = Math.round(a / (q * p) * 100) / 100;
-    if (k > 0.2 && k < 1) return { price: r4(p * k), note: `原價 ${p} × ${Math.round(k * 100)} 折（依金額推算）` };
+    if (k > 0.2 && k < 1) return { price: r4(p * k), note: `原價 ${p} × ${zhe(k)}（依金額推算）` };
   }
   return { price: p, note: '' };
 }
