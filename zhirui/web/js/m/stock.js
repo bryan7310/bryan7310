@@ -42,7 +42,7 @@ export function search(q, fin) {
 // ---------- 清單頁 ----------
 export function stockPage(view) {
   const cid = custId(); const c = cid ? store.get('contacts', cid) : null;
-  view.innerHTML = `<div class="hd"><h1>查庫存</h1><span class="sp"></span><button class="chip" id="cust">${c ? '客戶：' + esc(cdisp(c)) : '選客戶（看上次成交價）'}</button></div>
+  view.innerHTML = `<div class="hd"><h1>查庫存</h1><span class="sp"></span><a class="chip" href="#po">採購單${(n => n ? ` ${n}` : '')((ls.get('zr.m.po', null)?.lines || []).length)}</a><button class="chip" id="cust">${c ? '客戶：' + esc(cdisp(c)) : '選客戶'}</button></div>
     <div class="search srow"><input type="search" id="q" placeholder="規格或品名，例如 M6*20" value="${esc(ui.q)}" autocomplete="off" autocorrect="off" autocapitalize="off" enterkeyhint="search"><button type="button" class="scanbtn" id="scan" aria-label="掃 QR 碼"><svg viewBox="0 0 24 24"><path d="M4 8V4h4M16 4h4v4M20 16v4h-4M8 20H4v-4"/><path d="M7 12h10"/></svg></button></div>
     <div class="chips">${FINS.map(([k, n]) => `<button class="chip ${ui.fin === k ? 'on' : ''}" data-fin="${k}">${n}</button>`).join('')}</div>
     <div id="res"></div>`;
