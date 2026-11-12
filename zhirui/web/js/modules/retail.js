@@ -1,6 +1,5 @@
 // 門市銷售（簡易版）：只有日期和金額，輸入就開一張銷貨單；當天的明細列在下面
 import { esc, fmt, today, slash, addDays } from '../core/util.js';
-import { api } from '../core/api.js';
 import { store } from '../core/store.js';
 import { confirm } from '../core/ui.js';
 import { calc } from '../core/calc.js';
@@ -8,18 +7,19 @@ import { createRetail, retailBills, retailCustomerExists, retailCustomerId } fro
 import { openBill } from './_bills.js';
 
 const ui = { date: '', focus: true, year: 0 };
-// 年度彙總：新平台的門市銷售單＋舊系統搬來的歷史單據（向伺服器查，依年份快取）
-const HIST = new Map();
-async function histYear(cid, y) {
-  const key = cid + '|' + y + '|' + (store.histVer || '');
-  if (!HIST.has(key)) HIST.set(key, (async () => { const out = []; let offset = 0; for (;;) { const r = await api.hist({ cid, from: `${y}-01-01`, to: `${y}-12-31`, limit: 1000, offset }); out.push(...r.rows.filter(b => b.type === 'SALE' || b.type === 'SALE_RET')); offset += r.rows.length; if (!r.rows.length || offset >= r.total) break; } return out; })().catch(e => { HIST.delete(key); throw e; }));
-  return HIST.get(key);
-}
+// 年度彙總：2026/11/06 以前用「應收帳款 → 門市收入」每月填的金額（應收月份，25 日結）；
+// 2026/11/06 起用新平台的門市銷售單（依單據日期的月份）。不用舊系統出貨單（舊系統門市銷售大多沒開單，金額不準）。
+const CUT = '2026-11-06', CUT_M = CUT.slice(0, 7);
 async function yearMonths(C, cid, y) {
-  const m = Array.from({ length: 12 }, () => ({ n: 0, amt: 0 }));
-  const add = (b, amt) => { const k = +String(b.date || '').slice(5, 7) - 1; if (k < 0 || k > 11) return; const s = b.type === 'SALE_RET' ? -1 : 1; m[k].n += s > 0 ? 1 : 0; m[k].amt += s * amt; };
-  for (const b of C.bills) if ((b.type === 'SALE' || b.type === 'SALE_RET') && b.cid === cid && !b.hist && String(b.date || '').startsWith(y + '-')) add(b, C.tot[b.id]?.total || 0);
-  for (const b of await histYear(cid, y)) add(b, Math.round(+b.oamt || 0));
+  const m = Array.from({ length: 12 }, () => ({ n: 0, amt: 0, ar: false }));
+  const st = store.setting('ar_store').months || {};
+  for (let i = 0; i < 12; i++) { const ym = y + '-' + String(i + 1).padStart(2, '0'); if (ym < CUT_M) { m[i].ar = true; m[i].amt = Math.round(+(st[ym]?.amt) || 0); } }
+  for (const b of C.bills) {
+    if ((b.type !== 'SALE' && b.type !== 'SALE_RET') || b.cid !== cid || b.hist) continue;
+    const d = String(b.date || ''); if (d < CUT || !d.startsWith(y + '-')) continue;
+    const k = +d.slice(5, 7) - 1; if (k < 0 || k > 11 || m[k].ar) continue;
+    const s = b.type === 'SALE_RET' ? -1 : 1; m[k].n += s > 0 ? 1 : 0; m[k].amt += s * (C.tot[b.id]?.total || 0);
+  }
   return m;
 }
 async function drawYear(el, C) {
@@ -27,17 +27,17 @@ async function drawYear(el, C) {
   const y = ui.year; box.querySelector('#rsYearBody').innerHTML = '<div class="muted" style="padding:10px 0">載入中…</div>';
   let cur, prev;
   try { [cur, prev] = await Promise.all([yearMonths(C, cid, y), yearMonths(C, cid, y - 1)]); }
-  catch (e) { box.querySelector('#rsYearBody').innerHTML = `<div class="banner">舊系統資料載入失敗：${esc(e.message || e)}</div>`; return; }
+  catch (e) { box.querySelector('#rsYearBody').innerHTML = `<div class="banner">載入失敗：${esc(e.message || e)}</div>`; return; }
   if (!box.isConnected || ui.year !== y) return;
   const tn = cur.reduce((s, x) => s + x.n, 0), ta = cur.reduce((s, x) => s + x.amt, 0), pa = prev.reduce((s, x) => s + x.amt, 0);
   const nowM = y === +today().slice(0, 4) ? +today().slice(5, 7) : 12;
   const diff = (a, b) => !b ? (a ? '<span class="muted">—</span>' : '') : `<span style="color:${a >= b ? 'var(--ok,#1a7f37)' : 'var(--bad,#c62828)'}">${a >= b ? '+' : ''}${Math.round((a - b) / b * 100)}%</span>`;
-  box.querySelector('.ptitle small').textContent = `全年 ${tn} 筆・合計 ${fmt(ta)}`;
+  box.querySelector('.ptitle small').textContent = `全年${tn ? ` ${tn} 筆・` : ''}合計 ${fmt(ta)}`;
   box.querySelector('#rsYearBody').innerHTML = `<div class="tw"><table><thead><tr><th>月份</th><th class="n">筆數</th><th class="n">金額</th><th class="n">${y - 1} 年同月</th><th class="n">增減</th></tr></thead><tbody>
-    ${cur.map((x, i) => `<tr ${i + 1 > nowM ? 'class="muted"' : ''}><td>${i + 1} 月</td><td class="n">${x.n || ''}</td><td class="n" style="font-weight:600">${x.amt ? fmt(x.amt) : ''}</td><td class="n muted">${prev[i].amt ? fmt(prev[i].amt) : ''}</td><td class="n">${i + 1 <= nowM ? diff(x.amt, prev[i].amt) : ''}</td></tr>`).join('')}</tbody>
-    <tfoot><tr><td>全年</td><td class="n">${tn}</td><td class="n" style="font-size:18px">${fmt(ta)}</td><td class="n">${fmt(pa)}</td><td class="n">${diff(ta, pa)}</td></tr>
+    ${cur.map((x, i) => `<tr ${i + 1 > nowM ? 'class="muted"' : ''}><td>${i + 1} 月</td><td class="n">${x.ar ? (x.amt ? '<span class="muted small" title="應收帳款的門市收入，沒有筆數">應收</span>' : '') : (x.n || '')}</td><td class="n" style="font-weight:600">${x.amt ? fmt(x.amt) : ''}</td><td class="n muted">${prev[i].amt ? fmt(prev[i].amt) : ''}</td><td class="n">${i + 1 <= nowM ? diff(x.amt, prev[i].amt) : ''}</td></tr>`).join('')}</tbody>
+    <tfoot><tr><td>全年</td><td class="n">${tn || ''}</td><td class="n" style="font-size:18px">${fmt(ta)}</td><td class="n">${fmt(pa)}</td><td class="n">${diff(ta, pa)}</td></tr>
     <tr><td>月平均</td><td class="n"></td><td class="n">${fmt(Math.round(ta / Math.max(1, nowM)))}</td><td class="n">${fmt(Math.round(pa / 12))}</td><td></td></tr></tfoot></table></div>
-    <div class="muted small" style="margin-top:6px">含舊系統搬來的門市銷售單；退回單會扣掉。${y === +today().slice(0, 4) ? '今年月平均以已過的月份計算。' : ''}</div>`;
+    <div class="muted small" style="margin-top:6px">2026/11/06 以前：應收帳款每月的「門市收入」（應收月份，25 日結）；2026/11/06 起：門市銷售單（退回單會扣掉）。不含舊系統出貨單。${y === +today().slice(0, 4) ? '今年月平均以已過的月份計算。' : ''}</div>`;
 }
 export default {
   id: 'retail', name: '門市銷售', icon: 'money',
