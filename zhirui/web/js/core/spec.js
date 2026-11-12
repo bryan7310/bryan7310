@@ -101,6 +101,7 @@ export function spParse(g) {
   // 表面處理
   const fins = ['三價白鋅', '三價黑鋅', '三價鋅', '鍍錏黑', '錏黑', '鍍鋅', '染黑', '五彩', '黑鎳', '鍍鎳', '鍍鉻', '紅古銅', '青古銅', '古銅', '磷酸', '達克羅', '黑身', '白皮', '原色', '洗油'];
   for (const f of fins) if (n.includes(f)) { r.fin = f === '黑身' || f === '白皮' ? '黑身（無處理）' : f === '原色' ? '原色（無處理）' : f; break; }
+  if (!r.fin && r.mat?.startsWith('不鏽鋼')) r.fin = '原色（無處理）';   // 品名「白鐵原色」已簡化成「白鐵」：白鐵沒寫表面處理＝原色
   const ex = []; if (/耐落/.test(n)) ex.push('耐落'); if (/防鬆/.test(n)) ex.push('防鬆'); if (/附S&平華司|附彈墊|S&平華司/.test(n)) ex.push('附彈簧墊圈＋平墊圈'); if (/穿.{0,2}墊片/.test(n)) ex.push((n.match(/穿.{0,2}墊片/) || [''])[0]); if (/熱處理/.test(n)) ex.push('熱處理'); if (ex.length) r.extra = ex.join('、');
   // 品名上的實際尺寸
   const hm = n.match(/(?:頭部?|外緣|T=)\s*(\d+(?:\.\d+)?)\s*(?:mm)?/); if (hm && !['nut', 'fw', 'sw'].includes(r.type)) r.dk = hm[1];
