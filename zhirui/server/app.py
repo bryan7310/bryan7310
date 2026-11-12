@@ -69,7 +69,7 @@ def web_version():
 # 用戶端一開始就整批載入、之後即時同步的集合
 LIVE_COLS = ['settings', 'contacts', 'goods', 'warehouses', 'accounts', 'bills',
              'pricing_cats', 'pricing', 'discounts', 'receivables', 'payables', 'invoices', 'purch_invoices',
-             'checks_out', 'checks_in', 'orders', 'drawings', 'labels', 'mail', 'logs', 'faxjobs']
+             'checks_out', 'checks_in', 'orders', 'drawings', 'labels', 'mail', 'logs', 'faxjobs', 'printjobs', 'drafts']
 COOKIE = 'zr_session'
 LONG_POLL = 25
 # 附檔（客戶圖面）
@@ -80,6 +80,7 @@ FILE_RE = re.compile(r'^/api/files/([0-9a-f]{16}\.(?:jpg|png|gif|webp|pdf))(/del
 
 
 FAX_HELPER = {}
+PRINT_HELPER = {}
 ASR = {'model': None}
 ASR_LOCK = threading.Lock()
 ASR_PROMPT = ('螺絲、螺帽、華司、彈簧華司、平華司、六角、十字、內六角、外六角、平頭、圓頭、大扁、喇叭頭、尖尾、鑽尾、鐵板牙、機械牙、'
@@ -313,6 +314,8 @@ class Handler(BaseHTTPRequestHandler):
 
         if path.startswith('/api/fax/helper/'):
             return self.fax_helper_api(method, path, qs, body or {})
+        if path.startswith('/api/print/helper/'):
+            return self.print_helper_api(method, path, qs, body or {})
 
         me = self.user()
         if not me:
@@ -448,6 +451,9 @@ class Handler(BaseHTTPRequestHandler):
             sys.stderr.write('restart requested by %s\n' % me.get('login'))
             threading.Timer(0.6, lambda: os._exit(3)).start()
             return
+        if path == '/api/print/helper' and method == 'GET':
+            seen = PRINT_HELPER.get('seen') or 0
+            return self.send_json({'online': time.time() - seen < 30, 'seen': seen, 'busy': PRINT_HELPER.get('busy') or ''})
         if path == '/api/fax/helper' and method == 'GET':
             seen = FAX_HELPER.get('seen') or 0
             return self.send_json({'online': time.time() - seen < 30, 'seen': seen, 'busy': FAX_HELPER.get('busy') or ''})
@@ -571,6 +577,39 @@ class Handler(BaseHTTPRequestHandler):
             db.put('faxjobs', jid, d)
             FAX_HELPER['busy'] = ''
             sys.stderr.write('fax %s %s %s %s\n' % (j.get('no'), j.get('to'), st, d['msg']))
+            return self.send_json({'ok': True})
+        return self.error('not found', 404)
+
+    def print_helper_api(self, method, path, qs, body):
+        """列印小幫手（在伺服器電腦的桌面執行）：/next 取下一張待列印、/report 回報結果；token 和傳真小幫手同一個"""
+        tok = (qs.get('token') or [''])[0] or body.get('token') or ''
+        if not tok or tok != fax_token(self.state.data_dir):
+            return self.error('token 不對', 403)
+        db = self.state.db
+        PRINT_HELPER['seen'] = time.time()
+        if path == '/api/print/helper/next' and method == 'GET':
+            PRINT_HELPER['busy'] = ''
+            jobs = [j for j in db.list('printjobs') if j.get('status') == 'queued']
+            if not jobs:
+                return self.send_json({'job': None})
+            j = sorted(jobs, key=lambda x: x.get('at') or '')[0]
+            d = {k: v for k, v in j.items() if k != 'id'}
+            d['status'] = 'printing'
+            d['startAt'] = datetime.datetime.now().isoformat(timespec='seconds')
+            db.put('printjobs', j['id'], d)
+            PRINT_HELPER['busy'] = j.get('no') or j['id']
+            return self.send_json({'job': j})
+        if path == '/api/print/helper/report' and method == 'POST':
+            jid = str(body.get('id') or '')
+            j = db.get('printjobs', jid)
+            if not j:
+                return self.error('找不到這個列印工作', 404)
+            st = body.get('status') if body.get('status') in ('done', 'failed') else 'failed'
+            d = {k: v for k, v in j.items() if k != 'id'}
+            d.update(status=st, msg=str(body.get('msg') or '')[:300], doneAt=datetime.datetime.now().isoformat(timespec='seconds'), html='')
+            db.put('printjobs', jid, d)
+            PRINT_HELPER['busy'] = ''
+            sys.stderr.write('print %s %s %s\n' % (j.get('no'), st, d['msg']))
             return self.send_json({'ok': True})
         return self.error('not found', 404)
 

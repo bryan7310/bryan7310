@@ -5,6 +5,7 @@ import { store } from '../core/store.js';
 import { calc, costOf, lastSale, uRate, cdisp, customers, goodsLabel } from '../core/calc.js';
 import { platCost } from '../core/pricing.js';
 import { qrSvg, scanQR } from '../core/qr.js';
+import { addToBill } from './bill.js';
 
 // 材質篩選（商品「類別」欄）：鐵、白鐵（不鏽鋼）、合金（合金鋼）、其他（中碳鋼、彈簧鋼、銅、鋁、代工…）
 const MAIN = ['鐵', '不鏽鋼', '合金鋼'];
@@ -70,7 +71,9 @@ export function findByCode(text) {
 }
 
 // ---------- 選客戶（全螢幕清單） ----------
-function pickCustomer(done) {
+/** 選客戶：沒給 onPick 時記成查庫存用的客戶；給了就把客戶 id（不選＝''）交給 onPick */
+export function pickCustomer(done, onPick) {
+  const pick = id => onPick ? onPick(id) : ls.set('zr.m.cid', id);
   const el = document.createElement('div'); el.className = 'sheet';
   el.innerHTML = `<div class="sheet-hd"><button class="link" data-x>取消</button><b>選客戶</b><button class="link" data-clear>不選</button></div>
     <div class="search"><input type="search" id="cq" placeholder="客戶名稱、代號" autocomplete="off"></div><div class="card list" id="cl"></div>`;
@@ -80,8 +83,8 @@ function pickCustomer(done) {
   const draw = v => { const ts = qTerms(v); el.querySelector('#cl').innerHTML = all.filter(x => matchQ(x.t, ts)).slice(0, 60).map(x => `<a href="#" data-id="${x.c.id}"><span class="mono muted">${esc(x.c.code)}</span>${esc(cdisp(x.c))}</a>`).join('') || '<div class="row muted">找不到</div>'; };
   el.querySelector('#cq').addEventListener('input', e => draw(e.target.value)); draw('');
   el.querySelector('[data-x]').onclick = close;
-  el.querySelector('[data-clear]').onclick = () => { ls.set('zr.m.cid', ''); close(); done(); };
-  el.querySelector('#cl').addEventListener('click', e => { const a = e.target.closest('[data-id]'); if (!a) return; e.preventDefault(); ls.set('zr.m.cid', a.dataset.id); close(); done(); });
+  el.querySelector('[data-clear]').onclick = () => { pick(''); close(); done(); };
+  el.querySelector('#cl').addEventListener('click', e => { const a = e.target.closest('[data-id]'); if (!a) return; e.preventDefault(); pick(a.dataset.id); close(); done(); });
 }
 
 // ---------- 商品明細 ----------
@@ -103,6 +106,7 @@ export function goodsPage(view, gid) {
 
   view.innerHTML = `<div class="hd"><a class="back" href="#stock">‹ 查庫存</a></div>
     <div class="card"><div class="gname">${esc(g.name)}</div><div class="muted mono">${esc(g.code)}${g.spec ? '　' + esc(g.spec) : ''}${g.cat ? '　' + esc(g.cat) : ''}</div></div>
+    <p><button class="btn" id="tobill">加入出貨單</button></p>
     <div class="sec">庫存</div>
     <div class="card list">${whs.map(w => `<div class="row"><span>${esc(w.name)}</span><span class="go">${fmtQ((C.stock[g.id] || {})[w.id] || 0)} ${esc(g.unit || '')}</span></div>`).join('')}
       <div class="row"><b>合計</b><span class="go"><b>${C.stock[g.id] ? fmtQ(t) : '—'}</b> ${esc(g.unit || '')} ${stockTag(C, g)}</span></div>
@@ -123,6 +127,7 @@ export function goodsPage(view, gid) {
     <div class="card list">${purs.slice(0, 3).map(x => `<div class="row"><span>${esc(x.cid ? cdisp(C.ct[x.cid]) : '—')}<small class="muted">　${esc(slash(x.date))}</small></span><span class="go">${p2(x.per)}${cost && (x.per > cost.c * 3 || x.per < cost.c / 3) ? '<small class="muted">（單位可能不同）</small>' : ''}</span></div>`).join('') || '<div class="row muted">查不到進貨紀錄</div>'}</div>
     <div class="sec">料號 QR 碼</div><div class="card qrbox" id="qr">…</div>
     `;
+  view.querySelector('#tobill').onclick = () => { addToBill(g.id); location.hash = '#bill'; };
   view.querySelector('#pick')?.addEventListener('click', e => { e.preventDefault(); pickCustomer(() => goodsPage(view, gid)); });
   qrSvg(g.code).then(svg => { const b = view.querySelector('#qr'); if (b) b.innerHTML = svg + `<div class="mono">${esc(g.code)}</div>`; }).catch(e => { const b = view.querySelector('#qr'); if (b) b.textContent = e.message; });
   recentSales(view.querySelector('#hs'), g, C).then(rows => {

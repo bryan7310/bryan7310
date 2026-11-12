@@ -6,6 +6,7 @@ import { calc } from '../core/calc.js';
 import { arSummary } from '../modules/receivables.js';
 import { preloadHist } from '../modules/_bills.js';
 import { stockPage, goodsPage } from './stock.js';
+import { billPage, onBillChange, draftCount } from './bill.js';
 
 const $ = s => document.querySelector(s);
 const view = $('#view'), bar = $('#tabbar');
@@ -22,7 +23,7 @@ const IC = {
 const TABS = [
   ['home', '首頁', IC.home],
   ['stock', '庫存', IC.stock],
-  ['bill', '開單', IC.bill, 3, '/#sales'],
+  ['bill', '開單', IC.bill],
   ['ar', '帳款', IC.money, 4, '/#receivables/open'],
   ['up', '上傳', IC.cam, 7, ''],
 ];
@@ -33,7 +34,7 @@ async function boot() {
   catch (e) { return e.status === 401 ? showLogin() : showLogin('載入資料失敗：' + (e.message || e)); }
   if (store.user.role !== 'admin') return notBoss();
   bar.hidden = false;
-  store.subscribe(() => { if (cur === 'home') route(); });
+  store.subscribe(ch => { if (cur === 'home') route(); else if (cur === 'bill') onBillChange(view, ch); });
   window.addEventListener('hashchange', route);
   route();
   // 舊系統進貨單會影響成本（毛利），載入後重算一次，跟電腦版一致
@@ -66,6 +67,7 @@ function route() {
   bar.innerHTML = TABS.map(([k, n, ic]) => `<a href="#${k}" class="${k === t[0] ? 'on' : ''}">${SVG(ic)}<span>${n}</span></a>`).join('');
   if (cur === 'home') home();
   else if (cur === 'stock') stockPage(view);
+  else if (cur === 'bill') billPage(view, parts[1]);
   else if (cur === 'g') { goodsPage(view, decodeURIComponent(parts.slice(1).join('/'))); window.scrollTo(0, 0); }
   else placeholder(t);
 }
@@ -97,7 +99,9 @@ function todos(C) {
   const oLate = store.list('orders').filter(o => !(o.steps || {}).done && o.due && o.due < t);
   const low = store.list('goods').filter(g => +g.safety > 0 && Object.values(C.stock[g.id] || {}).reduce((a, b) => a + b, 0) < +g.safety);
   const pendInv = C.bills.filter(b => b.type === 'SALE' && !b.invNo && !b.noInv && (b.date || '') >= '2026-01-01');
+  const dr = draftCount();
   return [
+    [dr, `${dr} 張出貨單草稿待確認`, '#bill/drafts'],
     [oLate.length, `訂貨排程有 ${oLate.length} 筆逾期`, '/#orders'],
     [late.length, `${late.length} 張客票已到期還沒送代收`, '/#checks-in'],
     [cout.length, `${cout.length} 張付款支票待列印`, '/#checks-out'],
@@ -118,7 +122,7 @@ function home() {
     <div class="sec">快捷</div>
     <div class="card quick">
       <a href="#stock"><i>${SVG(IC.stock)}</i>查庫存</a>
-      <a href="/#sales"><i>${SVG(IC.bill)}</i>開出貨單</a>
+      <a href="#bill"><i>${SVG(IC.bill)}</i>開出貨單</a>
       <a class="off" href="#up"><i>${SVG(IC.cam)}</i>拍照上傳</a>
       <a href="/#labels/gen"><i>${SVG(IC.tag)}</i>印標籤</a>
     </div>
