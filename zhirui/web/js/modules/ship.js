@@ -49,7 +49,7 @@ export function shipDoc(b, opt = {}) {
       case 'pnname': return g ? (PN ? [g.spec, g.name].filter(Boolean).join('　') : g.name) : String(l.n || '');
       case 'pn': return g?.spec || ''; case 'name': return g ? g.name : String(l.n || ''); case 'code': return g?.code || '';
       case 'qty': return fq(l.qty); case 'unit': return unitOf(l); case 'price': return NA ? '' : fp(l.price); case 'amt': return NA ? '' : fmt(lineAmt(l));
-      case 'memo': return anyMemo ? (l.memo || '') : (TP.noteMode === 'memo' && i === 0 ? (b.note || '') : '');
+      case 'memo': if (TP.blankMemo) return ''; return anyMemo ? (l.memo || '') : (TP.noteMode === 'memo' && i === 0 ? (b.note || '') : '');
       case 'seq': return String(seqs[i] || ''); case 'batch': return l.batch || ''; case 'cat': return g?.cat || ''; case 'blank': return '';
       case 'uwt': { if (!g) return ''; const w = goodsWt(g); return w ? String(w) : ''; }
       case 'wtl': { const w = lineKg(l, g); return w ? String(w >= 100 ? Math.round(w * 10) / 10 : Math.round(w * 1000) / 1000) : ''; }
@@ -110,7 +110,7 @@ export function shipDoc(b, opt = {}) {
   return { css, html: html + fit, tip: `列印方式：按 Ctrl+P，紙張選 ${+TP.paperW}×${+TP.paperH} mm（中一刀為 241×140），邊界「無」，縮放「預設」或 100%，不要勾「頁首和頁尾」。虛線框是內容範圍；格式和位置可按出貨單上的「格式」修改。` };
 }
 /** 如陽列印：照如陽舊系統出貨單的樣子（Times New Roman＋新細明體、明細不加粗、欄名「品名規格」）；其他設定沿用出貨單格式 */
-export function ruyangTpl() { const t = shipTpl(); t.font = 'times'; t.bold = false; const c = t.cols.find(x => x.k === 'pnname'); if (c) c.label = '品　　名　　規　　格'; return t; }
+export function ruyangTpl() { const t = shipTpl(); t.font = 'times'; t.bold = false; t.blankMemo = true; const c = t.cols.find(x => x.k === 'pnname'); if (c) c.label = '品　　名　　規　　格'; return t; }
 export function printShip(b, opt = {}) {
   const T = TYPES[b.type] || TYPES.SALE; const d = shipDoc(b, opt);
   printHTML(`${T.name} ${b.no}`, d.css, d.html, { tip: d.tip, delay: 500 });
