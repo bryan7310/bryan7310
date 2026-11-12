@@ -140,6 +140,9 @@ export function labelPage(view, sub, arg) {
   s.items.forEach((x, i) => { const cv = view.querySelector(`[data-cv="${i}"]`); if (cv) drawLabel(cv, itemOf(x, date)).catch(() => {}); });
   $('#ld').onchange = ev => { s.date = ev.target.value; keep(); redraw(); };
   const li = $('#li');
+  // 張數：點進去先清空（灰字顯示原本的數字），直接打新的；沒打就恢復原本的
+  li.addEventListener('focusin', ev => { const t = ev.target; if (t.dataset.f !== 'n') return; t.placeholder = t.value; t.value = ''; });
+  li.addEventListener('focusout', ev => { const t = ev.target; if (t.dataset.f === 'n' && t.value.trim() === '') t.value = t.placeholder || '1'; });
   li.addEventListener('change', ev => { const i = +ev.target.closest('[data-i]')?.dataset.i; const x = s.items[i]; if (!x) return; const f = ev.target.dataset.f; if (f === 'per') x.per = ev.target.value; if (f === 'n') x.n = Math.max(1, Math.round(+ev.target.value) || 1); keep(); redraw(); });
   li.addEventListener('click', ev => {
     const del = ev.target.closest('[data-del]'); if (del) { s.items.splice(+del.dataset.del, 1); keep(); redraw(); return; }
