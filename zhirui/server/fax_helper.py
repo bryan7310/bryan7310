@@ -115,9 +115,10 @@ def click(h, cid):
 # ---------- 傳真稿 → 圖片 → 印到 PC-FAX ----------
 PS_PRINT = r'''param([string]$Printer, [string]$List)
 Add-Type -AssemblyName System.Drawing
-$files = Get-Content -LiteralPath $List -Encoding UTF8 | Where-Object { $_ }
+$files = @(Get-Content -LiteralPath $List -Encoding UTF8 | Where-Object { $_ })   # @( ) 一定要：只有一頁時才不會變成一段文字
 $pd = New-Object System.Drawing.Printing.PrintDocument
 if ($Printer) { $pd.PrinterSettings.PrinterName = $Printer }
+if ($env:ZR_PRINT_TO_FILE) { $pd.PrinterSettings.PrintToFile = $true; $pd.PrinterSettings.PrintFileName = $env:ZR_PRINT_TO_FILE }   # 測試用：印到檔案
 if (-not $pd.PrinterSettings.IsValid) {
   $p = Get-Printer | Where-Object { $_.Name -like '*PC-FAX*' } | Select-Object -First 1
   if (-not $p) { Write-Output 'NO_PRINTER'; exit 2 }
@@ -127,7 +128,8 @@ $pd.DocumentName = 'zhirui fax'
 $script:i = 0
 $pd.add_PrintPage({
   param($s, $e)
-  $img = [System.Drawing.Image]::FromFile($files[$script:i])
+  $img = [System.Drawing.Image]::FromFile([string]$files[$script:i])
+  if (-not $img) { throw ('讀不到傳真稿圖片：' + $files[$script:i]) }
   $b = $e.PageBounds
   $e.Graphics.DrawImage($img, 0, 0, $b.Width, $b.Height)
   $img.Dispose()
