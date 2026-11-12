@@ -110,7 +110,7 @@ let st = null;
 const load = () => { if (!st) { const x = ls.get(KEY, null); st = x && Array.isArray(x.items) ? x : { items: [], date: '' }; } return st; };
 const keep = () => ls.set(KEY, st);
 export function addLabel(gid, per, n, unit) { const s = load(); const g = store.get('goods', gid); if (!g) return; s.items.push({ gid, per: per || '', n: n || 1, unit: unit || g.unit || 'PCS' }); keep(); }
-const itemOf = (x, date) => { const g = store.get('goods', x.gid) || {}; const p = lblParse(g); return { name: p.name, spec: p.spec, fin: p.fin, qty: qtyText(x.per, x.unit) + (String(x.wt || '').trim() ? ` ${String(x.wt).trim()}g` : ''), date, code: g.code || '', p, g }; };
+const itemOf = (x, date) => { const g = store.get('goods', x.gid) || {}; const p = lblParse(g); return { name: p.name, spec: p.spec, fin: p.fin, qty: qtyText(x.per, x.unit) + (String(x.wt || '').trim() ? `  ${String(x.wt).trim()}g` : ''), date, code: g.code || '', p, g }; };
 
 const MODES = [['goods', '商品標籤'], ['addr', '地址標籤']];
 const modeTabs = m => `<div class="chips">${MODES.map(([k, n]) => `<button class="chip ${m === k ? 'on' : ''}" data-mode="${k}">${n}</button>`).join('')}</div>`;
