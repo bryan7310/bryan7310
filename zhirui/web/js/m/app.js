@@ -86,7 +86,7 @@ function route() {
   else if (cur === 'lbl') labelPage(view, parts[1], parts.slice(2).join('/'));
   else if (cur === 'up') { uploadPage(view, parts.slice(1).join('/')); if (parts[1]) window.scrollTo(0, 0); }
   else if (cur === 'set') settingsPage(view);
-  else if (cur === 'em') { emailPage(view, parts[1], parts.slice(2).join('/')); window.scrollTo(0, 0); }
+  else if (cur === 'em') { emailPage(view, parts[1], parts[2], parts[3]); window.scrollTo(0, 0); }
   else if (cur === 'fax') { faxPage(view, parts[1], parts.slice(2).join('/')); window.scrollTo(0, 0); }
   else if (cur === 'po') { poPage(view, parts[1], parts.slice(2).join('/')); if (parts[1] === 'v') window.scrollTo(0, 0); }
   else if (cur === 'g') { goodsPage(view, decodeURIComponent(parts.slice(1).join('/'))); window.scrollTo(0, 0); }

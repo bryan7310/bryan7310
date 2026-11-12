@@ -313,7 +313,7 @@ class Handler(BaseHTTPRequestHandler):
                 before = int(q('before', '0') or 0)
             except ValueError:
                 before = 0
-            return self.send_json(MB.listing(dd, q('q', ''), 300, before))
+            return self.send_json(MB.listing2(dd, q('folder', 'inbox'), q('q', ''), 300, before))
         if path == '/api/email/msg':
             m = MB.message(dd, q('id', ''))
             return self.send_json(m) if m else self.error('找不到這封信', 404)
@@ -330,10 +330,28 @@ class Handler(BaseHTTPRequestHandler):
                                    headers={'Content-Disposition': f"{disp}; filename*=UTF-8''{quote(a['name'])}"})
         if path == '/api/email/cfg' and method == 'GET':
             return self.send_json(MB.cfg_public(dd))
+        ids = [str(x) for x in (body.get('ids') or [])][:500]
+        if path == '/api/email/del' and method == 'POST':
+            MB.set_deleted(dd, ids, bool(body.get('on', True)))
+            return self.send_json({'ok': True})
+        if path == '/api/email/purge' and method == 'POST':
+            MB.purge(dd, ids)
+            return self.send_json({'ok': True})
+        if path in ('/api/email/draft', '/api/email/send') and method == 'POST':
+            try:
+                mid = MB.save_draft(dd, body) if path.endswith('draft') else MB.send(dd, body)
+            except Exception as e:  # noqa: BLE001
+                return self.error(str(e)[:300], 400)
+            return self.send_json({'ok': True, 'id': mid})
         if not admin:
             return self.error('只有管理者可以設定收信', 403)
         if path == '/api/email/cfg' and method == 'POST':
             return self.send_json(MB.cfg_save(dd, body))
+        if path == '/api/email/smtptest' and method == 'POST':
+            try:
+                return self.send_json({'ok': True, 'msg': MB.smtp_test(dd, body)})
+            except Exception as e:  # noqa: BLE001
+                return self.send_json({'ok': False, 'msg': '寄信伺服器連線失敗：%s' % str(e)[:300]})
         if path == '/api/email/test' and method == 'POST':
             try:
                 return self.send_json({'ok': True, 'msg': MB.test(dd, body)})

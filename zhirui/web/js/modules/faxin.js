@@ -16,7 +16,7 @@ function coIndex() {
   CO = store.list('contacts').filter(c => !c.inactive || true).map(c => ({ c, keys: [c.name, c.short, ...(c.aliases || [])].map(normCo).filter(k => k.length >= 2), fax: digits(c.fax), tel: digits(c.phone) }));
   COgen = store.gen; return CO;
 }
-function matchCo(name, fax) {
+export function matchCo(name, fax) {
   const n = normCo(name); const fx = digits(fax); let best = null;
   for (const x of coIndex()) {
     let sc = 0;
