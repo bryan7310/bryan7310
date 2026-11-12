@@ -5,8 +5,11 @@ import { toast, modal, confirm, tabs, combo, printHTML } from '../core/ui.js';
 import { calc, goodsLabel, bqty, customers, suppliers, cdisp } from '../core/calc.js';
 import { api } from '../core/api.js';
 
-export const LBL_TYPES = [['fy', '豐餘標籤'], ['fm', '豐民標籤'], ['cc', '朝程標籤'], ['yb', '元貝標籤'], ['gen', '一般標籤']];
-const LBL_READY = { fy: 1, gen: 1 };
+export const LBL_TYPES = [['fy', '豐餘標籤'], ['ry', '如陽標籤'], ['fm', '豐民標籤'], ['cc', '朝程標籤'], ['yb', '元貝標籤'], ['gen', '一般標籤']];
+const LBL_READY = { fy: 1, ry: 1, gen: 1 };
+// 如陽標籤：品名去掉 ⊕Θ 等符號（「⊕皿頭螺絲4*10」→「皿頭螺絲」）；規格補 M 和 L（4*10 → M4*10L）
+const ryName = name => genName(name).replace(/^[^\p{L}\p{N}]+/u, '');
+const rySpec = name => { let x = genSpec(name).spec; if (/^\d+(\.\d+)?\*/.test(x)) x = 'M' + x; if (/^M[\d.]+\*[\d.]+$/.test(x)) x += 'L'; return x; };
 const ui = { tab: 'fy', date: today(), genMode: 'goods', genF: { q: '', name: '', spec: '', qty: '', unit: 'PCS', copies: '1' } };
 const cfg = () => store.setting('labels');
 const size = () => cfg().size || '54';
@@ -54,12 +57,14 @@ function draw(el) {
     $('#lblPrint', el).onclick = () => printGen(items);
   } else {
     let total = 0; items.forEach(it => split(it).forEach(s => total += s.n));
+    const TF = t === 'ry' ? [['pn', '編號（客料號）', 150], ['nm', '品名', 110], ['spec', '規格', 100], ['unit', '單位', 60]] : [['po', '單號（採購單號）', 120], ['pn', '料號（客料號）', 120], ['spec', '短文（品名數字）', 110]];
+    const NF = t === 'ry' ? [['qty', '數量', '', ''], ['pack', '每包數量', '空白＝印一張', '']] : [['qty', '數量', '', ''], ['wt', '單重 (g)', '每支幾克', 'step="any"'], ['pack', '每包數量', '每包幾支', '']];
     const C = calc();
     el.innerHTML = `<div class="head"><h1>標籤列印</h1><span class="sp"></span>${tabs('lt', LBL_TYPES, t)}</div>${addrBar()}
       ${!LBL_READY[t] ? `<div class="banner">${esc(name)}的格式還沒定義。告訴我這種標籤要印哪些欄位和版面，就可以開始使用；已導入的商品會先保留在這裡。</div>` : ''}
-      <div class="panel" style="display:grid;gap:10px"><div class="tools"><div class="f" style="width:160px"><label for="lbl-date">交貨日期</label><input type="date" id="lbl-date" value="${ui.date}"></div>${t === 'fy' ? `<div class="f" style="width:130px"><label for="lbl-vendor">廠商代號</label><input id="lbl-vendor" value="${esc(cfg().vendor || '501823')}"></div>` : ''}${sizeSel}<span class="muted small" style="align-self:flex-end">在銷貨單按「標籤」勾選商品導入。</span><span class="sp"></span>${items.length ? `<button class="btn" id="lblClear">清空${esc(name)}</button>` : ''}${LBL_READY[t] ? `<button class="btn pri" id="lblPrint" ${items.length ? '' : 'disabled'}>列印 <span id="lblTotal">${total}</span> 張</button>` : ''}</div>
-        <div class="tw"><table><thead><tr><th>銷貨單／商品</th><th>單號（採購單號）</th><th>料號（客料號）</th><th>短文（品名數字）</th><th class="n">數量</th><th class="n">單重 (g)</th><th class="n">每包數量</th><th>會印出</th><th></th></tr></thead><tbody>
-        ${items.map(it => `<tr><td class="muted small">${esc(it.billNo || '')}<br>${esc(it.name || '')}</td>${[['po', 120], ['pn', 120], ['spec', 110]].map(([k, w]) => `<td><input data-f="${k}" data-id="${it.id}" value="${esc(it[k] ?? '')}" style="width:${w}px;border:1px solid var(--line);border-radius:6px;padding:4px 6px"></td>`).join('')}${[['qty', '', ''], ['wt', '每支幾克', 'step="any"'], ['pack', '每包幾支', '']].map(([k, ph, at]) => `<td class="n"><input data-f="${k}" data-id="${it.id}" type="number" ${at} value="${esc(it[k] ?? '')}" placeholder="${ph}" class="num" style="width:90px;border:1px solid var(--line);border-radius:6px;padding:4px 6px"></td>`).join('')}<td id="lp-${it.id}" class="small nowrap">${plan(it)}</td><td><button class="btn xs" data-del="${it.id}">✕</button></td></tr>`).join('') || '<tr><td colspan="9"><div class="empty"><b>還沒有要印的標籤</b>打開一張銷貨單，按下方「標籤」，勾選要印的商品後導入。</div></td></tr>'}</tbody></table></div></div>`;
+      <div class="panel" style="display:grid;gap:10px"><div class="tools"><div class="f" style="width:160px"><label for="lbl-date">交貨日期</label><input type="date" id="lbl-date" value="${ui.date}"></div>${t === 'fy' ? `<div class="f" style="width:130px"><label for="lbl-vendor">廠商代號</label><input id="lbl-vendor" value="${esc(cfg().vendor || '501823')}"></div>` : ''}${sizeSel}<span class="muted small" style="align-self:flex-end">在銷貨單按「標籤」勾選商品導入。${t === 'ry' ? '日期印在標籤上。' : ''}</span><span class="sp"></span>${items.length ? `<button class="btn" id="lblClear">清空${esc(name)}</button>` : ''}${LBL_READY[t] ? `<button class="btn pri" id="lblPrint" ${items.length ? '' : 'disabled'}>列印 <span id="lblTotal">${total}</span> 張</button>` : ''}</div>
+        <div class="tw"><table><thead><tr><th>銷貨單／商品</th>${TF.map(f => `<th>${f[1]}</th>`).join('')}${NF.map(f => `<th class="n">${f[1]}</th>`).join('')}<th>會印出</th><th></th></tr></thead><tbody>
+        ${items.map(it => `<tr><td class="muted small">${esc(it.billNo || '')}<br>${esc(it.name || '')}</td>${TF.map(([k, , w]) => `<td><input data-f="${k}" data-id="${it.id}" value="${esc(it[k] ?? '')}" style="width:${w}px;border:1px solid var(--line);border-radius:6px;padding:4px 6px"></td>`).join('')}${NF.map(([k, , ph, at]) => `<td class="n"><input data-f="${k}" data-id="${it.id}" type="number" ${at} value="${esc(it[k] ?? '')}" placeholder="${ph}" class="num" style="width:90px;border:1px solid var(--line);border-radius:6px;padding:4px 6px"></td>`).join('')}<td id="lp-${it.id}" class="small nowrap">${plan(it)}</td><td><button class="btn xs" data-del="${it.id}">✕</button></td></tr>`).join('') || `<tr><td colspan="${TF.length + NF.length + 3}"><div class="empty"><b>還沒有要印的標籤</b>打開一張銷貨單，按下方「標籤」，勾選要印的商品後導入。</div></td></tr>`}</tbody></table></div></div>`;
     el.addEventListener('tab', ev => { ui.tab = ev.detail.val; draw(el); }, { once: true });
     $('#lbl-vendor', el)?.addEventListener('change', ev => store.saveSetting('labels', { ...cfg(), vendor: ev.target.value.trim() }));
     el.querySelectorAll('[data-f]').forEach(inp => inp.addEventListener('change', async () => {
@@ -68,7 +73,7 @@ function draw(el) {
       if (it.gid && (k === 'wt' || k === 'pack')) { const g = store.get('goods', it.gid); if (g) { const gd = { ...g, [k === 'wt' ? 'wt' : 'pack']: +inp.value || 0 }; delete gd.id; ops.push({ col: 'goods', id: g.id, data: gd }); } }
       await store.batch(ops);
     }));
-    $('#lblPrint', el)?.addEventListener('click', () => printFy(items));
+    $('#lblPrint', el)?.addEventListener('click', () => t === 'ry' ? printRy(items) : printFy(items));
   }
   $('#lbl-date', el).addEventListener('change', ev => { ui.date = ev.target.value; });
   $('#lbl-size', el).addEventListener('change', ev => store.saveSetting('labels', { ...cfg(), size: ev.target.value }));
@@ -89,6 +94,17 @@ function printFy(items) {
 .lb{width:50mm;height:40mm;padding:2mm 1.6mm;display:grid;grid-template-columns:27.5mm 1fr;grid-template-rows:repeat(6,1fr);align-items:center;column-gap:.6mm;page-break-after:always;overflow:hidden;font-size:9.5pt;line-height:1}.lb:last-child{page-break-after:auto}@media screen{.lb{border:1px dashed #999;margin:4mm;display:inline-grid;vertical-align:top}}
 .lb>div{white-space:nowrap;overflow:hidden;transform-origin:left center}.lb .w{grid-column:1/3}.lb b{color:#e00;font-weight:900}.lb i{font-style:normal;color:#000;font-weight:bold;margin-left:.4mm;font-variant-numeric:tabular-nums;-webkit-text-stroke:.15pt #000}.lb i.red{color:#e00;-webkit-text-stroke:.15pt #e00}`, '列印方式：按 Ctrl+P，紙張選 5 × 4 cm 標籤（寬 50 mm、高 40 mm），邊界「無」，縮放 100%；黑白印表機紅字會印成黑色。');
   printHTML(`豐餘標籤 ${ui.date}`, css, html + FIT, { tip });
+}
+/** 如陽標籤 5×4 cm：編號（客料號）／品名／規格／數量／日期，底下紅框 ROHS；有填每包數量就依包拆張 */
+function printRy(items) {
+  const bad = items.find(it => !(+it.qty > 0)); if (bad) return toast(`「${bad.pn || bad.name}」的數量還沒填`);
+  const dd = String(ui.date || today()).split('-'); const d = `${dd[0]}/${dd[1]}/${dd[2]}`; let html = '';
+  for (const it of items) for (const s of split(it)) for (let k = 0; k < s.n; k++) html += `<div class="lb"><div><b>編號:</b>${esc(it.pn)}</div><div><b>品名:</b>${esc(it.nm ?? ryName(it.name))}</div><div><b>規格:</b>${esc(it.spec)}</div><div><b>數量:</b>${s.q} ${esc(it.unit || 'PCS')}</div><div><b>日期:</b>${esc(d)}</div><div class="rohs"><span>ROHS</span></div></div>`;
+  const [css, tip] = sized(`@page{size:50mm 40mm;margin:0}*{box-sizing:border-box}body{margin:0;color:#000;font-family:Arial,"Helvetica","PMingLiU","MingLiU","新細明體",sans-serif;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.lb{width:50mm;height:40mm;padding:1.6mm 2mm 1.6mm;display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:repeat(5,1fr) 1.25fr;align-items:center;page-break-after:always;overflow:hidden;line-height:1}.lb:last-child{page-break-after:auto}@media screen{.lb{border:1px dashed #999;margin:4mm;display:inline-grid;vertical-align:top}}
+.lb>div{white-space:nowrap;overflow:hidden;font-size:12pt;transform-origin:left center}.lb b{font-weight:normal;font-family:"PMingLiU","MingLiU","新細明體",serif;margin-right:.6mm}
+.lb .rohs{display:flex;align-items:center;justify-content:center;border:.5mm solid #e00;color:#e00;height:85%;margin:0 1mm;font-size:15pt;letter-spacing:.5pt;transform:none!important}`, '列印方式：按 Ctrl+P，紙張選 5 × 4 cm 標籤（寬 50 mm、高 40 mm），邊界「無」，縮放 100%；黑白印表機紅字會印成黑色。');
+  printHTML(`如陽標籤 ${ui.date}`, css, html + FIT, { tip });
 }
 function printGen(items) {
   const dd = String(ui.date || today()).split('-'); const d = `${dd[0]}/${+dd[1]}/${+dd[2]}`; let html = '';
@@ -114,7 +130,7 @@ export function labelPicker(bill) {
       const go = async nav => {
         const type = el.querySelector('#lp-type').value; const sel = [...el.querySelectorAll('.lp-c')].filter(c => c.checked).map(c => +c.value);
         if (!sel.length) return toast('請至少勾選一項');
-        const ops = sel.map(i => { const l = bill.lines[i]; const g = C.g[l.gid]; return { col: 'labels', id: uid('L'), data: { type, gid: l.gid || '', billNo: bill.no || '', name: g ? g.name : String(l.n || ''), pn: g ? String(g.spec || '') : '', spec: lblNum(g ? g.name : l.n), po: String(l.memo || bill.note || ''), qty: String(Math.round(bqty(l, g))), wt: g?.wt || '', pack: g?.pack || '', at: Date.now() } }; });
+        const ops = sel.map(i => { const l = bill.lines[i]; const g = C.g[l.gid]; return { col: 'labels', id: uid('L'), data: { type, gid: l.gid || '', billNo: bill.no || '', name: g ? g.name : String(l.n || ''), pn: g ? String(g.spec || '') : '', spec: type === 'ry' ? rySpec(g ? g.name : l.n) : lblNum(g ? g.name : l.n), ...(type === 'ry' ? { nm: g?.custName || ryName(g ? g.name : l.n), unit: (l.u || g?.unit || 'PCS').toUpperCase() === 'PCS' ? 'PCS' : (l.u || g?.unit) } : {}), po: String(l.memo || bill.note || ''), qty: String(Math.round(bqty(l, g))), wt: g?.wt || '', pack: g?.pack || '', at: Date.now() } }; });
         await store.batch(ops); ui.tab = type; close(); toast(`已導入 ${sel.length} 項到${LBL_TYPES.find(x => x[0] === type)[1]}`);
         if (nav) { document.querySelector('#modals .modal-bg [data-close]')?.click(); location.hash = '#labels/' + type; }
       };
