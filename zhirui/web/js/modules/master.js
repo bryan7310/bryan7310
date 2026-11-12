@@ -6,6 +6,7 @@ import { calc, goodsLabel, qtyAll, customers, suppliers, costOf, cdisp } from '.
 import { api } from '../core/api.js';
 import { SP_FIELDS, spLab, spParse, spGet, spDims, spSVG, spRows, spTable, spWeight } from '../core/spec.js';
 import { loadHistPur, resetHistCache, goodsHistory } from './_bills.js';
+import { suggestCode } from '../core/codegen.js';
 import { loadXlsx } from './purchase_import.js';
 import { shortName, suggestShorts } from '../core/names.js';
 import { imageViewer } from '../core/imgview.js';
@@ -102,6 +103,7 @@ export function openMaster(col, doc, kind, onSaved, tpl, opts = {}) {
     footer: `${doc ? `<button class="btn danger" id="mDel" ${refs ? `title="有 ${refs} 張單據用到，無法刪除" disabled` : ''}>刪除${refs ? `（${refs} 張單據用到）` : ''}</button>` : ''}<span class="sp"></span><button class="btn" data-close>取消</button><button class="btn pri" id="mSave">儲存</button>`,
     onOpen(el, close) {
       if (col === 'goods') goodsExtraBind(el, d);
+      if (col === 'goods' && !doc) codeHelper(el);
       const bomRead = col === 'goods' ? bomBind(el, tpl && !doc ? (tpl.bom ? tpl : {}) : d) : null;
       if (tpl) setTimeout(() => { const ci = el.querySelector('#f-code'); ci?.focus(); ci?.select(); }, 50);   // 複製：游標停在料號，直接改
       if (col === 'contacts') {   // 簡稱欄：空白時灰字顯示會自動帶入的簡稱
@@ -159,6 +161,25 @@ export function openMaster(col, doc, kind, onSaved, tpl, opts = {}) {
   });
 }
 // ---------- 商品：自動成本、規格與圖面、單重估算 ----------
+/** 新增／複製商品：依品名、類別建議料號（料號欄空白或是自動帶的才自動填；自己打過就只提示、可按「套用」） */
+function codeHelper(el) {
+  const ci = el.querySelector('#f-code'), ni = el.querySelector('#f-name'), ki = el.querySelector('#f-cat');
+  if (!ci || !ni) return;
+  const box = document.createElement('div'); box.className = 'small muted'; box.style.marginTop = '4px'; ci.closest('.f').append(box);
+  let auto = ci.value.trim() === '' ? '' : null;   // null＝使用者自己的料號
+  const draw = () => {
+    const nm = ni.value.trim(); if (!nm) { box.innerHTML = '打品名後會自動建議料號（例如「六角全牙螺絲M8*30 鍍鋅鐵」）'; return; }
+    const s = suggestCode(nm, ki?.value);
+    if (!s.code) { box.innerHTML = `料號建議：還認不出 <b>${esc(s.missing.join('、'))}</b>，品名寫完整一點（品名＋尺寸＋表面處理＋材質）`; return; }
+    if (auto !== null && ci.value.trim() === auto) { ci.value = s.code; auto = s.code; }
+    const why = s.parts.map(p => `${p.k} ${esc(p.v)}${p.why ? '（' + esc(p.why) + '）' : ''}`).join('・');
+    box.innerHTML = `建議料號 <b class="mono">${esc(s.code)}</b>${ci.value.trim() !== s.code ? ' <button type="button" class="btn sm" data-cg>套用</button>' : ''}<br>${why}${s.same ? `<br><span style="color:var(--warn)">已經有 ${esc(s.same.code)}「${esc(s.same.name)}」，所以加尾碼；確定不是同一個商品？</span>` : ''}${s.typeNote ? `<br><span style="color:var(--warn)">${esc(s.typeNote)}</span>` : ''}`;
+    box.querySelector('[data-cg]')?.addEventListener('click', () => { ci.value = s.code; auto = s.code; draw(); });
+  };
+  ci.addEventListener('input', () => { const v = ci.value.trim(); auto = v === '' ? '' : v === auto ? auto : null; draw(); });
+  let tm = 0; const later = () => { clearTimeout(tm); tm = setTimeout(draw, 200); };
+  ni.addEventListener('input', later); ki?.addEventListener('input', later); draw();
+}
 function goodsExtraHTML(d) {
   const o = d.sp || {};
   const fld = ([k, l, list]) => list

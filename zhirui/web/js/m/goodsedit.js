@@ -1,6 +1,7 @@
 // 手機版：新增／修改／複製商品（欄位跟電腦版「基本資料 › 商品」一樣；配方、圖面、特殊計價等進階設定請用電腦版，這裡改資料不會動到它們）
 import { esc, uid } from '../core/util.js';
 import { store } from '../core/store.js';
+import { suggestCode } from '../core/codegen.js';
 
 const NUM = new Set(['salePrice', 'purPrice', 'cost', 'safety', 'wt', 'arate']);
 const FIELDS = ['code', 'name', 'spec', 'spec2', 'custName', 'vcode', 'cat', 'unit', 'salePrice', 'purPrice', 'cost', 'safety', 'wt', 'aunit', 'arate', 'note'];
@@ -23,7 +24,7 @@ export function editGoods(mode, g, onSaved, tpl = {}) {
   const el = document.createElement('div'); el.className = 'sheet';
   el.innerHTML = `<div class="sheet-hd"><button class="link" data-x>取消</button><b>${mode === 'edit' ? '修改商品' : mode === 'copy' ? '複製商品' : '新增商品'}</b><button class="link" data-ok><b>儲存</b></button></div>
     ${mode === 'copy' ? `<div class="note" style="text-align:left">從「${esc(g.code || g.name)}」複製，請把料號改成新的（料號相同無法建立）。</div>` : ''}
-    ${fld('code', '料號', 'autocapitalize="characters" autocorrect="off" autocomplete="off" spellcheck="false" class="mono"')}
+    ${fld('code', '料號', 'autocapitalize="characters" autocorrect="off" autocomplete="off" spellcheck="false" class="mono"')}${mode === 'edit' ? '' : '<div class="note" id="gecg" style="text-align:left;margin:-6px 0 12px"></div>'}
     ${fld('name', '品名（必填）', 'autocomplete="off"')}
     ${fld('cat', '類別（材質）', 'autocomplete="off"')}${chipRow('cat', CATS)}
     ${fld('unit', '單位', 'autocapitalize="characters" autocomplete="off"')}${chipRow('unit', UNITS)}
@@ -47,9 +48,26 @@ export function editGoods(mode, g, onSaved, tpl = {}) {
   el.querySelectorAll('[data-for]').forEach(row => {
     const inp = $('#ge-' + row.dataset.for);
     const sync = () => row.querySelectorAll('.chip').forEach(b => b.classList.toggle('on', b.dataset.v === inp.value.trim()));
-    row.addEventListener('click', ev => { const b = ev.target.closest('[data-v]'); if (!b) return; inp.value = b.dataset.v; sync(); });
+    row.addEventListener('click', ev => { const b = ev.target.closest('[data-v]'); if (!b) return; inp.value = b.dataset.v; inp.dispatchEvent(new Event('input')); });
     inp.addEventListener('input', sync);
   });
+  // 新增／複製：依品名、類別建議料號（料號空白或是自動帶的才自動填；自己打過的就只提示，可按「套用」）
+  const cg = $('#gecg');
+  if (cg) {
+    const ci = $('#ge-code'), ni = $('#ge-name'), ki = $('#ge-cat');
+    let auto = ci.value.trim() === '' ? '' : null;
+    const draw = () => {
+      const nm = ni.value.trim(); if (!nm) { cg.textContent = '打品名後會自動建議料號（例如「六角全牙螺絲M8*30 鍍鋅鐵」）'; return; }
+      const s = suggestCode(nm, ki.value);
+      if (!s.code) { cg.innerHTML = `料號建議：還認不出 <b>${esc(s.missing.join('、'))}</b>，品名寫完整一點（品名＋尺寸＋表面處理＋材質）`; return; }
+      if (auto !== null && ci.value.trim() === auto) { ci.value = s.code; auto = s.code; }
+      cg.innerHTML = `建議料號 <b class="mono">${esc(s.code)}</b>${ci.value.trim() !== s.code ? ' <button type="button" class="chip" data-cg>套用</button>' : ''}<br><small>${s.parts.map(p => `${esc(p.k)} ${esc(p.v)}${p.why ? '（' + esc(p.why) + '）' : ''}`).join('・')}</small>${s.same ? `<br><span class="bad">已經有 ${esc(s.same.code)}「${esc(s.same.name)}」，確定不是同一個商品？</span>` : ''}${s.typeNote ? `<br><span class="bad">${esc(s.typeNote)}</span>` : ''}`;
+      cg.querySelector('[data-cg]')?.addEventListener('click', () => { ci.value = s.code; auto = s.code; draw(); });
+    };
+    ci.addEventListener('input', () => { const x = ci.value.trim(); auto = x === '' ? '' : x === auto ? auto : null; draw(); });
+    let tm = 0; const later = () => { clearTimeout(tm); tm = setTimeout(draw, 200); };
+    ni.addEventListener('input', later); ki.addEventListener('input', later); draw();
+  }
   const save = async btn => {
     const out = mode === 'edit' ? { ...d } : mode === 'copy' && g.sp ? { sp: g.sp } : {};
     delete out.id;
