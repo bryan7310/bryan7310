@@ -110,7 +110,7 @@ let st = null;
 const load = () => { if (!st) { const x = ls.get(KEY, null); st = x && Array.isArray(x.items) ? x : { items: [], date: '' }; } return st; };
 const keep = () => ls.set(KEY, st);
 export function addLabel(gid, per, n, unit) { const s = load(); const g = store.get('goods', gid); if (!g) return; s.items.push({ gid, per: per || '', n: n || 1, unit: unit || g.unit || 'PCS' }); keep(); }
-const itemOf = (x, date) => { const g = store.get('goods', x.gid) || {}; const p = lblParse(g); return { name: p.name, spec: p.spec, fin: p.fin, qty: qtyText(x.per, x.unit), date, code: g.code || '', p, g }; };
+const itemOf = (x, date) => { const g = store.get('goods', x.gid) || {}; const p = lblParse(g); return { name: p.name, spec: p.spec, fin: p.fin, qty: qtyText(x.per, x.unit) + (String(x.wt || '').trim() ? ` ${String(x.wt).trim()}g` : ''), date, code: g.code || '', p, g }; };
 
 const MODES = [['goods', '商品標籤'], ['addr', '地址標籤']];
 const modeTabs = m => `<div class="chips">${MODES.map(([k, n]) => `<button class="chip ${m === k ? 'on' : ''}" data-mode="${k}">${n}</button>`).join('')}</div>`;
@@ -153,7 +153,7 @@ export function labelPage(view, sub, arg) {
   // 張數：點進去先清空（灰字顯示原本的數字），直接打新的；沒打就恢復原本的
   li.addEventListener('focusin', ev => { const t = ev.target; if (t.dataset.f !== 'n') return; t.placeholder = t.value; t.value = ''; });
   li.addEventListener('focusout', ev => { const t = ev.target; if (t.dataset.f === 'n' && t.value.trim() === '') t.value = t.placeholder || '1'; });
-  li.addEventListener('change', ev => { const i = +ev.target.closest('[data-i]')?.dataset.i; const x = s.items[i]; if (!x) return; const f = ev.target.dataset.f; if (f === 'per') x.per = ev.target.value; if (f === 'n') x.n = Math.max(1, Math.round(+ev.target.value) || 1); keep(); redraw(); });
+  li.addEventListener('change', ev => { const i = +ev.target.closest('[data-i]')?.dataset.i; const x = s.items[i]; if (!x) return; const f = ev.target.dataset.f; if (f === 'per') x.per = ev.target.value; if (f === 'wt') x.wt = ev.target.value.replace(/\s*g$/i, '').trim(); if (f === 'n') x.n = Math.max(1, Math.round(+ev.target.value) || 1); keep(); redraw(); });
   li.addEventListener('click', ev => {
     const del = ev.target.closest('[data-del]'); if (del) { s.items.splice(+del.dataset.del, 1); keep(); redraw(); return; }
     const fx = ev.target.closest('[data-fix]'); if (fx) fixSheet(store.get('goods', s.items[+fx.dataset.fix].gid), redraw);
@@ -176,7 +176,8 @@ function itemCard(x, i) {
   return `<div class="card ln ${p.ok ? '' : 'warnbox'}" data-i="${i}"><div class="lnh"><div class="gm"><b>${esc(g.name || '（商品已刪除）')}</b><small>${esc(g.code || '')}${p.fixed ? '・已確認文字' : ''}</small></div><button class="x" data-del="${i}" aria-label="刪除">×</button></div>
     <canvas class="lblcv" data-cv="${i}" width="${W}" height="${H}"></canvas>
     ${p.ok ? '' : `<div class="err" style="margin:6px 0 0">拆字需要確認：${esc(p.why)}</div>`}
-    <div class="lnr"><label>每張數量<input data-f="per" inputmode="decimal" value="${esc(x.per)}"></label><span class="u">${esc(x.unit)}</span><label>張數（箱數）<input data-f="n" inputmode="numeric" value="${esc(x.n)}"></label><button class="chip" data-fix="${i}">${p.ok ? '改文字' : '確認文字'}</button></div></div>`;
+    <div class="lnr"><label>每張數量<input data-f="per" inputmode="decimal" value="${esc(x.per)}"></label><span class="u">${esc(x.unit)}</span><label>張數（箱數）<input data-f="n" inputmode="numeric" value="${esc(x.n)}"></label><button class="chip" data-fix="${i}">${p.ok ? '改文字' : '確認文字'}</button></div>
+    <div class="lnr wtr"><label>單重（g，選填；有填會印在數量後面）<input data-f="wt" inputmode="decimal" value="${esc(x.wt || '')}" placeholder="例如 2.5"></label></div></div>`;
 }
 /** 標籤交給主機列印小幫手（TSPL 直送或 Windows 驅動）；回傳列印工作 id */
 async function queueLabels(labels, what) {
