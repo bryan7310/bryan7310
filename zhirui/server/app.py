@@ -315,10 +315,14 @@ class Handler(BaseHTTPRequestHandler):
         return fp
 
     def faxin_tif(self, fp):
+        return Handler.faxin_tif_static(self.state.data_dir, fp)
+
+    @staticmethod
+    def faxin_tif_static(data_dir, fp):
         """TIF／BMP 轉成 PNG（多頁一頁一張），存在 data/faxcache；回傳 (頁數, 檔名前綴)"""
         st = os.stat(fp)
         key = hashlib.sha1(f'{fp}|{st.st_mtime_ns}|{st.st_size}'.encode('utf-8')).hexdigest()[:20]
-        cache = os.path.join(self.state.data_dir, 'faxcache'); os.makedirs(cache, exist_ok=True)
+        cache = os.path.join(data_dir, 'faxcache'); os.makedirs(cache, exist_ok=True)
         out = os.path.join(cache, key); meta = out + '.json'
         if os.path.isfile(meta):
             with open(meta, encoding='utf-8') as f:
@@ -352,7 +356,23 @@ class Handler(BaseHTTPRequestHandler):
                         rel = os.path.relpath(fp, FAXIN_DIR).replace(os.sep, '/')
                         out.append({'name': rel, 'size': st.st_size, 'mtime': int(st.st_mtime * 1000), 'ext': ext[1:]})
             out.sort(key=lambda x: -x['mtime'])
-            return self.send_json({'dir': FAXIN_DIR, 'exists': os.path.isdir(FAXIN_DIR), 'files': out[:3000]})
+            idx, cfg = faxidx_load(self.state.data_dir)
+            for x in out:
+                r = idx.get(x['name'])
+                if r and r.get('mtime') == x['mtime']:
+                    x['idx'] = {k: r[k] for k in ('sender', 'recipient', 'doc_type', 'doc_no', 'date', 'fax_no', 'summary', 'err') if r.get(k)}
+            done = sum(1 for x in out if x.get('idx') and not x['idx'].get('err'))
+            return self.send_json({'dir': FAXIN_DIR, 'exists': os.path.isdir(FAXIN_DIR), 'files': out[:3000],
+                                   'index': {'auto': bool(cfg.get('auto')), 'done': done, 'total': len(out), 'running': FAXIDX_STATE['running'],
+                                             'current': FAXIDX_STATE['current'], 'err': FAXIDX_STATE['err'], 'model': FAXIDX_MODEL,
+                                             'ai': bool(ai_cfg(self.state.data_dir).get('anthropic_api_key')) or bool(os.environ.get('ZR_FAXIDX_MOCK'))}})
+        if path == '/api/faxin/index':   # 打開／關閉自動辨識（只有老闆帳號可以改）
+            if (self.user() or {}).get('role', 'admin') != 'admin':
+                return self.error('只有管理者可以設定', 403)
+            idx, cfg = faxidx_load(self.state.data_dir)
+            cfg['auto'] = q('auto') == '1'
+            faxidx_save(self.state.data_dir, cfg=cfg)
+            return self.send_json({'ok': True, 'auto': cfg['auto']})
         fp = self.faxin_path(q('name', ''))
         if not fp:
             return self.error('找不到這個傳真檔', 404)
@@ -1188,6 +1208,124 @@ PO_SCHEMA = {
                 'cancelled': {'type': 'boolean'}}}}}}
 
 
+FAXIDX_MODEL = 'claude-haiku-5-5'
+FAXIDX_SCHEMA = {
+    'type': 'object', 'additionalProperties': False,
+    'required': ['sender', 'recipient', 'doc_type', 'doc_no', 'date', 'fax_no', 'summary'],
+    'properties': {k: {'type': 'string'} for k in ('sender', 'recipient', 'doc_type', 'doc_no', 'date', 'fax_no', 'summary')}}
+FAXIDX_PROMPT = """你在讀台灣螺絲公司「志瑞螺絲企業有限公司」收到的傳真（通常是客戶的採購單、廠商的報價單、出貨單、對帳單）。只要回傳 JSON：
+- sender：發出這張傳真的公司名稱（照抄全名；是志瑞自己發的就填志瑞）
+- recipient：收件公司名稱（通常是志瑞）
+- doc_type：採購單／訂單／報價單／詢價單／出貨單／對帳單／請款單／匯款通知／其他，選一個
+- doc_no：單號（採購單號、報價單號…），沒有填空字串
+- date：單據日期 YYYY-MM-DD（民國年轉西元），沒有填空字串
+- fax_no：傳真頁首或寄件公司的傳真號碼，沒有填空字串
+- summary：20 字以內的重點（例如品名、規格或用途）
+看不清楚的欄位填空字串，不要猜。"""
+
+
+def faxidx_paths(data_dir):
+    return os.path.join(data_dir, 'faxindex.json'), os.path.join(data_dir, 'faxindex_cfg.json')
+
+
+def faxidx_load(data_dir):
+    fi, fc = faxidx_paths(data_dir)
+    def rd(fp, d):
+        try:
+            with open(fp, encoding='utf-8') as f:
+                return json.load(f)
+        except Exception:
+            return d
+    return rd(fi, {}), rd(fc, {'auto': False})
+
+
+def faxidx_save(data_dir, idx=None, cfg=None):
+    fi, fc = faxidx_paths(data_dir)
+    for fp, obj in ((fi, idx), (fc, cfg)):
+        if obj is None:
+            continue
+        tmp = fp + '.tmp'
+        with open(tmp, 'w', encoding='utf-8') as f:
+            json.dump(obj, f, ensure_ascii=False)
+        os.replace(tmp, fp)
+
+
+def faxidx_read_one(data_dir, fp):
+    """讀一張傳真：PDF 直接給 Claude；JPG／PNG 給圖；TIF／BMP 轉第一頁 PNG。回傳欄位 dict"""
+    mock = os.environ.get('ZR_FAXIDX_MOCK')
+    if mock:   # 測試用：不呼叫 Claude
+        nm = os.path.basename(fp)
+        with open(mock, encoding='utf-8') as f:
+            m = json.load(f)
+        return dict(m.get(nm) or m.get('*') or {})
+    key = ai_cfg(data_dir).get('anthropic_api_key') or ''
+    if not key:
+        raise OcrError('還沒設定 Claude（Anthropic）API 金鑰', 409)
+    import anthropic
+    ext = os.path.splitext(fp)[1].lower()
+    if ext in ('.tif', '.tiff', '.bmp'):
+        n, pre = Handler.faxin_tif_static(data_dir, fp)
+        fp, ext = f'{pre}-0.png', '.png'
+    with open(fp, 'rb') as f:
+        data = base64.b64encode(f.read()).decode('ascii')
+    media = {'.pdf': 'application/pdf', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.gif': 'image/gif'}[ext]
+    blk = ({'type': 'document', 'source': {'type': 'base64', 'media_type': media, 'data': data}} if media == 'application/pdf'
+           else {'type': 'image', 'source': {'type': 'base64', 'media_type': media, 'data': data}})
+    client = anthropic.Anthropic(api_key=key, timeout=120.0, max_retries=2)
+    resp = client.messages.create(model=FAXIDX_MODEL, max_tokens=1500, system=FAXIDX_PROMPT, thinking={'type': 'disabled'},
+                                  output_config={'effort': 'low', 'format': {'type': 'json_schema', 'schema': FAXIDX_SCHEMA}},
+                                  messages=[{'role': 'user', 'content': [blk, {'type': 'text', 'text': '請讀這張傳真，依指定的 JSON 格式回傳。'}]}])
+    text = ''.join(b.text for b in resp.content if b.type == 'text')
+    u = resp.usage
+    sys.stderr.write('faxidx %s in=%s out=%s\n' % (resp.model, u.input_tokens, u.output_tokens))
+    return _parse_json_text(text)
+
+
+FAXIDX_STATE = {'running': False, 'err': '', 'current': ''}
+
+
+def faxidx_loop(state):
+    """每分鐘看一次傳真資料夾；有開「自動辨識」就一張一張讀還沒讀過的（或檔案改過的）"""
+    while True:
+        try:
+            idx, cfg = faxidx_load(state.data_dir)
+            if cfg.get('auto') and os.path.isdir(FAXIN_DIR):
+                todo = []
+                for root, dirs, files in os.walk(FAXIN_DIR):
+                    dirs[:] = [d for d in dirs if not d.startswith('.')]
+                    for fn in files:
+                        if os.path.splitext(fn)[1].lower() not in FAXIN_EXT:
+                            continue
+                        fp = os.path.join(root, fn); rel = os.path.relpath(fp, FAXIN_DIR).replace(os.sep, '/')
+                        mt = int(os.path.getmtime(fp) * 1000)
+                        x = idx.get(rel)
+                        if not x or x.get('mtime') != mt or (x.get('err') and x.get('tries', 0) < 3 and time.time() - x.get('at', 0) / 1000 > 3600):
+                            todo.append((mt, rel, fp))
+                todo.sort(reverse=True)   # 新的先讀
+                for mt, rel, fp in todo:
+                    if not faxidx_load(state.data_dir)[1].get('auto'):
+                        break
+                    FAXIDX_STATE.update(running=True, current=rel)
+                    old = idx.get(rel) or {}
+                    try:
+                        r = faxidx_read_one(state.data_dir, fp)
+                        idx[rel] = {**{k: str(r.get(k) or '').strip() for k in FAXIDX_SCHEMA['properties']}, 'mtime': mt, 'at': int(time.time() * 1000)}
+                        FAXIDX_STATE['err'] = ''
+                    except Exception as e:  # noqa: BLE001
+                        msg = getattr(e, 'message', None) or str(e)
+                        idx[rel] = {'mtime': mt, 'err': msg[:200], 'tries': old.get('tries', 0) + 1 if old.get('mtime') == mt else 1, 'at': int(time.time() * 1000)}
+                        FAXIDX_STATE['err'] = msg[:200]
+                        if 'API 金鑰' in msg or 'authentication' in msg.lower() or 'credit' in msg.lower():
+                            faxidx_save(state.data_dir, idx)
+                            break
+                    faxidx_save(state.data_dir, idx)
+                    time.sleep(1.5)
+            FAXIDX_STATE.update(running=False, current='')
+        except Exception as e:  # noqa: BLE001
+            FAXIDX_STATE.update(running=False, current='', err=str(e)[:200])
+        time.sleep(60)
+
+
 def po_extract(data_dir, body, system=None, schema=None, ask='請讀這張採購單，依指定的 JSON 格式回傳。', tag='po'):
     """body：data（base64）、media（application/pdf、image/jpeg…）；system／schema 沒給就是讀客戶採購單"""
     data = str(body.get('data') or '')
@@ -1360,6 +1498,7 @@ def main():
         state.backup = {'last': st.get('last'), 'file': st.get('file'), 'err': st.get('err')}
     Handler.state = state
     threading.Thread(target=backup_loop, args=(state,), daemon=True).start()
+    threading.Thread(target=faxidx_loop, args=(state,), daemon=True).start()
     # Windows 的 SO_REUSEADDR 會讓第二個伺服器也綁到同一個埠（兩個伺服器同時跑、資料不同步），所以不重用位址：埠被占用就直接失敗
     class Server(ThreadingHTTPServer):
         allow_reuse_address = False
