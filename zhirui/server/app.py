@@ -304,6 +304,51 @@ class Handler(BaseHTTPRequestHandler):
             body = f.read()
         self.send_bytes(body, ctype, headers={'Last-Modified': lm}, cache='no-cache')
 
+    def email_api(self, method, path, q, body, me):
+        import zrmail as MB
+        dd = self.state.data_dir
+        admin = me.get('role', 'admin') == 'admin'
+        if path == '/api/email/list':
+            try:
+                before = int(q('before', '0') or 0)
+            except ValueError:
+                before = 0
+            return self.send_json(MB.listing(dd, q('q', ''), 300, before))
+        if path == '/api/email/msg':
+            m = MB.message(dd, q('id', ''))
+            return self.send_json(m) if m else self.error('找不到這封信', 404)
+        if path == '/api/email/att':
+            try:
+                r = MB.attachment(dd, q('id', ''), int(q('n', '-1')))
+            except ValueError:
+                r = None
+            if not r:
+                return self.error('找不到附件', 404)
+            a, data = r
+            disp = 'attachment' if q('dl') else 'inline'
+            return self.send_bytes(data, a.get('type') or 'application/octet-stream', cache='no-store',
+                                   headers={'Content-Disposition': f"{disp}; filename*=UTF-8''{quote(a['name'])}"})
+        if path == '/api/email/cfg' and method == 'GET':
+            return self.send_json(MB.cfg_public(dd))
+        if not admin:
+            return self.error('只有管理者可以設定收信', 403)
+        if path == '/api/email/cfg' and method == 'POST':
+            return self.send_json(MB.cfg_save(dd, body))
+        if path == '/api/email/test' and method == 'POST':
+            try:
+                return self.send_json({'ok': True, 'msg': MB.test(dd, body)})
+            except Exception as e:  # noqa: BLE001
+                return self.send_json({'ok': False, 'msg': '連線失敗：%s' % str(e)[:300]})
+        if path == '/api/email/fetch' and method == 'POST':
+            def run():
+                try:
+                    MB.fetch(dd)
+                except Exception:
+                    pass
+            threading.Thread(target=run, daemon=True).start()
+            return self.send_json({'ok': True})
+        return self.error('不支援', 404)
+
     def faxin_path(self, name):
         """傳真資料夾裡的檔案完整路徑；不在資料夾裡（../ 之類）或副檔名不對就回傳 None"""
         if not name:
@@ -505,6 +550,8 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_json({'ok': True, 'users': db.users()})
         if path.startswith('/api/faxin/'):
             return self.faxin_api(path, q)
+        if path.startswith('/api/email/'):
+            return self.email_api(method, path, q, body or {}, me)
         m = FILE_RE.match(path)
         if m:
             fp = os.path.join(self.files_dir(), m.group(1))
@@ -1499,6 +1546,8 @@ def main():
     Handler.state = state
     threading.Thread(target=backup_loop, args=(state,), daemon=True).start()
     threading.Thread(target=faxidx_loop, args=(state,), daemon=True).start()
+    import zrmail as _mb
+    threading.Thread(target=_mb.loop, args=(data_dir,), daemon=True).start()
     # Windows 的 SO_REUSEADDR 會讓第二個伺服器也綁到同一個埠（兩個伺服器同時跑、資料不同步），所以不重用位址：埠被占用就直接失敗
     class Server(ThreadingHTTPServer):
         allow_reuse_address = False

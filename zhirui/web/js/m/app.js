@@ -14,6 +14,7 @@ import { poPage, onPOChange } from './po.js';
 import { uploadPage, onUploadChange, uploadsWaiting } from './upload.js';
 import { settingsPage, applyTheme, themeName } from './settings.js';
 import { faxPage, faxUnread } from './fax.js';
+import { emailPage, mailUnread } from './email.js';
 
 const $ = s => document.querySelector(s);
 const view = $('#view'), bar = $('#tabbar');
@@ -74,7 +75,7 @@ function notBoss() {
 let cur = '';
 function route() {
   const parts = location.hash.replace(/^#\/?/, '').split('/'); const id = parts[0].split('?')[0] || 'home';
-  const tabOf = { g: 'stock', rep: 'home', lbl: 'home', po: 'stock', set: 'home', fax: 'home' };
+  const tabOf = { g: 'stock', rep: 'home', lbl: 'home', po: 'stock', set: 'home', fax: 'home', em: 'home' };
   const t = TABS.find(x => x[0] === (tabOf[id] || id)) || TABS[0]; cur = tabOf[id] ? id : t[0];
   bar.innerHTML = TABS.map(([k, n, ic]) => `<a href="#${k}" class="${k === t[0] ? 'on' : ''}">${SVG(ic)}<span>${n}</span></a>`).join('');
   if (cur === 'home') home();
@@ -85,6 +86,7 @@ function route() {
   else if (cur === 'lbl') labelPage(view, parts[1], parts.slice(2).join('/'));
   else if (cur === 'up') { uploadPage(view, parts.slice(1).join('/')); if (parts[1]) window.scrollTo(0, 0); }
   else if (cur === 'set') settingsPage(view);
+  else if (cur === 'em') { emailPage(view, parts[1], parts.slice(2).join('/')); window.scrollTo(0, 0); }
   else if (cur === 'fax') { faxPage(view, parts[1], parts.slice(2).join('/')); window.scrollTo(0, 0); }
   else if (cur === 'po') { poPage(view, parts[1], parts.slice(2).join('/')); if (parts[1] === 'v') window.scrollTo(0, 0); }
   else if (cur === 'g') { goodsPage(view, decodeURIComponent(parts.slice(1).join('/'))); window.scrollTo(0, 0); }
@@ -121,6 +123,7 @@ function todos(C) {
   const dr = draftCount(), uw = uploadsWaiting();
   return [
     [faxUnread(), `${faxUnread()} 張傳真還沒看`, '#fax'],
+    [mailUnread(), `${mailUnread()} 封新信還沒看`, '#em'],
     [uw, `${uw} 筆拍照上傳待確認`, '#up'],
     [dr, `${dr} 張出貨單草稿待確認`, '#bill/drafts'],
     [oLate.length, `訂貨排程有 ${oLate.length} 筆逾期`, '/#orders'],
@@ -148,7 +151,7 @@ function home() {
       <a href="#lbl"><i>${SVG(IC.tag)}</i>印標籤</a>
       <a href="#po"><i>${SVG(IC.po)}</i>採購單${(n => n ? `（${n}）` : '')((ls.get('zr.m.po', null)?.lines || []).length)}</a>
       <a href="#fax"><i>${SVG(IC.fax)}</i>收傳真${faxUnread() ? `（${faxUnread()}）` : ''}</a>
-      <a href="https://webmail.hinet.net/" target="_blank" rel="noopener"><i>${SVG(IC.mail)}</i>瀏覽信箱</a>
+      <a href="#em"><i>${SVG(IC.mail)}</i>瀏覽信箱${mailUnread() ? `（${mailUnread()}）` : ''}</a>
     </div>
     <div class="sec">待處理</div>
     <div class="card list">${td.length ? td.map(([, txt, h]) => `<a href="${h}"><span class="dot"></span>${esc(txt)}<span class="go">›</span></a>`).join('') : '<div class="row muted">目前沒有需要處理的事 ✓</div>'}</div>
