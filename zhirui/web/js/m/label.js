@@ -1,6 +1,6 @@
 // 手機版：標籤列印（佳博 GP-1324D，50×40 mm，203 dpi ≈ 400×320 點）。
 // 手機把標籤畫成黑白點陣圖（畫面預覽＝印出來的樣子）→ 組成 TSPL 指令 → 交給主機列印小幫手直接送到標籤機。
-// 四行：品名（開頭連續中文，最多 8 字）／規格＋表面處理／數量 PCS（H×100）／日期；右下角料號 QR 碼。
+// 四行：品名（開頭連續中文，最多 10 字（老闆決定從規格書的 8 字放寬））／規格＋表面處理／數量 PCS（H×100）／日期；右下角料號 QR 碼。
 // 拆字拆不準的（開頭不是中文、中文中間夾數字英文…）不自己猜：列在「拆字檢查」給老闆確認，確認後的文字存在設定 lblfix。
 import { esc, today, uid, ls, qTerms, matchQ } from '../core/util.js';
 import { store } from '../core/store.js';
@@ -10,6 +10,7 @@ import { search, findByCode } from './stock.js';
 
 const W = 400, H = 320;   // 50×40 mm @ 203 dpi
 const KEY = 'zr.m.lbl';
+const NMAX = 10;   // 品名最多幾個字（第 1 行字會自動縮小）
 const PRINTER_DEF = 'Gprinter GP-1324D';
 const CJK = '\\u3400-\\u9fff\\uf900-\\ufaff';
 const RE_LEAD = new RegExp(`^[${CJK}]+`), RE_CJK = new RegExp(`[${CJK}]`);
@@ -26,14 +27,14 @@ export function lblParse(g) {
   const tok = raw.split(/\s+/)[0] || ''; const lead = (tok.match(RE_LEAD) || [''])[0]; const rest = tok.slice(lead.length);
   let others = raw.slice(tok.length); const fin = [];
   for (const w of FINS) if (others.includes(w)) { fin.push(w); others = others.replace(w, ' '); }
-  const auto = { name: lead.slice(0, 8), spec: rest, fin: fin.join(' ') };
+  const auto = { name: lead.slice(0, NMAX), spec: rest, fin: fin.join(' ') };
   if (f) return { ...auto, name: f.n ?? auto.name, spec: f.s ?? auto.spec, fin: f.f ?? auto.fin, ok: true, fixed: true };
   let why = '';
   if (!raw) why = '沒有品名';
   else if (!lead) why = '品名開頭不是中文';
   else if (!rest) why = '品名後面沒有規格';
   else if (RE_CJK.test(rest)) why = '中文中間夾數字或英文';
-  else if (lead.length > 8) why = `品名 ${lead.length} 個字，超過 8 字`;
+  else if (lead.length > NMAX) why = `品名 ${lead.length} 個字，超過 ${NMAX} 字`;
   return { ...auto, ok: !why, why };
 }
 /** 數量文字：H＝100 支、千＝1000、萬支＝10000，一律換成 PCS 加千分位；公斤照寫 */
@@ -205,7 +206,7 @@ function fixSheet(g, done) {
   el.innerHTML = `<div class="sheet-hd"><button class="link" data-x>取消</button><b>標籤文字</b><span style="width:40px"></span></div>
     <div class="card"><b>${esc(g.name)}</b><div class="muted mono">${esc(g.code)}</div>${p.ok ? '' : `<div class="err" style="margin:6px 0 0">${esc(p.why)}：請確認下面的文字</div>`}</div>
     <div class="card" style="margin-top:10px">
-      <div class="f"><label for="fn">第 1 行：品名（最多 8 字）</label><input id="fn" maxlength="8" value="${esc(p.name)}"></div>
+      <div class="f"><label for="fn">第 1 行：品名（最多 10 字）</label><input id="fn" maxlength="10" value="${esc(p.name)}"></div>
       <div class="f"><label for="fs">第 2 行：規格</label><input id="fs" value="${esc(p.spec)}"></div>
       <div class="f"><label for="ff">第 2 行：表面處理</label><input id="ff" value="${esc(p.fin)}"></div></div>
     <canvas class="lblcv" id="fcv" width="${W}" height="${H}" style="margin-top:10px"></canvas>
