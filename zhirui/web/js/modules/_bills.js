@@ -2,7 +2,7 @@
 import { $, $$, esc, fmt, fmtQ, fp4, today, uid, matchQ, qTerms, roc, slash, thisMonth, money, isoOf, downloadText, ls, dayN, lineSeq } from '../core/util.js';
 import { store } from '../core/store.js';
 import { toast, modal, confirm, combo, pager, tabs, printHTML, keepWhile } from '../core/ui.js';
-import { TYPES, totals, lineAmt, calc, nextNo, cname, cshort, cdisp, wname, gname, goodsLabel, customers, suppliers, defWh, qtyAt, bqty, uRate, lastSale, unitPrice, unitFactor, setHistPur, setHistSale, histSaleReady, costOf, lineUnit } from '../core/calc.js';
+import { TYPES, totals, lineAmt, calc, nextNo, cname, cshort, cdisp, wname, gname, goodsLabel, customers, suppliers, defWh, qtyAt, bqty, uRate, lastSale, unitPrice, unitFactor, setHistPur, setHistSale, histSaleReady, costOf, lineUnit, lineKg } from '../core/calc.js';
 import { api } from '../core/api.js';
 import { printName } from '../core/names.js';
 import { labelPicker } from './labels.js';
@@ -224,7 +224,8 @@ function drawBill() {
       ${T.transfer ? `<div class="f"><label for="b-toWid">調入倉庫</label><select id="b-toWid">${whs.map(w => `<option value="${w.id}" ${w.id === e.toWid ? 'selected' : ''}>${esc(w.name)}</option>`).join('')}</select></div>` : ''}
       ${T.money && !T.lines ? `<div class="f"><label for="b-amount">金額</label><input id="b-amount" class="num" inputmode="decimal" value="${esc(e.amount)}"></div><div class="f"><label for="b-aid">結算帳戶</label><select id="b-aid">${accts.map(a => `<option value="${a.id}" ${a.id === e.aid ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}</select></div>` : ''}
       ${!T.lines && !T.party ? `<div class="f"><label for="b-cat">項目</label><input id="b-cat" value="${esc(e.cat || '')}" placeholder="例如：運費、水電"></div>` : ''}
-      ${T.doc ? `<div class="f"><label for="b-valid">${e.type === 'PO' ? '交期' : '有效期限'}</label><input type="date" id="b-valid" value="${esc(e.valid || e.deliv || '')}"></div><div class="f"><label for="b-attn">聯絡人</label><input id="b-attn" value="${esc(e.attn || '')}"></div>` : ''}
+      ${e.type === 'PRC' ? `<div class="f" style="grid-column:span 2"><label for="b-proc">加工內容（印在加工單上）</label><input id="b-proc" list="procList" value="${esc(e.proc || '')}" placeholder="例如：電鍍鎳、三價鍍鋅＋除氫、熱處理、耐落（全周）"><datalist id="procList">${PROC_OPTS.map(x => `<option value="${esc(x)}">`).join('')}</datalist></div>` : ''}
+      ${T.doc ? `<div class="f"><label for="b-valid">${e.type === 'PO' ? '交期' : e.type === 'PRC' ? '預計回廠日' : '有效期限'}</label><input type="date" id="b-valid" value="${esc(e.valid || e.deliv || '')}"></div><div class="f"><label for="b-attn">聯絡人</label><input id="b-attn" value="${esc(e.attn || '')}"></div>` : ''}
     </div>
     ${T.lines ? `<div class="tw"><table class="lines" id="lines"><thead><tr><th style="width:44px" class="c">項次</th><th style="min-width:260px">商品</th><th style="width:100px" class="r">數量</th><th style="width:96px">單位</th>${priced ? '<th style="width:100px" class="r">單價</th><th style="width:90px" class="r">小計</th>' : ''}<th style="width:170px">${ship ? '備註（印在出貨單最後一欄）' : '備註'}</th>${showCost ? '<th style="width:90px" class="r">成本單價</th><th style="width:170px">成本來源</th>' : ''}<th style="width:30px"></th></tr></thead><tbody>${e.lines.map((l, i) => lineRow(l, i)).join('')}</tbody></table></div>
       <div class="tools"><button class="btn sm" id="addLine">＋ 加一行</button><button class="btn sm" id="addTxt">＋ 加備註</button><button class="btn sm" id="newGoods">＋ 新增商品</button>${ship ? '<button class="btn sm" id="xlLines">從 Excel 匯入明細</button><button class="btn sm" id="xlTpl">下載匯入範本</button><span class="muted small">Excel 欄位：客料號、數量、採購單號</span>' : ''}${ship && e.type === 'SALE' ? '<button class="btn sm" id="sqPdf" title="匯入崧泉 ERP 的「訂單出貨憑證」PDF：明細加進這張單，出貨單號、日期等資訊一起記下">匯入崧泉出貨單 PDF</button><button class="btn sm" id="ryPo" title="匯入如陽科技的「採購憑單」（PDF 或照片）：用 AI 讀出採購單號和明細，依產品編號（客料號）對到商品；劃線取消的行會跳過">匯入如陽採購單</button>' : ''}</div>
@@ -235,7 +236,7 @@ function drawBill() {
     ${e._err ? `<div class="err">${esc(e._err)}</div>` : ''}`;
   let footer = ship
     ? `<div class="dd" id="prDD"><button class="btn" id="prMenu" aria-haspopup="true" aria-expanded="false">列印 ▾</button><div class="dd-menu" hidden><button class="btn" id="printShip">列印出貨單</button><button class="btn" id="printShipPn" title="品名前加印客料號">料號列印</button><button class="btn" id="printShipNa">列印（不含金額）</button><button class="btn" id="printShipPnNa" title="品名前加印客料號，不印單價、金額">豐餘列印</button><button class="btn" id="printRy" title="照如陽舊系統的出貨單：客料號＋品名、單價、金額、採購單號">如陽列印</button>${e.type === 'SALE' ? '<button class="btn" id="printSq" title="照崧泉「訂單出貨憑證」的欄位重印">崧泉列印</button>' : ''}</div></div><button class="btn sm" id="shipFmt" title="調整出貨單格式">格式</button><button class="btn" id="lblBill" ${e.id ? '' : 'title="會先儲存這張單"'}>標籤</button>${e.type === 'SALE' ? `<button class="btn" id="stkAdj" ${e.id ? '' : 'title="會先儲存這張單"'}>調整即時庫存</button>` : ''}<button class="btn danger" id="delBill" ${e.id ? '' : 'disabled title="還沒儲存的單據不用刪除"'}>刪除單據</button><span class="sp"></span><button class="btn" data-close>取消</button><button class="btn pri" id="saveBill">儲存</button>`
-    : `${e.id ? `<button class="btn danger" id="delBill">刪除</button>` : ''}${e.id && T.doc ? `<button class="btn" id="faxBill">傳真</button>` : ''}${e.id && (e.type === 'QUO' || e.type === 'PO' || e.type === 'PUR') ? `<button class="btn" id="printBill">列印</button>` : ''}${e.id && e.type === 'QUO' && !e.toBill ? `<button class="btn" id="toSale">轉成銷貨單</button>` : ''}${e.id && e.type === 'PO' && !e.received ? `<button class="btn" id="toPur">轉成進貨單</button>` : ''}<span class="sp"></span><button class="btn" data-close>取消</button><button class="btn pri" id="saveBill">儲存</button>`;
+    : `${e.id ? `<button class="btn danger" id="delBill">刪除</button>` : ''}${e.id && T.doc ? `<button class="btn" id="faxBill">傳真</button>` : ''}${e.id && (e.type === 'QUO' || e.type === 'PO' || e.type === 'PUR' || e.type === 'PRC') ? `<button class="btn" id="printBill">列印</button>` : ''}${e.id && e.type === 'QUO' && !e.toBill ? `<button class="btn" id="toSale">轉成銷貨單</button>` : ''}${e.id && e.type === 'PO' && !e.received ? `<button class="btn" id="toPur">轉成進貨單</button>` : ''}<span class="sp"></span><button class="btn" data-close>取消</button><button class="btn pri" id="saveBill">儲存</button>`;
   const nav = navList(e.type); const pos = e.id ? nav.findIndex(b => b.id === e.id) : nav.length;
   let headExtra = T.lines ? `<button class="btn sm" id="navPrev" ${pos > 0 ? '' : 'disabled'} title="Alt+←">◀ 上一張</button><button class="btn sm" id="navNext" ${e.id && pos < nav.length - 1 ? '' : 'disabled'} title="Alt+→">下一張 ▶</button><button class="btn sm pri" id="saveBill2" title="Ctrl+S">儲存</button><button class="btn sm" id="dlgMax">${ls.get('zr.billMax', false) ? '還原' : '放大'}</button>` : '';
   if (dlg) dlg.close();
@@ -259,7 +260,7 @@ function lineRow(l, i) {
     cost = `<td class="n small c-c">${l.gid && (!r || r.manual) && base ? `<input class="num" data-gcost="${i}" inputmode="decimal" value="${r ? Math.round(r.c * 10000) / 10000 : ''}" placeholder="填成本" title="查無成本時可自行填入，會存到商品資料的手動成本">` : r ? fp4(r.c) : ''}</td><td class="muted small csrc c-src" title="${r ? esc(r.src) : '查無成本'}">${r ? esc(r.src) : l.gid ? '—' : ''}</td>`;
   }
   const no = lineSeq(edit.lines)[i];
-  return `<tr data-i="${i}"><td class="c-no">${no}</td><td class="c-g"><div class="combo"><input data-f="gid" value="${esc(g ? goodsLabel(g, edit.type) : l.n || '')}" placeholder="打料號、品名、客料號搜尋"></div>${have != null ? `<div class="have ${(T.stock === -1 || T.transfer) && bqty(l, g) > have ? 'bad' : ''}">${esc(wname(edit.wid))}庫存 ${fmtQ(have)} ${esc(g?.unit || '')}</div>` : ''}${l._lp ? `<div class="lp">${esc(l._lp)}</div>` : ''}${g ? `<div class="glinks"><a href="#" data-spec="${i}">規格・圖面${g.dwg ? '（附客戶圖）' : ''}</a><a href="#" data-gedit="${i}">修改商品</a>${edit.cid ? `<a href="#" data-ghist="${i}" title="這個${T.party === 'S' ? '廠商' : '客戶'}、這個商品的歷史交易">歷史明細</a>` : ''}</div>` : ''}</td>
+  return `<tr data-i="${i}"><td class="c-no">${no}</td><td class="c-g"><div class="combo"><input data-f="gid" value="${esc(g ? goodsLabel(g, edit.type) : l.n || '')}" placeholder="打料號、品名、客料號搜尋"></div>${have != null ? `<div class="have ${(T.stock === -1 || T.transfer) && bqty(l, g) > have ? 'bad' : ''}">${esc(wname(edit.wid))}庫存 ${fmtQ(have)} ${esc(g?.unit || '')}</div>` : ''}${l._lp ? `<div class="lp">${esc(l._lp)}</div>` : ''}${edit.type === 'PRC' && g && +l.qty && !prcIsKg(l) && prcKg(l, g) ? `<div class="have">約 ${esc(kgText({ kg: prcKg(l, g), miss: 0 }))}（電鍍按重量計價的話，單位選 KG、數量填重量）</div>` : ''}${g ? `<div class="glinks"><a href="#" data-spec="${i}">規格・圖面${g.dwg ? '（附客戶圖）' : ''}</a><a href="#" data-gedit="${i}">修改商品</a>${edit.cid ? `<a href="#" data-ghist="${i}" title="這個${T.party === 'S' ? '廠商' : '客戶'}、這個商品的歷史交易">歷史明細</a>` : ''}</div>` : ''}</td>
     <td class="c-q"><input data-f="qty" class="num" inputmode="decimal" value="${esc(l.qty)}"></td>
     <td class="c-u">${g ? `<select data-f="unit">${units.map(([v, lb]) => `<option value="${v}" ${(l.unit === 'a' ? 'a' : l.u || g.unit || 'PCS') === v ? 'selected' : ''}>${esc(lb)}</option>`).join('')}</select>` : `<input data-f="nu" value="${esc(l.unit || '')}" placeholder="單位">`}</td>
     ${priced ? `<td class="c-p"><input data-f="price" class="num" inputmode="decimal" value="${esc(l.price)}">${(w => w ? `<div class="pwarn">${esc(w)}</div>` : '')(priceWarn(l, g))}</td><td class="n c-s" id="ls-${i}">${fmt(lineAmt(l))}</td>` : ''}
@@ -304,7 +305,7 @@ function lineHave(l) { if (!l.gid || !edit || !edit.wid || TYPES[edit.type].doc)
 function bindBill(el, close) {
   const e = edit, T = TYPES[e.type], C = calc();
   const v = (id, f) => { const x = el.querySelector('#' + id); if (x) x.addEventListener('input', () => { f(x.value); e._dirty = true; updateTotals(el); }); };
-  v('b-date', x => e.date = x); v('b-no', x => e.no = x); v('b-note', x => e.note = x); v('b-amount', x => e.amount = x); v('b-cat', x => e.cat = x); v('b-paid', x => e.paid = x); v('b-disc', x => e.disc = x); v('b-valid', x => { if (e.type === 'PO') e.deliv = x; else e.valid = x; }); v('b-attn', x => e.attn = x);
+  v('b-date', x => e.date = x); v('b-no', x => e.no = x); v('b-note', x => e.note = x); v('b-amount', x => e.amount = x); v('b-cat', x => e.cat = x); v('b-paid', x => e.paid = x); v('b-disc', x => e.disc = x); v('b-valid', x => { if (e.type === 'PO' || e.type === 'PRC') e.deliv = x; else e.valid = x; }); v('b-proc', x => e.proc = x); v('b-attn', x => e.attn = x);
   ['b-wid', 'b-toWid', 'b-aid'].forEach(id => { const x = el.querySelector('#' + id); if (x) x.addEventListener('change', () => { e[id.slice(2)] = x.value; if (id === 'b-wid') redrawLines(el); }); });
   const tax = el.querySelector('#b-tax'); if (tax) tax.addEventListener('change', () => { e.tax = tax.checked; updateTotals(el); });
   const cid = el.querySelector('#b-cid');
@@ -426,12 +427,23 @@ function bindBill(el, close) {
 }
 function redrawLines(el) { const tb = el.querySelector('#lines tbody'); if (!tb) return; tb.innerHTML = edit.lines.map((l, i) => lineRow(l, i)).join(''); bindLines(el); updateTotals(el); }
 function applyLast(l, g) {
+  if (edit.type === 'PRC') return applyLastPrc(l, g);
   if (!['SALE', 'SALE_RET', 'QUO'].includes(edit.type)) return false;
   const x = lastSale(edit.cid, g.id, edit.date, edit.id); if (!x) return false;
   if (x.unit === 'a' && g.aunit && +g.arate > 1) { l.unit = 'a'; l.rate = +g.arate; l.price = x.price; }
   else if (x.u) { const [c1, f1] = unitFactor(x.u); const [c2, f2] = unitFactor(g.unit || ''); l.unit = ''; l.u = x.u; l.price = x.price; }
   else { l.unit = ''; l.rate = 1; l.price = x.price; }
   l._lp = `上次 ${slash(x.date)} 單價 ${fp4(x.price)}${x.u ? ' / ' + x.u : x.unit === 'a' ? ' / ' + g.aunit : ''}（${x.no}）`; return true;
+}
+/** 加工單每行約重：單位是 KG 就是數量本身，其他用商品單重估算 */
+const prcKg = (l, g) => { const u = l.u || (l.unit !== 'a' ? l.unit : '') || ''; if (/kg/i.test(u)) return +l.qty || 0; const k = g ? lineKg(l, g) : 0; return isFinite(k) ? k : 0; };
+const prcIsKg = l => /kg/i.test(l.u || (l.unit !== 'a' ? l.unit : '') || '');
+const PROC_OPTS = ['電鍍鋅（三價鉻）', '電鍍鋅（三價鉻）＋除氫', '三價錏黑', '電鍍鎳', '電鍍鎳（銅底）', '染黑', '五彩', '電鍍鉻', '鍍青銅', '熱處理', '熱處理＋整直', '耐落（全周）', '耐落（單點）', '防鬆加工', '酸洗', '振動拋光', '外觀烤漆', '滾花', '搓牙'];
+function applyLastPrc(l, g) {
+  if (!edit.cid) return false;
+  const prev = store.list('bills').filter(b => b.type === 'PRC' && b.cid === edit.cid && b.id !== edit.id && (b.date || '') <= (edit.date || '9')).sort((a, b) => String(b.date).localeCompare(String(a.date)) || String(b.no).localeCompare(String(a.no)));
+  for (const b of prev) { const x = (b.lines || []).find(y => y.gid === g.id && +y.price > 0); if (!x) continue; l.price = +x.price; if (x.u) { l.u = x.u; l.unit = ''; } l._lp = `上次加工 ${slash(b.date)} 單價 ${fp4(x.price)}${x.u ? ' / ' + x.u : ''}（${b.no}）`; return true; }
+  return false;
 }
 /** 單價提醒：進貨單高於上次進價（優先同一廠商）；出貨單低於同客戶上次單價或低於成本 */
 /** 進貨單某一行的單價是否高於上次進價（同廠商優先）；回傳提醒文字或空字串。編輯畫面與進貨單列表共用 */
@@ -528,7 +540,7 @@ async function saveBill(close, then) {
   if (T.party) doc.cid = e.cid;
   if (T.lines) { doc.wid = e.wid; doc.lines = e.lines.map(l => { if (l.txt !== undefined) return { txt: String(l.txt).trim() }; const o = { gid: l.gid || '', qty: +l.qty || 0, price: +l.price || 0 }; if (!l.gid && l.n) { o.n = l.n; if (l.unit) o.unit = l.unit; } if (l.u) o.u = l.u; if (l.sq) o.sq = l.sq; if (String(l.memo || '').trim()) o.memo = String(l.memo).trim(); if (l.unit === 'a' && +l.rate > 1) { o.unit = 'a'; o.rate = +l.rate; } else if (l.u && l.gid) { const r = uRate(l.u, C.g[l.gid]); if (r && r !== 1) o.rate = r; } if (l.batch) o.batch = l.batch; return o; }); }
   if (T.transfer) doc.toWid = e.toWid;
-  if (T.doc) { doc.disc = +e.disc || 0; doc.tax = !!e.tax; for (const k of ['attn', 'valid', 'deliv', 'payterm', 'toBill', 'received', 'fromQuote', 'orderId']) if (e[k]) doc[k] = e[k]; delete doc.wid; }
+  if (T.doc) { doc.disc = +e.disc || 0; doc.tax = !!e.tax; for (const k of ['attn', 'valid', 'deliv', 'payterm', 'toBill', 'received', 'fromQuote', 'orderId', 'proc']) if (e[k]) doc[k] = e[k]; delete doc.wid; }
   else if (T.lines && T.party) { doc.disc = +e.disc || 0; doc.tax = !!e.tax; doc.paid = +e.paid || 0; doc.aid = e.aid || ''; for (const k of ['invNo', 'fromQuote', 'fromPO', 'sq']) if (e[k]) doc[k] = e[k]; }
   if (T.money && !T.lines) { doc.aid = e.aid || ''; doc.amount = +e.amount || 0; if (e.cat) doc.cat = e.cat; for (const k of ['ref', 'checkId']) if (e[k]) doc[k] = e[k]; }
   if (e.hist) { doc.hist = true; if (e.cn) doc.cn = e.cn; if (e.oamt != null) doc.oamt = e.oamt; }
@@ -576,15 +588,17 @@ export function printBill(b) { const d = billDoc(b); printHTML(`${d.title} ${b.n
 export function billDoc(b) {
   const C = calc(); const T = TYPES[b.type]; const co = store.setting('company'); const c = C.ct[b.cid] || {};
   const t = totals(b);
-  const title = { SALE: '出貨單', QUO: '報價單', PO: '採購單', PUR: '進貨單', SALE_RET: '銷貨退回單', PUR_RET: '進貨退出單' }[b.type] || T.name;
+  const title = { SALE: '出貨單', QUO: '報價單', PO: '採購單', PUR: '進貨單', SALE_RET: '銷貨退回單', PUR_RET: '進貨退出單', PRC: '委託加工單' }[b.type] || T.name;
   const lines = (b.lines || []);
   const seq = lineSeq(lines);
-  const rows = lines.map((l, i) => l.txt !== undefined ? `<tr><td></td><td colspan="5">${esc(l.txt)}</td></tr>` : `<tr><td class="c">${seq[i]}</td><td>${esc(l.gid ? gname(l.gid, b.type) : l.n || '')}${l.memo ? `<small> ${esc(l.memo)}</small>` : ''}</td><td class="n">${fmtQ(l.qty)}</td><td>${esc(l.unit === 'a' ? (C.g[l.gid]?.aunit || '') : l.u || C.g[l.gid]?.unit || l.unit || '')}</td><td class="n">${fp4(l.price)}</td><td class="n">${fmt(lineAmt(l))}</td></tr>`).join('');
+  const rows = lines.map((l, i) => l.txt !== undefined ? `<tr><td></td><td colspan="5">${esc(l.txt)}</td></tr>` : `<tr><td class="c">${seq[i]}</td><td>${esc(l.gid ? gname(l.gid, b.type) : l.n || '')}${l.memo ? `<small> ${esc(l.memo)}</small>` : ''}</td><td class="n">${fmtQ(l.qty)}${b.type === 'PRC' && l.gid && !prcIsKg(l) && prcKg(l, C.g[l.gid]) ? `<br><small>約 ${esc(kgText({ kg: prcKg(l, C.g[l.gid]), miss: 0 }))}</small>` : ''}</td><td>${esc(l.unit === 'a' ? (C.g[l.gid]?.aunit || '') : l.u || C.g[l.gid]?.unit || l.unit || '')}</td><td class="n">${fp4(l.price)}</td><td class="n">${fmt(lineAmt(l))}</td></tr>`).join('');
   const css = `@page{size:A4;margin:12mm}body{font-family:"Microsoft JhengHei","微軟正黑體","PingFang TC","Noto Sans TC",sans-serif;font-size:11pt;color:#000;margin:0}h1{text-align:center;font-size:18pt;margin:0 0 2mm}.co{text-align:center;font-size:10pt;margin-bottom:4mm}.meta{display:grid;grid-template-columns:1fr 1fr;gap:1mm 10mm;margin-bottom:4mm;font-size:10.5pt}table{width:100%;border-collapse:collapse}th,td{border:.5pt solid #000;padding:1.5mm 2mm;text-align:left}th{background:#eee;font-weight:600}td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}td.c{text-align:center}small{color:#555}tfoot td{font-weight:600}.sig{display:flex;justify-content:space-between;margin-top:12mm;font-size:10.5pt}.sig span{flex:1}`;
   const html = `<div class="co">${esc(co.name || '志瑞螺絲企業有限公司')}　統編 ${esc(co.taxId || '')}　電話 ${esc(co.phone || '')}　傳真 ${esc(co.fax || '')}<br>${esc(co.addr || '')}</div><h1>${esc(title)}</h1>
-    <div class="meta"><div>${T.party === 'C' ? '客戶' : '廠商'}：${esc(c.name ? printName(c.name) : (b.cn || ''))}</div><div>單號：${esc(b.no)}</div><div>電話：${esc(c.phone || '')}</div><div>日期：${esc(slash(b.date))}</div><div>地址：${esc(c.addr || '')}</div><div>${b.type === 'PO' && b.deliv ? '交期：' + esc(slash(b.deliv)) : b.type === 'QUO' && b.valid ? '有效期限：' + esc(slash(b.valid)) : ''}</div></div>
+    <div class="meta"><div>${T.party === 'C' ? '客戶' : '廠商'}：${esc(c.name ? printName(c.name) : (b.cn || ''))}</div><div>單號：${esc(b.no)}</div><div>電話：${esc(c.phone || '')}</div><div>日期：${esc(slash(b.date))}</div><div>地址：${esc(c.addr || '')}</div><div>${b.type === 'PRC' && b.deliv ? '預計回廠日：' + esc(slash(b.deliv)) : b.type === 'PO' && b.deliv ? '交期：' + esc(slash(b.deliv)) : b.type === 'QUO' && b.valid ? '有效期限：' + esc(slash(b.valid)) : ''}</div></div>
+    ${b.type === 'PRC' && b.proc ? `<p style="font-size:13pt;margin:0 0 3mm"><b>加工內容：${esc(b.proc)}</b></p>` : ''}
     <table><thead><tr><th style="width:8mm">#</th><th>品名規格</th><th class="n" style="width:22mm">數量</th><th style="width:14mm">單位</th><th class="n" style="width:22mm">單價</th><th class="n" style="width:26mm">金額</th></tr></thead><tbody>${rows}</tbody>
     <tfoot><tr><td colspan="5" class="n">小計</td><td class="n">${fmt(t.sub)}</td></tr>${b.disc ? `<tr><td colspan="5" class="n">折讓</td><td class="n">-${fmt(b.disc)}</td></tr>` : ''}${b.tax ? `<tr><td colspan="5" class="n">營業稅 5%</td><td class="n">${fmt(t.tax)}</td></tr>` : ''}<tr><td colspan="5" class="n">總計</td><td class="n">${fmt(t.total)}</td></tr></tfoot></table>
+    ${b.type === 'PRC' ? `<p>總重（約）：${esc(kgText(billKg(b)))}${b.attn ? `　聯絡人：${esc(b.attn)}` : ''}</p><p>加工後請連同本單送回，並註明實際重量，謝謝。</p>` : ''}
     ${b.note ? `<p>備註：${esc(b.note)}</p>` : ''}
     <div class="sig"><span>經辦：</span><span>${T.party === 'C' ? '客戶簽收' : '廠商確認'}：</span></div>`;
   return { title, css, html, lines: lines.length };

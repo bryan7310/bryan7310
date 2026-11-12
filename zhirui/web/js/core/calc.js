@@ -21,6 +21,7 @@ export const TYPES = {
   QUO: { name: '報價單', pre: 'BJ', party: 'C', lines: true, doc: true },
   RFQ: { name: '詢價單', pre: 'XJ', party: 'S', lines: true, doc: true },
   PO: { name: '採購單', pre: 'PO', party: 'S', lines: true, doc: true },
+  PRC: { name: '加工單', pre: 'JG', party: 'S', lines: true, doc: true },   // 委託加工：送電鍍、熱處理、耐落給廠商的單子（不動庫存、不進應付）
 };
 
 export const lineAmt = l => rnd0((+l.qty || 0) * (+l.price || 0));

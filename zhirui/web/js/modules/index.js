@@ -10,6 +10,7 @@ import faxes from './faxes.js';
 import labels from './labels.js';
 import mail from './mail.js';
 import purchase from './purchase.js';
+import processing from './processing.js';
 import stock from './stock.js';
 import receivables from './receivables.js';
 import payables from './payables.js';
@@ -24,4 +25,4 @@ import apply from './apply.js';
 import assistant from './assistant.js';
 
 // 門市銷售、出貨銷貨、採購進貨三個最常用的排在最上面（不分組）
-export const MODULES = [home, retail, sales, purchase, assistant, pricing, quotes, orders, faxes, drawing, stock, labels, receivables, mail, payables, invoices, checksOut, checksIn, money, reports, master, settings, apply];
+export const MODULES = [home, retail, sales, purchase, processing, assistant, pricing, quotes, orders, faxes, drawing, stock, labels, receivables, mail, payables, invoices, checksOut, checksIn, money, reports, master, settings, apply];

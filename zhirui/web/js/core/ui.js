@@ -185,6 +185,7 @@ export const ICONS = {
   quotes: '<path d="M7 3h7l5 5v11.5a1.5 1.5 0 0 1-1.5 1.5h-10A1.5 1.5 0 0 1 6 19.5v-15A1.5 1.5 0 0 1 7.5 3z"/><path d="M14 3v5h5M9 13h6M9 17h6"/>',
   sales: '<path d="M4 7h16l-1.5 11.5a2 2 0 0 1-2 1.5h-9a2 2 0 0 1-2-1.5z"/><path d="M8.5 7V5.5a3.5 3.5 0 0 1 7 0V7"/>',
   purchase: '<path d="M3 8l9-5 9 5v8l-9 5-9-5z"/><path d="M3 8l9 5 9-5M12 13v8"/>',
+  process: '<path d="M14.5 4.5a4.5 4.5 0 0 0-5.6 5.6L3.5 15.5v5h5l5.4-5.4a4.5 4.5 0 0 0 5.6-5.6l-2.8 2.8-3.2-.8-.8-3.2z"/>',
   stock: '<rect x="3" y="4" width="18" height="5" rx="1.5"/><path d="M5 9v9.5A1.5 1.5 0 0 0 6.5 20h11a1.5 1.5 0 0 0 1.5-1.5V9M10 13h4"/>',
   orders: '<rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V3h6v1"/><path d="M8.5 10l1.5 1.5 3-3"/><path d="M8.5 15.5l1.5 1.5 3-3"/><path d="M15 11h1.5M15 16.5h1.5"/>',
   drawing: '<rect x="3" y="5.5" width="5" height="8" rx="1"/><path d="M8 7.5h10.5l2.5 2-2.5 2H8"/><path d="M11 7.5v4M14 7.5v4M17 7.5v4"/><path d="M3 18.5h18M3 17v3M21 17v3"/>',

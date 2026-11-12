@@ -53,7 +53,7 @@ export function faxDialog(b, after) {
       <div class="f"><label for="fx-to">收件傳真號碼（撥號用）${c.fax ? `<span class="muted">　資料：${esc(c.fax)}${isTaichung(c) ? '・地址在台中，去掉 04' : ''}</span>` : ''}</label><input id="fx-to" value="${esc(faxDial(c, b.faxTo || c.fax || ''))}" placeholder="例如 24834426"></div>
       <div class="f"><label for="fx-attn">收件人</label><input id="fx-attn" value="${esc(b.attn || c.person || '')}"></div>
       <div class="f" style="grid-column:1/-1"><label for="fx-subj">主旨</label><input id="fx-subj" value="${esc(T.name + ' ' + b.no)}"></div>
-      <div class="f" style="grid-column:1/-1"><label for="fx-msg">附言</label><textarea id="fx-msg">${b.type === 'PO' ? '敬請依採購單內容安排交貨，收到後請簽回確認，謝謝。' : b.type === 'RFQ' ? '敬請報價並回傳，謝謝。' : '報價如上，敬請參考，謝謝。'}</textarea></div></div>
+      <div class="f" style="grid-column:1/-1"><label for="fx-msg">附言</label><textarea id="fx-msg">${b.type === 'PRC' ? '送上加工品，敬請依加工單內容加工，完成後請連同本單送回並註明實際重量，謝謝。' : b.type === 'PO' ? '敬請依採購單內容安排交貨，收到後請簽回確認，謝謝。' : b.type === 'RFQ' ? '敬請報價並回傳，謝謝。' : '報價如上，敬請參考，謝謝。'}</textarea></div></div>
       ${(b.faxLog || []).length ? `<div class="muted small">傳真紀錄：${b.faxLog.slice(-3).map(x => esc(x.at.slice(0, 16).replace('T', ' ')) + ' → ' + esc(x.to)).join('；')}</div>` : ''}
       <label class="check"><input type="checkbox" id="fx-cover"> 加一張傳真封面頁</label>
       <label class="check" ${c.fax ? 'hidden' : ''}><input type="checkbox" id="fx-save" ${c.fax ? '' : 'checked'}> 把傳真號碼存到這家${T.party === 'C' ? '客戶' : '廠商'}的資料</label>
