@@ -17,7 +17,7 @@ const RE_LEAD = new RegExp(`^[${CJK}]+`), RE_CJK = new RegExp(`[${CJK}]`);
 const FINS = ['三價白鋅', '三價黑鋅', '三價鋅', '鍍錏黑', '錏黑', '鍍鋅', '染黑', '五彩', '黑鎳', '鍍鎳', '鍍鉻', '紅古銅', '青古銅', '古銅', '磷酸', '達克羅', '黑身', '白皮', '原色', '洗油', '耐落', '防鬆'];
 const toast = msg => { const t = document.getElementById('toast'); t.textContent = msg; t.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(() => t.hidden = true, 2600); };
 const fixes = () => store.setting('lblfix').fix || {};
-const cfg = () => ({ printer: PRINTER_DEF, mode: 'tspl', invert: false, dir: 1, dx: 0, dy: 0, qr: true, gap: 2, ...store.setting('mlabel') });
+const cfg = () => ({ printer: PRINTER_DEF, mode: 'tspl', rot: 'port', invert: false, dir: 1, dx: 0, dy: 0, qr: true, gap: 2, ...store.setting('mlabel') });
 
 /** 品名 → 標籤文字；ok=false 表示拆不準、要人確認（why 說原因） */
 export function lblParse(g) {
@@ -74,16 +74,20 @@ export async function drawLabel(cv, it, opt = {}) {
   cx.putImageData(img, 0, 0);
   return cv;
 }
-/** 點陣圖 → TSPL BITMAP 資料（每列 50 bytes，高位元在左；預設 0＝黑點） */
-function bitmapBytes(cv, invert, dx, dy) {
-  const d = cv.getContext('2d').getImageData(0, 0, W, H).data; const wb = W / 8; const out = new Uint8Array(wb * H);
-  for (let y = 0; y < H; y++) for (let xb = 0; xb < wb; xb++) {
+/** 點陣圖 → TSPL BITMAP 資料（高位元在左；預設 0＝黑點）。
+ *  rot＝直放（標籤 40 mm 那邊橫過印字頭、50 mm 往出紙方向）：整張轉 90 度，輸出 320×400 點；橫放＝400×320 不轉 */
+function bitmapBytes(cv, invert, dx, dy, rot) {
+  const d = cv.getContext('2d').getImageData(0, 0, W, H).data;
+  const OW = rot ? H : W, OH = rot ? W : H, wb = OW / 8; const out = new Uint8Array(wb * OH);
+  for (let oy = 0; oy < OH; oy++) for (let xb = 0; xb < wb; xb++) {
     let b = 0;
     for (let bit = 0; bit < 8; bit++) {
-      const sx = xb * 8 + bit - dx, sy = y - dy; const black = sx >= 0 && sx < W && sy >= 0 && sy < H && d[(sy * W + sx) * 4] < 128;
+      const ox = xb * 8 + bit;
+      const sx = (rot ? oy : ox) - dx, sy = (rot ? H - 1 - ox : oy) - dy;   // 順時針轉 90 度
+      const black = sx >= 0 && sx < W && sy >= 0 && sy < H && d[(sy * W + sx) * 4] < 128;
       if (invert ? black : !black) b |= 0x80 >> bit;
     }
-    out[y * wb + xb] = b;
+    out[oy * wb + xb] = b;
   }
   return out;
 }
@@ -91,9 +95,10 @@ const enc = s => new TextEncoder().encode(s);
 function concat(parts) { const n = parts.reduce((a, p) => a + p.length, 0); const o = new Uint8Array(n); let i = 0; for (const p of parts) { o.set(p, i); i += p.length; } return o; }
 function b64(u8) { let s = ''; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); return btoa(s); }
 export function tspl(labels, c) {
-  const head = `SIZE 50 mm,40 mm\r\nGAP ${+c.gap || 0} mm,0 mm\r\nDIRECTION ${c.dir ? 1 : 0}\r\nREFERENCE 0,0\r\nDENSITY 8\r\nSPEED 4\r\nSET TEAR ON\r\n`;
+  const rot = c.rot !== 'land';
+  const head = `SIZE ${rot ? '40 mm,50 mm' : '50 mm,40 mm'}\r\nGAP ${+c.gap || 0} mm,0 mm\r\nDIRECTION ${c.dir ? 1 : 0}\r\nREFERENCE 0,0\r\nDENSITY 8\r\nSPEED 4\r\nSET TEAR ON\r\n`;
   const parts = [enc(head)];
-  for (const { cv, copies } of labels) parts.push(enc('CLS\r\nBITMAP 0,0,50,320,0,'), bitmapBytes(cv, !!c.invert, +c.dx || 0, +c.dy || 0), enc(`\r\nPRINT 1,${Math.max(1, Math.round(copies) || 1)}\r\n`));
+  for (const { cv, copies } of labels) parts.push(enc(`CLS\r\nBITMAP 0,0,${rot ? '40,400' : '50,320'},0,`), bitmapBytes(cv, !!c.invert, +c.dx || 0, +c.dy || 0, rot), enc(`\r\nPRINT 1,${Math.max(1, Math.round(copies) || 1)}\r\n`));
   return concat(parts);
 }
 
@@ -127,6 +132,7 @@ export function labelPage(view, sub, arg) {
       <div class="f2"><div class="f"><label for="ldx">往右移（點，8 點＝1 mm）</label><input id="ldx" inputmode="numeric" value="${esc(c.dx)}"></div><div class="f"><label for="ldy">往下移（點）</label><input id="ldy" inputmode="numeric" value="${esc(c.dy)}"></div></div>
       <div class="f2"><div class="f"><label for="lgap">標籤間距（mm）</label><input id="lgap" inputmode="decimal" value="${esc(c.gap)}"></div><div class="f"><label>&nbsp;</label><label class="check"><input type="checkbox" id="lqr" ${c.qr ? 'checked' : ''}> 印料號 QR 碼</label></div></div>
       <label class="check"><input type="checkbox" id="linv" ${c.invert ? 'checked' : ''}> 黑白相反（印出來整張黑底時勾）</label>
+      <div class="f"><label>標籤怎麼放在標籤機裡</label><div class="chips" id="lrot">${[['port', '直放：40 mm 那邊橫過印字頭（目前這台）'], ['land', '橫放：50 mm 那邊橫過印字頭']].map(([k, n]) => `<button type="button" class="chip ${c.rot === k ? 'on' : ''}" data-r="${k}">${n}</button>`).join('')}</div></div>
       <label class="check"><input type="checkbox" id="ldir" ${c.dir ? '' : 'checked'}> 上下顛倒（印出來倒過來時勾）</label>
       <p><button class="btn ghost" id="lsave">儲存設定</button></p></details>`;
   const $ = q => view.querySelector(q); const redraw = () => labelPage(view);
@@ -144,9 +150,10 @@ export function labelPage(view, sub, arg) {
   $('#clr')?.addEventListener('click', () => { if (!window.confirm('清空標籤清單？')) return; s.items = []; keep(); redraw(); });
   $('#go').onclick = () => printAll(view);
   view.querySelectorAll('#lm [data-m]').forEach(b => b.onclick = () => view.querySelectorAll('#lm [data-m]').forEach(x => x.classList.toggle('on', x === b)));
+  view.querySelectorAll('#lrot [data-r]').forEach(b => b.onclick = () => view.querySelectorAll('#lrot [data-r]').forEach(x => x.classList.toggle('on', x === b)));
   $('#lsave').onclick = async () => {
     const n = (id, d) => { const v = parseFloat($(id).value); return isFinite(v) ? v : d; };
-    const out = { ...store.setting('mlabel'), printer: $('#lp').value.trim() || PRINTER_DEF, mode: $('#lm .on')?.dataset.m || 'tspl', dx: Math.round(n('#ldx', 0)), dy: Math.round(n('#ldy', 0)), gap: n('#lgap', 2), qr: $('#lqr').checked, invert: $('#linv').checked, dir: $('#ldir').checked ? 0 : 1 };
+    const out = { ...store.setting('mlabel'), printer: $('#lp').value.trim() || PRINTER_DEF, mode: $('#lm .on')?.dataset.m || 'tspl', rot: $('#lrot .on')?.dataset.r || 'port', dx: Math.round(n('#ldx', 0)), dy: Math.round(n('#ldy', 0)), gap: n('#lgap', 2), qr: $('#lqr').checked, invert: $('#linv').checked, dir: $('#ldir').checked ? 0 : 1 };
     try { await store.save('settings', 'mlabel', out); toast('標籤機設定已儲存'); redraw(); } catch (e) { toast('儲存失敗：' + e.message); }
   };
   helperState(view);
