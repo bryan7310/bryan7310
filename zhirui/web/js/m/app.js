@@ -7,6 +7,8 @@ import { arSummary } from '../modules/receivables.js';
 import { preloadHist } from '../modules/_bills.js';
 import { stockPage, goodsPage } from './stock.js';
 import { billPage, onBillChange, draftCount } from './bill.js';
+import { arPage } from './ar.js';
+import { reportPage } from './report.js';
 
 const $ = s => document.querySelector(s);
 const view = $('#view'), bar = $('#tabbar');
@@ -24,7 +26,7 @@ const TABS = [
   ['home', '首頁', IC.home],
   ['stock', '庫存', IC.stock],
   ['bill', '開單', IC.bill],
-  ['ar', '帳款', IC.money, 4, '/#receivables/open'],
+  ['ar', '帳款', IC.money],
   ['up', '上傳', IC.cam, 7, ''],
 ];
 
@@ -34,11 +36,11 @@ async function boot() {
   catch (e) { return e.status === 401 ? showLogin() : showLogin('載入資料失敗：' + (e.message || e)); }
   if (store.user.role !== 'admin') return notBoss();
   bar.hidden = false;
-  store.subscribe(ch => { if (cur === 'home') route(); else if (cur === 'bill') onBillChange(view, ch); });
+  store.subscribe(ch => { if (cur === 'home') route(); else if (cur === 'bill') onBillChange(view, ch); else if (cur === 'ar' && ['receivables', 'checks_in', 'bills'].some(c => ch.has(c))) route(); });
   window.addEventListener('hashchange', route);
   route();
   // 舊系統進貨單會影響成本（毛利），載入後重算一次，跟電腦版一致
-  setTimeout(() => preloadHist().then(() => { if (cur === 'home' || cur === 'g') route(); }), 800);
+  setTimeout(() => preloadHist().then(() => { if (['home', 'g', 'rep', 'ar'].includes(cur)) route(); }), 800);
 }
 function showLogin(msg) {
   bar.hidden = true;
@@ -63,11 +65,14 @@ function notBoss() {
 let cur = '';
 function route() {
   const parts = location.hash.replace(/^#\/?/, '').split('/'); const id = parts[0].split('?')[0] || 'home';
-  const t = TABS.find(x => x[0] === (id === 'g' ? 'stock' : id)) || TABS[0]; cur = id === 'g' ? 'g' : t[0];
+  const tabOf = { g: 'stock', rep: 'home' };
+  const t = TABS.find(x => x[0] === (tabOf[id] || id)) || TABS[0]; cur = tabOf[id] ? id : t[0];
   bar.innerHTML = TABS.map(([k, n, ic]) => `<a href="#${k}" class="${k === t[0] ? 'on' : ''}">${SVG(ic)}<span>${n}</span></a>`).join('');
   if (cur === 'home') home();
   else if (cur === 'stock') stockPage(view);
   else if (cur === 'bill') billPage(view, parts[1]);
+  else if (cur === 'ar') arPage(view, parts[1], parts.slice(2).join('/'));
+  else if (cur === 'rep') { reportPage(view); window.scrollTo(0, 0); }
   else if (cur === 'g') { goodsPage(view, decodeURIComponent(parts.slice(1).join('/'))); window.scrollTo(0, 0); }
   else placeholder(t);
 }
@@ -115,9 +120,9 @@ function home() {
   view.innerHTML = `<div class="hd"><h1>首頁</h1><span class="sub">${esc(roc(today()))}</span><span class="sp"></span><span class="sub">${esc(store.user.name)}</span></div>
     <div class="kpis">
       <a class="card kpi" href="/#sales"><span>今日出貨額</span><b>${fmt(k.day)}</b><small>${k.dayN} 張・未稅</small></a>
-      <a class="card kpi" href="/#reports"><span>本月營收</span><b>${fmt(k.sales)}</b><small>${k.n} 張・未稅</small></a>
-      <a class="card kpi good" href="/#reports"><span>本月毛利</span><b>${fmt(k.profit)}</b><small>毛利率 ${k.sales ? pct + '%' : '—'}</small></a>
-      <a class="card kpi ${k.lateCust ? 'alert' : ''}" href="/#receivables/open"><span>逾期應收</span><b>${k.lateCust} 家</b><small>${k.late} 筆・未收共 ${fmt(k.open)}</small></a>
+      <a class="card kpi" href="#rep"><span>本月營收</span><b>${fmt(k.sales)}</b><small>${k.n} 張・未稅</small></a>
+      <a class="card kpi good" href="#rep"><span>本月毛利</span><b>${fmt(k.profit)}</b><small>毛利率 ${k.sales ? pct + '%' : '—'}</small></a>
+      <a class="card kpi ${k.lateCust ? 'alert' : ''}" href="#ar"><span>逾期應收</span><b>${k.lateCust} 家</b><small>${k.late} 筆・未收共 ${fmt(k.open)}</small></a>
     </div>
     <div class="sec">快捷</div>
     <div class="card quick">

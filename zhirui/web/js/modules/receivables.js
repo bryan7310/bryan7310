@@ -238,3 +238,6 @@ function bindYear(el) {
   }));
   bindRows(el, yRows);
 }
+
+// 手機版（/m/）用
+export { allOpen, isLate, saveRow, rowId };
