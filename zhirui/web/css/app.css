@@ -669,3 +669,172 @@ tr.row.on td { background: color-mix(in srgb, var(--blue-soft) 60%, transparent)
 .csh-it small { color: var(--muted); margin-left: auto; text-align: right; }
 .csh-it.free, .csh-it.clr { color: var(--blue); }
 .csh-none { padding: 24px 16px; color: var(--muted); text-align: center; }
+
+/* ==========================================================================
+   風格「工作台」（data-skin="desk"）：給每天開單、查帳用的作業畫面
+   深色側欄＋明亮工作區；細框線卡片、表頭色帶、緊湊列高；數字等寬對齊。
+   預設風格；設定備份 → 套印與顯示 → 風格 可切回「經典」（iOS 風格）。只影響這台裝置。
+   ========================================================================== */
+:root[data-skin="desk"] {
+  --bg: #EEF1F5; --surface: #FFFFFF; --sunken: #F3F5F8; --ink: #17202C; --muted: #5F6B7A;
+  --line: #DCE2EA; --line-strong: #C3CCD8; --sep: #DCE2EA;
+  --blue: #1D5FD3; --blue-ink: #FFFFFF; --blue-soft: #E6EEFC; --cyan: #1D5FD3; --navy: #17202C; --sel: #1D5FD3;
+  --ok: #137148; --ok-soft: #E0F2E8; --warn: #915400; --warn-soft: #FCEFD5; --bad: #BE2530; --bad-soft: #FCE5E5;
+  --zinc-soft: #FBF1CC; --zinc-ink: #7A5700;
+  --rail: #111B2B; --rail-ink: #CBD5E3; --rail-dim: #7D8BA1; --rail-hover: rgba(255,255,255,.06); --rail-active: rgba(91,147,255,.17); --rail-bar: #5B9BFF;
+  --row-hover: #F4F7FB; --th: #F4F6F9;
+  --font: "Segoe UI Variable Text", "Segoe UI", "Microsoft JhengHei UI", "Microsoft JhengHei", "PingFang TC", "Noto Sans TC", system-ui, sans-serif;
+  --mono: "Cascadia Mono", "Consolas", ui-monospace, monospace;
+  --r: 8px; --rail-w: 236px;
+  --glass: var(--rail); --glass-top: var(--surface);
+  --shadow: 0 1px 2px rgba(16,24,40,.06), 0 12px 28px -14px rgba(16,24,40,.28);
+}
+@media (prefers-color-scheme: dark) {
+  :root[data-skin="desk"]:not([data-theme="light"]) {
+    --bg: #0D1218; --surface: #151B23; --sunken: #1C232D; --ink: #E5E9EF; --muted: #95A1B1; --line: #27303B; --line-strong: #394452; --sep: #27303B;
+    --blue: #5B93FF; --blue-ink: #0B1730; --blue-soft: #1A2840; --cyan: #5B93FF; --navy: #232C38; --sel: #5B93FF;
+    --ok: #5FCB92; --ok-soft: #15301F; --warn: #F0B35B; --warn-soft: #36290F; --bad: #F28B8B; --bad-soft: #3A1C1E;
+    --zinc-soft: #3A3215; --zinc-ink: #F2C94C;
+    --rail: #090E14; --row-hover: #1A212A; --th: #19202A;
+    --shadow: 0 1px 2px rgba(0,0,0,.45), 0 12px 28px -14px rgba(0,0,0,.7);
+  }
+}
+:root[data-skin="desk"][data-theme="dark"] {
+  --bg: #0D1218; --surface: #151B23; --sunken: #1C232D; --ink: #E5E9EF; --muted: #95A1B1; --line: #27303B; --line-strong: #394452; --sep: #27303B;
+  --blue: #5B93FF; --blue-ink: #0B1730; --blue-soft: #1A2840; --cyan: #5B93FF; --navy: #232C38; --sel: #5B93FF;
+  --ok: #5FCB92; --ok-soft: #15301F; --warn: #F0B35B; --warn-soft: #36290F; --bad: #F28B8B; --bad-soft: #3A1C1E;
+  --zinc-soft: #3A3215; --zinc-ink: #F2C94C;
+  --rail: #090E14; --row-hover: #1A212A; --th: #19202A;
+  --shadow: 0 1px 2px rgba(0,0,0,.45), 0 12px 28px -14px rgba(0,0,0,.7);
+}
+:root[data-skin="desk"] body { font: 14px/1.5 var(--font); letter-spacing: 0; background: var(--bg); }
+
+/* 側欄：深色、細線圖示（各功能保留自己的顏色）、目前頁面左邊亮條 */
+:root[data-skin="desk"] .rail { background: var(--rail); color: var(--rail-ink); border-right: 0; backdrop-filter: none; -webkit-backdrop-filter: none; scrollbar-color: rgba(255,255,255,.18) transparent; }
+:root[data-skin="desk"] .brand { padding: 16px 16px 12px; color: #fff; }
+:root[data-skin="desk"] .brand .logo { width: 34px; height: 34px; }
+:root[data-skin="desk"] .brand b { font-size: 16px; letter-spacing: .04em; background: linear-gradient(90deg, #7DB3FF, #6FD6FF); -webkit-background-clip: text; background-clip: text; color: transparent; }
+:root[data-skin="desk"] .brand small { color: var(--rail-dim); letter-spacing: .16em; font-size: 11px; }
+:root[data-skin="desk"] .nav { padding: 0 10px 12px; gap: 1px; }
+:root[data-skin="desk"] .nav .grp { font-size: 11.5px; font-weight: 600; letter-spacing: .12em; color: var(--rail-dim); padding: 14px 10px 4px; }
+:root[data-skin="desk"] .nav a { gap: 10px; padding: 6px 10px; border-radius: 6px; color: var(--rail-ink); font-weight: 500; font-size: 14px; }
+:root[data-skin="desk"] .nav a svg { width: 18px; height: 18px; padding: 0; border-radius: 0; background: none; box-shadow: none; color: var(--ic, #9FB0C7); stroke-width: 2; }
+:root[data-skin="desk"] .nav a:hover { background: var(--rail-hover); color: #fff; }
+:root[data-skin="desk"] .nav a[aria-current="page"] { background: var(--rail-active); color: #fff; }
+:root[data-skin="desk"] .nav a[aria-current="page"]::before { display: block; content: ""; position: absolute; left: -10px; top: 7px; bottom: 7px; width: 3px; border-radius: 0 3px 3px 0; background: var(--rail-bar); }
+:root[data-skin="desk"] .nav a[aria-current="page"] svg { box-shadow: none; color: #fff; }
+:root[data-skin="desk"] .nav .cnt { font: 600 11.5px var(--font); font-variant-numeric: tabular-nums; background: rgba(255,255,255,.1); color: var(--rail-ink); padding: 0 7px; border-radius: 9px; line-height: 19px; }
+:root[data-skin="desk"] .nav a[aria-current="page"] .cnt { background: rgba(255,255,255,.18); color: #fff; }
+:root[data-skin="desk"] .nav .cnt.alert { background: #E5484D; color: #fff; }
+:root[data-skin="desk"] .nav a[data-m="home"] { --ic: #6EA8FF; }
+:root[data-skin="desk"] .nav a[data-m="retail"] { --ic: #FFB547; }
+:root[data-skin="desk"] .nav a[data-m="sales"] { --ic: #4ADE80; }
+:root[data-skin="desk"] .nav a[data-m="purchase"] { --ic: #FF7A93; }
+:root[data-skin="desk"] .nav a[data-m="processing"] { --ic: #F59E6B; }
+:root[data-skin="desk"] .nav a[data-m="assistant"] { --ic: #C4A5FF; }
+:root[data-skin="desk"] .nav a[data-m="pricing"] { --ic: #FFB547; }
+:root[data-skin="desk"] .nav a[data-m="quotes"] { --ic: #A5A3FF; }
+:root[data-skin="desk"] .nav a[data-m="orders"] { --ic: #FF8A80; }
+:root[data-skin="desk"] .nav a[data-m="faxes"], :root[data-skin="desk"] .nav a[data-m="faxin"] { --ic: #A9B6C8; }
+:root[data-skin="desk"] .nav a[data-m="email"] { --ic: #7CC4FF; }
+:root[data-skin="desk"] .nav a[data-m="drawing"] { --ic: #5ED3E6; }
+:root[data-skin="desk"] .nav a[data-m="stock"] { --ic: #D6AE80; }
+:root[data-skin="desk"] .nav a[data-m="labels"] { --ic: #D29BFF; }
+:root[data-skin="desk"] .nav a[data-m="receivables"] { --ic: #4ADE80; }
+:root[data-skin="desk"] .nav a[data-m="mail"] { --ic: #FFB547; }
+:root[data-skin="desk"] .nav a[data-m="payables"] { --ic: #FF8A80; }
+:root[data-skin="desk"] .nav a[data-m="invoices"] { --ic: #7CD4FF; }
+:root[data-skin="desk"] .nav a[data-m="checks-out"] { --ic: #A5A3FF; }
+:root[data-skin="desk"] .nav a[data-m="checks-in"] { --ic: #4FD8CF; }
+:root[data-skin="desk"] .nav a[data-m="money"] { --ic: #FFD24D; }
+:root[data-skin="desk"] .nav a[data-m="reports"] { --ic: #6EA8FF; }
+:root[data-skin="desk"] .nav a[data-m="master"], :root[data-skin="desk"] .nav a[data-m="settings"], :root[data-skin="desk"] .nav a[data-m="apply"] { --ic: #A9B6C8; }
+:root[data-skin="desk"] .rail-foot { border-top: 1px solid rgba(255,255,255,.08); color: var(--rail-dim); padding: 12px 16px 14px; font-size: 12.5px; }
+:root[data-skin="desk"] .me span { color: var(--rail-ink); font-weight: 600; }
+:root[data-skin="desk"] .me button { color: #8DB8FF; font-weight: 500; }
+:root[data-skin="desk"] .me button:hover { color: #fff; opacity: 1; }
+:root[data-skin="desk"] .sync.ok i { background: #3FD48A; } :root[data-skin="desk"] .sync.busy i { background: #FFB547; } :root[data-skin="desk"] .sync.err i { background: #F08A8A; }
+
+/* 頂列：實色、細底線；搜尋欄有框 */
+:root[data-skin="desk"] .topbar { background: var(--surface); backdrop-filter: none; -webkit-backdrop-filter: none; border-bottom: 1px solid var(--line); min-height: 52px; }
+:root[data-skin="desk"] .crumb { font-size: 15px; font-weight: 600; letter-spacing: 0; }
+:root[data-skin="desk"] .crumb small { font-size: 13px; }
+:root[data-skin="desk"] .gsearch input { border: 1px solid var(--line); background-color: var(--sunken); border-radius: 8px; padding: 7px 12px 7px 34px; }
+:root[data-skin="desk"] .gsearch input:focus { background-color: var(--surface); border-color: var(--blue); box-shadow: 0 0 0 3px var(--blue-soft); outline: none; }
+:root[data-skin="desk"] .gres { border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow); }
+:root[data-skin="desk"] .icon-btn { border-radius: 7px; color: var(--ink); }
+:root[data-skin="desk"] .content { padding-top: 18px; gap: 14px; }
+
+/* 標題、按鈕 */
+:root[data-skin="desk"] .head h1 { font-size: 22px; font-weight: 700; letter-spacing: 0; }
+:root[data-skin="desk"] .btn { border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink); border-radius: 7px; padding: 6px 13px; font-weight: 500; transition: background .12s, border-color .12s; }
+:root[data-skin="desk"] .btn:hover { border-color: var(--muted); background: var(--sunken); }
+:root[data-skin="desk"] .btn:active:not(:disabled) { transform: none; opacity: 1; background: var(--line); }
+:root[data-skin="desk"] .btn.pri { background: var(--blue); border-color: var(--blue); color: var(--blue-ink); box-shadow: 0 1px 1px rgba(16,24,40,.12); font-weight: 600; }
+:root[data-skin="desk"] .btn.pri:hover { background: color-mix(in srgb, var(--blue) 88%, #000); border-color: color-mix(in srgb, var(--blue) 88%, #000); }
+:root[data-skin="desk"] .btn.danger { color: var(--bad); background: var(--surface); border-color: color-mix(in srgb, var(--bad) 35%, var(--line-strong)); }
+:root[data-skin="desk"] .btn.danger:hover { background: var(--bad-soft); }
+:root[data-skin="desk"] .btn.ghost { border-color: transparent; background: transparent; color: var(--blue); }
+:root[data-skin="desk"] .btn.ghost:hover { background: var(--blue-soft); }
+:root[data-skin="desk"] .btn.sm { padding: 4px 10px; border-radius: 6px; font-size: 13px; }
+:root[data-skin="desk"] .btn.xs { padding: 2px 7px; border-radius: 5px; font-size: 12px; }
+
+/* 卡片、指標 */
+:root[data-skin="desk"] .panel { border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; box-shadow: 0 1px 2px rgba(16,24,40,.04); }
+:root[data-skin="desk"] .panel h2, :root[data-skin="desk"] .panel .ptitle { font-size: 15px; font-weight: 700; }
+:root[data-skin="desk"] .kpi { border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; box-shadow: 0 1px 2px rgba(16,24,40,.04); position: relative; overflow: hidden; }
+:root[data-skin="desk"] .kpi span { font-size: 12.5px; font-weight: 500; color: var(--muted); }
+:root[data-skin="desk"] .kpi b { font-size: 24px; font-weight: 700; letter-spacing: -.01em; }
+:root[data-skin="desk"] .kpi.alert { box-shadow: inset 3px 0 0 var(--bad), 0 1px 2px rgba(16,24,40,.04); }
+:root[data-skin="desk"] .kpi.ok { box-shadow: inset 3px 0 0 var(--ok), 0 1px 2px rgba(16,24,40,.04); }
+:root[data-skin="desk"] a.kpi:hover { border-color: var(--line-strong); }
+
+/* 分段按鈕 */
+:root[data-skin="desk"] .tabs { background: var(--sunken); border: 1px solid var(--line); padding: 2px; border-radius: 8px; }
+:root[data-skin="desk"] .tabs button { padding: 4px 13px; border-radius: 6px; color: var(--muted); font-size: 13.5px; font-weight: 500; }
+:root[data-skin="desk"] .tabs button.on { background: var(--surface); color: var(--ink); font-weight: 600; box-shadow: 0 1px 2px rgba(16,24,40,.12), 0 0 0 1px var(--line); }
+@media (prefers-color-scheme: dark) { :root[data-skin="desk"]:not([data-theme="light"]) .tabs button.on { background: #2A3340; } }
+:root[data-skin="desk"][data-theme="dark"] .tabs button.on { background: #2A3340; }
+
+/* 輸入框：白底細框，點進去變藍框 */
+:root[data-skin="desk"] .tools input[type=search], :root[data-skin="desk"] .tools input[type=text], :root[data-skin="desk"] .tools input[type=month], :root[data-skin="desk"] .tools input[type=date], :root[data-skin="desk"] .tools select,
+:root[data-skin="desk"] .f input, :root[data-skin="desk"] .f select, :root[data-skin="desk"] .f textarea, :root[data-skin="desk"] .facets select, :root[data-skin="desk"] .res .add input { border: 1px solid var(--line-strong); background-color: var(--surface); border-radius: 7px; padding: 6px 10px; }
+:root[data-skin="desk"] .f input:focus, :root[data-skin="desk"] .f select:focus, :root[data-skin="desk"] .f textarea:focus, :root[data-skin="desk"] .tools input:focus, :root[data-skin="desk"] .tools select:focus { border-color: var(--blue); background-color: var(--surface); box-shadow: 0 0 0 3px var(--blue-soft); outline: none; }
+:root[data-skin="desk"] .f input:disabled, :root[data-skin="desk"] .f input[readonly] { background-color: var(--sunken); }
+:root[data-skin="desk"] .f > label, :root[data-skin="desk"] .f > .lbl { font-size: 12.5px; font-weight: 500; color: var(--muted); }
+:root[data-skin="desk"] .pill { border-radius: 5px; padding: 1px 7px; font-size: 12px; font-weight: 600; }
+:root[data-skin="desk"] .banner { border-radius: 8px; border: 1px solid color-mix(in srgb, var(--warn) 25%, transparent); }
+:root[data-skin="desk"] .banner.info { border-color: color-mix(in srgb, var(--blue) 25%, transparent); }
+
+/* 表格：表頭色帶、細格線、滑過整列反白 */
+:root[data-skin="desk"] th, :root[data-skin="desk"] td { border-bottom: 1px solid var(--line); padding: 7px 10px; }
+:root[data-skin="desk"] th { background: var(--th); color: var(--muted); font-size: 12.5px; font-weight: 600; border-bottom-color: var(--line-strong); }
+:root[data-skin="desk"] tr.row:hover td { background: var(--row-hover); }
+:root[data-skin="desk"] tr.sel td { background: var(--blue-soft); }
+:root[data-skin="desk"] tfoot td { border-top: 1px solid var(--line-strong); background: var(--th); }
+
+/* 下拉、對話框、提示 */
+:root[data-skin="desk"] .combo-list { border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow); padding: 3px 0; }
+:root[data-skin="desk"] .combo-list div { margin: 0 3px; border-radius: 5px; }
+:root[data-skin="desk"] .combo-list div.on, :root[data-skin="desk"] .combo-list div:hover { background: var(--blue-soft); color: var(--ink); }
+:root[data-skin="desk"] .combo-list div.on small, :root[data-skin="desk"] .combo-list div:hover small { color: var(--muted); }
+:root[data-skin="desk"] .modal-bg { background: rgba(10,16,26,.48); backdrop-filter: none; -webkit-backdrop-filter: none; }
+:root[data-skin="desk"] .modal { border-radius: 12px; box-shadow: 0 24px 60px -18px rgba(0,0,0,.5), 0 0 0 1px var(--line); animation: desk-pop .14s ease-out; }
+@keyframes desk-pop { from { transform: translateY(6px); opacity: 0; } to { transform: none; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { :root[data-skin="desk"] .modal { animation: none; } }
+:root[data-skin="desk"] .modal .mh { border-bottom: 1px solid var(--line); padding: 13px 18px 11px; }
+:root[data-skin="desk"] .modal .mh h2 { font-size: 16px; font-weight: 700; }
+:root[data-skin="desk"] .modal .mf { border-top: 1px solid var(--line); background: var(--sunken); border-radius: 0 0 12px 12px; }
+:root[data-skin="desk"] .toast { background: #17202C; border-radius: 8px; padding: 10px 16px; backdrop-filter: none; -webkit-backdrop-filter: none; }
+:root[data-skin="desk"] .toast button { color: #8DB8FF; }
+:root[data-skin="desk"] .lines input, :root[data-skin="desk"] .lines select { border-radius: 6px; }
+:root[data-skin="desk"] .lines input:focus { box-shadow: 0 0 0 3px var(--blue-soft); border-color: var(--blue); }
+:root[data-skin="desk"] .sumbox { border-radius: 10px; }
+:root[data-skin="desk"] :focus-visible { outline: 2px solid var(--blue); outline-offset: 1px; border-radius: 6px; }
+@media (max-width: 960px) {
+  :root[data-skin="desk"] .rail { background: var(--rail); }
+  :root[data-skin="desk"] .head h1 { font-size: 20px; }
+}
+/* 沒有特別樣式的輸入框（各頁自己放的搜尋欄等）：權重 0，不蓋掉其他規則 */
+:where(:root[data-skin="desk"]) :where(input[type=search], input[type=text], input[type=number], input[type=email], input:not([type]), textarea) { border: 1px solid var(--line-strong); background-color: var(--surface); color: var(--ink); border-radius: 7px; padding: 6px 10px; }
+:where(:root[data-skin="desk"]) :where(input[type=search], input[type=text], input[type=number], input[type=email], input:not([type]), textarea):focus { border-color: var(--blue); box-shadow: 0 0 0 3px var(--blue-soft); outline: none; }

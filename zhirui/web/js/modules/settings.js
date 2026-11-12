@@ -3,7 +3,7 @@ import { $, esc, roc, slash, money } from '../core/util.js';
 import { store } from '../core/store.js';
 import { api } from '../core/api.js';
 import { toast, modal, confirm, tabs, prompt } from '../core/ui.js';
-import { setTheme, getTheme } from '../app.js';
+import { setTheme, getTheme, setSkin, getSkin } from '../app.js';
 
 const ui = { tab: 'company' };
 const TABS = [['company', '公司資料'], ['users', '帳號'], ['backup', '備份'], ['print', '套印與顯示'], ['ai', 'AI 辨識'], ['logs', '操作日誌']];
@@ -74,9 +74,11 @@ async function draw(el) {
     box.innerHTML = `<h2>發票套印（三聯式手開發票，3×5.5 吋）</h2><div class="grid"><div class="f"><label for="ip-dx">水平位移 mm（正＝右移）</label><input id="ip-dx" class="num" value="${ip.dx || 0}"></div><div class="f"><label for="ip-dy">垂直位移 mm（正＝下移）</label><input id="ip-dy" class="num" value="${ip.dy || 0}"></div></div>
       <h2>查價</h2><div class="grid"><div class="f"><label for="pr-dec">淨價小數位</label><select id="pr-dec">${[0, 1, 2, 3, 4].map(n => `<option ${n === (+pr.decimals || 2) ? 'selected' : ''}>${n}</option>`).join('')}</select></div></div>
       <h2>外觀（只影響這台裝置）</h2><div class="tabs" id="thm">${[['auto', '跟隨系統'], ['light', '淺色'], ['dark', '深色']].map(([v, l]) => `<button type="button" data-v="${v}" class="${getTheme() === v ? 'on' : ''}">${l}</button>`).join('')}</div>
+      <div class="tools" style="margin-top:8px"><span class="muted small">風格</span><div class="tabs" id="skn">${[['ios', '經典'], ['desk', '工作台']].map(([v, l]) => `<button type="button" data-v="${v}" class="${getSkin() === v ? 'on' : ''}">${l}</button>`).join('')}</div></div>
       <div class="tools"><span class="sp"></span><button class="btn pri" id="prSave">儲存</button></div>`;
     $('#prSave', box).onclick = async () => { await store.batch([{ col: 'settings', id: 'invoice_print', data: { ...ip, dx: +$('#ip-dx', box).value || 0, dy: +$('#ip-dy', box).value || 0 } }, { col: 'settings', id: 'pricing', data: { ...pr, decimals: +$('#pr-dec', box).value } }]); toast('已儲存'); };
     box.querySelectorAll('#thm button').forEach(b => b.onclick = () => { setTheme(b.dataset.v); box.querySelectorAll('#thm button').forEach(x => x.classList.toggle('on', x === b)); });
+    box.querySelectorAll('#skn button').forEach(b => b.onclick = () => { setSkin(b.dataset.v); box.querySelectorAll('#skn button').forEach(x => x.classList.toggle('on', x === b)); });
   } else if (ui.tab === 'ai') {
     let st = { provider: 'gemini', configured: false, hint: '', model: '', keys: {} }; try { st = await api.get('/api/ai'); } catch (e) {}
     const gem = st.provider === 'gemini';

@@ -201,7 +201,7 @@ function drawSide(el) {
   const cnt = (CUR.counts && Object.keys(CUR.counts).length ? CUR.counts : LIST.counts) || {};
   const inbox = ui.folder === 'inbox' && !ui.q ? CUR.items : LIST.items; const r = mailRead();
   const byCat = {}; for (const m of inbox) { const k = classify(m); byCat[k] = byCat[k] || { n: 0, u: 0 }; byCat[k].n++; if (!r[m.id]) byCat[k].u++; }
-  const item = (on, attrs, label, n, u) => `<a href="#" ${attrs} style="display:flex;padding:6px 8px;border-radius:6px;text-decoration:none;color:inherit;${on ? 'background:var(--sel,rgba(0,122,255,.12));font-weight:600' : ''}"><span>${label}</span><span class="sp"></span><span class="muted small">${u ? `<b style="color:#1e88e5">${u}</b>／` : ''}${n || ''}</span></a>`;
+  const item = (on, attrs, label, n, u) => `<a href="#" ${attrs} style="display:flex;padding:6px 8px;border-radius:6px;text-decoration:none;color:inherit;${on ? 'background:var(--blue-soft);font-weight:600' : ''}"><span>${label}</span><span class="sp"></span><span class="muted small">${u ? `<b style="color:#1e88e5">${u}</b>／` : ''}${n || ''}</span></a>`;
   box.innerHTML = FOLDERS.map(([k, n]) => item(ui.folder === k && !ui.cat, `data-fd="${k}"`, n, cnt[k], k === 'inbox' ? LIST.items.filter(m => !r[m.id]).length : 0)).join('')
     + '<div class="muted small" style="margin:10px 8px 4px;display:flex"><span>收件匣分類</span><span class="sp"></span><a href="#" id="emCatEdit" title="新增、改名、刪除、排序、關鍵字">編輯</a></div>'
     + catList().map(([k, n]) => item(ui.folder === 'inbox' && ui.cat === k, `data-ct="${k}"`, n, byCat[k]?.n, byCat[k]?.u)).join('');
@@ -221,7 +221,7 @@ function drawList(el) {
   bulk.innerHTML = n ? `<b class="small">已勾選 ${n} 封</b>` + (ui.folder === 'trash' ? `<button class="btn sm" id="bkRestore">復原</button><button class="btn sm danger" id="bkPurge">永久刪除</button>` : `<button class="btn sm danger" id="bkDel">刪除</button>${inbox ? '<button class="btn sm" id="bkRead">標成已讀</button><button class="btn sm" id="bkUnread">標成未讀</button>' : ''}`) + '<button class="btn sm ghost" id="bkClear">取消勾選</button>' : '';
   bulk.style.display = n ? 'flex' : 'none';
   box.innerHTML = L.map(m => { const u = inbox && !r[m.id]; const who = ui.folder === 'sent' || ui.folder === 'draft' ? '給 ' + (m.to || '（沒有收件人）') : m.from_name; const c = inbox ? mailCo(m) : null;
-    return `<div data-em="${m.id}" style="display:flex;gap:8px;padding:8px 10px;border-bottom:1px solid var(--line);cursor:pointer;${m.id === ui.sel ? 'background:var(--sel,rgba(0,122,255,.12));' : ''}">
+    return `<div data-em="${m.id}" style="display:flex;gap:8px;padding:8px 10px;border-bottom:1px solid var(--line);cursor:pointer;${m.id === ui.sel ? 'background:var(--blue-soft);' : ''}">
       <input type="checkbox" data-ck="${m.id}" ${ui.checked.has(m.id) ? 'checked' : ''} aria-label="勾選" style="margin-top:3px">
       <div style="min-width:0;flex:1"><div style="display:flex;gap:6px;align-items:center">${u ? '<span style="width:8px;height:8px;border-radius:50%;background:#1e88e5;flex:none"></span>' : ''}<b style="${u ? '' : 'font-weight:400'};overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(c ? cdisp(c) : who)}</b>${inbox ? `<span class="pill" style="flex:none">${esc(catName(classify(m)))}</span>` : ''}<span class="sp"></span><span class="muted small nowrap">${m.att ? '📎 ' : ''}${esc(mailWhen(m.date))}</span></div>
       <div style="${u ? 'font-weight:600' : ''};overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(m.subject)}</div>

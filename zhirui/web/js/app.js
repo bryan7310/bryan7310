@@ -13,6 +13,7 @@ let current = null, currentMod = null, unsub = null;
 // ---------- 主題 ----------
 const theme = ls.get('zr.theme', 'auto');
 if (theme === 'light' || theme === 'dark') document.documentElement.dataset.theme = theme;
+if (ls.get('zr.skin', 'desk') === 'desk') document.documentElement.dataset.skin = 'desk';   // 風格：desk＝工作台（預設）、ios＝經典
 
 // ---------- 啟動 ----------
 async function boot() {
@@ -204,5 +205,7 @@ document.addEventListener('keydown', e => { if ((e.ctrlKey || e.metaKey) && e.ke
 // 主題切換（設定頁會呼叫）
 export function setTheme(v) { ls.set('zr.theme', v); if (v === 'light' || v === 'dark') document.documentElement.dataset.theme = v; else delete document.documentElement.dataset.theme; }
 export const getTheme = () => ls.get('zr.theme', 'auto');
+export function setSkin(v) { ls.set('zr.skin', v); if (v === 'desk') document.documentElement.dataset.skin = 'desk'; else delete document.documentElement.dataset.skin; }
+export const getSkin = () => ls.get('zr.skin', 'desk');
 
 boot();
