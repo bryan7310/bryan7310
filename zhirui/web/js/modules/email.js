@@ -221,13 +221,24 @@ function drawList(el) {
   bulk.querySelector('#bkRestore')?.addEventListener('click', async () => { await mailDelete(ids, false); ui.checked.clear(); toast(`已復原 ${ids.length} 封`); refresh(el); });
   bulk.querySelector('#bkPurge')?.addEventListener('click', async () => { if (!await confirm(`永久刪除 ${ids.length} 封？\n只刪志瑞平台上的這一份，HiNet 信箱裡的信不會動；刪了不能復原。`, { danger: true, ok: '永久刪除' })) return; await mailPurge(ids); ui.checked.clear(); toast('已永久刪除'); refresh(el); });
 }
+function navTo(el, id) {
+  openMsg(el, id); const row = el.querySelector(`[data-em="${id}"]`); row && row.scrollIntoView({ block: 'nearest' });
+}
+// ← → 換上一封、下一封（在輸入框或有對話框時不動）
+document.addEventListener('keydown', ev => {
+  const el = document.querySelector('#emView'); if (!el || !ui.sel || ev.ctrlKey || ev.altKey || ev.metaKey) return;
+  if (ev.key !== 'ArrowLeft' && ev.key !== 'ArrowRight') return;
+  if (/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName || '') || document.querySelector('#modals .modal-bg')) return;
+  const b = el.querySelectorAll('[data-nav]')[ev.key === 'ArrowLeft' ? 0 : 1]; if (b && b.dataset.nav) { ev.preventDefault(); b.click(); }
+});
 async function openMsg(el, id) {
   ui.sel = id; drawList(el); const v = el.querySelector('#emView'); v.innerHTML = '<div class="muted">載入中…</div>';
   let m; try { m = await api.get('/api/email/msg?id=' + id); } catch (e) { v.innerHTML = `<div class="banner">${esc(e.message)}</div>`; return; }
   if (!v.isConnected || ui.sel !== id) return;
   const head = CUR.items.find(x => x.id === id) || m; const trash = ui.folder === 'trash', draft = ui.folder === 'draft', inbox = ui.folder === 'inbox';
   const cat = inbox ? classify(head) : '';
-  v.innerHTML = `<div class="tools" style="gap:6px;margin-bottom:8px;flex-wrap:wrap">${trash ? '<button class="btn sm" data-a="restore">復原</button><button class="btn sm danger" data-a="purge">永久刪除</button>'
+  const L = shownList(); const i = L.findIndex(x => x.id === id); const prev = L[i - 1], next = L[i + 1];
+  v.innerHTML = `<div class="tools" style="gap:6px;margin-bottom:8px;flex-wrap:wrap;align-items:center"><button class="btn sm" data-nav="${prev ? prev.id : ''}" ${prev ? '' : 'disabled'} title="上一封（←）">‹ 上一封</button><button class="btn sm" data-nav="${next ? next.id : ''}" ${next ? '' : 'disabled'} title="下一封（→）">下一封 ›</button>${i >= 0 ? `<span class="muted small">${i + 1}／${L.length}</span>` : ''}<span style="width:8px"></span>${trash ? '<button class="btn sm" data-a="restore">復原</button><button class="btn sm danger" data-a="purge">永久刪除</button>'
       : draft ? '<button class="btn sm pri" data-a="edit">編輯草稿</button><button class="btn sm" data-a="del">刪除</button>'
       : `<button class="btn sm" data-a="reply">回覆</button><button class="btn sm" data-a="all">全部回覆</button><button class="btn sm" data-a="fwd">轉寄</button><button class="btn sm" data-a="del">刪除</button>${inbox ? '<button class="btn sm" data-a="unread">標成未讀</button>' : ''}`}
       ${inbox ? `<span class="sp"></span><label class="small">分類 <select id="emCat">${CATS.map(([k, n]) => `<option value="${k}" ${k === cat ? 'selected' : ''}>${n}</option>`).join('')}</select></label><label class="check small"><input type="checkbox" id="emRule"> 以後這個寄件人都放這類</label>` : ''}</div>
@@ -244,8 +255,10 @@ async function openMsg(el, id) {
     if (a === 'del') { await mailDelete([m.id], true); toast('已移到垃圾桶'); }
     if (a === 'restore') { await mailDelete([m.id], false); toast('已復原'); }
     if (a === 'purge') { if (!await confirm('永久刪除這封信？\n只刪志瑞平台上的這一份，HiNet 信箱裡的信不會動；刪了不能復原。', { danger: true, ok: '永久刪除' })) return; await mailPurge([m.id]); toast('已永久刪除'); }
-    ui.sel = ''; v.innerHTML = '<div class="empty"><b>點左邊的信來看</b></div>'; refresh(el);
+    const go = next || prev; ui.sel = ''; v.innerHTML = '<div class="empty"><b>點左邊的信來看</b></div>'; await refresh(el);
+    if (go && el.isConnected && CUR.items.some(x => x.id === go.id)) openMsg(el, go.id);   // 刪除後直接看下一封
   });
+  v.querySelectorAll('[data-nav]').forEach(b => b.onclick = () => { if (b.dataset.nav) navTo(el, b.dataset.nav); });
   v.querySelector('#emCat')?.addEventListener('change', async ev => { await setCat(head, ev.target.value, v.querySelector('#emRule').checked); toast(`已改成「${catName(ev.target.value)}」`); drawSide(el); drawList(el); });
   v.querySelector('#emRule')?.addEventListener('change', async ev => { if (ev.target.checked) { await setCat(head, v.querySelector('#emCat').value, true); toast(`以後 ${head.from} 的信都放「${catName(v.querySelector('#emCat').value)}」`); drawSide(el); drawList(el); } });
   if (inbox && !isMailRead(m)) { await mailMark(m, true); drawSide(el); drawList(el); }

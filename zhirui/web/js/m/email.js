@@ -65,7 +65,7 @@ async function readPage(view, id) {
   const L = SHOWN.length ? SHOWN : mailList().items; const i = L.findIndex(x => x.id === id);
   const head = L[i] || m; const fd = ui.folder; const inbox = fd === 'inbox', trash = fd === 'trash', draft = fd === 'draft';
   const c = inbox ? mailCo(head) : null; const cat = inbox ? classify(head) : '';
-  view.innerHTML = `<div class="hd"><a class="back" href="#em">‹ 信箱</a><span class="sp"></span>${L[i - 1] ? `<a class="chip" href="#em/v/${L[i - 1].id}">‹ 較新</a>` : ''}${L[i + 1] ? `<a class="chip" href="#em/v/${L[i + 1].id}">較舊 ›</a>` : ''}</div>
+  view.innerHTML = `<div class="hd"><a class="back" href="#em">‹ 信箱</a><span class="sp"></span>${L[i - 1] ? `<a class="chip" href="#em/v/${L[i - 1].id}">‹ 上一封</a>` : '<span class="chip" style="opacity:.4">‹ 上一封</span>'}${i >= 0 ? `<small class="muted" style="margin:0 4px">${i + 1}／${L.length}</small>` : ''}${L[i + 1] ? `<a class="chip" href="#em/v/${L[i + 1].id}">下一封 ›</a>` : '<span class="chip" style="opacity:.4">下一封 ›</span>'}</div>
     <div class="card"><b style="font-size:17px">${esc(m.subject)}</b>
       <div class="small">${esc(m.from_name)} <span class="muted">${esc(m.from)}</span>${c ? ` <span class="pill">${c.kind === 'S' ? '廠商' : '客戶'}：${esc(cdisp(c))}</span>` : ''}</div>
       ${m.to ? `<div class="muted small">收件：${esc(m.to)}</div>` : ''}
@@ -82,7 +82,8 @@ async function readPage(view, id) {
     if (a === 'del') { await mailDelete([m.id], true); toast('已移到垃圾桶'); }
     if (a === 'restore') { await mailDelete([m.id], false); toast('已復原'); }
     if (a === 'purge') { if (!await ask('永久刪除這封信？\n只刪志瑞平台上的這一份，HiNet 信箱裡的信不會動；刪了不能復原。', { danger: true, ok: '永久刪除' })) return; await mailPurge([m.id]); toast('已永久刪除'); }
-    location.hash = '#em';
+    const go = L[i + 1] || L[i - 1]; SHOWN = SHOWN.filter(x => x.id !== m.id);   // 刪除、復原後直接看下一封
+    location.hash = go ? '#em/v/' + go.id : '#em';
   });
   view.querySelector('#ecat')?.addEventListener('change', async ev => { await setCat(head, ev.target.value, view.querySelector('#erule').checked); toast(`已改成「${catName(ev.target.value)}」`); });
   view.querySelector('#erule')?.addEventListener('change', async ev => { if (ev.target.checked) { await setCat(head, view.querySelector('#ecat').value, true); toast('以後這個寄件人都放這類'); } });
