@@ -26,15 +26,17 @@ function matchCo(name, fax) {
   }
   return best ? best.c : null;
 }
-const coOf = f => f.idx && !f.idx.err ? matchCo(f.idx.sender, f.idx.fax_no) : null;
-const searchText = f => { const i = f.idx || {}; const c = coOf(f); return [f.name, when(f.mtime), i.sender, i.recipient, i.doc_type, i.doc_no, i.date, i.fax_no, i.summary, c && cdisp(c), c && c.name, c && c.code, ...(c?.aliases || [])].filter(Boolean).join(' '); };
+export const coOf = f => f.idx && !f.idx.err ? matchCo(f.idx.sender, f.idx.fax_no) : null;
+export const searchText = f => { const i = f.idx || {}; const c = coOf(f); return [f.name, when(f.mtime), i.sender, i.recipient, i.doc_type, i.doc_no, i.date, i.fax_no, i.summary, c && cdisp(c), c && c.name, c && c.code, ...(c?.aliases || [])].filter(Boolean).join(' '); };
 const ui = { sel: '', q: '', rot: 0, zoom: 1, page: 0, pages: 1 };
 const readMap = () => store.setting('faxin').read || {};
-const isRead = f => readMap()[f.name] === f.mtime;
-const url = (f, extra = '') => `/api/faxin/file?name=${encodeURIComponent(f.name)}${extra}&v=${f.mtime}`;
-const when = ms => { const d = new Date(ms); const p = n => String(n).padStart(2, '0'); return `${d.getFullYear()}/${p(d.getMonth() + 1)}/${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`; };
-const size = n => n >= 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB';
-async function load() {
+export const isRead = f => readMap()[f.name] === f.mtime;
+export const url = (f, extra = '') => `/api/faxin/file?name=${encodeURIComponent(f.name)}${extra}&v=${f.mtime}`;
+export const when = ms => { const d = new Date(ms); const p = n => String(n).padStart(2, '0'); return `${d.getFullYear()}/${p(d.getMonth() + 1)}/${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`; };
+export const size = n => n >= 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB';
+export const faxFiles = () => FILES;
+export const faxInfo = () => ({ loaded: LOADED, err: LAST_ERR, index: INDEX });
+export async function load() {
   try { const r = await api.get('/api/faxin/list'); FILES = r.files || []; INDEX = r.index || null; LOADED = Date.now(); LAST_ERR = r.exists ? '' : `找不到資料夾 ${r.dir}`; }
   catch (e) { LAST_ERR = e.message || String(e); }
   window.dispatchEvent(new Event('zr-nav'));
@@ -49,7 +51,7 @@ export default {
   async render(el) { this.el = el; draw(el); await load(); if (el.isConnected) draw(el); clearInterval(this.tm); this.tm = setInterval(async () => { if (!el.isConnected) return clearInterval(this.tm); if (INDEX?.running || INDEX?.auto) { const n0 = (INDEX && INDEX.done) || 0; await load(); if (el.isConnected && (INDEX?.done || 0) !== n0) { drawList(el); drawIdx(el); } } }, 15000); },
   onChange(ch) { if (this.el?.isConnected && ch.has('settings')) drawList(this.el); },
 };
-async function markRead(f, on = true) {
+export async function markRead(f, on = true) {
   const s = store.setting('faxin'); const read = { ...(s.read || {}) };
   if (on) read[f.name] = f.mtime; else delete read[f.name];
   for (const k of Object.keys(read)) if (!FILES.some(x => x.name === k)) delete read[k];   // 資料夾裡已經沒有的就清掉

@@ -13,6 +13,7 @@ import { labelPage, onLabelChange } from './label.js';
 import { poPage, onPOChange } from './po.js';
 import { uploadPage, onUploadChange, uploadsWaiting } from './upload.js';
 import { settingsPage, applyTheme, themeName } from './settings.js';
+import { faxPage, faxUnread } from './fax.js';
 
 const $ = s => document.querySelector(s);
 const view = $('#view'), bar = $('#tabbar');
@@ -24,6 +25,7 @@ const IC = {
   money: '<rect x="3" y="6" width="18" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/>',
   cam: '<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>',
   tag: '<path d="M3 12V4h8l10 10-8 8z"/><circle cx="7.5" cy="8" r="1.3"/>',
+  fax: '<path d="M7 9V3h10v6"/><rect x="3" y="9" width="18" height="9" rx="2"/><path d="M7 14h10v7H7z"/>',
 };
 // 底部選單（固定 5 項）；還沒做好的頁先顯示「第 N 階段」，並提供電腦版連結
 const TABS = [
@@ -40,6 +42,7 @@ async function boot() {
   catch (e) { return e.status === 401 ? showLogin() : showLogin('載入資料失敗：' + (e.message || e)); }
   if (store.user.role !== 'admin') return notBoss();
   bar.hidden = false;
+  window.addEventListener('zr-nav', () => { if (cur === 'home') route(); });   // 傳真未讀數更新
   store.subscribe(ch => { if (cur === 'home') route(); else if (cur === 'bill') onBillChange(view, ch); else if (cur === 'lbl') onLabelChange(view, ch); else if (cur === 'po') onPOChange(view, ch); else if (cur === 'up') onUploadChange(view, ch); else if (cur === 'ar' && ['receivables', 'checks_in', 'bills'].some(c => ch.has(c))) route(); });
   window.addEventListener('hashchange', route);
   route();
@@ -69,7 +72,7 @@ function notBoss() {
 let cur = '';
 function route() {
   const parts = location.hash.replace(/^#\/?/, '').split('/'); const id = parts[0].split('?')[0] || 'home';
-  const tabOf = { g: 'stock', rep: 'home', lbl: 'home', po: 'stock', set: 'home' };
+  const tabOf = { g: 'stock', rep: 'home', lbl: 'home', po: 'stock', set: 'home', fax: 'home' };
   const t = TABS.find(x => x[0] === (tabOf[id] || id)) || TABS[0]; cur = tabOf[id] ? id : t[0];
   bar.innerHTML = TABS.map(([k, n, ic]) => `<a href="#${k}" class="${k === t[0] ? 'on' : ''}">${SVG(ic)}<span>${n}</span></a>`).join('');
   if (cur === 'home') home();
@@ -80,6 +83,7 @@ function route() {
   else if (cur === 'lbl') labelPage(view, parts[1], parts.slice(2).join('/'));
   else if (cur === 'up') { uploadPage(view, parts.slice(1).join('/')); if (parts[1]) window.scrollTo(0, 0); }
   else if (cur === 'set') settingsPage(view);
+  else if (cur === 'fax') { faxPage(view, parts[1], parts.slice(2).join('/')); window.scrollTo(0, 0); }
   else if (cur === 'po') { poPage(view, parts[1], parts.slice(2).join('/')); if (parts[1] === 'v') window.scrollTo(0, 0); }
   else if (cur === 'g') { goodsPage(view, decodeURIComponent(parts.slice(1).join('/'))); window.scrollTo(0, 0); }
   else placeholder(t);
@@ -114,6 +118,7 @@ function todos(C) {
   const pendInv = C.bills.filter(b => b.type === 'SALE' && !b.invNo && !b.noInv && (b.date || '') >= '2026-01-01');
   const dr = draftCount(), uw = uploadsWaiting();
   return [
+    [faxUnread(), `${faxUnread()} 張傳真還沒看`, '#fax'],
     [uw, `${uw} 筆拍照上傳待確認`, '#up'],
     [dr, `${dr} 張出貨單草稿待確認`, '#bill/drafts'],
     [oLate.length, `訂貨排程有 ${oLate.length} 筆逾期`, '/#orders'],
@@ -139,6 +144,7 @@ function home() {
       <a href="#bill"><i>${SVG(IC.bill)}</i>開出貨單</a>
       <a href="#up"><i>${SVG(IC.cam)}</i>拍照上傳</a>
       <a href="#lbl"><i>${SVG(IC.tag)}</i>印標籤</a>
+      <a href="#fax"><i>${SVG(IC.fax)}</i>收傳真${faxUnread() ? `（${faxUnread()}）` : ''}</a>
     </div>
     <div class="sec">待處理</div>
     <div class="card list">${td.length ? td.map(([, txt, h]) => `<a href="${h}"><span class="dot"></span>${esc(txt)}<span class="go">›</span></a>`).join('') : '<div class="row muted">目前沒有需要處理的事 ✓</div>'}</div>
