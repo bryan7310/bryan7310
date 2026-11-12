@@ -25,6 +25,8 @@ API（全部回 JSON；除了登入與 /api/status 之外都要先登入）
 import argparse
 import datetime
 import gzip
+import hashlib
+import subprocess
 import json
 import mimetypes
 import os
@@ -75,6 +77,19 @@ LONG_POLL = 25
 # 附檔（客戶圖面）
 FILE_TYPES = {'.jpg': 'image/jpeg', '.png': 'image/png', '.gif': 'image/gif', '.webp': 'image/webp', '.pdf': 'application/pdf'}
 FILE_MAX = 25 * 1024 * 1024
+# 接收傳真：瀏覽這個資料夾裡的傳真檔（PDF、圖檔；TIF 會轉成 PNG 給瀏覽器看）
+FAXIN_DIR = os.environ.get('ZR_FAX_IN') or os.path.normpath(os.path.join(HERE, '..', 'fax'))
+FAXIN_EXT = {'.pdf', '.tif', '.tiff', '.jpg', '.jpeg', '.png', '.gif', '.bmp'}
+FAXIN_PS = r'''
+Add-Type -AssemblyName System.Drawing
+$img = [System.Drawing.Image]::FromFile($env:ZR_SRC)
+try {
+  $n = 1
+  if ($img.FrameDimensionsList.Count -gt 0) { $dim = New-Object System.Drawing.Imaging.FrameDimension($img.FrameDimensionsList[0]); $n = $img.GetFrameCount($dim) }
+  for ($i = 0; $i -lt $n; $i++) { if ($n -gt 1) { $img.SelectActiveFrame($dim, $i) | Out-Null }; $img.Save(($env:ZR_OUT + '-' + $i + '.png'), [System.Drawing.Imaging.ImageFormat]::Png) }
+  Write-Output $n
+} finally { $img.Dispose() }
+'''
 START_AT = int(time.time() * 1000)
 FILE_RE = re.compile(r'^/api/files/([0-9a-f]{16}\.(?:jpg|png|gif|webp|pdf))(/delete)?$')
 
@@ -289,6 +304,87 @@ class Handler(BaseHTTPRequestHandler):
             body = f.read()
         self.send_bytes(body, ctype, headers={'Last-Modified': lm}, cache='no-cache')
 
+    def faxin_path(self, name):
+        """傳真資料夾裡的檔案完整路徑；不在資料夾裡（../ 之類）或副檔名不對就回傳 None"""
+        if not name:
+            return None
+        base = os.path.realpath(FAXIN_DIR)
+        fp = os.path.realpath(os.path.join(base, name.replace('/', os.sep)))
+        if os.path.commonpath([base, fp]) != base or os.path.splitext(fp)[1].lower() not in FAXIN_EXT or not os.path.isfile(fp):
+            return None
+        return fp
+
+    def faxin_tif(self, fp):
+        """TIF／BMP 轉成 PNG（多頁一頁一張），存在 data/faxcache；回傳 (頁數, 檔名前綴)"""
+        st = os.stat(fp)
+        key = hashlib.sha1(f'{fp}|{st.st_mtime_ns}|{st.st_size}'.encode('utf-8')).hexdigest()[:20]
+        cache = os.path.join(self.state.data_dir, 'faxcache'); os.makedirs(cache, exist_ok=True)
+        out = os.path.join(cache, key); meta = out + '.json'
+        if os.path.isfile(meta):
+            with open(meta, encoding='utf-8') as f:
+                return json.load(f)['pages'], out
+        env = dict(os.environ, ZR_SRC=fp, ZR_OUT=out)
+        r = subprocess.run(['powershell', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', FAXIN_PS],
+                           capture_output=True, text=True, timeout=60, env=env, creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
+        try:
+            n = int((r.stdout or '').strip().splitlines()[-1])
+        except (ValueError, IndexError):
+            raise ValueError('TIF 轉檔失敗：' + ((r.stderr or r.stdout or '').strip()[:200] or '沒有輸出'))
+        with open(meta, 'w', encoding='utf-8') as f:
+            json.dump({'pages': n}, f)
+        return n, out
+
+    def faxin_api(self, path, q):
+        if path == '/api/faxin/list':
+            out = []
+            if os.path.isdir(FAXIN_DIR):
+                for root, dirs, files in os.walk(FAXIN_DIR):
+                    dirs[:] = [d for d in dirs if not d.startswith('.')]
+                    for fn in files:
+                        ext = os.path.splitext(fn)[1].lower()
+                        if ext not in FAXIN_EXT:
+                            continue
+                        fp = os.path.join(root, fn)
+                        try:
+                            st = os.stat(fp)
+                        except OSError:
+                            continue
+                        rel = os.path.relpath(fp, FAXIN_DIR).replace(os.sep, '/')
+                        out.append({'name': rel, 'size': st.st_size, 'mtime': int(st.st_mtime * 1000), 'ext': ext[1:]})
+            out.sort(key=lambda x: -x['mtime'])
+            return self.send_json({'dir': FAXIN_DIR, 'exists': os.path.isdir(FAXIN_DIR), 'files': out[:3000]})
+        fp = self.faxin_path(q('name', ''))
+        if not fp:
+            return self.error('找不到這個傳真檔', 404)
+        ext = os.path.splitext(fp)[1].lower()
+        conv = ext in ('.tif', '.tiff', '.bmp')
+        if path == '/api/faxin/info':
+            try:
+                n = self.faxin_tif(fp)[0] if conv else 1
+            except Exception as e:  # noqa: BLE001
+                return self.error(str(e), 500)
+            return self.send_json({'pages': n, 'conv': conv})
+        if path == '/api/faxin/file':
+            if q('dl'):
+                with open(fp, 'rb') as f:
+                    data = f.read()
+                return self.send_bytes(data, mimetypes.guess_type(fp)[0] or 'application/octet-stream', cache='no-store',
+                                       headers={'Content-Disposition': f"attachment; filename*=UTF-8''{quote(os.path.basename(fp))}"})
+            if conv:
+                try:
+                    n, pre = self.faxin_tif(fp)
+                except Exception as e:  # noqa: BLE001
+                    return self.error(str(e), 500)
+                pg = min(max(int(q('page', '0') or 0), 0), n - 1)
+                with open(f'{pre}-{pg}.png', 'rb') as f:
+                    data = f.read()
+                return self.send_bytes(data, 'image/png', cache='no-store')
+            with open(fp, 'rb') as f:
+                data = f.read()
+            ctype = {'.pdf': 'application/pdf', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.gif': 'image/gif'}.get(ext, 'application/octet-stream')
+            return self.send_bytes(data, ctype, cache='no-store', headers={'Content-Disposition': f"inline; filename*=UTF-8''{quote(os.path.basename(fp))}"})
+        return self.error('不支援', 404)
+
     def api(self, method, path, qs, body):
         db = self.state.db
         q = lambda k, d=None: (qs.get(k) or [d])[0]  # noqa: E731
@@ -387,6 +483,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self.error('至少要保留一個可用的老闆帳號')
             db.update_user(uid, b.get('name'), b.get('login'), b.get('disabled'), role)
             return self.send_json({'ok': True, 'users': db.users()})
+        if path.startswith('/api/faxin/'):
+            return self.faxin_api(path, q)
         m = FILE_RE.match(path)
         if m:
             fp = os.path.join(self.files_dir(), m.group(1))

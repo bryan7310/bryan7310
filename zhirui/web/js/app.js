@@ -80,6 +80,7 @@ function renderNav() {
   $('#nav').innerHTML = h;
   refreshNav();
 }
+window.addEventListener('zr-nav', () => refreshNav());   // 模組（例如接收傳真）未讀數變了
 function refreshNav() {
   for (const m of MODULES) {
     const a = $(`#nav a[data-m="${m.id}"]`); if (!a) continue;
