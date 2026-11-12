@@ -276,6 +276,8 @@ function checkPage(view) {
 // ---------- 地址標籤（跟網頁版「標籤列印 › 地址標籤」一樣）：選客戶／廠商 → 郵局查 3+3 郵遞區號 → 郵遞區號／地址兩行／簡稱＋公司收 ----------
 const splitAddr = a => { const m = String(a || '').match(/^(.{2,3}[縣市].{1,4}?[區鄉鎮市])(.+)$/); return m ? [m[1], m[2]] : [String(a || ''), '']; };
 const stripZip = a => String(a || '').replace(/\s+/g, '').replace(/^\d{3,6}/, '');
+// 志瑞自己的地址（網頁版標籤列印也有同一顆「志瑞地址」）
+const OWN_ADDR = { zip: '412041', l2: '台中市大里區現岱路88號', l3: '', l4: '04 24839193  志瑞螺絲' };
 let AD = null;   // { cid, addr, zip, l2, l3, l4, copies, save, msg }
 let adView = null;
 function pickAddr(cid) {
@@ -310,6 +312,7 @@ function addrPage(view) {
   const c = AD ? store.get('contacts', AD.cid) : null; const kindName = x => x?.kind === 'S' ? '廠商' : '客戶';
   const changed = !!AD && !!AD.addr && (stripZip(c?.addr) !== AD.addr || (!!AD.zip && c?.zip !== AD.zip));
   view.innerHTML = `<div class="hd" data-addrpage><h1>印標籤</h1></div>${modeTabs('addr')}
+    <div class="srow" style="margin-bottom:10px"><button class="btn ghost" id="aown">志瑞地址（一鍵列印）</button><input id="aownn" inputmode="numeric" value="1" style="width:64px;flex:none;text-align:center" aria-label="張數"></div>
     <div class="card list"><a href="#" id="apk"><span>客戶或廠商</span><span class="go">${c ? `<b>${esc(cdisp(c))}</b><small class="muted">　${kindName(c)}</small>` : '<span class="muted">請選擇</span>'} ›</span></a></div>
     ${AD ? `<div class="card" style="margin-top:10px">
       <div class="f"><label for="aad">地址（${c?.addr ? `${kindName(c)}資料上的地址，可以改` : `${kindName(c)}資料沒有地址，請填`}）</label><div class="srow"><input id="aad" value="${esc(AD.addr)}"><button class="btn ghost" id="aq" style="width:auto;padding:9px 14px">查郵遞區號</button></div></div>
@@ -325,6 +328,14 @@ function addrPage(view) {
   const $ = q => view.querySelector(q);
   bindMode(view);
   $('#apk').onclick = ev => { ev.preventDefault(); pickContact(id => { pickAddr(id); addrPage(view); }); };
+  const own = $('#aownn');
+  own.addEventListener('focusin', ev => { ev.target.placeholder = ev.target.value; ev.target.value = ''; });
+  own.addEventListener('focusout', ev => { if (!ev.target.value.trim()) ev.target.value = ev.target.placeholder || '1'; });
+  $('#aown').onclick = async () => {
+    const n = Math.max(1, Math.round(+own.value || +own.placeholder) || 1); const b = $('#aown'); b.disabled = true;
+    try { const cv = document.createElement('canvas'); await drawAddr(cv, OWN_ADDR); lastJob = await queueLabels([{ cv, copies: n }], '志瑞地址標籤'); toast(`已送出 ${n} 張志瑞地址標籤`); addrPage(view); }
+    catch (e) { toast(e.message || String(e)); b.disabled = false; }
+  };
   helperState(view);
   if (!AD) return;
   const pv = () => drawAddr($('#acv'), AD).catch(() => {}); pv();

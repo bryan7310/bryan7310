@@ -141,12 +141,15 @@ export function labelPicker(bill) {
 
 // ---------- 地址標籤：選客戶／供應商 → 向郵局查 3+3 郵遞區號 → 印 5×4 cm（郵遞區號／地址兩行／簡稱＋公司收） ----------
 let addrPick = null;
-const addrBar = () => `<div class="panel"><div class="tools" style="align-items:flex-end;gap:10px"><div class="f" style="width:min(420px,100%)"><label for="ad-c">地址標籤：客戶或供應商</label><div class="combo"><input id="ad-c" placeholder="打名稱、簡稱或編號搜尋" value="${esc(addrPick ? cdisp(store.get('contacts', addrPick)) : '')}"></div></div><button class="btn pri" id="adGo">地址列印</button><span class="muted small">會向郵局查 3+3 郵遞區號，印之前可以先看、可以改。</span></div></div>`;
+const addrBar = () => `<div class="panel"><div class="tools" style="align-items:flex-end;gap:10px"><div class="f" style="width:min(420px,100%)"><label for="ad-c">地址標籤：客戶或供應商</label><div class="combo"><input id="ad-c" placeholder="打名稱、簡稱或編號搜尋" value="${esc(addrPick ? cdisp(store.get('contacts', addrPick)) : '')}"></div></div><button class="btn pri" id="adGo">地址列印</button><button class="btn" id="adOwn" title="志瑞自己的地址：412041／台中市大里區現岱路88號／04 24839193  志瑞螺絲">志瑞地址</button><span class="muted small">會向郵局查 3+3 郵遞區號，印之前可以先看、可以改。</span></div></div>`;
+// 志瑞自己的地址標籤（一鍵列印；手機版印標籤也有同一顆）
+export const OWN_ADDR = { zip: '412041', l2: '台中市大里區現岱路88號', l3: '', l4: '04 24839193  志瑞螺絲' };
 function bindAddr(el) {
   const inp = $('#ad-c', el); if (!inp) return;
   const kindName = c => c.kind === 'S' ? '供應商' : '客戶';
   combo(inp, { items: () => [...customers(), ...suppliers()].map(c => ({ id: c.id, label: cdisp(c), sub: `${kindName(c)}${c.addr ? '' : '・沒有地址'}`, text: [c.code, c.name, c.short, ...(c.aliases || [])].join(' ') })), minWidth: 420, onPick: it => { addrPick = it.id; }, onClear: () => { addrPick = null; } });
   inp.addEventListener('keydown', ev => { if (ev.key === 'Enter' && !ev.isComposing && addrPick) setTimeout(() => $('#adGo', el)?.focus(), 0); });
+  $('#adOwn', el)?.addEventListener('click', () => printAddr(OWN_ADDR, 1));
   $('#adGo', el).addEventListener('click', () => { const c = addrPick && store.get('contacts', addrPick); if (!c) { toast('請先選客戶或供應商'); inp.focus(); return; } addrDialog(c); });
 }
 // 地址拆兩行：郵局標準地址的「縣市區」＋「路段號」；查不到時自己切在鄉鎮市區後面
