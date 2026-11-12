@@ -1,0 +1,13 @@
+{
+  "name": "志瑞螺絲",
+  "short_name": "志瑞",
+  "start_url": "/m/",
+  "scope": "/m/",
+  "display": "standalone",
+  "background_color": "#F4F5F7",
+  "theme_color": "#1F4E79",
+  "lang": "zh-Hant",
+  "icons": [
+    { "src": "/img/logo-icon.png", "sizes": "2000x2000", "type": "image/png", "purpose": "any" }
+  ]
+}

@@ -1,0 +1,126 @@
+// 志瑞手機版（/m/）：老闆專用。和電腦版共用同一份資料（store）與計算（calc），數字算法跟電腦版總覽一致。
+import { esc, fmt, today, thisMonth, roc } from '../core/util.js';
+import { api } from '../core/api.js';
+import { store } from '../core/store.js';
+import { calc } from '../core/calc.js';
+import { arSummary } from '../modules/receivables.js';
+import { preloadHist } from '../modules/_bills.js';
+
+const $ = s => document.querySelector(s);
+const view = $('#view'), bar = $('#tabbar');
+const SVG = p => `<svg viewBox="0 0 24 24" aria-hidden="true">${p}</svg>`;
+const IC = {
+  home: '<path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/>',
+  stock: '<path d="M3 7l9-4 9 4-9 4z"/><path d="M3 7v10l9 4 9-4V7"/><path d="M12 11v10"/>',
+  bill: '<path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6"/>',
+  money: '<rect x="3" y="6" width="18" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/>',
+  cam: '<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>',
+  tag: '<path d="M3 12V4h8l10 10-8 8z"/><circle cx="7.5" cy="8" r="1.3"/>',
+};
+// 底部選單（固定 5 項）；還沒做好的頁先顯示「第 N 階段」，並提供電腦版連結
+const TABS = [
+  ['home', '首頁', IC.home],
+  ['stock', '庫存', IC.stock, 2, '/#stock'],
+  ['bill', '開單', IC.bill, 3, '/#sales'],
+  ['ar', '帳款', IC.money, 4, '/#receivables/open'],
+  ['up', '上傳', IC.cam, 7, ''],
+];
+
+// ---------- 啟動與登入 ----------
+async function boot() {
+  try { await store.boot(); }
+  catch (e) { return e.status === 401 ? showLogin() : showLogin('載入資料失敗：' + (e.message || e)); }
+  if (store.user.role !== 'admin') return notBoss();
+  bar.hidden = false;
+  store.subscribe(() => { if (cur === 'home') route(); });
+  window.addEventListener('hashchange', route);
+  route();
+  // 舊系統進貨單會影響成本（毛利），載入後重算一次，跟電腦版一致
+  setTimeout(() => preloadHist().then(() => { if (cur === 'home') route(); }), 800);
+}
+function showLogin(msg) {
+  bar.hidden = true;
+  view.innerHTML = `<form class="login" id="lf"><h1>志瑞</h1>${msg ? `<div class="err">${esc(msg)}</div>` : ''}
+    <div class="f"><label for="lg">帳號</label><input id="lg" autocomplete="username" autocapitalize="off" autocorrect="off" required></div>
+    <div class="f"><label for="pw">密碼</label><input id="pw" type="password" autocomplete="current-password" required></div>
+    <div class="err" id="le"></div><button class="btn" type="submit">登入</button></form>`;
+  $('#lf').addEventListener('submit', async e => {
+    e.preventDefault();
+    try { await api.login($('#lg').value, $('#pw').value); await store.clearCache(); location.reload(); }
+    catch (err) { $('#le').textContent = err.message; }
+  });
+}
+function notBoss() {
+  bar.hidden = true;
+  view.innerHTML = `<div class="login"><h1>志瑞</h1><div class="card ph"><b>手機版只有老闆帳號能用</b><span class="muted">目前登入：${esc(store.user.name)}</span></div>
+    <p><a class="btn ghost" href="/">打開電腦版</a></p><p><button class="btn ghost" id="lo">登出，換老闆帳號</button></p></div>`;
+  $('#lo').onclick = async () => { try { await api.logout(); } catch (e) {} await store.clearCache(); location.reload(); };
+}
+
+// ---------- 路由 ----------
+let cur = '';
+function route() {
+  const id = (location.hash.replace(/^#\/?/, '').split(/[/?]/)[0]) || 'home';
+  const t = TABS.find(x => x[0] === id) || TABS[0]; cur = t[0];
+  bar.innerHTML = TABS.map(([k, n, ic]) => `<a href="#${k}" class="${k === cur ? 'on' : ''}">${SVG(ic)}<span>${n}</span></a>`).join('');
+  if (cur === 'home') home(); else placeholder(t);
+}
+function placeholder([, name, , stage, desk]) {
+  view.innerHTML = `<div class="hd"><h1>${esc(name)}</h1></div><div class="card ph"><b>第 ${stage} 階段會做好</b>
+    <span class="muted">${desk ? '現在可以先用電腦版的頁面。' : '這個功能還沒有電腦版頁面。'}</span></div>
+    ${desk ? `<p><a class="btn ghost" href="${desk}">打開電腦版</a></p>` : ''}`;
+}
+
+// ---------- 首頁：今日出貨額、本月營收、本月毛利（毛利率）、逾期應收家數 ----------
+/** 跟電腦版總覽同一套算法：銷貨單減銷貨退回，未稅金額；毛利＝未稅金額－成本 */
+export function homeNums() {
+  const C = calc(); const m = thisMonth(), t = today();
+  let day = 0, dayN = 0, sales = 0, profit = 0, n = 0;
+  for (const b of C.bills) {
+    if (b.type !== 'SALE' && b.type !== 'SALE_RET') continue;
+    const d = b.date || ''; if (!d.startsWith(m)) continue;
+    const s = b.type === 'SALE' ? 1 : -1; const net = C.tot[b.id]?.net || 0;
+    sales += s * net; profit += s * (net - (C.cogs[b.id] || 0)); n++;
+    if (d === t) { day += s * net; dayN++; }
+  }
+  const ar = arSummary();
+  return { day, dayN, sales, n, profit, rate: sales ? profit / sales : 0, lateCust: ar.lateCust, late: ar.late, open: ar.open, C };
+}
+function todos(C) {
+  const t = today();
+  const cin = store.list('checks_in').filter(c => !c.col); const late = cin.filter(c => c.due && c.due < t);
+  const cout = store.list('checks_out').filter(c => !c.printedAt);
+  const oLate = store.list('orders').filter(o => !(o.steps || {}).done && o.due && o.due < t);
+  const low = store.list('goods').filter(g => +g.safety > 0 && Object.values(C.stock[g.id] || {}).reduce((a, b) => a + b, 0) < +g.safety);
+  const pendInv = C.bills.filter(b => b.type === 'SALE' && !b.invNo && !b.noInv && (b.date || '') >= '2026-01-01');
+  return [
+    [oLate.length, `訂貨排程有 ${oLate.length} 筆逾期`, '/#orders'],
+    [late.length, `${late.length} 張客票已到期還沒送代收`, '/#checks-in'],
+    [cout.length, `${cout.length} 張付款支票待列印`, '/#checks-out'],
+    [pendInv.length, `${pendInv.length} 張銷貨單還沒開發票`, '/#invoices/pending'],
+    [low.length, `${low.length} 項商品低於安全庫存`, '/#stock/low'],
+  ].filter(x => x[0] > 0);
+}
+function home() {
+  const k = homeNums(); const td = todos(k.C);
+  const pct = (k.rate * 100).toFixed(1);
+  view.innerHTML = `<div class="hd"><h1>首頁</h1><span class="sub">${esc(roc(today()))}</span><span class="sp"></span><span class="sub">${esc(store.user.name)}</span></div>
+    <div class="kpis">
+      <a class="card kpi" href="/#sales"><span>今日出貨額</span><b>${fmt(k.day)}</b><small>${k.dayN} 張・未稅</small></a>
+      <a class="card kpi" href="/#reports"><span>本月營收</span><b>${fmt(k.sales)}</b><small>${k.n} 張・未稅</small></a>
+      <a class="card kpi good" href="/#reports"><span>本月毛利</span><b>${fmt(k.profit)}</b><small>毛利率 ${k.sales ? pct + '%' : '—'}</small></a>
+      <a class="card kpi ${k.lateCust ? 'alert' : ''}" href="/#receivables/open"><span>逾期應收</span><b>${k.lateCust} 家</b><small>${k.late} 筆・未收共 ${fmt(k.open)}</small></a>
+    </div>
+    <div class="sec">快捷</div>
+    <div class="card quick">
+      <a href="/#stock"><i>${SVG(IC.stock)}</i>查庫存</a>
+      <a href="/#sales"><i>${SVG(IC.bill)}</i>開出貨單</a>
+      <a class="off" href="#up"><i>${SVG(IC.cam)}</i>拍照上傳</a>
+      <a href="/#labels/gen"><i>${SVG(IC.tag)}</i>印標籤</a>
+    </div>
+    <div class="sec">待處理</div>
+    <div class="card list">${td.length ? td.map(([, txt, h]) => `<a href="${h}"><span class="dot"></span>${esc(txt)}<span class="go">›</span></a>`).join('') : '<div class="row muted">目前沒有需要處理的事 ✓</div>'}</div>
+    <div class="note">連結到「電腦版」的頁面，之後的階段會換成手機版頁面。</div>`;
+}
+
+boot();

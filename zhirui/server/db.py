@@ -385,8 +385,10 @@ class DB:
         with self.lock:
             self.conn.execute('UPDATE users SET salt=?, hash=? WHERE id=?', (salt, self._hash(pw, salt), uid))
 
-    def update_user(self, uid, name=None, login=None, disabled=None):
+    def update_user(self, uid, name=None, login=None, disabled=None, role=None):
         with self.lock:
+            if role in ('admin', 'staff'):
+                self.conn.execute('UPDATE users SET role=? WHERE id=?', (role, uid))
             if name is not None:
                 self.conn.execute('UPDATE users SET name=? WHERE id=?', (name, uid))
             if login is not None:

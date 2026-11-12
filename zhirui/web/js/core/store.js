@@ -42,9 +42,8 @@ class Store {
       for (const [c, arr] of Object.entries(cached.cols)) this.cols[c] = new Map(arr.map(d => [d.id, d]));
       this.ver = cached.ver; this.users = cached.users || []; this.hist = cached.hist || 0;
       this.gen++;
-      // 補上快取之後的變更
-      const s = await api.sync(this.ver);
-      this.applyChanges(s.changes); this.ver = s.ver;
+      // 補上快取之後的變更（快取已是最新就不用問：sync 會等到有新變更才回，最多 25 秒）
+      if (cached.ver < me.ver) { const s = await api.sync(this.ver); this.applyChanges(s.changes); this.ver = s.ver; }
     } else {
       const b = await api.bootstrap();
       for (const [c, arr] of Object.entries(b.cols)) this.cols[c] = new Map(arr.map(d => [d.id, d]));

@@ -243,6 +243,15 @@ class Handler(BaseHTTPRequestHandler):
         if path == '/':
             path = '/index.html'
         fp = os.path.normpath(os.path.join(WEB, path.lstrip('/')))
+        if os.path.isdir(fp) and fp.startswith(WEB) and os.path.isfile(os.path.join(fp, 'index.html')):
+            if not path.endswith('/'):
+                # /m → /m/，相對路徑才會對
+                self.send_response(301)
+                self.send_header('Location', path + '/')
+                self.send_header('Content-Length', '0')
+                self.end_headers()
+                return
+            fp = os.path.join(fp, 'index.html')
         if not fp.startswith(WEB) or not os.path.isfile(fp):
             # 單頁應用：找不到的路徑回首頁
             fp = os.path.join(WEB, 'index.html')
@@ -257,6 +266,9 @@ class Handler(BaseHTTPRequestHandler):
             if os.path.basename(fp) == 'index.html' and os.path.dirname(fp) == WEB:
                 v = web_version().encode()
                 body = body.replace(b'href="css/', b'href="v' + v + b'/css/').replace(b'src="js/', b'src="v' + v + b'/js/')
+            elif os.path.basename(fp) == 'index.html' and os.path.dirname(fp) == os.path.join(WEB, 'm'):
+                v = web_version().encode()
+                body = body.replace(b'href="/css/', b'href="/v' + v + b'/css/').replace(b'src="/js/', b'src="/v' + v + b'/js/')
             return self.send_bytes(body, ctype, cache='no-store')
         if vm:
             # 有版本號的網址：內容永遠不變，快取一年
@@ -348,13 +360,15 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_json({'rows': db.hist_prices(q('gid', ''), int(q('limit', 50)), q('cid', ''))})
         if path == '/api/users' and method == 'GET':
             return self.send_json({'users': db.users()})
+        if path.startswith('/api/users') and method == 'POST' and me.get('role') != 'admin':
+            return self.error('只有老闆帳號可以新增或修改帳號', 403)
         if path == '/api/users' and method == 'POST':
             b = body or {}
             if not b.get('login') or not b.get('pw') or len(b['pw']) < 4:
                 return self.error('請填帳號與至少 4 碼的密碼')
             if any(u['login'] == b['login'].strip().lower() for u in db.users()):
                 return self.error('這個帳號已經存在')
-            uid = db.add_user(b.get('name') or b['login'], b['login'], b['pw'])
+            uid = db.add_user(b.get('name') or b['login'], b['login'], b['pw'], 'admin' if b.get('role') == 'admin' else 'staff')
             return self.send_json({'ok': True, 'id': uid, 'users': db.users()})
         if path.startswith('/api/users/') and method == 'POST':
             uid = path.rsplit('/', 1)[1]
@@ -365,7 +379,10 @@ class Handler(BaseHTTPRequestHandler):
                 db.set_password(uid, b['pw'])
             if b.get('disabled') and sum(1 for u in db.users() if not u['disabled']) <= 1:
                 return self.error('至少要保留一個可用帳號')
-            db.update_user(uid, b.get('name'), b.get('login'), b.get('disabled'))
+            role = b.get('role') if b.get('role') in ('admin', 'staff') else None
+            if (b.get('disabled') or role == 'staff') and not any(u['role'] == 'admin' and not u['disabled'] and u['id'] != uid for u in db.users()):
+                return self.error('至少要保留一個可用的老闆帳號')
+            db.update_user(uid, b.get('name'), b.get('login'), b.get('disabled'), role)
             return self.send_json({'ok': True, 'users': db.users()})
         m = FILE_RE.match(path)
         if m:

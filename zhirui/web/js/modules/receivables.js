@@ -71,10 +71,11 @@ export function arRows(ym) {
   return out.sort((x, y) => (+y.total || 0) - (+x.total || 0) || String(x.name).localeCompare(String(y.name), 'zh-Hant'));
 }
 export function arSummary() {
+  ensureHistAR();   // 手機版沒有選單徽章會先載，這裡也確保載入舊系統銷貨單（已載過不會重抓）
   const t = today(); const months = new Set([...store.list('receivables').map(r => r.ym), ...saleMonths()].filter(Boolean));
-  let open = 0, openN = 0, late = 0;
-  for (const ym of months) for (const r of arRows(ym)) { if (r.rec || !(r.total > 0)) continue; open += r.total; openN++; if (isLate(r)) late++; }
-  return { open, openN, late };
+  let open = 0, openN = 0, late = 0; const lateC = new Set();
+  for (const ym of months) for (const r of arRows(ym)) { if (r.rec || !(r.total > 0)) continue; open += r.total; openN++; if (isLate(r)) { late++; lateC.add(r.cid || r.name); } }
+  return { open, openN, late, lateCust: lateC.size };
 }
 const isLate = r => !r.rec && r.total > 0 && ((r.due && r.due < today()) || (!r.due && shiftMonth(r.ym, 2) + '-15' < today()));
 const rowId = r => r.id || ('ar' + r.ym + '_' + r.cid);
