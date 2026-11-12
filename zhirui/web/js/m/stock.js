@@ -6,6 +6,7 @@ import { calc, costOf, lastSale, uRate, cdisp, customers, goodsLabel, nextNo, TY
 import { platCost } from '../core/pricing.js';
 import { qrSvg, scanQR } from '../core/qr.js';
 import { addToBill } from './bill.js';
+import { editGoods } from './goodsedit.js';
 
 // 材質篩選（商品「類別」欄）：鐵、白鐵（不鏽鋼）、合金（合金鋼）、其他（中碳鋼、彈簧鋼、銅、鋁、代工…）
 const MAIN = ['鐵', '不鏽鋼', '合金鋼'];
@@ -49,10 +50,13 @@ export function stockPage(view) {
   const q = view.querySelector('#q'), res = view.querySelector('#res');
   const draw = () => {
     const list = search(ui.q, ui.fin); const C = calc();
-    if (!qTerms(ui.q).length && !ui.fin) { res.innerHTML = '<div class="note">輸入規格或品名開始搜尋，空白隔開多個字（例如「M6 20 鍍鋅」）。</div>'; return; }
+    const add = `<p><button class="btn ghost" data-add>＋ 新增商品${qTerms(ui.q).length && !list.length ? `「${esc(ui.q.trim())}」` : ''}</button></p>`;
+    if (!qTerms(ui.q).length && !ui.fin) { res.innerHTML = '<div class="note">輸入規格或品名開始搜尋，空白隔開多個字（例如「M6 20 鍍鋅」）。</div>' + add; return; }
     res.innerHTML = list.length ? `<div class="card list">${list.map(g => { const t = total(C, g.id); const lp = cid ? lastSale(cid, g.id, today()) : null; return `<a href="#g/${encodeURIComponent(g.id)}" class="gi"><div class="gm"><b>${esc(g.name)}</b><small>${esc(g.code)}${g.spec ? '・' + esc(g.spec) : ''}</small></div><div class="gr"><b>${C.stock[g.id] ? fmtQ(t) : '—'}</b><small>${esc(g.unit || '')}${lp ? `・上次 ${p2(lp.price)}` : +g.salePrice ? `・售 ${p2(g.salePrice)}` : ''}</small>${stockTag(C, g)}</div></a>`; }).join('')}</div>${list.length >= 80 ? '<div class="note">只列前 80 項，請再多打幾個字縮小範圍。</div>' : ''}`
       : '<div class="card ph"><b>找不到</b><span class="muted">換個寫法試試，例如「M6*20」或「6*20」。</span></div>';
+    res.insertAdjacentHTML('beforeend', add);
   };
+  res.addEventListener('click', ev => { if (!ev.target.closest('[data-add]')) return; const nm = search(ui.q, ui.fin).length ? '' : ui.q.trim(); editGoods('new', null, id => { location.hash = '#g/' + encodeURIComponent(id); }, nm ? { name: nm } : {}); });
   let tm = 0;
   q.addEventListener('input', () => { clearTimeout(tm); tm = setTimeout(() => { ui.q = q.value; draw(); }, 150); });
   q.addEventListener('keydown', e => { if (e.key === 'Enter') q.blur(); });
@@ -113,6 +117,7 @@ export function goodsPage(view, gid) {
       <div class="row"><b>合計</b><span class="go"><b>${C.stock[g.id] ? fmtQ(t) : '—'}</b> ${esc(g.unit || '')} ${stockTag(C, g)}</span></div>
       ${+g.safety > 0 ? `<div class="row muted"><span>安全庫存</span><span class="go">${fmtQ(g.safety)}</span></div>` : ''}${C.stock[g.id] ? '' : '<div class="row muted">新平台還沒有這項的進出貨紀錄</div>'}</div>
     <p><button class="btn ghost" id="adj">修改庫存（盤點）</button></p>
+    <div class="btn2"><button class="btn ghost" id="ged">修改商品資料</button><button class="btn ghost" id="gcp">複製成新商品</button></div>
     <div class="sec">價格（每 ${esc(g.unit || '單位')}）</div>
     <div class="card list">
       ${sale ? `<div class="row"><span>售價（商品資料）</span><span class="go">${p2(sale)}</span></div><div class="row"><span>毛利率（售價）</span><span class="go">${margin(sale, cost?.c)}</span></div>` : ''}
@@ -131,6 +136,8 @@ export function goodsPage(view, gid) {
     `;
   view.querySelector('#tobill').onclick = () => { addToBill(g.id); location.hash = '#bill'; };
   view.querySelector('#adj').onclick = () => adjustStock(g, () => goodsPage(view, gid));
+  view.querySelector('#ged').onclick = () => editGoods('edit', g, () => goodsPage(view, g.id));
+  view.querySelector('#gcp').onclick = () => editGoods('copy', g, id => { location.hash = '#g/' + encodeURIComponent(id); });
   view.querySelector('#pick')?.addEventListener('click', e => { e.preventDefault(); pickCustomer(() => goodsPage(view, gid)); });
   qrSvg(g.code).then(svg => { const b = view.querySelector('#qr'); if (b) b.innerHTML = svg + `<div class="mono">${esc(g.code)}</div>`; }).catch(e => { const b = view.querySelector('#qr'); if (b) b.textContent = e.message; });
   recentSales(view.querySelector('#hs'), g, C).then(rows => {
