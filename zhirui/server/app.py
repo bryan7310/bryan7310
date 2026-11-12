@@ -1136,6 +1136,7 @@ def po_extract(data_dir, body, system=None, schema=None, ask='請讀這張採購
 DOC_COMMON = """
 - 品名、規格照抄，不要改寫；料號（產品代號、廠商料號、客料號）照抄到 code，沒有就填空字串。
 - 數量、單價、金額只填數字（去掉千分位）；單位照抄（PCS、支、H、KG、千支…），沒寫填空字串；看不到單價填 0。
+- 有「折數」欄的，price 照抄單價欄（原價），折數填在 disc（例如 80 表示 8 折、75 表示 75 折、8.5 表示 85 折）；沒有折數欄 disc 填 0。
 - 日期一律轉成 YYYY-MM-DD（民國年要轉西元）；沒有就填空字串。
 - 被劃線刪除的明細不要列。看不清楚的欄位填空字串或 0，不要猜；doubts 寫下哪裡看不清楚。"""
 DOC_PROMPTS = {
@@ -1150,10 +1151,10 @@ DOC_SCHEMA = {
         'party': {'type': 'string'}, 'doc_no': {'type': 'string'}, 'date': {'type': 'string'}, 'doubts': {'type': 'string'},
         'lines': {'type': 'array', 'items': {
             'type': 'object', 'additionalProperties': False,
-            'required': ['code', 'name', 'spec', 'qty', 'unit', 'price', 'amount'],
+            'required': ['code', 'name', 'spec', 'qty', 'unit', 'price', 'disc', 'amount'],
             'properties': {
                 'code': {'type': 'string'}, 'name': {'type': 'string'}, 'spec': {'type': 'string'}, 'qty': {'type': 'number'},
-                'unit': {'type': 'string'}, 'price': {'type': 'number'}, 'amount': {'type': 'number'}}}}}}
+                'unit': {'type': 'string'}, 'price': {'type': 'number'}, 'disc': {'type': 'number'}, 'amount': {'type': 'number'}}}}}}
 
 
 def doc_extract(data_dir, body):

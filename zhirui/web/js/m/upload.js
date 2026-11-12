@@ -89,6 +89,19 @@ async function retry(id) {
 }
 
 // ---------- 待確認：核對後入帳 ----------
+const r4 = n => Math.round(n * 10000) / 10000;
+/** 實際單價：有折數就換算（80＝8 折、8.5＝85 折）；沒讀到折數但「數量×單價」跟金額對不上時，用金額回推折數（四捨五入到 1%） */
+function netPrice(r) {
+  const p = +r.price || 0, q = +r.qty || 0, a = +r.amount || 0, d = +r.disc || 0;
+  if (!p) return { price: q && a ? r4(a / q) : '', note: q && a ? '依金額÷數量算出' : '' };
+  const f = d > 10 ? d / 100 : d > 0 ? d / 10 : 0;
+  if (f > 0 && f < 1) return { price: r4(p * f), note: `原價 ${p} × ${Math.round(f * 100)} 折` };
+  if (q && a && Math.abs(q * p - a) > Math.max(1, a * 0.01)) {
+    const k = Math.round(a / (q * p) * 100) / 100;
+    if (k > 0.2 && k < 1) return { price: r4(p * k), note: `原價 ${p} × ${Math.round(k * 100)} 折（依金額推算）` };
+  }
+  return { price: p, note: '' };
+}
 const rv = {};   // 每個上傳的編輯中明細（記在記憶體）
 function linesOf(u) {
   if (rv[u.id] && rv[u.id].cid === u.cid) return rv[u.id].lines;
@@ -96,7 +109,8 @@ function linesOf(u) {
   const lines = (u.result?.lines || []).filter(r => r.name || r.code || +r.qty).map(r => {
     const m = piMatch({ code: r.code, name: [r.name, r.spec].filter(Boolean).join(' '), price: +r.price || 0, unit: r.unit, date }, u.cid);
     const best = m.cands[0]; const g = best && best.s >= 60 ? best.o.g : null;
-    const l = { src: [r.code, r.name, r.spec].filter(Boolean).join(' '), gid: g?.id || '', qty: +r.qty || '', price: +r.price || '', unit: r.unit || '', on: true, sure: !!g && best.s >= 90 };
+    const np = netPrice(r);
+    const l = { src: [r.code, r.name, r.spec].filter(Boolean).join(' '), gid: g?.id || '', qty: +r.qty || '', price: np.price, pnote: np.note, unit: r.unit || '', on: true, sure: !!g && best.s >= 90 };
     if (g && r.unit) { const [c1, k1] = unitFactor(r.unit), [c2, k2] = unitFactor(g.unit || ''); if (c1 === c2 && k1 !== k2) l.u = r.unit; }
     if (u.kind === 'order' && g && !(+l.price) && u.cid) { const x = lastSale(u.cid, g.id, today()); if (x) { l.price = x.price; if (x.u) l.u = x.u; } }
     return l;
@@ -135,7 +149,7 @@ function docReview(u) {
     ${R.doubts ? `<div class="note" style="text-align:left">AI 提醒：${esc(R.doubts)}</div>` : ''}
     <div class="sec">明細 <span class="muted">${lines.filter(l => l.on).length}／${lines.length} 項・對不到商品的請點「選商品」</span></div>
     <div id="rl">${lines.map((l, i) => { const g = l.gid ? C.g[l.gid] : null; return `<div class="card ln ${l.on ? '' : 'off'} ${l.on && (!g || !l.sure) ? 'warnbox' : ''}" data-i="${i}">
-      <div class="lnh"><div class="gm"><small>單據：${esc(l.src)}</small><b>${g ? esc(g.name) : '<span class="bad">對不到商品</span>'}</b><small>${g ? esc(g.code) : ''}</small>${g && !l.sure ? `<div class="err" style="margin:4px 0 0">AI 配對不確定：是這個商品嗎？ <button class="chip" data-yes="${i}">對，是這個</button></div>` : ''}</div><label class="check" style="margin:0"><input type="checkbox" data-on ${l.on ? 'checked' : ''}>要</label></div>
+      <div class="lnh"><div class="gm"><small>單據：${esc(l.src)}</small><b>${g ? esc(g.name) : '<span class="bad">對不到商品</span>'}</b><small>${g ? esc(g.code) : ''}${l.pnote ? '・單價：' + esc(l.pnote) : ''}</small>${g && !l.sure ? `<div class="err" style="margin:4px 0 0">AI 配對不確定：是這個商品嗎？ <button class="chip" data-yes="${i}">對，是這個</button></div>` : ''}</div><label class="check" style="margin:0"><input type="checkbox" data-on ${l.on ? 'checked' : ''}>要</label></div>
       <div class="lnr"><label>數量<input data-f="qty" inputmode="decimal" value="${esc(l.qty)}"></label><span class="u">${esc(l.u || g?.unit || l.unit || '')}</span><label>單價<input data-f="price" inputmode="decimal" value="${esc(l.price)}"></label><button class="chip" data-pick="${i}">${g ? '換商品' : '選商品'}</button></div></div>`; }).join('') || '<div class="card"><div class="row muted">沒有讀到明細</div></div>'}</div>
     <div class="card list">${u.kind === 'order' ? '' : `<label class="row"><span>加 5% 營業稅</span><span class="go"><input type="checkbox" id="rtx" ${rv[u.id].tax ? 'checked' : ''}> ${rv[u.id].tax ? fmt(t.tax) : ''}</span></label>`}<div class="row"><b>總計</b><span class="go"><b id="rtot">${fmt(t.total)}</b></span></div></div>
     <div id="rerr" class="err"></div>
