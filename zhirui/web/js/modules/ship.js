@@ -56,7 +56,7 @@ export function shipDoc(b, opt = {}) {
     }
     return '';
   };
-  const grid = cols.map(x => +x.w > 0 ? `${+x.w}mm` : 'minmax(0,1fr)').join(' ');
+  const grid = cols.map(x => TP.tail && x.k === 'memo' ? 'var(--tail,8mm)' : +x.w > 0 ? `${+x.w}mm` : 'minmax(0,1fr)').join(' ');
   const H = TP.hdr, F = TP.foot; const ff = (FONTS[TP.font] || FONTS.jh)[1]; const ink = TP.dot ? '#000' : '#1f2f8f'; const wt = TP.bold ? 'bold' : 'normal';
   const extra = String(TP.extra || '').split('\n').map(x => x.trim()).filter(Boolean);
   const extraHtml = extra.length ? `<div class="ex">${extra.map(x => `<div>${e2(x)}</div>`).join('')}</div>` : '';
@@ -106,11 +106,19 @@ export function shipDoc(b, opt = {}) {
 .foot{display:flex;align-items:baseline;gap:4mm;padding:1mm 1mm 0;white-space:nowrap;overflow:hidden;font-size:${+TP.footSize}pt}.co{color:${ink};font-size:${+TP.coSize}pt;font-weight:bold;letter-spacing:.1em}`;
   // 太長的字自動壓扁塞進欄寬
   // 列印前自動調整：明細放不下（表頭、合計佔掉高度）就縮小行距，必要時一起縮字，確保這頁的每一筆都印得出來；太寬的字壓窄
-  const fit = `<script>window.addEventListener('load',()=>{document.querySelectorAll('.page .body').forEach(b=>{const ls=b.querySelectorAll('.ln');if(!ls.length)return;const cs=getComputedStyle(ls[0]);let lh=parseFloat(cs.lineHeight),fs=parseFloat(cs.fontSize),n=0;while(b.scrollHeight>b.clientHeight+0.5&&n++<60){lh*=0.97;if(lh<fs*1.15)fs*=0.97;ls.forEach(x=>{x.style.lineHeight=lh+'px';x.style.fontSize=fs+'px';});}});document.querySelectorAll('.ln>span>i').forEach(t=>{const w=t.parentElement.clientWidth,s=t.offsetWidth;if(s>w+0.5)t.style.transform='scaleX('+(w/s).toFixed(3)+')';});});<\/script>`;
-  return { css, html: html + fit, tip: `列印方式：按 Ctrl+P，紙張選 ${+TP.paperW}×${+TP.paperH} mm（中一刀為 241×140），邊界「無」，縮放「預設」或 100%，不要勾「頁首和頁尾」。虛線框是內容範圍；格式和位置可按出貨單上的「格式」修改。` };
+  const fit = `<script>(()=>{const U=${TP.uniform ? 1 : 0};
+function F(){const all=[...document.querySelectorAll('.ln')];all.forEach(x=>{x.style.lineHeight='';x.style.fontSize='';});const B=all.length?parseFloat(getComputedStyle(all[0]).fontSize):0;document.querySelectorAll('.ln>span>i').forEach(t=>t.style.transform='');
+document.querySelectorAll('.page .body').forEach(b=>{const ls=b.querySelectorAll('.ln');if(!ls.length)return;const cs=getComputedStyle(ls[0]);let lh=parseFloat(cs.lineHeight),fs=parseFloat(cs.fontSize),n=0;while(b.scrollHeight>b.clientHeight+0.5&&n++<60){lh*=0.97;if(lh<fs*1.15)fs*=0.97;ls.forEach(x=>{x.style.lineHeight=lh+'px';x.style.fontSize=fs+'px';});}});
+if(U&&all.length){let gv=Infinity,gw=Infinity;all.forEach(x=>{const f=parseFloat(getComputedStyle(x).fontSize);gv=Math.min(gv,f);x.querySelectorAll(':scope>span>i').forEach(t=>{const w=t.parentElement.clientWidth,s=t.offsetWidth;if(s>w+0.5)gw=Math.min(gw,f*w/s*0.985);});});const g=Math.min(gv,Math.max(gw,B*0.78));all.forEach(x=>x.style.fontSize=g+'px');}
+document.querySelectorAll('.ln>span>i').forEach(t=>{const w=t.parentElement.clientWidth,s=t.offsetWidth;if(s>w+0.5)t.style.transform='scaleX('+(w/s).toFixed(3)+')';});}
+const tl=document.getElementById('ryTail');if(tl){let v=8;try{const x=localStorage.getItem('zr.ryTail');if(x!==null&&x!==''&&!isNaN(+x))v=+x;}catch(e){}const set=k=>{v=Math.max(0,Math.min(60,Math.round(k*2)/2));tl.value=v;document.documentElement.style.setProperty('--tail',v+'mm');try{localStorage.setItem('zr.ryTail',v);}catch(e){}F();};
+set(v);tl.addEventListener('change',()=>set(+tl.value||0));document.getElementById('ryTm').onclick=()=>set(v-2);document.getElementById('ryTp').onclick=()=>set(v+2);}
+window.addEventListener('load',F);})();<\/script>`;
+  const tailCtl = TP.tail ? `<div style="margin-bottom:6px"><b>行尾空白</b>（金額右邊留白）：<button id="ryTm" type="button">－</button> <input id="ryTail" type="number" min="0" max="60" step="0.5" style="width:60px"> mm <button id="ryTp" type="button">＋</button>　調整後按 Ctrl+P 再印；這台電腦會記住。每一行字一樣大，品名太長時整張一起縮小。</div>` : '';
+  return { css, html: html + fit, tip: `${tailCtl}列印方式：按 Ctrl+P，紙張選 ${+TP.paperW}×${+TP.paperH} mm（中一刀為 241×140），邊界「無」，縮放「預設」或 100%，不要勾「頁首和頁尾」。虛線框是內容範圍；格式和位置可按出貨單上的「格式」修改。` };
 }
 /** 如陽列印：照如陽舊系統出貨單的樣子（Times New Roman＋新細明體、明細不加粗、欄名「品名規格」）；其他設定沿用出貨單格式 */
-export function ruyangTpl() { const t = shipTpl(); t.font = 'times'; t.bold = false; t.blankMemo = true; const c = t.cols.find(x => x.k === 'pnname'); if (c) c.label = '品　　名　　規　　格'; return t; }
+export function ruyangTpl() { const t = shipTpl(); t.font = 'times'; t.bold = false; t.blankMemo = true; t.uniform = true; t.tail = true; const c = t.cols.find(x => x.k === 'pnname'); if (c) c.label = '品　　名　　規　　格'; const m = t.cols.find(x => x.k === 'memo'); if (m) { m.show = true; m.label = ''; } return t; }
 export function printShip(b, opt = {}) {
   const T = TYPES[b.type] || TYPES.SALE; const d = shipDoc(b, opt);
   printHTML(`${T.name} ${b.no}`, d.css, d.html, { tip: d.tip, delay: 500 });

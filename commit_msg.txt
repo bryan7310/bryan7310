@@ -1,0 +1,3 @@
+zhirui 安裝步驟：修正路徑
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
