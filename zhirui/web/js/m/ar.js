@@ -110,7 +110,7 @@ function payAll(rows, c, done) {
 }
 
 // ---------- 拍支票：AI 辨識 → 逐張核對 → 登記客票（跟電腦版「客票」同一份） ----------
-const shrink = (file, max = 1800, q = 0.85) => new Promise((ok, bad) => { const u = URL.createObjectURL(file); const img = new Image(); img.onload = () => { const k = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight)); const cv = document.createElement('canvas'); cv.width = Math.round(img.naturalWidth * k); cv.height = Math.round(img.naturalHeight * k); cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height); URL.revokeObjectURL(u); ok(cv.toDataURL('image/jpeg', q)); }; img.onerror = () => { URL.revokeObjectURL(u); bad(new Error('讀不到這張照片')); }; img.src = u; });
+export const shrink = (file, max = 1800, q = 0.85) => new Promise((ok, bad) => { const u = URL.createObjectURL(file); const img = new Image(); img.onload = () => { const k = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight)); const cv = document.createElement('canvas'); cv.width = Math.round(img.naturalWidth * k); cv.height = Math.round(img.naturalHeight * k); cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height); URL.revokeObjectURL(u); ok(cv.toDataURL('image/jpeg', q)); }; img.onerror = () => { URL.revokeObjectURL(u); bad(new Error('讀不到這張照片')); }; img.src = u; });
 async function snapCheck(file, done) {
   const w = sheet('拍支票', '<div class="card ph"><b>辨識中…</b><span class="muted">約 10～30 秒</span></div>');
   let list;
@@ -120,7 +120,7 @@ async function snapCheck(file, done) {
   const next = i => { if (i >= list.length) { toast(`${list.length} 張支票都登記好了`); done(); return; } checkForm(list[i], i, list.length, () => next(i + 1), done); };
   next(0);
 }
-function checkForm(p, i, n, onSaved, onCancel) {
+export function checkForm(p, i, n, onSaved, onCancel) {
   let cid = p.cid || '';
   const { el, close } = sheet(n > 1 ? `第 ${i + 1}／${n} 張` : '登記支票', `<div class="note" style="text-align:left;margin:0 0 8px">已由照片辨識帶入，請逐欄核對${p._ocr?.matched ? '' : p._ocr?.drawer ? `；發票人「${esc(p._ocr.drawer)}」對不到客戶，請選客戶` : ''}${p._ocr?.notes ? `；AI 提醒：${esc(p._ocr.notes)}` : ''}</div>
     <div class="card">

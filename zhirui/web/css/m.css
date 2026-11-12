@@ -3,14 +3,31 @@
   --bg: #F4F5F7; --card: #FFFFFF; --text: #1B1F24; --muted: #6B7280; --line: #E5E7EB;
   --accent: #1F4E79; --accent-ink: #FFFFFF; --good: #15803D; --bad: #C2410C; --warn: #B45309;
   --radius: 16px; --tabbar-bg: rgba(255,255,255,.92); --shadow: 0 1px 2px rgba(0,0,0,.05);
+  --card-border: 0; --h1: 26px; --quick-radius: 14px;
   color-scheme: light;
 }
+/* 四種外觀（設定 › 外觀，記在手機上）：html[data-theme]；data-auto＝iPhone 深色模式時自動用暗色 */
+:root[data-theme="dark"] {
+  --bg: #0E1116; --card: #1A1F27; --text: #E8EBF0; --muted: #9AA4B2; --line: #2A313C;
+  --accent: #4DA3FF; --accent-ink: #0E1116; --good: #3FCB7E; --bad: #FF9A4D; --warn: #F5B642;
+  --tabbar-bg: rgba(26,31,39,.92); --shadow: none; color-scheme: dark;
+}
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
+  :root[data-auto="1"] {
     --bg: #0E1116; --card: #1A1F27; --text: #E8EBF0; --muted: #9AA4B2; --line: #2A313C;
     --accent: #4DA3FF; --accent-ink: #0E1116; --good: #3FCB7E; --bad: #FF9A4D; --warn: #F5B642;
-    --tabbar-bg: rgba(26,31,39,.92); --shadow: none; color-scheme: dark;
+    --tabbar-bg: rgba(26,31,39,.92); --shadow: none; --card-border: 0; color-scheme: dark;
   }
+}
+:root[data-theme="pop"] {
+  --bg: #FFF7EC; --card: #FFFFFF; --text: #1A1A1A; --muted: #5C5346; --line: #1A1A1A;
+  --accent: #FFB547; --accent-ink: #1A1A1A; --good: #16794A; --bad: #C2410C; --warn: #A15C00;
+  --radius: 22px; --tabbar-bg: #FFFFFF; --shadow: 4px 4px 0 #1A1A1A; --card-border: 2px solid #1A1A1A; --quick-radius: 50%;
+}
+:root[data-theme="ios"] {
+  --bg: #F2F2F7; --card: #FFFFFF; --text: #000000; --muted: #8E8E93; --line: #E5E5EA;
+  --accent: #007AFF; --accent-ink: #FFFFFF; --good: #248A3D; --bad: #D70015; --warn: #B25000;
+  --radius: 12px; --tabbar-bg: rgba(249,249,249,.8); --shadow: none; --h1: 34px;
 }
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 html { -webkit-text-size-adjust: 100%; }
@@ -153,3 +170,45 @@ a.btn { box-sizing: border-box; }
 .lnr.nc { grid-template-columns: 1fr auto; }
 .lnr.nc .btn { width: auto; padding: 9px 16px; font-size: 15px; }
 small.good { color: var(--good); } small.warn { color: var(--warn); } .bad { color: var(--bad); }
+/* 外觀共用變數 */
+.card { border: var(--card-border); }
+.hd h1 { font-size: var(--h1); }
+.quick a i { border-radius: var(--quick-radius); }
+/* 活潑：四張數據卡各一色、圓形大按鈕、粗黑框 */
+:root[data-theme="pop"] .kpis .kpi:nth-child(1) { background: #FFD6A5; }
+:root[data-theme="pop"] .kpis .kpi:nth-child(2) { background: #CDEAC0; }
+:root[data-theme="pop"] .kpis .kpi:nth-child(3) { background: #BDE0FE; }
+:root[data-theme="pop"] .kpis .kpi:nth-child(4) { background: #FFC8DD; }
+:root[data-theme="pop"] .kpi span, :root[data-theme="pop"] .kpi small { color: #3A332A; }
+:root[data-theme="pop"] .kpi.good b, :root[data-theme="pop"] .kpi.alert b { color: #1A1A1A; }
+:root[data-theme="pop"] .quick a i { width: 52px; height: 52px; border: 2px solid #1A1A1A; box-shadow: 2px 2px 0 #1A1A1A; }
+:root[data-theme="pop"] .btn { border: 2px solid #1A1A1A; box-shadow: 3px 3px 0 #1A1A1A; }
+:root[data-theme="pop"] .btn.ghost { background: #FFFFFF; color: #1A1A1A; }
+:root[data-theme="pop"] .tabbar { border-top: 2px solid #1A1A1A; }
+:root[data-theme="pop"] .tabbar a.on { color: #1A1A1A; font-weight: 700; }
+:root[data-theme="pop"] .chip.on { color: #1A1A1A; border-color: #1A1A1A; }
+:root[data-theme="pop"] .list a, :root[data-theme="pop"] .list .row { border-top-color: #E8DCC8; }
+/* iOS 風：大標題、分組清單配彩色小圖示、半透明底部選單 */
+:root[data-theme="ios"] .hd h1 { font-weight: 800; letter-spacing: -.5px; }
+:root[data-theme="ios"] .quick a:nth-child(1) i { background: #34C759; }
+:root[data-theme="ios"] .quick a:nth-child(2) i { background: #007AFF; }
+:root[data-theme="ios"] .quick a:nth-child(3) i { background: #FF9500; }
+:root[data-theme="ios"] .quick a:nth-child(4) i { background: #AF52DE; }
+:root[data-theme="ios"] .quick a i { border-radius: 10px; }
+:root[data-theme="ios"] .list a, :root[data-theme="ios"] .list .row { padding: 11px 16px; }
+:root[data-theme="ios"] .sec { text-transform: none; font-size: 13px; font-weight: 400; margin-left: 16px; }
+:root[data-theme="ios"] .tabbar { border-top: .5px solid rgba(0,0,0,.2); }
+/* 設定 › 外觀 */
+.themes { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.th { border: 2px solid var(--line); border-radius: 14px; padding: 8px; background: var(--card); color: var(--text); text-align: left; }
+.th.on { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent); }
+.th i { display: block; height: 54px; border-radius: 10px; margin-bottom: 6px; position: relative; overflow: hidden; }
+.th i::after { content: ''; position: absolute; left: 10px; right: 10px; top: 12px; height: 18px; border-radius: 6px; background: var(--sw-card); box-shadow: var(--sw-sh); border: var(--sw-bd); }
+.th i::before { content: ''; position: absolute; left: 10px; width: 36px; bottom: 8px; height: 10px; border-radius: 5px; background: var(--sw-acc); }
+/* 拍照上傳 */
+.shot { display: grid; gap: 8px; }
+.thumb { width: 44px; height: 44px; object-fit: cover; border-radius: 8px; background: var(--line); flex: none; }
+img.photo { display: block; width: 100%; max-height: 260px; object-fit: contain; background: #000; border-radius: var(--radius); margin-bottom: 10px; }
+.card.ln.off { opacity: .5; }
+.gear { color: var(--muted); display: grid; place-items: center; width: 36px; height: 36px; }
+.gear svg { width: 24px; height: 24px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; }

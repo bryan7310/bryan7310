@@ -11,6 +11,8 @@ import { arPage } from './ar.js';
 import { reportPage } from './report.js';
 import { labelPage, onLabelChange } from './label.js';
 import { poPage, onPOChange } from './po.js';
+import { uploadPage, onUploadChange, uploadsWaiting } from './upload.js';
+import { settingsPage, applyTheme, themeName } from './settings.js';
 
 const $ = s => document.querySelector(s);
 const view = $('#view'), bar = $('#tabbar');
@@ -29,7 +31,7 @@ const TABS = [
   ['stock', '庫存', IC.stock],
   ['bill', '開單', IC.bill],
   ['ar', '帳款', IC.money],
-  ['up', '上傳', IC.cam, 7, ''],
+  ['up', '上傳', IC.cam],
 ];
 
 // ---------- 啟動與登入 ----------
@@ -38,7 +40,7 @@ async function boot() {
   catch (e) { return e.status === 401 ? showLogin() : showLogin('載入資料失敗：' + (e.message || e)); }
   if (store.user.role !== 'admin') return notBoss();
   bar.hidden = false;
-  store.subscribe(ch => { if (cur === 'home') route(); else if (cur === 'bill') onBillChange(view, ch); else if (cur === 'lbl') onLabelChange(view, ch); else if (cur === 'po') onPOChange(view, ch); else if (cur === 'ar' && ['receivables', 'checks_in', 'bills'].some(c => ch.has(c))) route(); });
+  store.subscribe(ch => { if (cur === 'home') route(); else if (cur === 'bill') onBillChange(view, ch); else if (cur === 'lbl') onLabelChange(view, ch); else if (cur === 'po') onPOChange(view, ch); else if (cur === 'up') onUploadChange(view, ch); else if (cur === 'ar' && ['receivables', 'checks_in', 'bills'].some(c => ch.has(c))) route(); });
   window.addEventListener('hashchange', route);
   route();
   // 舊系統進貨單會影響成本（毛利），載入後重算一次，跟電腦版一致
@@ -67,7 +69,7 @@ function notBoss() {
 let cur = '';
 function route() {
   const parts = location.hash.replace(/^#\/?/, '').split('/'); const id = parts[0].split('?')[0] || 'home';
-  const tabOf = { g: 'stock', rep: 'home', lbl: 'home', po: 'stock' };
+  const tabOf = { g: 'stock', rep: 'home', lbl: 'home', po: 'stock', set: 'home' };
   const t = TABS.find(x => x[0] === (tabOf[id] || id)) || TABS[0]; cur = tabOf[id] ? id : t[0];
   bar.innerHTML = TABS.map(([k, n, ic]) => `<a href="#${k}" class="${k === t[0] ? 'on' : ''}">${SVG(ic)}<span>${n}</span></a>`).join('');
   if (cur === 'home') home();
@@ -76,6 +78,8 @@ function route() {
   else if (cur === 'ar') arPage(view, parts[1], parts.slice(2).join('/'));
   else if (cur === 'rep') { reportPage(view); window.scrollTo(0, 0); }
   else if (cur === 'lbl') labelPage(view, parts[1], parts.slice(2).join('/'));
+  else if (cur === 'up') { uploadPage(view, parts.slice(1).join('/')); if (parts[1]) window.scrollTo(0, 0); }
+  else if (cur === 'set') settingsPage(view);
   else if (cur === 'po') { poPage(view, parts[1], parts.slice(2).join('/')); if (parts[1] === 'v') window.scrollTo(0, 0); }
   else if (cur === 'g') { goodsPage(view, decodeURIComponent(parts.slice(1).join('/'))); window.scrollTo(0, 0); }
   else placeholder(t);
@@ -108,8 +112,9 @@ function todos(C) {
   const oLate = store.list('orders').filter(o => !(o.steps || {}).done && o.due && o.due < t);
   const low = store.list('goods').filter(g => +g.safety > 0 && Object.values(C.stock[g.id] || {}).reduce((a, b) => a + b, 0) < +g.safety);
   const pendInv = C.bills.filter(b => b.type === 'SALE' && !b.invNo && !b.noInv && (b.date || '') >= '2026-01-01');
-  const dr = draftCount();
+  const dr = draftCount(), uw = uploadsWaiting();
   return [
+    [uw, `${uw} 筆拍照上傳待確認`, '#up'],
     [dr, `${dr} 張出貨單草稿待確認`, '#bill/drafts'],
     [oLate.length, `訂貨排程有 ${oLate.length} 筆逾期`, '/#orders'],
     [late.length, `${late.length} 張客票已到期還沒送代收`, '/#checks-in'],
@@ -121,7 +126,7 @@ function todos(C) {
 function home() {
   const k = homeNums(); const td = todos(k.C);
   const pct = (k.rate * 100).toFixed(1);
-  view.innerHTML = `<div class="hd"><h1>首頁</h1><span class="sub">${esc(roc(today()))}</span><span class="sp"></span><span class="sub">${esc(store.user.name)}</span></div>
+  view.innerHTML = `<div class="hd"><h1>${themeName() === 'pop' ? '嗨，老闆！' : '首頁'}</h1><span class="sub">${esc(roc(today()))}</span><span class="sp"></span><a class="gear" href="#set" aria-label="設定">${SVG('<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/>')}</a></div>
     <div class="kpis">
       <a class="card kpi" href="/#sales"><span>今日出貨額</span><b>${fmt(k.day)}</b><small>${k.dayN} 張・未稅</small></a>
       <a class="card kpi" href="#rep"><span>本月營收</span><b>${fmt(k.sales)}</b><small>${k.n} 張・未稅</small></a>
@@ -132,7 +137,7 @@ function home() {
     <div class="card quick">
       <a href="#stock"><i>${SVG(IC.stock)}</i>查庫存</a>
       <a href="#bill"><i>${SVG(IC.bill)}</i>開出貨單</a>
-      <a class="off" href="#up"><i>${SVG(IC.cam)}</i>拍照上傳</a>
+      <a href="#up"><i>${SVG(IC.cam)}</i>拍照上傳</a>
       <a href="#lbl"><i>${SVG(IC.tag)}</i>印標籤</a>
     </div>
     <div class="sec">待處理</div>
@@ -140,4 +145,5 @@ function home() {
     <div class="note">連結到「電腦版」的頁面，之後的階段會換成手機版頁面。</div>`;
 }
 
+applyTheme();
 boot();

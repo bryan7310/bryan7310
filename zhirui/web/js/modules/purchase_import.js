@@ -237,3 +237,6 @@ async function piGo(PI, m, close, onDone) {
     close(); onDone && onDone();
   } catch (e) { btn.disabled = false; btn.textContent = '建立進貨單'; err(e.message || String(e)); }
 }
+
+// 手機版拍照上傳用
+export { piMatch };

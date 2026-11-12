@@ -69,7 +69,7 @@ def web_version():
 # 用戶端一開始就整批載入、之後即時同步的集合
 LIVE_COLS = ['settings', 'contacts', 'goods', 'warehouses', 'accounts', 'bills',
              'pricing_cats', 'pricing', 'discounts', 'receivables', 'payables', 'invoices', 'purch_invoices',
-             'checks_out', 'checks_in', 'orders', 'drawings', 'labels', 'mail', 'logs', 'faxjobs', 'printjobs', 'drafts']
+             'checks_out', 'checks_in', 'orders', 'drawings', 'labels', 'mail', 'logs', 'faxjobs', 'printjobs', 'drafts', 'uploads']
 COOKIE = 'zr_session'
 LONG_POLL = 25
 # 附檔（客戶圖面）
@@ -460,6 +460,11 @@ class Handler(BaseHTTPRequestHandler):
         if path == '/api/agent' and method == 'POST':
             try:
                 return self.send_json(agent_step(self.state.data_dir, body or {}, me))
+            except OcrError as e:
+                return self.error(str(e), e.status)
+        if path == '/api/ocr/doc' and method == 'POST':
+            try:
+                return self.send_json(doc_extract(self.state.data_dir, body or {}))
             except OcrError as e:
                 return self.error(str(e), e.status)
         if path == '/api/ocr/po' and method == 'POST':
@@ -1075,8 +1080,8 @@ PO_SCHEMA = {
                 'cancelled': {'type': 'boolean'}}}}}}
 
 
-def po_extract(data_dir, body):
-    """body：data（base64）、media（application/pdf、image/jpeg…）"""
+def po_extract(data_dir, body, system=None, schema=None, ask='請讀這張採購單，依指定的 JSON 格式回傳。', tag='po'):
+    """body：data（base64）、media（application/pdf、image/jpeg…）；system／schema 沒給就是讀客戶採購單"""
     data = str(body.get('data') or '')
     media = str(body.get('media') or '')
     if not data or media not in ('application/pdf', 'image/jpeg', 'image/png', 'image/webp'):
@@ -1092,9 +1097,9 @@ def po_extract(data_dir, body):
         raise OcrError('伺服器沒有安裝 Claude 元件，請在伺服器電腦執行：python -m pip install anthropic', 500)
     blk = ({'type': 'document', 'source': {'type': 'base64', 'media_type': 'application/pdf', 'data': data}} if media == 'application/pdf'
            else {'type': 'image', 'source': {'type': 'base64', 'media_type': media, 'data': data}})
-    req = dict(model=AI_MODEL, max_tokens=16000, system=PO_PROMPT,
-               output_config={'effort': 'medium', 'format': {'type': 'json_schema', 'schema': PO_SCHEMA}},
-               messages=[{'role': 'user', 'content': [blk, {'type': 'text', 'text': '請讀這張採購單，依指定的 JSON 格式回傳。'}]}])
+    req = dict(model=AI_MODEL, max_tokens=16000, system=system or PO_PROMPT,
+               output_config={'effort': 'medium', 'format': {'type': 'json_schema', 'schema': schema or PO_SCHEMA}},
+               messages=[{'role': 'user', 'content': [blk, {'type': 'text', 'text': ask}]}])
     client = anthropic.Anthropic(api_key=key, timeout=300.0, max_retries=2)
     resp = None
     for attempt in (1, 2):
@@ -1123,8 +1128,43 @@ def po_extract(data_dir, body):
         raise OcrError('這次沒有讀完（輸出被截斷），請再試一次', 502)
     out = _parse_json_text(text)
     u = resp.usage
-    sys.stderr.write('ocr/po %s in=%s out=%s lines=%d\n' % (resp.model, u.input_tokens, u.output_tokens, len(out.get('lines') or [])))
+    sys.stderr.write('ocr/%s %s in=%s out=%s lines=%d\n' % (tag, resp.model, u.input_tokens, u.output_tokens, len(out.get('lines') or [])))
     return out
+
+
+# ---------- 手機拍照上傳：廠商進貨單、廠商報價、客戶手寫訂單 → 單頭與明細 ----------
+DOC_COMMON = """
+- 品名、規格照抄，不要改寫；料號（產品代號、廠商料號、客料號）照抄到 code，沒有就填空字串。
+- 數量、單價、金額只填數字（去掉千分位）；單位照抄（PCS、支、H、KG、千支…），沒寫填空字串；看不到單價填 0。
+- 日期一律轉成 YYYY-MM-DD（民國年要轉西元）；沒有就填空字串。
+- 被劃線刪除的明細不要列。看不清楚的欄位填空字串或 0，不要猜；doubts 寫下哪裡看不清楚。"""
+DOC_PROMPTS = {
+    'pur': '你在讀台灣螺絲業廠商開給「志瑞螺絲企業有限公司」的出貨單／送貨單（志瑞是買方、收貨方）。party 填出貨的廠商公司名稱（不是志瑞），doc_no 填廠商的出貨單號。' + DOC_COMMON,
+    'quote': '你在讀台灣螺絲業廠商給「志瑞螺絲企業有限公司」的報價單。party 填報價的廠商公司名稱（不是志瑞），doc_no 填報價單號，price 填報價單價；沒寫數量填 0。' + DOC_COMMON,
+    'order': '你在讀客戶給「志瑞螺絲企業有限公司」的訂單，可能是手寫、傳真或照片。party 填下訂單的客戶名稱（不是志瑞），doc_no 填客戶的訂單號或採購單號；手寫的字盡量辨識，不確定的寫在 doubts。' + DOC_COMMON,
+}
+DOC_SCHEMA = {
+    'type': 'object', 'additionalProperties': False,
+    'required': ['party', 'doc_no', 'date', 'doubts', 'lines'],
+    'properties': {
+        'party': {'type': 'string'}, 'doc_no': {'type': 'string'}, 'date': {'type': 'string'}, 'doubts': {'type': 'string'},
+        'lines': {'type': 'array', 'items': {
+            'type': 'object', 'additionalProperties': False,
+            'required': ['code', 'name', 'spec', 'qty', 'unit', 'price', 'amount'],
+            'properties': {
+                'code': {'type': 'string'}, 'name': {'type': 'string'}, 'spec': {'type': 'string'}, 'qty': {'type': 'number'},
+                'unit': {'type': 'string'}, 'price': {'type': 'number'}, 'amount': {'type': 'number'}}}}}}
+
+
+def doc_extract(data_dir, body):
+    """body：kind（pur 進貨單、quote 廠商報價、order 客戶訂單）、data（base64）、media"""
+    kind = str(body.get('kind') or '')
+    if kind not in DOC_PROMPTS:
+        raise OcrError('不認識的單據類型')
+    if os.environ.get('ZR_DOC_MOCK'):   # 測試用：回傳固定的辨識結果（json 檔，依 kind 分）
+        with open(os.environ['ZR_DOC_MOCK'], encoding='utf-8') as f:
+            return json.load(f).get(kind) or {'party': '', 'doc_no': '', 'date': '', 'doubts': '', 'lines': []}
+    return po_extract(data_dir, body, system=DOC_PROMPTS[kind], schema=DOC_SCHEMA, ask='請讀這張單據，依指定的 JSON 格式回傳。', tag=kind)
 
 
 # ---------- 每日自動備份 ----------
