@@ -72,7 +72,7 @@ export function findByCode(text) {
   let t = String(text || '').trim(); const m = t.match(/#g\/([^?#]+)/); if (m) t = decodeURIComponent(m[1]);
   const u = t.toUpperCase();
   return store.get('goods', t) || store.list('goods').find(g => String(g.code || '').toUpperCase() === u)
-    || store.list('goods').find(g => (g.merged || []).some(m => m.id === t || String(m.code || '').toUpperCase() === u)) || null;   // 合併掉的舊料號（舊標籤 QR）
+    || store.list('goods').find(g => (g.oldCodes || []).some(c => String(c).toUpperCase() === u) || (g.merged || []).some(m => m.id === t || String(m.code || '').toUpperCase() === u)) || null;   // 改過或合併掉的舊料號（舊標籤 QR）
 }
 
 // ---------- 選客戶（全螢幕清單） ----------

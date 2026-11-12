@@ -16,8 +16,8 @@ export default {
   render(el, { params }) { draw(el, String(params.f || '')); },
 };
 
-const FIELD = { date: '日期', no: '單號', note: '備註', name: '品名' };
-const show = (k, v) => k === 'date' ? slash(v) : String(v ?? '');
+const FIELD = { date: '日期', no: '單號', note: '備註', name: '品名', code: '料號', cat: '類別', oldCodes: '舊料號' };
+const show = (k, v) => k === 'date' ? slash(v) : Array.isArray(v) ? v.join('、') : String(v ?? '');
 async function draw(el, f) {
   el.innerHTML = '<div class="head"><h1>待確認匯入</h1></div><div class="panel"><div class="muted">載入中…</div></div>';
   if (!/^[\w-]+$/.test(f)) { el.querySelector('.panel').innerHTML = '<div class="banner">網址少了資料名稱</div>'; return; }
@@ -36,7 +36,8 @@ async function draw(el, f) {
   const upSkip = [];
   for (const u of P.updates || []) {
     const doc = store.get(u.col, u.id); const keys = Object.keys(u.set);
-    const why = !doc ? '找不到' : keys.every(k => doc[k] === u.set[k]) ? '已經改過了' : keys.some(k => doc[k] !== u.from[k]) ? '目前的內容和預期不同' : '';
+    const eq = (x, y) => JSON.stringify(x ?? null) === JSON.stringify(y ?? null);
+    const why = !doc ? '找不到' : keys.every(k => eq(doc[k], u.set[k])) ? '已經改過了' : keys.some(k => k in u.from ? !eq(doc[k], u.from[k]) : false) ? '目前的內容和預期不同' : '';
     if (!why) continue;
     if (P.skipChanged) upSkip.push({ u, why }); else errs.push(`${u.label} ${why}${why === '目前的內容和預期不同' ? '，請重新確認' : ''}`);
   }
