@@ -4,7 +4,7 @@ import { api } from '../core/api.js';
 import { toast } from '../core/ui.js';
 const ask = async (msg, o) => window.confirm(msg);
 import { cdisp } from '../core/calc.js';
-import { mailLoad, mailList, mailRead, mailMark, mailMarkMany, SORTS, mailSort, orderMail, isMailRead, mailWhen, mailFrame, attUrl, kb, classify, catName, CATS, FOLDERS, mailCo, setCat, mailDelete, mailPurge, composeInit, composeForm } from '../modules/email.js';
+import { mailLoad, mailList, mailRead, mailMark, mailMarkMany, SORTS, mailSort, orderMail, isMailRead, mailWhen, mailFrame, attUrl, kb, classify, catName, catList, FOLDERS, mailCo, setCat, mailDelete, mailPurge, composeInit, composeForm } from '../modules/email.js';
 
 const ui = { q: '', folder: 'inbox', cat: '', pick: false, checked: new Set() };
 let SHOWN = [];
@@ -24,7 +24,7 @@ export async function emailPage(view, sub, id, id2) {
     const cnt = L.counts || {};
     view.innerHTML = `<div class="hd"><a class="back" href="#home">‹ 首頁</a></div><div class="hd" style="margin-top:0"><h1>信箱</h1><span class="sp"></span><a class="chip" href="#em/c/new">＋ 寫信</a><button class="chip" id="ef">收信</button></div>
       <div class="chips" style="display:flex;gap:6px;overflow-x:auto;margin-bottom:6px">${FOLDERS.map(([k, n]) => `<button class="chip ${ui.folder === k ? 'on' : ''}" data-fd="${k}">${n}${k !== 'inbox' && cnt[k] ? ' ' + cnt[k] : ''}</button>`).join('')}</div>
-      ${inbox ? `<div class="chips" style="display:flex;gap:6px;overflow-x:auto;margin-bottom:6px"><button class="chip ${!ui.cat ? 'on' : ''}" data-ct="">全部</button>${CATS.map(([k, n]) => `<button class="chip ${ui.cat === k ? 'on' : ''}" data-ct="${k}">${n}${byCat[k] ? ` <b style="color:#1e88e5">${byCat[k]}</b>` : ''}</button>`).join('')}</div>` : ''}
+      ${inbox ? `<div class="chips" style="display:flex;gap:6px;overflow-x:auto;margin-bottom:6px"><button class="chip ${!ui.cat ? 'on' : ''}" data-ct="">全部</button>${catList().map(([k, n]) => `<button class="chip ${ui.cat === k ? 'on' : ''}" data-ct="${k}">${n}${byCat[k] ? ` <b style="color:#1e88e5">${byCat[k]}</b>` : ''}</button>`).join('')}</div>` : ''}
       <div class="search"><input type="search" id="eq" placeholder="寄件人、主旨、內容" value="${esc(ui.q)}" autocomplete="off" enterkeyhint="search"></div>
       <div class="note" style="text-align:left;margin:0 0 8px">${!L.cfg?.pass_set ? '還沒設定收信帳號，請在電腦版「電子信箱 → 收信設定」設定。' : `${st.running ? '收信中…' : st.last ? '上次收信 ' + esc(mailWhen(st.last)) : ''}${st.err ? `<br><span class="bad">${esc(st.err)}</span>` : ''}`}</div>
       <div style="display:flex;gap:6px;overflow-x:auto;margin-bottom:6px">${inbox ? SORTS.map(([k, t]) => `<button class="chip ${sort === k ? 'on' : ''}" data-so="${k}">${t}</button>`).join('') : ''}<span class="sp"></span><button class="chip ${ui.pick ? 'on' : ''}" id="epick">${ui.pick ? '完成' : '選取'}</button></div>
@@ -71,7 +71,7 @@ async function readPage(view, id) {
       ${m.to ? `<div class="muted small">收件：${esc(m.to)}</div>` : ''}
       <div class="muted small">${esc(new Date(m.date).toLocaleString('zh-TW'))}</div>
       ${(m.atts || []).map(a => `<div class="small">📎 <a href="${attUrl(m, a)}" target="_blank" rel="noopener">${esc(a.name)}</a> <span class="muted">${kb(a.size)}</span></div>`).join('')}
-      ${inbox ? `<div class="small" style="margin-top:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">分類 <select id="ecat">${CATS.map(([k, n]) => `<option value="${k}" ${k === cat ? 'selected' : ''}>${n}</option>`).join('')}</select><label><input type="checkbox" id="erule"> 以後這個寄件人都放這類</label></div>` : ''}</div>
+      ${inbox ? `<div class="small" style="margin-top:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">分類 <select id="ecat">${catList().map(([k, n]) => `<option value="${k}" ${k === cat ? 'selected' : ''}>${n}</option>`).join('')}</select><label><input type="checkbox" id="erule"> 以後這個寄件人都放這類</label></div>` : ''}</div>
     <div class="em-acts" style="display:flex;gap:8px;flex-wrap:wrap;margin:8px 0">${trash ? '<button class="btn" data-a="restore">復原</button><button class="btn ghost" data-a="purge">永久刪除</button>'
       : draft ? `<a class="btn" href="#em/c/draft/${m.id}">編輯草稿</a><button class="btn ghost" data-a="del">刪除</button>`
       : `<a class="btn" href="#em/c/reply/${m.id}">回覆</a><a class="btn ghost" href="#em/c/all/${m.id}">全部回覆</a><a class="btn ghost" href="#em/c/fwd/${m.id}">轉寄</a><button class="btn ghost" data-a="del">刪除</button>${inbox ? '<button class="btn ghost" data-a="unread">未讀</button>' : ''}`}</div>

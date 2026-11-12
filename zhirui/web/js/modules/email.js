@@ -12,41 +12,55 @@ const WEBMAIL = 'https://webmail.hinet.net/';
 let LIST = { items: [], total: 0, counts: {}, state: {}, cfg: {} }, LOADED = 0;
 const ui = { sel: '', q: '', folder: 'inbox', cat: '', checked: new Set() };
 export const FOLDERS = [['inbox', '收件匣'], ['sent', '寄件備份'], ['draft', '草稿'], ['trash', '垃圾桶']];
-export const CATS = [['C', '客戶'], ['S', '廠商'], ['order', '訂單採購'], ['quote', '報價詢價'], ['bill', '帳單付款'], ['ship', '出貨物流'], ['ad', '廣告電子報'], ['sys', '系統通知'], ['other', '其他']];
-export const catName = k => (CATS.find(x => x[0] === k) || [, '其他'])[1];
 export const mailRead = () => store.setting('mailread').read || {};
 export const isMailRead = m => !!mailRead()[m.id];
-const meta = () => store.setting('mailmeta');
 export const mailWhen = ms => { const d = new Date(ms); const p = n => String(n).padStart(2, '0'); const t = new Date(); return d.toDateString() === t.toDateString() ? `${p(d.getHours())}:${p(d.getMinutes())}` : `${d.getFullYear() === t.getFullYear() ? '' : d.getFullYear() + '/'}${p(d.getMonth() + 1)}/${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`; };
 export const mailList = () => LIST;
 
 // ---------- 智能分類 ----------
-const KW = [
-  ['ad', /電子報|優惠|促銷|折扣|限時|特價|取消訂閱|unsubscribe|newsletter|廣告|edm|promotion|sale\b/i],
-  ['bill', /帳單|發票|繳費|付款|匯款|對帳|請款|收據|扣款|入帳|invoice|statement|payment|remittance/i],
-  ['order', /訂單|採購|訂購|下單|交期|\bPO\b|purchase order/i],
-  ['quote', /報價|詢價|估價|quotation|\bquote\b|\bRFQ\b/i],
-  ['ship', /出貨|送貨|物流|貨運|託運|到貨|配送|宅配|shipping|delivery|tracking/i],
+// 分類可在「編輯分類」改：名稱、關鍵字、順序、優先、新增刪除。存在設定 mailmeta.cats；沒存過就用預設。
+// 比對順序：手動指定 > 寄件人規則 > 勾「優先」的分類（關鍵字）> 客戶／廠商（寄件人對到資料）> 其他分類照清單順序比關鍵字 > 最後一類（其他）
+export const DEFAULT_CATS = [
+  { k: 'C', n: '客戶', co: 'C' }, { k: 'S', n: '廠商', co: 'S' },
+  { k: 'order', n: '訂單採購', kw: '訂單,採購,訂購,下單,交期,purchase order' },
+  { k: 'quote', n: '報價詢價', kw: '報價,詢價,估價,quotation,quote,RFQ' },
+  { k: 'bill', n: '帳單付款', kw: '帳單,發票,繳費,付款,匯款,對帳,請款,收據,扣款,入帳,invoice,statement,payment,remittance' },
+  { k: 'ship', n: '出貨物流', kw: '出貨,送貨,物流,貨運,託運,到貨,配送,宅配,shipping,delivery,tracking' },
+  { k: 'ad', n: '廣告電子報', kw: '電子報,優惠,促銷,折扣,限時,特價,取消訂閱,unsubscribe,newsletter,廣告,edm,promotion', first: true },
+  { k: 'sys', n: '系統通知', kw: 'no-reply,noreply,service@,system,notify,notification,mailer-daemon,postmaster,驗證碼,密碼,登入通知,系統通知,安全性' },
+  { k: 'other', n: '其他' },
 ];
-const SYS = /no-?reply|service@|system|notify|notification|mailer-daemon|postmaster|驗證碼|密碼|登入通知|系統通知|安全性/i;
-let CC = new Map(), CCgen = -1;
+const meta = () => store.setting('mailmeta');
+export function cats() {
+  const L = (meta().cats || DEFAULT_CATS).filter(c => c.k !== 'other');
+  const o = (meta().cats || DEFAULT_CATS).find(c => c.k === 'other') || DEFAULT_CATS[DEFAULT_CATS.length - 1];
+  return [...L, o];
+}
+export const catList = () => cats().map(c => [c.k, c.n]);
+export const catName = k => (cats().find(c => c.k === k) || cats()[cats().length - 1]).n;
+export const kwSplit = s => String(s || '').split(/[,，、\n]+/).map(x => x.trim().toLowerCase()).filter(Boolean);
+let CC = new Map(), CCgen = -1, KC = null, KCgen = -1;
 export function mailCo(m) {
   if (CCgen !== store.gen) { CC = new Map(); CCgen = store.gen; }
   const k = m.from + '|' + m.from_name; if (CC.has(k)) return CC.get(k);
   const c = (m.folder === 'sent' || m.folder === 'draft') ? null : matchCo(m.from_name !== m.from ? m.from_name : '', '');
   CC.set(k, c); return c;
 }
+function compiled() {
+  if (KC && KCgen === store.gen) return KC;
+  const L = cats(); KC = { keys: new Set(L.map(c => c.k)), first: [], rest: [], co: {} };
+  for (const c of L) { if (c.co) { KC.co[c.co] = c.k; continue; } const kw = kwSplit(c.kw); if (kw.length) (c.first ? KC.first : KC.rest).push([c.k, kw]); }
+  KC.other = L[L.length - 1].k; KCgen = store.gen; return KC;
+}
 export function classify(m) {
-  const M = meta(); const from = String(m.from || '').toLowerCase(); const dom = from.split('@')[1] || '';
-  if (M.cat?.[m.id]) return M.cat[m.id];
-  if (M.rules?.[from]) return M.rules[from];
-  if (dom && M.rules?.['@' + dom]) return M.rules['@' + dom];
-  const t = `${m.subject} ${m.snippet} ${m.from_name} ${m.from}`;
-  if (KW[0][1].test(t)) return 'ad';
-  const c = mailCo(m); if (c) return c.kind === 'S' ? 'S' : 'C';
-  for (const [k, re] of KW.slice(1)) if (re.test(t)) return k;
-  if (SYS.test(t)) return 'sys';
-  return 'other';
+  const M = meta(); const K = compiled(); const from = String(m.from || '').toLowerCase(); const dom = from.split('@')[1] || '';
+  const ok = k => k && K.keys.has(k) ? k : '';
+  const man = ok(M.cat?.[m.id]) || ok(M.rules?.[from]) || (dom && ok(M.rules?.['@' + dom])); if (man) return man;
+  const t = `${m.subject} ${m.snippet} ${m.from_name} ${m.from}`.toLowerCase();
+  for (const [k, kw] of K.first) if (kw.some(w => t.includes(w))) return k;
+  const c = mailCo(m); if (c) { const k = K.co[c.kind === 'S' ? 'S' : 'C']; if (k) return k; }
+  for (const [k, kw] of K.rest) if (kw.some(w => t.includes(w))) return k;
+  return K.other;
 }
 export async function setCat(m, cat, rule) {
   const M = meta(); const c = { ...(M.cat || {}) }, r = { ...(M.rules || {}) };
@@ -189,9 +203,10 @@ function drawSide(el) {
   const byCat = {}; for (const m of inbox) { const k = classify(m); byCat[k] = byCat[k] || { n: 0, u: 0 }; byCat[k].n++; if (!r[m.id]) byCat[k].u++; }
   const item = (on, attrs, label, n, u) => `<a href="#" ${attrs} style="display:flex;padding:6px 8px;border-radius:6px;text-decoration:none;color:inherit;${on ? 'background:var(--sel,rgba(0,122,255,.12));font-weight:600' : ''}"><span>${label}</span><span class="sp"></span><span class="muted small">${u ? `<b style="color:#1e88e5">${u}</b>／` : ''}${n || ''}</span></a>`;
   box.innerHTML = FOLDERS.map(([k, n]) => item(ui.folder === k && !ui.cat, `data-fd="${k}"`, n, cnt[k], k === 'inbox' ? LIST.items.filter(m => !r[m.id]).length : 0)).join('')
-    + '<div class="muted small" style="margin:10px 8px 4px">收件匣分類</div>'
-    + CATS.map(([k, n]) => item(ui.folder === 'inbox' && ui.cat === k, `data-ct="${k}"`, n, byCat[k]?.n, byCat[k]?.u)).join('');
+    + '<div class="muted small" style="margin:10px 8px 4px;display:flex"><span>收件匣分類</span><span class="sp"></span><a href="#" id="emCatEdit" title="新增、改名、刪除、排序、關鍵字">編輯</a></div>'
+    + catList().map(([k, n]) => item(ui.folder === 'inbox' && ui.cat === k, `data-ct="${k}"`, n, byCat[k]?.n, byCat[k]?.u)).join('');
   box.querySelectorAll('[data-fd]').forEach(a => a.onclick = ev => { ev.preventDefault(); ui.folder = a.dataset.fd; ui.cat = ''; ui.sel = ''; ui.checked.clear(); refresh(el); el.querySelector('#emView').innerHTML = '<div class="empty"><b>點左邊的信來看</b></div>'; });
+  box.querySelector('#emCatEdit').onclick = ev => { ev.preventDefault(); catDialog(() => { ui.cat = cats().some(c => c.k === ui.cat) ? ui.cat : ''; drawSide(el); drawList(el); }); };
   box.querySelectorAll('[data-ct]').forEach(a => a.onclick = ev => { ev.preventDefault(); const was = ui.folder; ui.folder = 'inbox'; ui.cat = ui.cat === a.dataset.ct ? '' : a.dataset.ct; ui.checked.clear(); if (was !== 'inbox') refresh(el); else { drawSide(el); drawList(el); } });
 }
 function shownList() { return orderMail(ui.folder === 'inbox' && ui.cat ? CUR.items.filter(m => classify(m) === ui.cat) : CUR.items, mailSort(), ui.folder, ui.sel); }
@@ -241,7 +256,7 @@ async function openMsg(el, id) {
   v.innerHTML = `<div class="tools" style="gap:6px;margin-bottom:8px;flex-wrap:wrap;align-items:center"><button class="btn sm" data-nav="${prev ? prev.id : ''}" ${prev ? '' : 'disabled'} title="上一封（←）">‹ 上一封</button><button class="btn sm" data-nav="${next ? next.id : ''}" ${next ? '' : 'disabled'} title="下一封（→）">下一封 ›</button>${i >= 0 ? `<span class="muted small">${i + 1}／${L.length}</span>` : ''}<span style="width:8px"></span>${trash ? '<button class="btn sm" data-a="restore">復原</button><button class="btn sm danger" data-a="purge">永久刪除</button>'
       : draft ? '<button class="btn sm pri" data-a="edit">編輯草稿</button><button class="btn sm" data-a="del">刪除</button>'
       : `<button class="btn sm" data-a="reply">回覆</button><button class="btn sm" data-a="all">全部回覆</button><button class="btn sm" data-a="fwd">轉寄</button><button class="btn sm" data-a="del">刪除</button>${inbox ? '<button class="btn sm" data-a="unread">標成未讀</button>' : ''}`}
-      ${inbox ? `<span class="sp"></span><label class="small">分類 <select id="emCat">${CATS.map(([k, n]) => `<option value="${k}" ${k === cat ? 'selected' : ''}>${n}</option>`).join('')}</select></label><label class="check small"><input type="checkbox" id="emRule"> 以後這個寄件人都放這類</label>` : ''}</div>
+      ${inbox ? `<span class="sp"></span><label class="small">分類 <select id="emCat">${catList().map(([k, n]) => `<option value="${k}" ${k === cat ? 'selected' : ''}>${n}</option>`).join('')}</select></label><label class="check small"><input type="checkbox" id="emRule"> 以後這個寄件人都放這類</label>` : ''}</div>
     <div style="margin-bottom:8px"><h2 style="margin:0 0 4px;font-size:18px">${esc(m.subject)}</h2>
       <div class="small"><b>${esc(m.from_name)}</b> <span class="muted">&lt;${esc(m.from)}&gt;</span>${(c => c ? ` <span class="pill">${c.kind === 'S' ? '廠商' : '客戶'}：${esc(cdisp(c))}</span>` : '')(inbox ? mailCo(head) : null)}　<span class="muted">${esc(new Date(m.date).toLocaleString('zh-TW'))}</span></div>
       ${m.to ? `<div class="muted small">收件：${esc(m.to)}</div>` : ''}
@@ -301,3 +316,53 @@ function cfgDialog(after) {
     },
   })).catch(e => toast(e.message));
 }
+
+// ---------- 編輯分類 ----------
+function catDialog(after) {
+  let L = cats().map(c => ({ ...c })); const M0 = meta(); let rules = { ...(M0.rules || {}) };
+  const coTip = { C: '寄件人名稱對到資料裡的「客戶」', S: '寄件人名稱對到資料裡的「廠商」' };
+  modal({
+    title: '編輯信箱分類', width: 860, closeOnBg: false,
+    body: `<p class="muted small" style="margin-top:0">比對順序：手動指定的信 → 寄件人規則 → 勾「優先」的分類 → 客戶／廠商 → 其他分類照下面順序比關鍵字 → 都沒對到就放最後一類。<br>關鍵字用逗號隔開，比對主旨、內文開頭、寄件人名稱和信箱，不分大小寫。</p>
+      <div id="ceRows"></div><button class="btn sm" id="ceAdd" style="margin-top:6px">＋ 新增分類</button>
+      <h3 style="margin:16px 0 6px;font-size:15px">寄件人規則 <span class="muted small" style="font-weight:400">（看信時勾「以後這個寄件人都放這類」產生；信箱填 @網域 代表整個網域）</span></h3>
+      <div id="ceRules"></div><div style="display:flex;gap:6px;margin-top:6px"><input id="ceRAddr" placeholder="寄件人信箱或 @網域" style="flex:1"><select id="ceRCat"></select><button class="btn sm" id="ceRAdd">加入規則</button></div>
+      <div class="err" id="ceErr"></div>`,
+    footer: '<button class="btn" id="ceReset" title="分類回到預設（寄件人規則和手動指定不動）">還原預設分類</button><span class="sp"></span><button class="btn" data-close>取消</button><button class="btn pri" id="ceSave">儲存</button>',
+    onOpen(el, close) {
+      const sync = () => el.querySelectorAll('[data-row]').forEach(r => { const c = L[+r.dataset.row]; c.n = r.querySelector('[data-f=n]').value.trim(); const kw = r.querySelector('[data-f=kw]'); if (kw) c.kw = kw.value; const f = r.querySelector('[data-f=first]'); if (f) c.first = f.checked; });
+      const optCats = sel => L.map(c => `<option value="${esc(c.k)}" ${c.k === sel ? 'selected' : ''}>${esc(c.n || '（未命名）')}</option>`).join('');
+      const paint = () => {
+        const last = L.length - 1;
+        el.querySelector('#ceRows').innerHTML = `<table class="tbl" style="width:100%"><thead><tr><th style="width:150px">名稱</th><th>關鍵字／比對方式</th><th style="width:50px">優先</th><th style="width:120px"></th></tr></thead><tbody>${L.map((c, i) => `<tr data-row="${i}">
+          <td><input data-f="n" value="${esc(c.n)}" style="width:100%"></td>
+          <td>${i === last ? '<span class="muted small">都沒對到的信放這裡（固定在最後）</span>' : c.co ? `<span class="muted small">${coTip[c.co]}</span>` : `<textarea data-f="kw" rows="2" style="width:100%;font:inherit;font-size:13px">${esc(c.kw || '')}</textarea>`}</td>
+          <td style="text-align:center">${i === last || c.co ? '' : `<input type="checkbox" data-f="first" ${c.first ? 'checked' : ''} title="比客戶／廠商先比對（例如廣告）">`}</td>
+          <td class="nowrap">${i === last ? '' : `<button class="btn sm" data-up="${i}" ${i ? '' : 'disabled'} title="上移">↑</button><button class="btn sm" data-dn="${i}" ${i < last - 1 ? '' : 'disabled'} title="下移">↓</button><button class="btn sm danger" data-rm="${i}">刪除</button>`}</td></tr>`).join('')}</tbody></table>`;
+        const R = Object.entries(rules).sort((a, b) => a[0].localeCompare(b[0]));
+        el.querySelector('#ceRules').innerHTML = R.length ? `<table class="tbl" style="width:100%"><tbody>${R.map(([a, k]) => `<tr><td>${esc(a)}</td><td style="width:180px"><select data-ra="${esc(a)}">${optCats(k)}${L.some(c => c.k === k) ? '' : `<option value="${esc(k)}" selected>（已刪除的分類）</option>`}</select></td><td style="width:60px"><button class="btn sm danger" data-rr="${esc(a)}">刪除</button></td></tr>`).join('')}</tbody></table>` : '<div class="muted small">還沒有寄件人規則</div>';
+        el.querySelector('#ceRCat').innerHTML = optCats(L[0]?.k);
+        el.querySelectorAll('[data-up]').forEach(b => b.onclick = () => { sync(); const i = +b.dataset.up; [L[i - 1], L[i]] = [L[i], L[i - 1]]; paint(); });
+        el.querySelectorAll('[data-dn]').forEach(b => b.onclick = () => { sync(); const i = +b.dataset.dn; [L[i + 1], L[i]] = [L[i], L[i + 1]]; paint(); });
+        el.querySelectorAll('[data-rm]').forEach(b => b.onclick = () => { sync(); const c = L[+b.dataset.rm]; const nr = Object.values(rules).filter(k => k === c.k).length;
+          if (nr && !window.confirm(`「${c.n}」有 ${nr} 條寄件人規則，刪掉分類後這些規則會失效（信改用自動分類）。確定刪除？`)) return; L.splice(+b.dataset.rm, 1); paint(); });
+        el.querySelectorAll('[data-ra]').forEach(s => s.onchange = () => { rules[s.dataset.ra] = s.value; });
+        el.querySelectorAll('[data-rr]').forEach(b => b.onclick = () => { sync(); delete rules[b.dataset.rr]; paint(); });
+      };
+      paint();
+      el.querySelector('#ceAdd').onclick = () => { sync(); L.splice(L.length - 1, 0, { k: 'u' + Date.now().toString(36), n: '新分類', kw: '' }); paint(); const ins = el.querySelectorAll('[data-f=n]'); const x = ins[ins.length - 2]; x && (x.focus(), x.select()); };
+      el.querySelector('#ceRAdd').onclick = () => { sync(); const a = el.querySelector('#ceRAddr').value.trim().toLowerCase(); if (!/^[^\s@]*@[^\s@]+$/.test(a)) { el.querySelector('#ceErr').textContent = '請填寄件人信箱（例如 abc@xx.com.tw）或 @網域（例如 @xx.com.tw）'; return; } rules[a] = el.querySelector('#ceRCat').value; el.querySelector('#ceRAddr').value = ''; el.querySelector('#ceErr').textContent = ''; paint(); };
+      el.querySelector('#ceReset').onclick = () => { L = DEFAULT_CATS.map(c => ({ ...c })); paint(); };
+      el.querySelector('#ceSave').onclick = async () => {
+        sync(); const err = el.querySelector('#ceErr');
+        if (L.some(c => !c.n)) { err.textContent = '分類名稱不能空白'; return; }
+        if (new Set(L.map(c => c.n)).size !== L.length) { err.textContent = '分類名稱重複了'; return; }
+        const out = L.map(c => { const o = { k: c.k, n: c.n }; if (c.co) o.co = c.co; else if (c !== L[L.length - 1]) { o.kw = kwSplit(c.kw).length ? String(c.kw).split(/[,，、\n]+/).map(x => x.trim()).filter(Boolean).join(',') : ''; if (c.first) o.first = true; } return o; });
+        out[out.length - 1].k = 'other';
+        const M = meta(); await store.saveSetting('mailmeta', { ...M, cats: out, rules });
+        store.log('修改', '信箱分類'); close(); toast('已儲存分類'); after && after();
+      };
+    },
+  });
+}
+
