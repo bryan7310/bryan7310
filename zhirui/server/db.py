@@ -255,6 +255,120 @@ class DB:
         self.batch(ops, None, extra)
         return {'keep': keep, 'merged': others, 'moved': moved, 'hist': hist_n[0], 'docs': len(by_ops)}
 
+    GOODS_FILL = ('spec', 'spec2', 'custName', 'vcode', 'cat', 'unit', 'salePrice', 'purPrice', 'cost', 'safety', 'wt', 'aunit', 'arate', 'sp', 'bom', 'labor', 'cwid', 'wireOf')
+
+    def merge_goods(self, groups, uid=None):
+        """商品合併：groups=[{keep, merge:[...]}]。被併入的商品資料補到保留那筆的空欄、記在 merged，
+        所有文件裡指到它的 id（單據明細、配方、設定裡的對應…，值或鍵）與舊系統歷史單據都改成保留那筆，然後刪除。一個交易完成。"""
+        M = {}
+        keeps = {}
+        for g in groups or []:
+            keep = str(g.get('keep') or '')
+            K = self.get('goods', keep)
+            if not K:
+                raise ValueError('找不到要保留的商品 %s（可能已經合併過了）' % keep)
+            for o in dict.fromkeys(str(x) for x in (g.get('merge') or [])):
+                if not o or o == keep:
+                    continue
+                if o in M:
+                    raise ValueError('商品 %s 同時出現在兩組' % o)
+                if not self.get('goods', o):
+                    raise ValueError('找不到要併入的商品 %s（可能已經合併過了）' % o)
+                M[o] = keep
+            keeps.setdefault(keep, dict(K))
+        if not M:
+            raise ValueError('沒有要合併的商品')
+        if set(M) & set(keeps):
+            raise ValueError('保留的商品不能同時被併入別的商品')
+        empty = lambda v: v is None or v == [] or v == {} or str(v).strip() in ('', '0')
+        now = int(time.time() * 1000)
+        for o, keep in M.items():
+            K, d = keeps[keep], self.get('goods', o)
+            for f in self.GOODS_FILL:
+                if empty(K.get(f)) and not empty(d.get(f)):
+                    K[f] = d[f]
+            ks, os_ = str(K.get('spec') or '').strip(), str(d.get('spec') or '').strip()
+            if ks and os_ and ks != os_:
+                if not str(K.get('spec2') or '').strip():
+                    K['spec2'] = os_
+                elif os_ not in str(K.get('note') or ''):
+                    K['note'] = (str(K.get('note') or '').strip() + '；另一客料號 ' + os_).strip('；')
+            if d.get('dwg'):
+                have = {json.dumps(x, sort_keys=True) for x in (K.get('dwg') or [])}
+                K['dwg'] = [*(K.get('dwg') or []), *[x for x in d['dwg'] if json.dumps(x, sort_keys=True) not in have]]
+            on = str(d.get('note') or '').strip()
+            if on and on not in str(K.get('note') or ''):
+                K['note'] = (str(K.get('note') or '').strip() + '；' + on).strip('；')
+            K.setdefault('merged', []).append({'id': o, 'code': d.get('code', ''), 'name': d.get('name', ''), 'at': now})
+
+        def fix(x):
+            """把 x 裡指到被併入商品的 id 換掉；回傳 (新值, 有沒有改)"""
+            if isinstance(x, str):
+                return (M[x], True) if x in M else (x, False)
+            if isinstance(x, list):
+                ch = False
+                out = []
+                for v in x:
+                    nv, c = fix(v)
+                    out.append(nv)
+                    ch = ch or c
+                return out, ch
+            if isinstance(x, dict):
+                ch = False
+                out = {}
+                for k, v in x.items():
+                    nv, c = fix(v)
+                    ch = ch or c
+                    if k in M:
+                        ch = True
+                        if M[k] in x or M[k] in out:
+                            continue   # 保留那筆已經有自己的設定，以它為主
+                        k = M[k]
+                    out[k] = nv
+                return out, ch
+            return x, False
+
+        ops = []
+        for k, v in keeps.items():
+            if uid:
+                v['_by'] = uid
+            ops.append({'col': 'goods', 'id': k, 'data': v})
+        moved = {}
+        skip = set(M) | set(keeps)
+        for col, i, d in self.conn.execute('SELECT col, id, data FROM docs WHERE deleted=0').fetchall():
+            if col == 'goods' and i in skip:
+                continue
+            if not any(o in d for o in M):
+                continue
+            nx, ch = fix(json.loads(d))
+            if ch:
+                ops.append({'col': col, 'id': i, 'data': nx})
+                moved[col] = moved.get(col, 0) + 1
+        for o in M:
+            ops.append({'col': 'goods', 'id': o, 'delete': True})
+        hist_n = [0]
+
+        def extra(conn):
+            olds = list(M)
+            for j in range(0, len(olds), 400):
+                part = olds[j:j + 400]
+                ph = ','.join('?' * len(part))
+                bids = [r[0] for r in conn.execute('SELECT DISTINCT bill_id FROM hist_lines WHERE gid IN (%s)' % ph, part)]
+                for bid in bids:
+                    row = conn.execute('SELECT data FROM hist_bills WHERE id=?', (bid,)).fetchone()
+                    if row:
+                        nb, ch = fix(json.loads(row[0]))
+                        if ch:
+                            conn.execute('UPDATE hist_bills SET data=? WHERE id=?', (json.dumps(nb, ensure_ascii=False, separators=(',', ':')), bid))
+                            hist_n[0] += 1
+                for o in part:
+                    conn.execute('UPDATE hist_lines SET gid=? WHERE gid=?', (M[o], o))
+            if hist_n[0]:
+                conn.execute("INSERT OR REPLACE INTO meta(key,value) VALUES('hist_ver',?)", (str(int(time.time() * 1000)),))
+        # uid=None：改掛的單據保留原本的 _by（建立者）
+        self.batch(ops, None, extra)
+        return {'merged': len(M), 'keeps': len(keeps), 'moved': moved, 'hist': hist_n[0]}
+
     # ---------- 歷史單據 ----------
     def hist_replace(self, bills):
         """整批重建歷史單據（匯入用）。bills 為 dict 列表，需含 id。"""

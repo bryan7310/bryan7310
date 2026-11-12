@@ -2,18 +2,21 @@
 // 網址：#apply?f=<名稱>。不在側邊選單顯示；寫入後資料檔會被移除。
 // 資料可含：newgoods（新建商品）、wt（補單重）、bills（新建進貨單）、updates（修改既有資料：{col,id,label,from,set}）、
 // dwgs（商品掛客戶圖面：{gid,label,file,name,why}，file 是 web/pending 底下的圖檔）、
-// newwh（新建倉庫：{name}，同名已有就沿用）、kits（螺絲包配方：{gid,label,bom:[{gid|code,qty,cust}],labor,cwh(客供倉名稱),custName}）
+// newwh（新建倉庫：{name}，同名已有就沿用）、kits（螺絲包配方：{gid,label,bom:[{gid|code,qty,cust}],labor,cwh(客供倉名稱),custName}）、
+// merges（商品合併：{keep,merge:[gid],why}；伺服器 /api/goods/merge 一次做完，單據與舊系統歷史單據改掛保留的料號）
 import { $, esc, fmt, fmtQ, fp4, slash, uid } from '../core/util.js';
 import { store } from '../core/store.js';
 import { calc, totals, nextNo, defWh, cname } from '../core/calc.js';
 import { toast, confirm } from '../core/ui.js';
+import { api } from '../core/api.js';
+import { resetHistCache } from './_bills.js';
 
 export default {
   id: 'apply', name: '待確認匯入', icon: 'plus', hidden: true,
   render(el, { params }) { draw(el, String(params.f || '')); },
 };
 
-const FIELD = { date: '日期', no: '單號', note: '備註' };
+const FIELD = { date: '日期', no: '單號', note: '備註', name: '品名' };
 const show = (k, v) => k === 'date' ? slash(v) : String(v ?? '');
 async function draw(el, f) {
   el.innerHTML = '<div class="head"><h1>待確認匯入</h1></div><div class="panel"><div class="muted">載入中…</div></div>';
@@ -55,6 +58,15 @@ async function draw(el, f) {
     if (k.cwh && !whByName(k.cwh) && !(P.newwh || []).some(w => w.name === k.cwh)) errs.push(`找不到客供倉 ${k.cwh}`);
   }
   const whTodo = (P.newwh || []).filter(w => !whByName(w.name));
+  // 商品合併：保留的料號要在、被併入的料號都要在（已經不在＝合併過了）
+  const mgDone = (P.merges || []).filter(m => m.merge.every(o => !C.g[o]) && C.g[m.keep]);
+  for (const m of P.merges || []) {
+    if (!C.g[m.keep]) errs.push(`找不到要保留的商品 ${m.keepLabel || m.keep}`);
+    else if (!mgDone.includes(m) && m.merge.some(o => !C.g[o])) errs.push(`${m.keepLabel || m.keep} 那組有商品已經不在了，請重新整理清單`);
+  }
+  if (mgDone.length && mgDone.length === (P.merges || []).length) errs.push('這些商品已經合併過了');
+  const mgTodo = (P.merges || []).filter(m => !mgDone.includes(m));
+  const gLab = id => C.g[id] ? `${C.g[id].code} ${C.g[id].name}` : id;
   const newName = Object.fromEntries((P.newgoods || []).map(g => [g.code, g.name]));
   const gl = l => l.gid ? (C.g[l.gid]?.code + ' ' + C.g[l.gid]?.name) : newName[l.code] ? `${l.code} ${newName[l.code]}（新建）` : (l.n || '');
   const rows = (P.bills || []).map(b => { const t = totals({ lines: b.lines.map(l => ({ qty: l.qty, price: l.price })), tax: b.tax }); return { b, t, ok: t.sub === b.expect[0] && t.tax === b.expect[1] }; });
@@ -69,6 +81,8 @@ async function draw(el, f) {
     ${(P.kits || []).map(k => `<h3>螺絲包配方：${esc(C.g[k.gid]?.code || '')} ${esc(C.g[k.gid]?.name || k.label)}</h3>
       <p class="small">每包工錢 <b>${fp4(k.labor || 0)}</b> 元${k.laborNote ? `（${esc(k.laborNote)}）` : ''}　客供倉 <b>${esc(k.cwh || '未指定')}</b>${k.custName ? `　客戶品名 <b>${esc(k.custName)}</b>` : ''}</p>
       <div class="tw"><table><thead><tr><th>#</th><th>零件</th><th>來源</th><th class="n">每包</th><th>單位</th><th>說明</th></tr></thead><tbody>${k.bom.map((x, i) => { const g = x.gid ? C.g[x.gid] : (P.newgoods || []).find(n => n.code === x.code); return `<tr><td class="muted">${i + 1}</td><td>${esc(g ? g.code + ' ' + g.name : x.code || x.gid)}${x.gid ? '' : ' <span class="pill blue">新建</span>'}</td><td>${x.cust ? '<span class="pill warn">客供</span>' : '<span class="pill">自備</span>'}</td><td class="n">${fp4(x.qty)}</td><td>${esc(g?.unit || '')}</td><td class="small muted">${esc(x.why || '')}</td></tr>`; }).join('')}</tbody></table></div>`).join('')}
+    ${P.merges?.length ? `<h3>合併商品（${mgTodo.length} 組，${mgTodo.reduce((a, m) => a + m.merge.length, 0)} 個料號併入保留的料號）</h3><p class="small muted">被併入的料號會刪除；它的單據、庫存、舊系統歷史單據、配方、對照設定都改掛到保留的料號；保留的料號空白欄位（客料號、售價、成本…）會用被併入的補上。</p>
+      <div class="tw"><table><thead><tr><th>#</th><th>保留</th><th>併入（會刪除）</th><th>差在哪</th></tr></thead><tbody>${P.merges.map((m, i) => `<tr${mgDone.includes(m) ? ' class="muted"' : ''}><td class="muted">${i + 1}</td><td><b>${esc(gLab(m.keep))}</b>${C.g[m.keep]?.spec ? `<br><span class="small muted">客料號 ${esc(C.g[m.keep].spec)}</span>` : ''}</td><td>${m.merge.map(o => esc(C.g[o] ? gLab(o) : (m.labels?.[o] || o) + '（已併入）') + (C.g[o]?.spec ? `<br><span class="small muted">客料號 ${esc(C.g[o].spec)}</span>` : '')).join('<br>')}</td><td class="small">${esc(m.why || '')}</td></tr>`).join('')}</tbody></table></div>` : ''}
     ${rows.length ? `<h3>進貨單（${rows.length}）</h3>` : ''}
     ${rows.map(({ b, t, ok }, i) => `<details class="panel" style="padding:8px 12px;margin:6px 0"><summary><b>${esc(cname(b.sup))}</b>　${esc(slash(b.date))}　合計 ${fmt(t.sub)}　稅 ${fmt(t.tax)}　總額 <b>${fmt(t.total)}</b>　${ok ? '<span class="pill ok">與對帳單一致</span>' : '<span class="pill bad">與對帳單不符</span>'}</summary>
       <p class="muted small">${esc(b.note)}</p>
@@ -76,7 +90,7 @@ async function draw(el, f) {
     <div class="tools" style="margin-top:12px"><span class="muted small">按下之前不會寫入任何資料。</span><span class="sp"></span><button class="btn pri" id="apGo" ${errs.length || rows.some(r => !r.ok) ? 'disabled' : ''}>確認寫入</button></div>
     <div id="apOut"></div>`;
   $('#apGo', el)?.addEventListener('click', async ev => {
-    const what = [P.newgoods?.length ? `新建 ${P.newgoods.length} 個商品` : '', P.wt ? '修改 1 個商品' : '', rows.length ? `建立 ${rows.length} 張進貨單` : '', P.updates?.length ? `修改 ${P.updates.length} 筆資料` : '', dwTodo.length ? `掛 ${dwTodo.length} 張客戶圖面` : '', whTodo.length ? `新建 ${whTodo.length} 個倉庫` : '', P.kits?.length ? `設定 ${P.kits.length} 個螺絲包配方` : ''].filter(Boolean).join('、');
+    const what = [P.newgoods?.length ? `新建 ${P.newgoods.length} 個商品` : '', P.wt ? '修改 1 個商品' : '', rows.length ? `建立 ${rows.length} 張進貨單` : '', P.updates?.length ? `修改 ${P.updates.length} 筆資料` : '', dwTodo.length ? `掛 ${dwTodo.length} 張客戶圖面` : '', whTodo.length ? `新建 ${whTodo.length} 個倉庫` : '', P.kits?.length ? `設定 ${P.kits.length} 個螺絲包配方` : '', mgTodo.length ? `合併 ${mgTodo.length} 組商品（${mgTodo.reduce((a, m) => a + m.merge.length, 0)} 個料號會刪除，無法一鍵復原；每天的自動備份仍可還原）` : ''].filter(Boolean).join('、');
     if (!await confirm(`確定寫入？\n${what}。`, { ok: '確認寫入' })) return;
     ev.target.disabled = true; ev.target.textContent = '寫入中…';
     const out = $('#apOut', el);
@@ -98,6 +112,12 @@ async function draw(el, f) {
       for (const w of whTodo) store.log('新增', `倉庫 ${w.name}（${P.title || f}）`);
       for (const k of P.kits || []) store.log('修改', `商品 ${k.label}：設定螺絲包配方 ${k.bom.length} 項（${P.title || f}）`);
       for (const u of P.updates || []) store.log('修改', `${u.label}：${Object.keys(u.set).map(k => `${FIELD[k] || k} ${show(k, u.from[k])} → ${show(k, u.set[k])}`).join('、')}`);
+      let mg = null;
+      if (mgTodo.length) {
+        mg = await api.post('/api/goods/merge', { groups: mgTodo.map(m => ({ keep: m.keep, merge: m.merge })) });
+        for (const m of mgTodo) store.log('合併', `商品 ${gLab(m.keep)} ← ${m.merge.map(gLab).join('、')}（${P.title || f}）`);
+        try { const st = await api.status(); resetHistCache(st.histVer); } catch (e) { resetHistCache(); }
+      }
       let dwN = 0;
       for (const d of dwTodo) {
         const fr = await fetch('/pending/' + d.file, { cache: 'no-store' }); if (!fr.ok) throw new Error(`${d.label} 的圖檔讀不到（HTTP ${fr.status}）`);
@@ -116,7 +136,7 @@ async function draw(el, f) {
         const t = totals(doc); made.push({ no, b, t, ok: t.sub === b.expect[0] && t.tax === b.expect[1] });
         store.log('新增', `進貨單 ${no}｜${cname(b.sup)}｜${fmt(t.total)} 元（${P.title || f}）`);
       }
-      out.innerHTML = `<div class="banner info" style="margin-top:12px">已寫入。${P.updates?.length ? `<br>已修改：${P.updates.map(u => esc(u.label)).join('、')}` : ''}${dwN ? `<br>已掛客戶圖面 ${dwN} 張` : ''}${whTodo.length ? `<br>已新建倉庫：${whTodo.map(w => esc(w.name)).join('、')}` : ''}${P.kits?.length ? `<br>已設定配方：${P.kits.map(k => esc(k.label)).join('、')}` : ''}${made.length ? '<br>進貨單：<br>' : ''}${made.map(m => `${esc(m.no)}　${esc(cname(m.b.sup))}　合計 ${fmt(m.t.sub)}　稅 ${fmt(m.t.tax)}　總額 ${fmt(m.t.total)}　${m.ok ? '✓' : '✗ 與對帳單不符'}`).join('<br>')}</div>`;
+      out.innerHTML = `<div class="banner info" style="margin-top:12px">已寫入。${P.updates?.length ? `<br>已修改：${P.updates.map(u => esc(u.label)).join('、')}` : ''}${dwN ? `<br>已掛客戶圖面 ${dwN} 張` : ''}${whTodo.length ? `<br>已新建倉庫：${whTodo.map(w => esc(w.name)).join('、')}` : ''}${P.kits?.length ? `<br>已設定配方：${P.kits.map(k => esc(k.label)).join('、')}` : ''}${mg ? `<br>已合併商品 ${mg.keeps} 組、刪除 ${mg.merged} 個料號；改掛單據 ${Object.values(mg.moved || {}).reduce((a, b) => a + b, 0)} 筆、舊系統歷史單據 ${mg.hist} 張` : ''}${made.length ? '<br>進貨單：<br>' : ''}${made.map(m => `${esc(m.no)}　${esc(cname(m.b.sup))}　合計 ${fmt(m.t.sub)}　稅 ${fmt(m.t.tax)}　總額 ${fmt(m.t.total)}　${m.ok ? '✓' : '✗ 與對帳單不符'}`).join('<br>')}</div>`;
       ev.target.textContent = '已寫入'; toast('已寫入');
     } catch (e) { out.innerHTML = `<div class="banner">寫入中斷：${esc(e.message)}。請把這個畫面截圖給 Claude，不要再按一次。</div>`; ev.target.textContent = '已中斷'; }
   });

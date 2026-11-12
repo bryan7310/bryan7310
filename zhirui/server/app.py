@@ -443,6 +443,16 @@ class Handler(BaseHTTPRequestHandler):
             except ValueError as e:
                 return self.error(str(e))
             return self.send_json(dict(r, ok=True))
+        if path == '/api/goods/merge' and method == 'POST':
+            b = body or {}
+            if me.get('role', 'admin') != 'admin':
+                return self.error('只有管理者可以合併商品', 403)
+            groups = b.get('groups') if isinstance(b.get('groups'), list) else [b]
+            try:
+                r = db.merge_goods([{'keep': str(g.get('keep') or ''), 'merge': [str(x) for x in (g.get('merge') or [])]} for g in groups if isinstance(g, dict)], me['id'])
+            except ValueError as e:
+                return self.error(str(e))
+            return self.send_json(dict(r, ok=True))
         if path == '/api/restart' and method == 'POST':
             # 由啟動器（run_forever.py）執行時，結束碼 3 會被立刻重開 → 載入新程式，不需 UAC
             if not os.environ.get('ZR_LAUNCHER'):
