@@ -277,7 +277,7 @@ function checkPage(view) {
 const splitAddr = a => { const m = String(a || '').match(/^(.{2,3}[縣市].{1,4}?[區鄉鎮市])(.+)$/); return m ? [m[1], m[2]] : [String(a || ''), '']; };
 const stripZip = a => String(a || '').replace(/\s+/g, '').replace(/^\d{3,6}/, '');
 // 志瑞自己的地址（網頁版標籤列印也有同一顆「志瑞地址」）
-const OWN_ADDR = { zip: '412041', l2: '台中市大里區現岱路88號', l3: '', l4: '04 24839193  志瑞螺絲' };
+const OWN_ADDR = { zip: '412041', zx: '台中市大里區', l2: '現岱路88號', l3: '志瑞螺絲企業有限公司', l4: '04 24839193' };
 let AD = null;   // { cid, addr, zip, l2, l3, l4, copies, save, msg }
 let adView = null;
 function pickAddr(cid) {
@@ -302,6 +302,7 @@ async function drawAddr(cv, F) {
   const P = 24, full = W - P * 2;
   // 第一行郵遞區號：粗體、字距拉開
   cx.font = 'bold 42px Arial,Helvetica,sans-serif'; let x = P; for (const ch of String(F.zip || '')) { cx.fillText(ch, x, P + 36); x += cx.measureText(ch).width + 4; }
+  if (F.zx) { x += 18; fitText(cx, F.zx, W - P - x, 40, true); cx.fillText(F.zx, x, P + 36); }   // 郵遞區號後面接的字（例如志瑞地址的「台中市大里區」）
   fitText(cx, F.l2, full, 36, true); cx.fillText(F.l2, P, 140);
   fitText(cx, F.l3, full, 36, true); cx.fillText(F.l3, P, 208);
   fitText(cx, F.l4, full, 46, true); cx.textAlign = 'right'; cx.fillText(F.l4, W - P, H - 26); cx.textAlign = 'left';

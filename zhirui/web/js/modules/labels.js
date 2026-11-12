@@ -141,9 +141,9 @@ export function labelPicker(bill) {
 
 // ---------- 地址標籤：選客戶／供應商 → 向郵局查 3+3 郵遞區號 → 印 5×4 cm（郵遞區號／地址兩行／簡稱＋公司收） ----------
 let addrPick = null;
-const addrBar = () => `<div class="panel"><div class="tools" style="align-items:flex-end;gap:10px"><div class="f" style="width:min(420px,100%)"><label for="ad-c">地址標籤：客戶或供應商</label><div class="combo"><input id="ad-c" placeholder="打名稱、簡稱或編號搜尋" value="${esc(addrPick ? cdisp(store.get('contacts', addrPick)) : '')}"></div></div><button class="btn pri" id="adGo">地址列印</button><button class="btn" id="adOwn" title="志瑞自己的地址：412041／台中市大里區現岱路88號／04 24839193  志瑞螺絲">志瑞地址</button><span class="muted small">會向郵局查 3+3 郵遞區號，印之前可以先看、可以改。</span></div></div>`;
+const addrBar = () => `<div class="panel"><div class="tools" style="align-items:flex-end;gap:10px"><div class="f" style="width:min(420px,100%)"><label for="ad-c">地址標籤：客戶或供應商</label><div class="combo"><input id="ad-c" placeholder="打名稱、簡稱或編號搜尋" value="${esc(addrPick ? cdisp(store.get('contacts', addrPick)) : '')}"></div></div><button class="btn pri" id="adGo">地址列印</button><button class="btn" id="adOwn" title="志瑞自己的地址：412041 台中市大里區／現岱路88號／志瑞螺絲企業有限公司／04 24839193">志瑞地址</button><span class="muted small">會向郵局查 3+3 郵遞區號，印之前可以先看、可以改。</span></div></div>`;
 // 志瑞自己的地址標籤（一鍵列印；手機版印標籤也有同一顆）
-export const OWN_ADDR = { zip: '412041', l2: '台中市大里區現岱路88號', l3: '', l4: '04 24839193  志瑞螺絲' };
+export const OWN_ADDR = { zip: '412041', zx: '台中市大里區', l2: '現岱路88號', l3: '志瑞螺絲企業有限公司', l4: '04 24839193' };
 function bindAddr(el) {
   const inp = $('#ad-c', el); if (!inp) return;
   const kindName = c => c.kind === 'S' ? '供應商' : '客戶';
@@ -206,9 +206,9 @@ export function addrDialog(c) {
   });
 }
 const ALB_CSS = `.alb{width:50mm;height:40mm;padding:3mm 3mm 2.6mm;display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:auto 1fr 1fr auto;align-items:center;row-gap:.6mm;overflow:hidden;line-height:1.15;color:#000;font-family:"Microsoft JhengHei","微軟正黑體","PingFang TC","Noto Sans TC",sans-serif}
-.alb>div{white-space:nowrap;overflow:hidden;transform-origin:left center}.alb .z{font-size:15pt;font-weight:bold;letter-spacing:1.5pt;font-family:Arial,Helvetica,sans-serif}.alb .a{font-size:12.5pt;font-weight:bold}.alb .n{font-size:16pt;font-weight:bold;text-align:right;transform-origin:right center}`;
+.alb>div{white-space:nowrap;overflow:hidden;transform-origin:left center}.alb .z{font-size:15pt;font-weight:bold;letter-spacing:1.5pt;font-family:Arial,Helvetica,sans-serif}.alb .zx{font-size:12.5pt;letter-spacing:0;margin-left:2mm;font-family:"Microsoft JhengHei","微軟正黑體","PingFang TC","Noto Sans TC",sans-serif}.alb .a{font-size:12.5pt;font-weight:bold}.alb .n{font-size:16pt;font-weight:bold;text-align:right;transform-origin:right center}`;
 function addrLabelHTML(F, screen) {
-  return `${screen ? `<style>${ALB_CSS}</style>` : ''}<div class="alb"><div class="z">${esc(F.zip)}</div><div class="a">${esc(F.l2)}</div><div class="a">${esc(F.l3)}</div><div class="n">${esc(F.l4)}</div></div>`;
+  return `${screen ? `<style>${ALB_CSS}</style>` : ''}<div class="alb"><div class="z">${esc(F.zip)}${F.zx ? `<span class="zx">${esc(F.zx)}</span>` : ''}</div><div class="a">${esc(F.l2)}</div><div class="a">${esc(F.l3)}</div><div class="n">${esc(F.l4)}</div></div>`;
 }
 function printAddr(F, n) {
   let html = ''; for (let k = 0; k < n; k++) html += addrLabelHTML(F);
