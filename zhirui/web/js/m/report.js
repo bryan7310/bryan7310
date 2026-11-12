@@ -25,21 +25,23 @@ const lastDay = ym => { const [y, m] = ym.split('-').map(Number); return ym + '-
 function compute(hist) {
   const C = calc(); const cur = thisMonth(); const months = Array.from({ length: 6 }, (_, i) => shiftMonth(cur, i - 5));
   const M = Object.fromEntries(months.map(m => [m, { m, net: 0, cost: 0, n: 0, hn: 0, hnet: 0, miss: 0 }]));
-  const cust = new Map();
+  const cust = new Map(); const miss = new Map();
+  const addM = (b, l) => { if (!l.gid || !C.g[l.gid]) return; const x = miss.get(l.gid) || miss.set(l.gid, { gid: l.gid, n: 0, amt: 0, last: null }).get(l.gid); x.n++; x.amt += Math.round((+l.qty || 0) * (+l.price || 0)); if (!x.last || (b.date || '') > x.last.date) x.last = { date: b.date || '', price: +l.price || 0, u: l.u || '' }; };
   const addC = (cid, net, cost) => { const x = cust.get(cid) || cust.set(cid, { cid, net: 0, cost: 0 }).get(cid); x.net += net; x.cost += cost; };
   for (const b of C.bills) {
     if (b.type !== 'SALE' && b.type !== 'SALE_RET') continue; const x = M[(b.date || '').slice(0, 7)]; if (!x) continue;
     const s = b.type === 'SALE' ? 1 : -1; const net = s * (C.tot[b.id]?.net || 0), cost = s * (C.cogs[b.id] || 0);
     x.net += net; x.cost += cost; x.n++; x.miss += C.costMiss[b.id] || 0; if (x.m === cur) addC(b.cid, net, cost);
+    (b.lines || []).forEach((l, i) => { if (l.gid && !(C.costLn[b.id] || [])[i]) addM(b, l); });
   }
   for (const b of hist || []) {
     const x = M[(b.date || '').slice(0, 7)]; if (!x) continue; const s = b.type === 'SALE' ? 1 : -1;
     const net = s * totals({ ...b, hist: false, tax: false }).net; let cost = 0;
-    for (const l of b.lines || []) { if (!l.gid) continue; const r = costOf(l, b.date, C.purIdx, C.g, C.poIdx); if (r) cost += s * r.c * (+l.qty || 0); else x.miss++; }
+    for (const l of b.lines || []) { if (!l.gid) continue; const r = costOf(l, b.date, C.purIdx, C.g, C.poIdx); if (r) cost += s * r.c * (+l.qty || 0); else { x.miss++; addM(b, l); } }
     x.net += net; x.cost += cost; x.n++; x.hn++; x.hnet += net; if (x.m === cur && b.cid) addC(b.cid, net, cost);
   }
   const low = store.list('goods').filter(g => +g.safety > 0).map(g => ({ g, q: Object.values(C.stock[g.id] || {}).reduce((a, b) => a + b, 0) })).filter(x => x.q < +x.g.safety).sort((a, b) => a.q / a.g.safety - b.q / b.g.safety);
-  return { months: months.map(m => M[m]), cust: [...cust.values()].sort((a, b) => b.net - a.net), low, C };
+  return { months: months.map(m => M[m]), cust: [...cust.values()].sort((a, b) => b.net - a.net), low, C, miss: [...miss.values()].sort((a, b) => b.amt - a.amt) };
 }
 
 const pct = (p, n) => n ? (p / n * 100).toFixed(1) + '%' : '—';
@@ -73,7 +75,20 @@ export async function reportPage(view) {
       <div class="sec">本月客戶排行</div>
       <div class="card list">${k.cust.slice(0, 15).map((x, i) => `<div class="row"><span><span class="muted">${i + 1}.</span> ${esc(cdisp(k.C.ct[x.cid]) || '—')}</span><span class="go">${fmt(x.net)}<small class="muted">　${x.cost ? `毛利 ${fmt(x.net - x.cost)}（${pct(x.net - x.cost, x.net)}）` : '查不到成本'}</small></span></div>`).join('') || '<div class="row muted">本月還沒有銷貨</div>'}</div>
       <div class="sec">缺貨提醒 <span class="muted">${k.low.length} 項低於安全庫存</span></div>
-      <div class="card list">${k.low.slice(0, 20).map(x => `<a href="#g/${encodeURIComponent(x.g.id)}"><div class="gm"><b>${esc(x.g.name)}</b><small>${esc(x.g.code)}・安全庫存 ${fmtQ(x.g.safety)}</small></div><span class="go ${x.q <= 0 ? 'bad' : ''}">${fmtQ(x.q)} ›</span></a>`).join('') || '<div class="row muted">沒有低於安全庫存的商品 ✓</div>'}</div>`;
+      <div class="card list">${k.low.slice(0, 20).map(x => `<a href="#g/${encodeURIComponent(x.g.id)}"><div class="gm"><b>${esc(x.g.name)}</b><small>${esc(x.g.code)}・安全庫存 ${fmtQ(x.g.safety)}</small></div><span class="go ${x.q <= 0 ? 'bad' : ''}">${fmtQ(x.q)} ›</span></a>`).join('') || '<div class="row muted">沒有低於安全庫存的商品 ✓</div>'}</div>
+      <div class="sec" id="nocost">查不到成本的商品 <span class="muted">${k.miss.length} 項・近 6 個月</span></div>
+      ${k.miss.length ? `<div class="note" style="text-align:left;margin:0 0 8px">這些商品找不到進貨單、採購單或查價牌價，毛利把成本算成 0。填「每 1 單位的成本」按儲存，會存到商品的「手動成本」（跟電腦版商品資料同一欄），毛利馬上重算。依近 6 個月銷售金額由大到小。</div>` : ''}
+      <div id="ncl">${k.miss.slice(0, 60).map(x => { const g = k.C.g[x.gid]; return `<div class="card ln" data-g="${x.gid}"><div class="gm"><b>${esc(g.name)}</b><small>${esc(g.code || '')}・${x.n} 筆・${fmt(x.amt)} 元${x.last ? `・最近售價 ${x.last.price}${x.last.u ? '/' + esc(x.last.u) : ''}` : ''}</small></div>
+        <div class="lnr nc"><label>成本（每 ${esc(g.unit || '單位')}）<input inputmode="decimal" data-c="${x.gid}" placeholder="例如 0.35"></label><button class="btn ghost" data-sv="${x.gid}">儲存</button></div></div>`; }).join('') || '<div class="card"><div class="row muted">都查得到成本 ✓</div></div>'}</div>
+      ${k.miss.length > 60 ? `<div class="note">只列前 60 項（共 ${k.miss.length} 項），填完會自動補上下一批。</div>` : ''}`;
+    view.querySelector('#ncl').addEventListener('click', async ev => {
+      const b = ev.target.closest('[data-sv]'); if (!b) return; const gid = b.dataset.sv; const inp = view.querySelector(`[data-c="${gid}"]`);
+      const v = +String(inp.value).replace(/[,\s]/g, ''); if (!(v > 0)) { inp.focus(); return; }
+      const g = store.get('goods', gid); if (!g) return; const { id, ...rest } = g; b.disabled = true;
+      try { await store.save('goods', id, { ...rest, cost: v }); store.log('修改', `商品「${g.name}」手動成本 ${v}（手機報表）`); }
+      catch (e) { b.disabled = false; alert('儲存失敗：' + e.message); return; }
+      const y = window.scrollY; draw(hist); window.scrollTo(0, y);
+    });
     const tip = view.querySelector('#tip');
     view.querySelectorAll('.chart .bar').forEach(g => g.addEventListener('click', () => {
       const x = ms[+g.dataset.i]; view.querySelectorAll('.chart .bar').forEach(b => b.classList.toggle('on', b === g));

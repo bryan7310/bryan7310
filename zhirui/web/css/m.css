@@ -150,3 +150,5 @@ a.chip { display: inline-block; }
 label.check { display: flex; gap: 8px; align-items: center; font-size: 14px; margin: 8px 0; color: var(--text); }
 .lnr .chip { align-self: end; margin-bottom: 4px; }
 a.btn { box-sizing: border-box; }
+.lnr.nc { grid-template-columns: 1fr auto; }
+.lnr.nc .btn { width: auto; padding: 9px 16px; font-size: 15px; }
