@@ -65,7 +65,7 @@ export async function drawLabel(cv, it, opt = {}) {
   const half = full - (qrW ? qrW + 12 : 0);
   let px = fitText(cx, it.name, full, 54, true); cx.fillText(it.name, P, P + px * 0.92);
   const l2 = [it.spec, it.fin].filter(Boolean).join('　');
-  px = fitText(cx, l2, full, 42, false); cx.fillText(l2, P, 128);
+  px = fitText(cx, l2, full, 42, true); cx.fillText(l2, P, 128);
   px = fitText(cx, it.qty, half, 46, true); cx.fillText(it.qty, P, 212);
   px = fitText(cx, it.date, half, 32, false); cx.fillText(it.date, P, H - P - 8);
   // 轉純黑白（熱感印表機沒有灰階）
