@@ -3,7 +3,8 @@ import { $, esc, fmt, fmtQ, fp4, money, today, thisMonth, slash, roc, downloadTe
 import { store } from '../core/store.js';
 import { api } from '../core/api.js';
 import { tabs, combo, printHTML, toast, onSearch } from '../core/ui.js';
-import { calc, TYPES, totals, lineAmt, cname, cshort, gname, customers, suppliers } from '../core/calc.js';
+import { calc, TYPES, totals, lineAmt, cname, cshort, gname, customers, suppliers, costOf } from '../core/calc.js';
+import { openMaster } from './master.js';
 import { openBill } from './_bills.js';
 import { printName } from '../core/names.js';
 import { mailImport } from './mail.js';
@@ -18,9 +19,9 @@ export default {
   render(el) { this.el = el; draw(el); },
   onChange(ch) { if (this.el?.isConnected && (ch.has('bills') || ch.has('goods') || ch.has('contacts'))) draw(this.el); },
 };
-const TABS = [['ar', '應收帳款明細'], ['ship', '客戶出貨明細'], ['sales', '銷售利潤'], ['goods', '商品銷售彙總'], ['customer', '客戶對帳單'], ['purchase', '進貨統計'], ['stock', '庫存金額']];
+const TABS = [['ar', '應收帳款明細'], ['ship', '客戶出貨明細'], ['sales', '銷售利潤'], ['nocost', '未知成本明細'], ['goods', '商品銷售彙總'], ['customer', '客戶對帳單'], ['purchase', '進貨統計'], ['stock', '庫存金額']];
 const NEED_CUST = { ship: 1, customer: 1 };
-const NEED_GOODS = { ship: 1, goods: 1, stock: 1 };  // 這些報表可以用商品篩選
+const NEED_GOODS = { ship: 1, goods: 1, stock: 1, nocost: 1 };  // 這些報表可以用商品篩選
 const dstr = d => isoOf(d);
 function draw(el) {
   const hasRange = ui.tab !== 'stock';
@@ -139,8 +140,44 @@ async function body(el) {
     let tn = 0, tc = 0, miss = 0;
     const rows = bills.map(b => { const s = b.type === 'SALE' ? 1 : -1; const net = s * (C.tot[b.id]?.net || 0), cg = s * (C.cogs[b.id] || 0); tn += net; tc += cg; miss += C.costMiss[b.id] || 0; return [slash(b.date), b.no + (s < 0 ? '（退回）' : ''), cshort(b.cid), fmt(net), fmt(cg), fmt(net - cg), net ? Math.round((net - cg) / net * 100) + '%' : '']; });
     last = { title: `銷售利潤 ${ui.from}～${ui.to}`, head: ['日期', '單號', '客戶', '未稅金額', '成本', '毛利', '毛利率'], rows, foot: ['合計', `${bills.length} 張`, '', fmt(tn), fmt(tc), fmt(tn - tc), tn ? Math.round((tn - tc) / tn * 100) + '%' : ''] };
-    box.innerHTML = `<div class="kpis"><div class="kpi"><span>銷貨（未稅）</span><b>${fmt(tn)}</b></div><div class="kpi"><span>成本</span><b>${fmt(tc)}</b></div><div class="kpi ok"><span>毛利</span><b>${fmt(tn - tc)}</b><small>${tn ? Math.round((tn - tc) / tn * 100) + '%' : ''}</small></div></div>${miss ? `<div class="banner">期間內有 ${miss} 行商品找不到成本（進貨單、採購單、查價牌價都沒有），成本以 0 計，毛利會偏高。可到「基本資料 → 商品」填手動成本。</div>` : ''}<div class="muted small">只含新平台的出貨單；舊系統搬來的歷史單據沒有成本資料，不在此計算。</div>${table(last, bills.map(b => b.id))}`;
+    box.innerHTML = `<div class="kpis"><div class="kpi"><span>銷貨（未稅）</span><b>${fmt(tn)}</b></div><div class="kpi"><span>成本</span><b>${fmt(tc)}</b></div><div class="kpi ok"><span>毛利</span><b>${fmt(tn - tc)}</b><small>${tn ? Math.round((tn - tc) / tn * 100) + '%' : ''}</small></div></div>${miss ? `<div class="banner">期間內有 ${miss} 行商品找不到成本（進貨單、採購單、查價牌價都沒有），成本以 0 計，毛利會偏高。可到 <a href="#" id="toNc">未知成本明細</a> 填成本。</div>` : ''}<div class="muted small">只含新平台的出貨單；舊系統搬來的歷史單據沒有成本資料，不在此計算。</div>${table(last, bills.map(b => b.id))}`;
     bindRows();
+    $('#toNc', box)?.addEventListener('click', ev => { ev.preventDefault(); ui.tab = 'nocost'; draw(el); });
+  } else if (ui.tab === 'nocost') {
+    // 期間內出貨了、但查不到成本（進貨單、採購單、查價牌價都沒有）的商品；含舊系統歷史出貨單。填的成本存到商品「手動成本」。
+    box.innerHTML = '<div class="muted">載入中…</div>';
+    let hist; try { hist = await histSales(ui.from, ui.to); } catch (e) { hist = []; toast('歷史單據載入失敗：' + (e.message || e)); }
+    if (!box.isConnected || ui.tab !== 'nocost') return;
+    const m = new Map();
+    const add = (b, l, s) => {
+      if (!l.gid || !C.g[l.gid] || !gmatch(l.gid)) return;
+      const x = m.get(l.gid) || m.set(l.gid, { gid: l.gid, n: 0, a: 0, last: null }).get(l.gid);
+      x.n++; x.a += s * Math.round((+l.qty || 0) * (+l.price || 0));
+      if (s > 0 && (!x.last || (b.date || '') >= x.last.date)) x.last = { date: b.date || '', cid: b.cid, price: +l.price || 0, u: l.u || (l.unit === 'a' ? C.g[l.gid].aunit : C.g[l.gid].unit) || '' };
+    };
+    for (const b of C.bills) { if ((b.type !== 'SALE' && b.type !== 'SALE_RET') || !inR(b)) continue; const s = b.type === 'SALE' ? 1 : -1; (b.lines || []).forEach((l, i) => { if (l.gid && !(C.costLn[b.id] || [])[i]) add(b, l, s); }); }
+    for (const b of hist) { const s = b.type === 'SALE' ? 1 : -1; for (const l of b.lines || []) if (l.gid && !costOf(l, b.date, C.purIdx, C.g, C.poIdx)) add(b, l, s); }
+    const list = [...m.values()].sort((a, b) => b.a - a.a);
+    const lastTxt = x => x.last ? `${slash(x.last.date)} ${cshort(x.last.cid) || ''}` : '';
+    const priceTxt = x => x.last ? `${fp4(x.last.price)}${x.last.u ? ' / ' + x.last.u : ''}` : '';
+    last = { title: `未知成本明細 ${ui.from}～${ui.to}`, head: ['料號', '品名', '客料號', '單位', '出貨筆數', '銷售金額', '最近出貨', '最近售價'],
+      rows: list.map(x => { const g = C.g[x.gid]; return [g.code || '', g.name, g.spec || '', g.unit || '', String(x.n), fmt(x.a), lastTxt(x), priceTxt(x)]; }),
+      foot: ['合計', `${list.length} 項`, '', '', String(sum(list, x => x.n)), fmt(sum(list, x => x.a)), '', ''] };
+    box.innerHTML = `<div class="kpis"><div class="kpi"><span>查不到成本的商品</span><b>${list.length}</b><small>項</small></div><div class="kpi"><span>出貨筆數</span><b>${sum(list, x => x.n)}</b></div><div class="kpi"><span>這些品項的銷售金額</span><b>${fmt(sum(list, x => x.a))}</b><small>毛利把成本算成 0</small></div></div>
+      <div class="muted small" style="margin:6px 0">期間內出貨過、但找不到進貨單、採購單或查價牌價的商品（含舊系統歷史出貨單），依銷售金額由大到小。在「成本」填每 1 個基本單位的成本，按 Enter 或「儲存」會存到商品的「手動成本」，毛利馬上重算；點該列其他地方可以修改商品資料。</div>
+      ${list.length ? `<div class="tw"><table><thead><tr><th>料號</th><th>品名</th><th>客料號</th><th>單位</th><th class="n">出貨筆數</th><th class="n">銷售金額</th><th>最近出貨</th><th class="n">最近售價</th><th class="n">成本（每單位）</th><th></th></tr></thead><tbody>
+      ${list.map(x => { const g = C.g[x.gid]; return `<tr class="row" data-ncg="${x.gid}" title="點一下修改商品資料"><td class="mono nowrap">${esc(g.code || '')}</td><td>${esc(g.name)}</td><td>${esc(g.spec || '')}</td><td class="muted">${esc(g.unit || '')}</td><td class="n">${x.n}</td><td class="n">${fmt(x.a)}</td><td class="nowrap">${esc(lastTxt(x))}</td><td class="n nowrap">${esc(priceTxt(x))}</td><td class="n"><input class="num" data-ncc="${x.gid}" inputmode="decimal" placeholder="例如 0.35" style="width:100px" aria-label="${esc(g.name)} 成本"></td><td class="nowrap"><button type="button" class="btn sm pri" data-ncs="${x.gid}">儲存</button> <button type="button" class="btn sm" data-nce="${x.gid}">修改商品</button></td></tr>`; }).join('')}</tbody>
+      <tfoot><tr><td colspan="4">合計 ${list.length} 項</td><td class="n">${sum(list, x => x.n)}</td><td class="n">${fmt(sum(list, x => x.a))}</td><td colspan="4"></td></tr></tfoot></table></div>` : '<div class="empty"><b>這段期間出貨的商品都查得到成本 ✓</b></div>'}`;
+    const saveCost = async gid => {
+      const inp = box.querySelector(`[data-ncc="${gid}"]`); const raw = String(inp.value).replace(/[,\s]/g, ''); const v = +raw;
+      if (!raw || !(v > 0)) { inp.focus(); return toast('請填大於 0 的成本'); }
+      const g = store.get('goods', gid); if (!g) return; const { id, ...rest } = g;
+      try { await store.save('goods', id, { ...rest, cost: v }); } catch (e) { return toast('儲存失敗：' + (e.message || e)); }
+      store.log('修改', `商品「${g.name}」手動成本 ${v}（未知成本明細）`); toast(`已存「${g.code || g.name}」成本 ${v}`);
+    };
+    box.querySelectorAll('[data-ncc]').forEach(i => i.addEventListener('keydown', ev => { if (ev.key === 'Enter') { ev.preventDefault(); saveCost(i.dataset.ncc); } }));
+    box.querySelectorAll('[data-ncs]').forEach(b => b.addEventListener('click', () => saveCost(b.dataset.ncs)));
+    box.querySelectorAll('tr[data-ncg]').forEach(tr => tr.addEventListener('click', ev => { if (ev.target.closest('input') || ev.target.closest('[data-ncs]')) return; const g = store.get('goods', tr.dataset.ncg); if (g) openMaster('goods', g, null, () => body(el)); }));
   } else if (ui.tab === 'customer') {
     if (!ui.cid) { box.innerHTML = '<div class="empty"><b>請先選客戶</b></div>'; return; }
     const c = C.ct[ui.cid]; const bills = C.bills.filter(b => b.cid === ui.cid && !TYPES[b.type].doc && !b.hist && inR(b)).sort((a, b) => (a.date || '').localeCompare(b.date || '') || (a.createdAt || 0) - (b.createdAt || 0));
