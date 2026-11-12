@@ -9,7 +9,7 @@ import { labelPicker } from './labels.js';
 import { faxDialog } from './faxes.js';
 import { openMaster } from './master.js';
 import { openAsm, asmContent } from './assembly.js';
-import { printShip, shipFormat, shipImportLines, shipTemplateXlsx, stockAdjust, specView, billKg, kgText, songquanParse, songquanLines, printSongquan } from './ship.js';
+import { printShip, shipFormat, shipImportLines, shipTemplateXlsx, stockAdjust, specView, billKg, kgText, songquanParse, songquanLines, printSongquan, ruyangRead, ruyangLines } from './ship.js';
 
 export const billText = b => { const C = calc(); const c = C.ct[b.cid]; return [b.no, c?.code, c?.name, c?.short, b.cn, b.note, ...(b.lines || []).flatMap(l => { const g = C.g[l.gid]; return [g?.code, g?.name, g?.spec, l.n, l.memo]; })].filter(Boolean).join(' '); };
 export const partyLabel = b => { const C = calc(); const c = C.ct[b.cid]; return c ? cdisp(c) : (b.cn || '—'); };
@@ -227,14 +227,14 @@ function drawBill() {
       ${T.doc ? `<div class="f"><label for="b-valid">${e.type === 'PO' ? '交期' : '有效期限'}</label><input type="date" id="b-valid" value="${esc(e.valid || e.deliv || '')}"></div><div class="f"><label for="b-attn">聯絡人</label><input id="b-attn" value="${esc(e.attn || '')}"></div>` : ''}
     </div>
     ${T.lines ? `<div class="tw"><table class="lines" id="lines"><thead><tr><th style="width:44px" class="c">項次</th><th style="min-width:260px">商品</th><th style="width:100px" class="r">數量</th><th style="width:96px">單位</th>${priced ? '<th style="width:100px" class="r">單價</th><th style="width:90px" class="r">小計</th>' : ''}<th style="width:170px">${ship ? '備註（印在出貨單最後一欄）' : '備註'}</th>${showCost ? '<th style="width:90px" class="r">成本單價</th><th style="width:170px">成本來源</th>' : ''}<th style="width:30px"></th></tr></thead><tbody>${e.lines.map((l, i) => lineRow(l, i)).join('')}</tbody></table></div>
-      <div class="tools"><button class="btn sm" id="addLine">＋ 加一行</button><button class="btn sm" id="addTxt">＋ 加備註</button><button class="btn sm" id="newGoods">＋ 新增商品</button>${ship ? '<button class="btn sm" id="xlLines">從 Excel 匯入明細</button><button class="btn sm" id="xlTpl">下載匯入範本</button><span class="muted small">Excel 欄位：客料號、數量、採購單號</span>' : ''}${ship && e.type === 'SALE' ? '<button class="btn sm" id="sqPdf" title="匯入崧泉 ERP 的「訂單出貨憑證」PDF：明細加進這張單，出貨單號、日期等資訊一起記下">匯入崧泉出貨單 PDF</button>' : ''}</div>
+      <div class="tools"><button class="btn sm" id="addLine">＋ 加一行</button><button class="btn sm" id="addTxt">＋ 加備註</button><button class="btn sm" id="newGoods">＋ 新增商品</button>${ship ? '<button class="btn sm" id="xlLines">從 Excel 匯入明細</button><button class="btn sm" id="xlTpl">下載匯入範本</button><span class="muted small">Excel 欄位：客料號、數量、採購單號</span>' : ''}${ship && e.type === 'SALE' ? '<button class="btn sm" id="sqPdf" title="匯入崧泉 ERP 的「訂單出貨憑證」PDF：明細加進這張單，出貨單號、日期等資訊一起記下">匯入崧泉出貨單 PDF</button><button class="btn sm" id="ryPo" title="匯入如陽科技的「採購憑單」（PDF 或照片）：用 AI 讀出採購單號和明細，依產品編號（客料號）對到商品；劃線取消的行會跳過">匯入如陽採購單</button>' : ''}</div>
       ${ship ? `<div class="sumbox"><div><span>總重（約）</span><b id="t-wt" title="依商品單重計算；沒填單重的用規格估算"></b></div><div><span>商品小計</span><b id="t-sub"></b></div><div><label class="check"><input type="checkbox" id="b-tax" ${e.tax ? 'checked' : ''}> 加 5% 營業稅</label><b id="t-tax"></b></div><div class="big"><span>合計</span><b id="t-total"></b></div></div>`
       : T.party ? `<div class="tools" style="justify-content:flex-end"><label class="check"><input type="checkbox" id="b-tax" ${e.tax ? 'checked' : ''}> 加 5% 營業稅</label><div class="f" style="width:120px"><input id="b-disc" class="num" placeholder="折讓" value="${e.disc || ''}" title="整單折讓金額"></div></div>
         <div class="totals"><div><span>總重（約）</span> <b id="t-wt"></b></div><div><span>小計</span> <b id="t-sub"></b></div><div><span>稅額</span> <b id="t-tax"></b></div><div class="big"><span>總額</span> <b id="t-total"></b></div>${!T.doc ? `<div><span>${T.party === 'C' ? '已收' : '已付'}</span> <input id="b-paid" class="num" style="width:110px;border:1px solid var(--line);border-radius:6px;padding:5px 8px;text-align:right" value="${e.paid || ''}"></div><div><span>結算帳戶</span> <select id="b-aid" style="border:1px solid var(--line);border-radius:6px;padding:5px 8px">${accts.map(a => `<option value="${a.id}" ${a.id === e.aid ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}</select></div><div><span>尚欠</span> <b id="t-due"></b></div>` : ''}</div>` : ''}` : ''}
     <div class="f"><label for="b-note">${ship ? '整張單備註（各行都沒填備註時，印在出貨單第一行最後一欄）' : '備註'}</label><textarea id="b-note" style="min-height:44px">${esc(e.note || '')}</textarea></div>
     ${e._err ? `<div class="err">${esc(e._err)}</div>` : ''}`;
   let footer = ship
-    ? `<div class="dd" id="prDD"><button class="btn" id="prMenu" aria-haspopup="true" aria-expanded="false">列印 ▾</button><div class="dd-menu" hidden><button class="btn" id="printShip">列印出貨單</button><button class="btn" id="printShipPn" title="品名前加印客料號">料號列印</button><button class="btn" id="printShipNa">列印（不含金額）</button><button class="btn" id="printShipPnNa" title="品名前加印客料號，不印單價、金額">豐餘列印</button>${e.type === 'SALE' ? '<button class="btn" id="printSq" title="照崧泉「訂單出貨憑證」的欄位重印">崧泉列印</button>' : ''}</div></div><button class="btn sm" id="shipFmt" title="調整出貨單格式">格式</button><button class="btn" id="lblBill" ${e.id ? '' : 'title="會先儲存這張單"'}>標籤</button>${e.type === 'SALE' ? `<button class="btn" id="stkAdj" ${e.id ? '' : 'title="會先儲存這張單"'}>調整即時庫存</button>` : ''}<button class="btn danger" id="delBill" ${e.id ? '' : 'disabled title="還沒儲存的單據不用刪除"'}>刪除單據</button><span class="sp"></span><button class="btn" data-close>取消</button><button class="btn pri" id="saveBill">儲存</button>`
+    ? `<div class="dd" id="prDD"><button class="btn" id="prMenu" aria-haspopup="true" aria-expanded="false">列印 ▾</button><div class="dd-menu" hidden><button class="btn" id="printShip">列印出貨單</button><button class="btn" id="printShipPn" title="品名前加印客料號">料號列印</button><button class="btn" id="printShipNa">列印（不含金額）</button><button class="btn" id="printShipPnNa" title="品名前加印客料號，不印單價、金額">豐餘列印</button><button class="btn" id="printRy" title="照如陽舊系統的出貨單：客料號＋品名、單價、金額、採購單號">如陽列印</button>${e.type === 'SALE' ? '<button class="btn" id="printSq" title="照崧泉「訂單出貨憑證」的欄位重印">崧泉列印</button>' : ''}</div></div><button class="btn sm" id="shipFmt" title="調整出貨單格式">格式</button><button class="btn" id="lblBill" ${e.id ? '' : 'title="會先儲存這張單"'}>標籤</button>${e.type === 'SALE' ? `<button class="btn" id="stkAdj" ${e.id ? '' : 'title="會先儲存這張單"'}>調整即時庫存</button>` : ''}<button class="btn danger" id="delBill" ${e.id ? '' : 'disabled title="還沒儲存的單據不用刪除"'}>刪除單據</button><span class="sp"></span><button class="btn" data-close>取消</button><button class="btn pri" id="saveBill">儲存</button>`
     : `${e.id ? `<button class="btn danger" id="delBill">刪除</button>` : ''}${e.id && T.doc ? `<button class="btn" id="faxBill">傳真</button>` : ''}${e.id && (e.type === 'QUO' || e.type === 'PO' || e.type === 'PUR') ? `<button class="btn" id="printBill">列印</button>` : ''}${e.id && e.type === 'QUO' && !e.toBill ? `<button class="btn" id="toSale">轉成銷貨單</button>` : ''}${e.id && e.type === 'PO' && !e.received ? `<button class="btn" id="toPur">轉成進貨單</button>` : ''}<span class="sp"></span><button class="btn" data-close>取消</button><button class="btn pri" id="saveBill">儲存</button>`;
   const nav = navList(e.type); const pos = e.id ? nav.findIndex(b => b.id === e.id) : nav.length;
   let headExtra = T.lines ? `<button class="btn sm" id="navPrev" ${pos > 0 ? '' : 'disabled'} title="Alt+←">◀ 上一張</button><button class="btn sm" id="navNext" ${e.id && pos < nav.length - 1 ? '' : 'disabled'} title="Alt+→">下一張 ▶</button><button class="btn sm pri" id="saveBill2" title="Ctrl+S">儲存</button><button class="btn sm" id="dlgMax">${ls.get('zr.billMax', false) ? '還原' : '放大'}</button>` : '';
@@ -340,6 +340,7 @@ function bindBill(el, close) {
   el.querySelector('#printShipPn')?.addEventListener('click', () => hasLines() && printShip(e, { pn: true }));
   el.querySelector('#printShipNa')?.addEventListener('click', () => hasLines() && printShip(e, { noAmt: true }));
   el.querySelector('#printShipPnNa')?.addEventListener('click', () => hasLines() && printShip(e, { pn: true, noAmt: true }));
+  el.querySelector('#printRy')?.addEventListener('click', () => hasLines() && printShip(e, { pn: true, label: '如陽列印' }));
   el.querySelector('#printSq')?.addEventListener('click', () => hasLines() && printSongquan(e));
   // 列印下拉選單
   const prDD = el.querySelector('#prDD');
@@ -371,6 +372,34 @@ function bindBill(el, close) {
     } catch (err) { toast('匯入失敗：' + (err.message || err)); }
   };
   el.querySelector('#sqPdf')?.addEventListener('click', () => sqf.click());
+  // 匯入如陽採購單（採購憑單 PDF 或照片，用 Claude 讀）
+  const ryf = document.createElement('input'); ryf.type = 'file'; ryf.accept = '.pdf,application/pdf,image/*'; ryf.multiple = true;
+  ryf.onchange = async () => {
+    const files = [...ryf.files]; ryf.value = ''; if (!files.length) return;
+    const btn = el.querySelector('#ryPo'); if (btn) btn.disabled = true;
+    const done = [], fail = [], warn = [];
+    for (const [k, f] of files.entries()) {
+      const b1 = el.querySelector('#ryPo'); if (b1) b1.textContent = `AI 讀取中 ${k + 1}/${files.length}…`;
+      try {
+        const P = await ruyangRead(f);
+        const po = String(P.po_no || '').trim();
+        if (po && e.lines.some(l => l.memo === po) && !await confirm(`如陽採購單 ${po} 已經匯入過這張單，還要再匯入一次嗎？`, { ok: '再匯入' })) continue;
+        if (!e.cid) { const c = customers().find(x => /如陽/.test(x.name)); if (c) e.cid = c.id; }
+        else if (!/如陽/.test(store.get('contacts', e.cid)?.name || '') && !warn.includes('客戶')) { warn.push('客戶'); toast('提醒：這張單的客戶不是如陽'); }
+        const r = ruyangLines(P, e);
+        const dues = [...new Set(P.lines.filter(x => !x.cancelled && x.due).map(x => x.due))];
+        const tag = `如陽採購單 ${po}（採購日 ${P.po_date || '?'}${dues.length ? `，預進貨日 ${dues.join('、')}` : ''}）`;
+        if (po && !String(e.note || '').includes(po)) e.note = [String(e.note || '').trim(), tag].filter(Boolean).join('\n');
+        e.lines = e.lines.filter(l => l.gid || l.n || +l.qty || (l.txt !== undefined && String(l.txt).trim())).concat(r.add);
+        done.push(`${po || f.name}：${r.add.length} 項${r.cancelled.length ? `（${r.cancelled.length} 項劃線取消沒匯入：${r.cancelled.join('、')}）` : ''}${r.miss.length ? `（${r.miss.length} 項找不到商品，已用品名先填：${r.miss.slice(0, 3).join('、')}）` : ''}${P.doubts ? `（AI 提醒：${P.doubts}）` : ''}`);
+      } catch (err) { fail.push(`${f.name}：${err.message || err}`); }
+    }
+    e.lines.push({ gid: '', qty: '', price: '' });
+    drawBill();
+    const b2 = el.isConnected ? el.querySelector('#ryPo') : null; if (b2) { b2.disabled = false; b2.textContent = '匯入如陽採購單'; }
+    if (done.length || fail.length) modal({ title: `匯入如陽採購單（${done.length} 張成功${fail.length ? `、${fail.length} 張失敗` : ''}）`, width: 640, body: `${done.length ? `<ul>${done.map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}${fail.length ? `<div class="banner">${fail.map(esc).join('<br>')}</div>` : ''}<p class="muted small">請核對數量和單價後再儲存；單價用採購單上的價格。</p>`, footer: '<span class="sp"></span><button class="btn pri" data-close>知道了</button>' });
+  };
+  el.querySelector('#ryPo')?.addEventListener('click', () => ryf.click());
   el.querySelector('#shipFmt')?.addEventListener('click', () => shipFormat(e));
   el.querySelector('#stkAdj')?.addEventListener('click', afterSave(b => stockAdjust(b)));
   el.querySelector('#lblBill')?.addEventListener('click', afterSave(b => labelPicker(b)));

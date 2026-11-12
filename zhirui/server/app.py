@@ -439,6 +439,11 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send_json(agent_step(self.state.data_dir, body or {}, me))
             except OcrError as e:
                 return self.error(str(e), e.status)
+        if path == '/api/ocr/po' and method == 'POST':
+            try:
+                return self.send_json(po_extract(self.state.data_dir, body or {}))
+            except OcrError as e:
+                return self.error(str(e), e.status)
         if path == '/api/ocr/check' and method == 'POST':
             img = str((body or {}).get('image') or '')
             try:
@@ -988,6 +993,82 @@ def agent_step(data_dir, body, me):
         u.get('cache_read_input_tokens'), u.get('cache_creation_input_tokens'), u.get('output_tokens')))
     return {'content': out.get('content') or [], 'stop_reason': out.get('stop_reason'),
             'stop_details': out.get('stop_details'), 'usage': u, 'model': out.get('model')}
+
+
+# ---------- 客戶採購單辨識（如陽採購憑單等）：PDF 或照片 → 採購單號、明細 ----------
+PO_PROMPT = """你在讀台灣螺絲業客戶開給「志瑞螺絲企業有限公司」的採購單（例如如陽科技的「採購憑單」）。
+- 產品編號是客戶的料號（例如 GC-05010-01-00），照抄，不要改。
+- 被劃線刪除（有橫線劃過整行）的明細行代表取消，cancelled 填 true；其他填 false。
+- 數量、單價、金額只填數字（去掉千分位）；單位照抄（PCS、KG…）。
+- 日期一律轉成 YYYY-MM-DD（民國年要轉西元）；沒有就填空字串。
+- 預進貨日填在 due；分錄備註填 note；圖號填 drawing（例如 DFGH0001_免驗）。
+- 看不清楚的欄位填空字串，不要猜；doubts 寫下哪裡看不清楚。"""
+PO_SCHEMA = {
+    'type': 'object', 'additionalProperties': False,
+    'required': ['po_no', 'po_date', 'buyer', 'vendor', 'remark', 'doubts', 'lines'],
+    'properties': {
+        'po_no': {'type': 'string'}, 'po_date': {'type': 'string'}, 'buyer': {'type': 'string'},
+        'vendor': {'type': 'string'}, 'remark': {'type': 'string'}, 'doubts': {'type': 'string'},
+        'lines': {'type': 'array', 'items': {
+            'type': 'object', 'additionalProperties': False,
+            'required': ['part_no', 'name', 'qty', 'unit', 'price', 'amount', 'due', 'note', 'drawing', 'cancelled'],
+            'properties': {
+                'part_no': {'type': 'string'}, 'name': {'type': 'string'}, 'qty': {'type': 'number'},
+                'unit': {'type': 'string'}, 'price': {'type': 'number'}, 'amount': {'type': 'number'},
+                'due': {'type': 'string'}, 'note': {'type': 'string'}, 'drawing': {'type': 'string'},
+                'cancelled': {'type': 'boolean'}}}}}}
+
+
+def po_extract(data_dir, body):
+    """body：data（base64）、media（application/pdf、image/jpeg…）"""
+    data = str(body.get('data') or '')
+    media = str(body.get('media') or '')
+    if not data or media not in ('application/pdf', 'image/jpeg', 'image/png', 'image/webp'):
+        raise OcrError('請給 PDF 或照片')
+    if len(data) > 30 * 1024 * 1024:
+        raise OcrError('檔案太大')
+    key = ai_cfg(data_dir).get('anthropic_api_key') or ''
+    if not key:
+        raise OcrError('還沒設定 Claude（Anthropic）API 金鑰：請到「設定備份 → AI 辨識」選 Claude 並貼上金鑰', 409)
+    try:
+        import anthropic
+    except Exception:
+        raise OcrError('伺服器沒有安裝 Claude 元件，請在伺服器電腦執行：python -m pip install anthropic', 500)
+    blk = ({'type': 'document', 'source': {'type': 'base64', 'media_type': 'application/pdf', 'data': data}} if media == 'application/pdf'
+           else {'type': 'image', 'source': {'type': 'base64', 'media_type': media, 'data': data}})
+    req = dict(model=AI_MODEL, max_tokens=16000, system=PO_PROMPT,
+               output_config={'effort': 'medium', 'format': {'type': 'json_schema', 'schema': PO_SCHEMA}},
+               messages=[{'role': 'user', 'content': [blk, {'type': 'text', 'text': '請讀這張採購單，依指定的 JSON 格式回傳。'}]}])
+    client = anthropic.Anthropic(api_key=key, timeout=300.0, max_retries=2)
+    resp = None
+    for attempt in (1, 2):
+        try:
+            if attempt == 1:
+                resp = client.beta.messages.create(betas=['server-side-fallback-2026-07-01'], fallbacks='default', **req)
+            else:
+                resp = client.messages.create(**req)
+            break
+        except anthropic.BadRequestError as e:
+            if attempt == 1 and 'fallback' in (e.message or '').lower():
+                continue   # 伺服端 fallback 和結構化輸出不相容時，拿掉再試一次
+            raise OcrError('Claude 不接受這個檔案：%s' % e.message, 502)
+        except anthropic.AuthenticationError:
+            raise OcrError('Claude 金鑰無效，請到「設定備份 → AI 辨識」重新設定', 502)
+        except anthropic.RateLimitError:
+            raise OcrError('Claude 暫時忙碌（額度或速率限制），請稍後再試', 502)
+        except anthropic.APIStatusError as e:
+            raise OcrError('Claude 服務回應 %d：%s' % (e.status_code, e.message), 502)
+        except anthropic.APIConnectionError:
+            raise OcrError('連不上 Claude 服務，請確認伺服器電腦有網路', 502)
+    if resp.stop_reason == 'refusal':
+        raise OcrError('Claude 拒絕處理這個檔案', 502)
+    text = ''.join(b.text for b in resp.content if b.type == 'text')
+    if resp.stop_reason == 'max_tokens' and not text.strip():
+        raise OcrError('這次沒有讀完（輸出被截斷），請再試一次', 502)
+    out = _parse_json_text(text)
+    u = resp.usage
+    sys.stderr.write('ocr/po %s in=%s out=%s lines=%d\n' % (resp.model, u.input_tokens, u.output_tokens, len(out.get('lines') or [])))
+    return out
 
 
 # ---------- 每日自動備份 ----------

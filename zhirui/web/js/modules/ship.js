@@ -7,6 +7,7 @@ import { printName } from '../core/names.js';
 import { spGet, spDims, spSVG, spRows, spTable } from '../core/spec.js';
 import { loadXlsx } from './purchase_import.js';
 import { imageViewer } from '../core/imgview.js';
+import { api } from '../core/api.js';
 
 // ---------- 格式 ----------
 const FONTS = { jh: ['微軟正黑體', '"Microsoft JhengHei","微軟正黑體","PingFang TC","Noto Sans TC",sans-serif'], ming: ['細明體', '"MingLiU","細明體","PMingLiU","新細明體",serif'], pming: ['新細明體', '"PMingLiU","新細明體","MingLiU",serif'], kai: ['標楷體', '"DFKai-SB","BiauKai","標楷體","Kaiti TC",serif'], times: ['Times New Roman＋新細明體', '"Times New Roman","PMingLiU","新細明體",serif'] };
@@ -111,7 +112,7 @@ export function shipDoc(b, opt = {}) {
 export function printShip(b, opt = {}) {
   const T = TYPES[b.type] || TYPES.SALE; const d = shipDoc(b, opt);
   printHTML(`${T.name} ${b.no}`, d.css, d.html, { tip: d.tip, delay: 500 });
-  store.log('列印', `${T.name} ${b.no}${opt.pn && opt.noAmt ? '（料號列印，不含金額）' : opt.noAmt ? '（不含金額）' : opt.pn ? '（料號列印）' : ''}`);
+  store.log('列印', `${T.name} ${b.no}${opt.label ? `（${opt.label}）` : opt.pn && opt.noAmt ? '（料號列印，不含金額）' : opt.noAmt ? '（不含金額）' : opt.pn ? '（料號列印）' : ''}`);
 }
 
 // ---------- 格式設定（全公司共用；列印位置每台電腦各自） ----------
@@ -368,4 +369,36 @@ td:nth-child(1),td:nth-child(3),td:nth-child(5),td.n{white-space:nowrap;overflow
 tbody td{height:10mm;vertical-align:top}td.pn,td.n{font-weight:bold;font-size:11.5pt}td.nm{font-size:10pt}
 .n{text-align:right}.c{text-align:center}.sg{display:flex;justify-content:space-around;margin-top:5mm}`;
   printHTML(`崧泉出貨憑證 ${b.no}`, css, html, { tip: '紙張 A4 直式、邊界選「預設」（已內建約 5mm 安全邊，不要選「無」，印表機印不到紙邊會切掉）、縮放「預設」100%。每張 A4 上下各印一份，中間虛線可裁開；每份放得下就放（約 9～10 項），放不下會續印下一張。' });
+}
+
+// ---------- 如陽採購單（採購憑單）：PDF 或照片交給 Claude 讀，產品編號＝客料號對商品 ----------
+const fileB64 = f => new Promise((ok, bad) => { const r = new FileReader(); r.onload = () => ok(String(r.result).split(',')[1]); r.onerror = () => bad(r.error); r.readAsDataURL(f); });
+const shrinkJpeg = (f, max = 2200, q = 0.88) => new Promise((ok, bad) => { const img = new Image(); img.onload = () => { const k = Math.min(1, max / Math.max(img.width, img.height)); const cv = document.createElement('canvas'); cv.width = Math.round(img.width * k); cv.height = Math.round(img.height * k); cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height); URL.revokeObjectURL(img.src); ok(cv.toDataURL('image/jpeg', q).split(',')[1]); }; img.onerror = () => bad(new Error('讀不了這張圖片')); img.src = URL.createObjectURL(f); });
+export async function ruyangRead(f) {
+  const pdf = f.type === 'application/pdf' || /\.pdf$/i.test(f.name);
+  if (!pdf && !f.type.startsWith('image/')) throw new Error('請選 PDF 或照片');
+  const data = pdf ? await fileB64(f) : await shrinkJpeg(f);
+  const r = await api.post('/api/ocr/po', { data, media: pdf ? 'application/pdf' : 'image/jpeg' });
+  if (!r || !Array.isArray(r.lines)) throw new Error('沒有讀到明細');
+  return r;
+}
+export function ruyangLines(P, edit) {
+  const N = x => String(x ?? '').trim().toUpperCase().replace(/\s+/g, '');
+  const idx = new Map(); const put = (k, g) => { k = N(k); if (!k) return; const a = idx.get(k) || idx.set(k, []).get(k); if (!a.includes(g)) a.push(g); };
+  for (const g of store.list('goods')) { put(g.spec, g); put(g.spec2, g); }
+  const add = [], miss = [], multi = [], cancelled = [];
+  for (const r of P.lines) {
+    if (r.cancelled) { cancelled.push(r.part_no || r.name); continue; }
+    if (!(+r.qty > 0)) continue;
+    const cands = idx.get(N(r.part_no)) || [];
+    let g = null; if (cands.length === 1) g = cands[0]; else if (cands.length > 1) { g = cands.find(x => lastSale(edit.cid, x.id, edit.date, edit.id)) || cands[0]; multi.push(r.part_no); }
+    const memo = String(P.po_no || '').trim();
+    const price = +r.price > 0 ? +r.price : '';
+    if (!g) { miss.push(r.part_no || r.name); add.push({ gid: '', n: [r.part_no, r.name].filter(Boolean).join(' '), qty: +r.qty, price, memo }); continue; }
+    const l = { gid: g.id, qty: +r.qty, price, memo };
+    if (price === '') { const x = lastSale(edit.cid, g.id, edit.date, edit.id); if (x) { l.price = x.price; if (x.u) l.u = x.u; } else { const p2 = unitPrice(g, edit.type); if (p2 !== '') l.price = p2; } }
+    else if (r.unit && !/^pcs$/i.test(r.unit) && String(r.unit).toUpperCase() !== String(g.unit || '').toUpperCase()) l.u = r.unit;
+    add.push(l);
+  }
+  return { add, miss, multi, cancelled };
 }
