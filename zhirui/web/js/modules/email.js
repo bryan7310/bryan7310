@@ -54,6 +54,16 @@ export async function setCat(m, cat, rule) {
   await store.saveSetting('mailmeta', { ...M, cat: c, rules: r });
 }
 
+// 排序／篩選：time＝依時間、top＝未讀置頂、only＝只看未讀（記在這台裝置）
+export const SORTS = [['time', '依時間'], ['top', '未讀置頂'], ['only', '只看未讀']];
+export const mailSort = v => { try { if (v) localStorage.setItem('zr-mail-sort', v); return localStorage.getItem('zr-mail-sort') || 'time'; } catch (e) { return v || 'time'; } };
+export function orderMail(items, mode, folder = 'inbox', keep = '') {   // keep：正在看的那封，看了變已讀也先留著
+  if (folder !== 'inbox' || mode === 'time') return items;
+  const r = mailRead();
+  if (mode === 'only') return items.filter(m => !r[m.id] || m.id === keep);
+  return [...items.filter(m => !r[m.id]), ...items.filter(m => r[m.id])];
+}
+
 // ---------- 資料 ----------
 export async function mailLoad(q = '', folder = 'inbox') {
   try {
@@ -62,9 +72,10 @@ export async function mailLoad(q = '', folder = 'inbox') {
     return r;
   } catch (e) { return { items: [], total: 0, counts: {}, state: { err: e.message }, cfg: {} }; }
 }
-export async function mailMark(m, on = true) {
+export const mailMark = (m, on = true) => mailMarkMany([m.id], on);
+export async function mailMarkMany(list, on = true) {
   const s = store.setting('mailread'); const read = { ...(s.read || {}) };
-  if (on) read[m.id] = 1; else delete read[m.id];
+  for (const id of list) if (on) read[id] = 1; else delete read[id];
   const ids = Object.keys(read); if (ids.length > 3000) for (const k of ids.slice(0, ids.length - 3000)) delete read[k];
   await store.saveSetting('mailread', { ...s, read }); window.dispatchEvent(new Event('zr-nav'));
 }
@@ -159,12 +170,14 @@ function draw(el) {
     <div class="panel" style="display:grid;grid-template-columns:150px minmax(280px,380px) 1fr;gap:14px;align-items:start">
       <div id="emSide"></div>
       <div><input type="search" id="emQ" placeholder="搜尋寄件人、主旨、內容" value="${esc(ui.q)}" style="width:100%;margin-bottom:8px">
-        <div class="tools" style="margin-bottom:6px;align-items:center"><span class="muted small" id="emInfo"></span><span class="sp"></span><span id="emBulk"></span></div>
+        <div class="tools" style="margin-bottom:6px;align-items:center;gap:6px;flex-wrap:wrap"><label class="check small" title="全選／全不選"><input type="checkbox" id="emAll"> 全選</label><span class="muted small" id="emInfo"></span><span class="sp"></span><select id="emSort" class="sm" aria-label="排序">${SORTS.map(([k, n]) => `<option value="${k}" ${mailSort() === k ? 'selected' : ''}>${n}</option>`).join('')}</select></div>
+        <div id="emBulk" class="tools" style="gap:6px;margin-bottom:6px;flex-wrap:wrap"></div>
         <div id="emList" style="max-height:72vh;overflow:auto;border:1px solid var(--line);border-radius:8px"></div></div>
       <div id="emView"><div class="empty"><b>點左邊的信來看</b></div></div></div>`;
   el.querySelector('#emNew').onclick = () => openCompose(el, 'new');
   el.querySelector('#emFetch').onclick = async () => { try { await api.post('/api/email/fetch', {}); toast('開始收信…'); setTimeout(() => refresh(el), 4000); } catch (e) { toast(e.message); } };
   el.querySelector('#emCfg')?.addEventListener('click', () => cfgDialog(() => refresh(el)));
+  el.querySelector('#emSort').onchange = ev => { mailSort(ev.target.value); ui.checked.clear(); drawList(el); };
   let tm = 0; el.querySelector('#emQ').addEventListener('input', ev => { clearTimeout(tm); tm = setTimeout(() => { ui.q = ev.target.value; refresh(el); }, 300); });
   drawSide(el); drawList(el);
   if (ui.sel) openMsg(el, ui.sel);
@@ -181,13 +194,17 @@ function drawSide(el) {
   box.querySelectorAll('[data-fd]').forEach(a => a.onclick = ev => { ev.preventDefault(); ui.folder = a.dataset.fd; ui.cat = ''; ui.sel = ''; ui.checked.clear(); refresh(el); el.querySelector('#emView').innerHTML = '<div class="empty"><b>點左邊的信來看</b></div>'; });
   box.querySelectorAll('[data-ct]').forEach(a => a.onclick = ev => { ev.preventDefault(); const was = ui.folder; ui.folder = 'inbox'; ui.cat = ui.cat === a.dataset.ct ? '' : a.dataset.ct; ui.checked.clear(); if (was !== 'inbox') refresh(el); else { drawSide(el); drawList(el); } });
 }
-function shownList() { return ui.folder === 'inbox' && ui.cat ? CUR.items.filter(m => classify(m) === ui.cat) : CUR.items; }
+function shownList() { return orderMail(ui.folder === 'inbox' && ui.cat ? CUR.items.filter(m => classify(m) === ui.cat) : CUR.items, mailSort(), ui.folder, ui.sel); }
 function drawList(el) {
   const box = el.querySelector('#emList'); if (!box) return;
   const L = shownList(); const r = mailRead(); const inbox = ui.folder === 'inbox';
   el.querySelector('#emInfo').textContent = `${FOLDERS.find(x => x[0] === ui.folder)[1]}${ui.cat ? '・' + catName(ui.cat) : ''} ${L.length} 封${CUR.total > CUR.items.length ? `（共 ${CUR.total}，只列最近 ${CUR.items.length}）` : ''}`;
+  for (const id of [...ui.checked]) if (!L.some(m => m.id === id)) ui.checked.delete(id);   // 換分類、篩選後，看不到的不算勾選
   const bulk = el.querySelector('#emBulk'); const n = ui.checked.size;
-  bulk.innerHTML = n ? (ui.folder === 'trash' ? `<button class="btn sm" id="bkRestore">復原 ${n} 封</button> <button class="btn sm danger" id="bkPurge">永久刪除 ${n} 封</button>` : `<button class="btn sm" id="bkDel">刪除 ${n} 封</button>`) : '';
+  const all = el.querySelector('#emAll'); all.checked = n > 0 && n === L.length; all.indeterminate = n > 0 && n < L.length; all.disabled = !L.length;
+  all.onchange = () => { if (all.checked) L.forEach(m => ui.checked.add(m.id)); else ui.checked.clear(); drawList(el); };
+  bulk.innerHTML = n ? `<b class="small">已勾選 ${n} 封</b>` + (ui.folder === 'trash' ? `<button class="btn sm" id="bkRestore">復原</button><button class="btn sm danger" id="bkPurge">永久刪除</button>` : `<button class="btn sm danger" id="bkDel">刪除</button>${inbox ? '<button class="btn sm" id="bkRead">標成已讀</button><button class="btn sm" id="bkUnread">標成未讀</button>' : ''}`) + '<button class="btn sm ghost" id="bkClear">取消勾選</button>' : '';
+  bulk.style.display = n ? 'flex' : 'none';
   box.innerHTML = L.map(m => { const u = inbox && !r[m.id]; const who = ui.folder === 'sent' || ui.folder === 'draft' ? '給 ' + (m.to || '（沒有收件人）') : m.from_name; const c = inbox ? mailCo(m) : null;
     return `<div data-em="${m.id}" style="display:flex;gap:8px;padding:8px 10px;border-bottom:1px solid var(--line);cursor:pointer;${m.id === ui.sel ? 'background:var(--sel,rgba(0,122,255,.12));' : ''}">
       <input type="checkbox" data-ck="${m.id}" ${ui.checked.has(m.id) ? 'checked' : ''} aria-label="勾選" style="margin-top:3px">
@@ -197,6 +214,9 @@ function drawList(el) {
   box.querySelectorAll('[data-ck]').forEach(c => { c.onclick = ev => ev.stopPropagation(); c.onchange = () => { if (c.checked) ui.checked.add(c.dataset.ck); else ui.checked.delete(c.dataset.ck); drawList(el); }; });
   box.querySelectorAll('[data-em]').forEach(a => a.addEventListener('click', () => openMsg(el, a.dataset.em)));
   const ids = [...ui.checked];
+  bulk.querySelector('#bkClear')?.addEventListener('click', () => { ui.checked.clear(); drawList(el); });
+  bulk.querySelector('#bkRead')?.addEventListener('click', async () => { await mailMarkMany(ids, true); ui.checked.clear(); drawSide(el); drawList(el); });
+  bulk.querySelector('#bkUnread')?.addEventListener('click', async () => { await mailMarkMany(ids, false); ui.checked.clear(); drawSide(el); drawList(el); });
   bulk.querySelector('#bkDel')?.addEventListener('click', async () => { await mailDelete(ids, true); ui.checked.clear(); toast(`已移到垃圾桶（${ids.length} 封）`); refresh(el); });
   bulk.querySelector('#bkRestore')?.addEventListener('click', async () => { await mailDelete(ids, false); ui.checked.clear(); toast(`已復原 ${ids.length} 封`); refresh(el); });
   bulk.querySelector('#bkPurge')?.addEventListener('click', async () => { if (!await confirm(`永久刪除 ${ids.length} 封？\n只刪志瑞平台上的這一份，HiNet 信箱裡的信不會動；刪了不能復原。`, { danger: true, ok: '永久刪除' })) return; await mailPurge(ids); ui.checked.clear(); toast('已永久刪除'); refresh(el); });
