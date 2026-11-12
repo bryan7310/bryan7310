@@ -24,12 +24,13 @@ export function faxDial(c, num) {
   return d;
 }
 /** 傳真稿：封面頁（可選）＋單據，全部黑白；回傳 css、body、完整 HTML（給傳真小幫手轉 PDF）與頁數 */
-export function faxDoc(b, c, { to, attn, subj, msg, cover }) {
+export function faxDoc(b, c, { to, attn, subj, msg, cover, big }) {
   const co = store.setting('company');
   const d = billDoc({ ...b, attn: attn || b.attn }); const n = 1 + (cover ? 1 : 0);
   const cv = cover ? `<div class="cover"><div class="fxt">傳　真　FAX</div><table class="fxi"><tr><th>收件公司</th><td>${esc(printName(c.name))}</td><th>寄件公司</th><td>${esc(co.name || '志瑞螺絲企業有限公司')}</td></tr><tr><th>收 件 人</th><td>${esc(attn)}</td><th>寄 件 人</th><td>${esc(store.user.name)}</td></tr><tr><th>傳真號碼</th><td><b>${esc(to)}</b></td><th>傳真號碼</th><td>${esc(co.fax || '')}</td></tr><tr><th>電　　話</th><td>${esc(c.phone || '')}</td><th>電　　話</th><td>${esc(co.phone || '')}</td></tr><tr><th>日　　期</th><td>${esc(slash(today()))}</td><th>頁　　數</th><td>共 ${n} 頁（含本頁）</td></tr><tr><th>主　　旨</th><td colspan="3"><b>${esc(subj)}</b></td></tr></table><div class="fxm">${esc(msg).replace(/\n/g, '<br>')}</div><div class="fxf">如傳真不清楚或頁數不符，請來電 ${esc(co.phone || '')} 告知，謝謝。</div></div>` : '';
   const bw = `*{color:#000!important}th{background:none!important}.cover{height:270mm;display:flex;flex-direction:column;page-break-after:always}.fxt{font-size:30pt;font-weight:bold;text-align:center;letter-spacing:.2em;border-bottom:2pt solid #000;padding-bottom:4mm;margin-bottom:8mm}.fxi{width:100%;border-collapse:collapse;table-layout:fixed}.fxi th,.fxi td{border:.8pt solid #000;height:11mm;font-size:12pt;padding:0 3mm;white-space:normal}.fxi th{width:28mm;text-align:center;font-weight:bold}.fxm{margin-top:8mm;border:.8pt solid #000;min-height:80mm;padding:5mm;font-size:13pt;line-height:1.7}.fxf{margin-top:auto;text-align:center;font-size:11pt}`;
-  return { css: d.css + bw, body: cv + d.html, n, html: `<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><title>傳真 ${esc(b.no)}</title><style>${d.css + bw}</style></head><body>${cv + d.html}</body></html>` };
+  const bg = big ? 'body,.meta,th,td,p,.sig{font-size:12pt!important}.co{font-size:11.5pt!important}h1{font-size:20pt!important}' : '';   // 手機版傳真：內文至少 12pt
+  return { css: d.css + bw + bg, body: cv + d.html, n, html: `<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><title>傳真 ${esc(b.no)}</title><style>${d.css + bw + bg}</style></head><body>${cv + d.html}</body></html>` };
 }
 /** 排入自動傳真：由「傳真小幫手」在伺服器電腦上印到 PC-FAX、填號碼、按開始 */
 export async function queueFax(b, c, opts) {

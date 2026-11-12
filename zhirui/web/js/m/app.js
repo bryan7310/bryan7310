@@ -10,6 +10,7 @@ import { billPage, onBillChange, draftCount } from './bill.js';
 import { arPage } from './ar.js';
 import { reportPage } from './report.js';
 import { labelPage, onLabelChange } from './label.js';
+import { poPage, onPOChange } from './po.js';
 
 const $ = s => document.querySelector(s);
 const view = $('#view'), bar = $('#tabbar');
@@ -37,7 +38,7 @@ async function boot() {
   catch (e) { return e.status === 401 ? showLogin() : showLogin('載入資料失敗：' + (e.message || e)); }
   if (store.user.role !== 'admin') return notBoss();
   bar.hidden = false;
-  store.subscribe(ch => { if (cur === 'home') route(); else if (cur === 'bill') onBillChange(view, ch); else if (cur === 'lbl') onLabelChange(view, ch); else if (cur === 'ar' && ['receivables', 'checks_in', 'bills'].some(c => ch.has(c))) route(); });
+  store.subscribe(ch => { if (cur === 'home') route(); else if (cur === 'bill') onBillChange(view, ch); else if (cur === 'lbl') onLabelChange(view, ch); else if (cur === 'po') onPOChange(view, ch); else if (cur === 'ar' && ['receivables', 'checks_in', 'bills'].some(c => ch.has(c))) route(); });
   window.addEventListener('hashchange', route);
   route();
   // 舊系統進貨單會影響成本（毛利），載入後重算一次，跟電腦版一致
@@ -66,7 +67,7 @@ function notBoss() {
 let cur = '';
 function route() {
   const parts = location.hash.replace(/^#\/?/, '').split('/'); const id = parts[0].split('?')[0] || 'home';
-  const tabOf = { g: 'stock', rep: 'home', lbl: 'home' };
+  const tabOf = { g: 'stock', rep: 'home', lbl: 'home', po: 'stock' };
   const t = TABS.find(x => x[0] === (tabOf[id] || id)) || TABS[0]; cur = tabOf[id] ? id : t[0];
   bar.innerHTML = TABS.map(([k, n, ic]) => `<a href="#${k}" class="${k === t[0] ? 'on' : ''}">${SVG(ic)}<span>${n}</span></a>`).join('');
   if (cur === 'home') home();
@@ -75,6 +76,7 @@ function route() {
   else if (cur === 'ar') arPage(view, parts[1], parts.slice(2).join('/'));
   else if (cur === 'rep') { reportPage(view); window.scrollTo(0, 0); }
   else if (cur === 'lbl') labelPage(view, parts[1], parts.slice(2).join('/'));
+  else if (cur === 'po') { poPage(view, parts[1], parts.slice(2).join('/')); if (parts[1] === 'v') window.scrollTo(0, 0); }
   else if (cur === 'g') { goodsPage(view, decodeURIComponent(parts.slice(1).join('/'))); window.scrollTo(0, 0); }
   else placeholder(t);
 }
