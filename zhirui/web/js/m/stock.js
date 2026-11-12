@@ -1,8 +1,8 @@
 // 手機版：查庫存／查價。搜尋料號、品名、規格；表面處理篩選；點進去看庫存、售價、牌價、成本、毛利率、客戶上次成交價、供應商。
-import { esc, fmt, fmtQ, today, qTerms, matchQ, ls, slash } from '../core/util.js';
+import { esc, fmt, fmtQ, today, qTerms, matchQ, ls, slash, uid } from '../core/util.js';
 import { api } from '../core/api.js';
 import { store } from '../core/store.js';
-import { calc, costOf, lastSale, uRate, cdisp, customers, goodsLabel } from '../core/calc.js';
+import { calc, costOf, lastSale, uRate, cdisp, customers, goodsLabel, nextNo, TYPES } from '../core/calc.js';
 import { platCost } from '../core/pricing.js';
 import { qrSvg, scanQR } from '../core/qr.js';
 import { addToBill } from './bill.js';
@@ -112,6 +112,7 @@ export function goodsPage(view, gid) {
     <div class="card list">${whs.map(w => `<div class="row"><span>${esc(w.name)}</span><span class="go">${fmtQ((C.stock[g.id] || {})[w.id] || 0)} ${esc(g.unit || '')}</span></div>`).join('')}
       <div class="row"><b>合計</b><span class="go"><b>${C.stock[g.id] ? fmtQ(t) : '—'}</b> ${esc(g.unit || '')} ${stockTag(C, g)}</span></div>
       ${+g.safety > 0 ? `<div class="row muted"><span>安全庫存</span><span class="go">${fmtQ(g.safety)}</span></div>` : ''}${C.stock[g.id] ? '' : '<div class="row muted">新平台還沒有這項的進出貨紀錄</div>'}</div>
+    <p><button class="btn ghost" id="adj">修改庫存（盤點）</button></p>
     <div class="sec">價格（每 ${esc(g.unit || '單位')}）</div>
     <div class="card list">
       ${sale ? `<div class="row"><span>售價（商品資料）</span><span class="go">${p2(sale)}</span></div><div class="row"><span>毛利率（售價）</span><span class="go">${margin(sale, cost?.c)}</span></div>` : ''}
@@ -129,6 +130,7 @@ export function goodsPage(view, gid) {
     <div class="sec">料號 QR 碼</div><div class="card qrbox" id="qr">…</div>
     `;
   view.querySelector('#tobill').onclick = () => { addToBill(g.id); location.hash = '#bill'; };
+  view.querySelector('#adj').onclick = () => adjustStock(g, () => goodsPage(view, gid));
   view.querySelector('#pick')?.addEventListener('click', e => { e.preventDefault(); pickCustomer(() => goodsPage(view, gid)); });
   qrSvg(g.code).then(svg => { const b = view.querySelector('#qr'); if (b) b.innerHTML = svg + `<div class="mono">${esc(g.code)}</div>`; }).catch(e => { const b = view.querySelector('#qr'); if (b) b.textContent = e.message; });
   recentSales(view.querySelector('#hs'), g, C).then(rows => {
@@ -147,4 +149,38 @@ async function recentSales(box, g, C) {
   if (!box.isConnected) return rows;
   box.innerHTML = per.slice(0, 8).map(x => `<div class="row"><span>${esc(x.cid ? cdisp(C.ct[x.cid]) || '—' : '—')}<small class="muted">　${esc(slash(x.date))}・${fmtQ(x.qty)}</small></span><span class="go">${p2(x.price)}${x.u ? ' / ' + esc(x.u) : ''}</span></div>`).join('') || '<div class="row muted">沒有銷貨紀錄</div>';
   return rows;
+}
+
+// ---------- 修改庫存（盤點）：填實際數量，差異開一張其他入庫／其他出庫（跟電腦版「調整即時庫存」同一種做法） ----------
+function adjustStock(g, done) {
+  const C = calc(); const whs = store.list('warehouses');
+  const el = document.createElement('div'); el.className = 'sheet';
+  el.innerHTML = `<div class="sheet-hd"><button class="link" data-x>取消</button><b>修改庫存</b><span style="width:40px"></span></div>
+    <div class="card"><b>${esc(g.name)}</b><div class="muted mono">${esc(g.code)}</div></div>
+    <div class="note" style="text-align:left">在「實際數量」填點到的數量，差異會自動開一張其他入庫或其他出庫補平，電腦版「庫存 › 出入庫」查得到。沒填的倉庫不調整。</div>
+    <div class="card list">${whs.map(w => { const q = (C.stock[g.id] || {})[w.id] || 0; return `<div class="row"><div class="gm"><b>${esc(w.name)}</b><small>系統 ${fmtQ(q)} ${esc(g.unit || '')}・<span data-d="${w.id}">差異 —</span></small></div><input class="inl adjq" data-w="${w.id}" data-sys="${q}" inputmode="decimal" placeholder="${fmtQ(q)}" style="width:110px;border:1px solid var(--line);border-radius:10px;padding:8px 10px"></div>`; }).join('')}</div>
+    <div class="f" style="margin-top:10px"><label for="adn">原因（選填）</label><input id="adn" placeholder="例如：盤點、破損、樣品"></div>
+    <div class="err" id="ade"></div>
+    <p><button class="btn" id="ado">確認修改</button></p>`;
+  document.body.append(el); document.body.classList.add('noscroll');
+  const close = () => { el.remove(); document.body.classList.remove('noscroll'); };
+  el.querySelector('[data-x]').onclick = close;
+  const diffOf = t => t.value.trim() === '' ? null : Math.round(((+t.value.replace(/,/g, '') || 0) - (+t.dataset.sys || 0)) * 1000) / 1000;
+  el.addEventListener('input', ev => { const t = ev.target; if (!t.classList.contains('adjq')) return; const d = diffOf(t); const sp = el.querySelector(`[data-d="${t.dataset.w}"]`); sp.textContent = d === null ? '差異 —' : `差異 ${d > 0 ? '+' : ''}${fmtQ(d)}`; sp.className = d > 0 ? 'good' : d < 0 ? 'bad' : ''; });
+  el.querySelector('#ado').onclick = async ev => {
+    const note = el.querySelector('#adn').value.trim(); const d0 = today(); const ops = []; const made = [];
+    for (const t of el.querySelectorAll('.adjq')) {
+      const d = diffOf(t); if (!d) continue;
+      if (t.value.trim() !== '' && isNaN(+t.value.replace(/,/g, ''))) { el.querySelector('#ade').textContent = '數量要填數字'; return; }
+      const type = d > 0 ? 'IN' : 'OUT'; const no = nextNo(type, d0, [...store.list('bills'), ...ops.map(o => o.data)]);
+      ops.push({ col: 'bills', id: uid('b'), data: { type, no, date: d0, wid: t.dataset.w, lines: [{ gid: g.id, qty: Math.abs(d), price: 0 }], note: `盤點調整（手機）${note ? '：' + note : ''}`, createdAt: Date.now(), updatedAt: Date.now(), createdBy: store.user.id } });
+      made.push(`${TYPES[type].name} ${no}（${d > 0 ? '+' : ''}${fmtQ(d)}）`);
+    }
+    if (!ops.length) { el.querySelector('#ade').textContent = '沒有差異，不需要修改'; return; }
+    ev.target.disabled = true;
+    try { await store.batch(ops); } catch (e) { el.querySelector('#ade').textContent = '儲存失敗：' + e.message; ev.target.disabled = false; return; }
+    store.log('新增', `${made.join('、')}｜${g.name} 盤點調整（手機）`);
+    close(); const t = document.getElementById('toast'); t.textContent = '已修改庫存：' + made.join('、'); t.hidden = false; setTimeout(() => t.hidden = true, 3000); done();
+  };
+  setTimeout(() => el.querySelector('.adjq')?.focus(), 50);
 }
