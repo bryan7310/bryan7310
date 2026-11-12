@@ -105,10 +105,51 @@ Write-Output ('PRINTED ' + $files.Count + ' paper=' + $paper.PaperName + ' ' + $
 '''
 
 
+class DOC_INFO_1(ctypes.Structure):
+    _fields_ = [('pDocName', wintypes.LPWSTR), ('pOutputFile', wintypes.LPWSTR), ('pDatatype', wintypes.LPWSTR)]
+
+
+def raw_print(printer, data, name='zhirui label'):
+    """原始指令（例如標籤機的 TSPL）直接交給 Windows 列印佇列，不經過驅動程式排版"""
+    ws = ctypes.WinDLL('winspool.drv', use_last_error=True)
+    ws.OpenPrinterW.argtypes = [wintypes.LPWSTR, ctypes.POINTER(wintypes.HANDLE), ctypes.c_void_p]
+    ws.StartDocPrinterW.argtypes = [wintypes.HANDLE, wintypes.DWORD, ctypes.POINTER(DOC_INFO_1)]
+    ws.WritePrinter.argtypes = [wintypes.HANDLE, ctypes.c_void_p, wintypes.DWORD, ctypes.POINTER(wintypes.DWORD)]
+    for f in ('StartPagePrinter', 'EndPagePrinter', 'EndDocPrinter', 'ClosePrinter'):
+        getattr(ws, f).argtypes = [wintypes.HANDLE]
+    h = wintypes.HANDLE()
+    if not ws.OpenPrinterW(printer, ctypes.byref(h), None):
+        raise RuntimeError('找不到印表機：' + printer)
+    try:
+        di = DOC_INFO_1(name, None, 'RAW')
+        if not ws.StartDocPrinterW(h, 1, ctypes.byref(di)):
+            raise RuntimeError('印表機不接受列印工作（錯誤 %d）' % ctypes.get_last_error())
+        try:
+            ws.StartPagePrinter(h)
+            buf = ctypes.create_string_buffer(data, len(data))
+            n = wintypes.DWORD(0)
+            if not ws.WritePrinter(h, buf, len(data), ctypes.byref(n)) or n.value != len(data):
+                raise RuntimeError('送資料到印表機失敗（只送出 %d / %d bytes）' % (n.value, len(data)))
+            ws.EndPagePrinter(h)
+        finally:
+            ws.EndDocPrinter(h)
+    finally:
+        ws.ClosePrinter(h)
+
+
 def print_job(job):
     printer = str(job.get('printer') or '').strip()
     if not printer:
         raise RuntimeError('沒有指定印表機')
+    if job.get('raw'):   # 標籤機 TSPL 等原始指令：手機已經組好，直接送
+        import base64
+        data = base64.b64decode(job['raw'])
+        if TOFILE:
+            with open(TOFILE, 'wb') as f:
+                f.write(data)
+        else:
+            raw_print(printer, data)
+        return '已送出 %s（%s，%d bytes）%s' % (job.get('what') or '標籤', printer, len(data), '（測試：存到檔案）' if TOFILE else '')
     work = tempfile.mkdtemp(prefix='zrprint_')
     pages = html_to_pngs(job.get('html') or '', work)
     lst = os.path.join(work, 'pages.txt')

@@ -157,7 +157,7 @@ const ST = { queued: '排隊中，等主機列印', printing: '列印中…', do
 function sentCard() {
   const j = lastSent.jobId ? store.get('printjobs', lastSent.jobId) : null; const b = store.get('bills', lastSent.billId);
   return `<div class="card sent"><b>已送出 ${esc(lastSent.no)}</b>${b ? `<small>${esc(cname(b.cid))}・${fmt(totals(b).total)} 元・電腦版「銷貨單」看得到</small>` : ''}
-    ${j ? `<div class="pst ${j.status}">${ST[j.status] || j.status}${j.msg ? `<small>${esc(j.msg)}</small>` : ''}</div>${j.status === 'failed' ? '<button class="btn ghost" id="rp">重印</button>' : ''}` : `<button class="btn ghost" id="rp">列印這張（中一刀）</button>`}</div>`;
+    ${j ? `<div class="pst ${j.status}">${ST[j.status] || j.status}${j.msg ? `<small>${esc(j.msg)}</small>` : ''}</div>${j.status === 'failed' ? '<button class="btn ghost" id="rp">重印</button>' : ''}` : `<button class="btn ghost" id="rp">列印這張（中一刀）</button>`}<a class="btn ghost" href="#lbl/b/${encodeURIComponent(lastSent.billId)}" style="margin-top:6px">印這張的標籤</a></div>`;
 }
 async function helperState(view) {
   const ph = view.querySelector('#ph'); const rp = view.querySelector('#rp');

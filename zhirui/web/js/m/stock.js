@@ -106,7 +106,7 @@ export function goodsPage(view, gid) {
 
   view.innerHTML = `<div class="hd"><a class="back" href="#stock">‹ 查庫存</a></div>
     <div class="card"><div class="gname">${esc(g.name)}</div><div class="muted mono">${esc(g.code)}${g.spec ? '　' + esc(g.spec) : ''}${g.cat ? '　' + esc(g.cat) : ''}</div></div>
-    <p><button class="btn" id="tobill">加入出貨單</button></p>
+    <div class="btn2"><button class="btn" id="tobill">加入出貨單</button><a class="btn ghost" href="#lbl/g/${encodeURIComponent(g.id)}">印標籤</a></div>
     <div class="sec">庫存</div>
     <div class="card list">${whs.map(w => `<div class="row"><span>${esc(w.name)}</span><span class="go">${fmtQ((C.stock[g.id] || {})[w.id] || 0)} ${esc(g.unit || '')}</span></div>`).join('')}
       <div class="row"><b>合計</b><span class="go"><b>${C.stock[g.id] ? fmtQ(t) : '—'}</b> ${esc(g.unit || '')} ${stockTag(C, g)}</span></div>

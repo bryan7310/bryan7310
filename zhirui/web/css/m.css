@@ -144,3 +144,9 @@ small.bad, .gm small.bad { color: var(--bad); }
 .tip { font-size: 13px; color: var(--muted); text-align: center; min-height: 18px; margin-top: 4px; }
 .list .row small, .list .go small { font-size: 12px; }
 a.chip { display: inline-block; }
+/* 標籤 */
+.lblcv { display: block; width: 100%; max-width: 320px; height: auto; margin: 8px auto 0; background: #fff; border: 1px solid var(--line); border-radius: 8px; image-rendering: pixelated; }
+.card.warnbox { box-shadow: 0 0 0 2px var(--warn); }
+label.check { display: flex; gap: 8px; align-items: center; font-size: 14px; margin: 8px 0; color: var(--text); }
+.lnr .chip { align-self: end; margin-bottom: 4px; }
+a.btn { box-sizing: border-box; }
