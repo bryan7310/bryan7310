@@ -145,5 +145,19 @@ function home() {
     <div class="note">連結到「電腦版」的頁面，之後的階段會換成手機版頁面。</div>`;
 }
 
+// 有新版就自動重新載入（主畫面 App 常常一直開著，不會自己更新）：切回 App 時、每 10 分鐘檢查一次；
+// 正在填的出貨單、採購單、標籤都存在手機上，重新載入不會不見；有彈出視窗或正在打字時先不載入
+const MYVER = (import.meta.url.match(/\/v([0-9a-f]+)\//) || [])[1];
+async function checkVer() {
+  if (!MYVER || document.visibilityState !== 'visible') return;
+  try {
+    const h = await (await fetch('/m/', { cache: 'no-store', credentials: 'same-origin' })).text();
+    const v = (h.match(/\/v([0-9a-f]+)\/js\/m\/app\.js/) || [])[1];
+    const busy = document.querySelector('.sheet, .scan') || /INPUT|TEXTAREA/.test(document.activeElement?.tagName || '');
+    if (v && v !== MYVER && !busy) location.reload();
+  } catch (e) {}
+}
+document.addEventListener('visibilitychange', checkVer);
+setInterval(checkVer, 10 * 60 * 1000);
 applyTheme();
 boot();
