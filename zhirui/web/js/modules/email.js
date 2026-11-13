@@ -255,7 +255,7 @@ async function openMsg(el, id) {
   const L = shownList(); const i = L.findIndex(x => x.id === id); const prev = L[i - 1], next = L[i + 1];
   v.innerHTML = `<div class="tools" style="gap:6px;margin-bottom:8px;flex-wrap:wrap;align-items:center"><button class="btn sm" data-nav="${prev ? prev.id : ''}" ${prev ? '' : 'disabled'} title="上一封（←）">‹ 上一封</button><button class="btn sm" data-nav="${next ? next.id : ''}" ${next ? '' : 'disabled'} title="下一封（→）">下一封 ›</button>${i >= 0 ? `<span class="muted small">${i + 1}／${L.length}</span>` : ''}<span style="width:8px"></span>${trash ? '<button class="btn sm" data-a="restore">復原</button><button class="btn sm danger" data-a="purge">永久刪除</button>'
       : draft ? '<button class="btn sm pri" data-a="edit">編輯草稿</button><button class="btn sm" data-a="del">刪除</button>'
-      : `<button class="btn sm" data-a="reply">回覆</button><button class="btn sm" data-a="all">全部回覆</button><button class="btn sm" data-a="fwd">轉寄</button><button class="btn sm" data-a="del">刪除</button>${inbox ? '<button class="btn sm" data-a="unread">標成未讀</button>' : ''}`}
+      : `<button class="btn sm" data-a="reply">回覆</button><button class="btn sm" data-a="all">全部回覆</button><button class="btn sm" data-a="fwd">轉寄</button><button class="btn sm" data-a="del">刪除</button>${inbox ? '<button class="btn sm" data-a="unread">標成未讀</button><button class="btn sm pri" data-a="order" title="請 AI 讀出客戶、品項、數量，開成銷貨單或報價單草稿（每次約 NT$0.1）">轉成訂單</button>' : ''}`}
       ${inbox ? `<span class="sp"></span><label class="small">分類 <select id="emCat">${catList().map(([k, n]) => `<option value="${k}" ${k === cat ? 'selected' : ''}>${n}</option>`).join('')}</select></label><label class="check small"><input type="checkbox" id="emRule"> 以後這個寄件人都放這類</label>` : ''}</div>
     <div style="margin-bottom:8px"><h2 style="margin:0 0 4px;font-size:18px">${esc(m.subject)}</h2>
       <div class="small"><b>${esc(m.from_name)}</b> <span class="muted">&lt;${esc(m.from)}&gt;</span>${(c => c ? ` <span class="pill">${c.kind === 'S' ? '廠商' : '客戶'}：${esc(cdisp(c))}</span>` : '')(inbox ? mailCo(head) : null)}　<span class="muted">${esc(new Date(m.date).toLocaleString('zh-TW'))}</span></div>
@@ -267,6 +267,7 @@ async function openMsg(el, id) {
     if (a === 'reply' || a === 'all' || a === 'fwd') return openCompose(el, a, m);
     if (a === 'edit') return openCompose(el, 'draft', m);
     if (a === 'unread') { await mailMark(m, false); drawSide(el); drawList(el); return; }
+    if (a === 'order') return orderPick(m);
     if (a === 'del') { await mailDelete([m.id], true); toast('已移到垃圾桶'); }
     if (a === 'restore') { await mailDelete([m.id], false); toast('已復原'); }
     if (a === 'purge') { if (!await confirm('永久刪除這封信？\n只刪志瑞平台上的這一份，HiNet 信箱裡的信不會動；刪了不能復原。', { danger: true, ok: '永久刪除' })) return; await mailPurge([m.id]); toast('已永久刪除'); }
@@ -277,6 +278,16 @@ async function openMsg(el, id) {
   v.querySelector('#emCat')?.addEventListener('change', async ev => { await setCat(head, ev.target.value, v.querySelector('#emRule').checked); toast(`已改成「${catName(ev.target.value)}」`); drawSide(el); drawList(el); });
   v.querySelector('#emRule')?.addEventListener('change', async ev => { if (ev.target.checked) { await setCat(head, v.querySelector('#emCat').value, true); toast(`以後 ${head.from} 的信都放「${catName(v.querySelector('#emCat').value)}」`); drawSide(el); drawList(el); } });
   if (inbox && !isMailRead(m)) { await mailMark(m, true); drawSide(el); drawList(el); }
+}
+// 轉成訂單：有 PDF／圖片附件就選一個讀，沒有就讀信件內文
+async function orderPick(m) {
+  const { orderFromDoc } = await import('./order_in.js');
+  const files = (m.atts || []).filter(a => /pdf|image\/(jpeg|png|gif|webp)/i.test(a.type || '') || /\.(pdf|jpe?g|png)$/i.test(a.name || ''));
+  const hint = { name: m.from_name !== m.from ? m.from_name : '' };
+  if (!files.length) return orderFromDoc({ mail: m.id }, m.subject, hint);
+  if (files.length === 1 && !String(m.text || '').trim()) return orderFromDoc({ mail: m.id, n: files[0].n }, files[0].name, hint);
+  modal({ title: '要讀哪一份？', width: 460, body: `<div style="display:grid;gap:6px">${files.map(a => `<button class="btn" data-n="${a.n}" style="justify-content:flex-start">📎 ${esc(a.name)} <span class="muted small">${kb(a.size)}</span></button>`).join('')}<button class="btn" data-n="" style="justify-content:flex-start">✉ 信件內文</button></div>`, footer: '<span class="sp"></span><button class="btn" data-close>取消</button>',
+    onOpen(el, close) { el.querySelectorAll('[data-n]').forEach(b => b.onclick = () => { close(); const n = b.dataset.n; const a = files.find(x => String(x.n) === n); orderFromDoc(n === '' ? { mail: m.id } : { mail: m.id, n: +n }, a ? a.name : m.subject, hint); }); } });
 }
 function openCompose(el, mode, src) {
   const v = composeInit(mode, src);

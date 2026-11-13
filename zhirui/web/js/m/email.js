@@ -46,8 +46,7 @@ export async function emailPage(view, sub, id, id2) {
         if (k === 'read') { await mailMarkMany(ids, true); toast(`${ids.length} 封標成已讀`); }
         if (k === 'del') { await mailDelete(ids, true); toast(`已移到垃圾桶（${ids.length} 封）`); }
         if (k === 'restore') { await mailDelete(ids, false); toast(`已復原 ${ids.length} 封`); }
-        if (k === 'purge') { if (!await ask(`永久刪除 ${ids.length} 封？
-只刪志瑞平台上的這一份，HiNet 信箱裡的信不會動；刪了不能復原。`)) return; await mailPurge(ids); toast('已永久刪除'); }
+        if (k === 'purge') { if (!await ask(`永久刪除 ${ids.length} 封？\n只刪志瑞平台上的這一份，HiNet 信箱裡的信不會動；刪了不能復原。`)) return; await mailPurge(ids); toast('已永久刪除'); }
         ui.checked.clear(); ui.pick = false; await reload(); if (view.isConnected) paint();
       });
     }

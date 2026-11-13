@@ -100,7 +100,7 @@ async function pick(el, f, first) {
       ${pdf ? '' : '<button class="btn sm" data-rot="-90" title="向左轉">⟲</button><button class="btn sm" data-rot="90" title="向右轉">⟳</button><button class="btn sm" data-zoom="-1">－</button><button class="btn sm" data-zoom="0">符合寬度</button><button class="btn sm" data-zoom="1">＋</button>'}
       ${ui.pages > 1 ? `<button class="btn sm" data-pg="-1" ${ui.page ? '' : 'disabled'}>上一頁</button><span class="small">${ui.page + 1}／${ui.pages}</span><button class="btn sm" data-pg="1" ${ui.page < ui.pages - 1 ? '' : 'disabled'}>下一頁</button>` : ''}
       <button class="btn sm" id="fiPrint">列印</button><a class="btn sm" href="${url(f, '&dl=1')}">下載</a><a class="btn sm" href="${src}" target="_blank" rel="noopener">新分頁開啟</a>
-      <button class="btn sm" id="fiRead">${isRead(f) ? '標成未讀' : '標成已讀'}</button></div>
+      <button class="btn sm" id="fiRead">${isRead(f) ? '標成未讀' : '標成已讀'}</button><button class="btn sm pri" id="fiOrder" title="請 AI 讀出客戶、品項、數量，開成銷貨單或報價單草稿（每張約 NT$0.1）">轉成訂單</button></div>
     ${f.idx && !f.idx.err ? `<div class="small" style="margin:-2px 0 8px">${(c => `寄件：<b>${esc(f.idx.sender || '—')}</b>${c ? `（${c.kind === 'S' ? '廠商' : '客戶'}「${esc(cdisp(c))}」）` : f.idx.sender ? '<span class="muted">（客戶、廠商資料裡沒對到）</span>' : ''}`)(coOf(f))}${['doc_type', 'doc_no', 'date', 'fax_no', 'summary'].filter(k => f.idx[k]).map(k => `　${{ doc_type: '', doc_no: '單號 ', date: '日期 ', fax_no: '傳真 ', summary: '' }[k]}${esc(f.idx[k])}`).join('')}</div>` : f.idx?.err ? `<div class="small" style="margin:-2px 0 8px;color:var(--warn)">內容辨識失敗：${esc(f.idx.err)}</div>` : ''}
     <div style="overflow:auto;max-height:76vh;border:1px solid var(--line);border-radius:8px;background:#fff;text-align:center">
       ${pdf ? `<iframe src="${src}" style="width:100%;height:75vh;border:0" title="${esc(f.name)}"></iframe>` : `<img id="fiImg" src="${src}" alt="${esc(f.name)}" style="width:${Math.round(ui.zoom * 100)}%;transform:rotate(${ui.rot}deg);transform-origin:center;${ui.rot % 180 ? 'margin:20% 0;' : ''}">`}</div>`;
@@ -108,6 +108,7 @@ async function pick(el, f, first) {
   v.querySelectorAll('[data-zoom]').forEach(b => b.onclick = () => { const d = +b.dataset.zoom; ui.zoom = d ? Math.min(4, Math.max(0.25, ui.zoom + d * 0.25)) : 1; pick(el, f); });
   v.querySelectorAll('[data-pg]').forEach(b => b.onclick = () => { ui.page = Math.min(ui.pages - 1, Math.max(0, ui.page + +b.dataset.pg)); pick(el, f); });
   v.querySelector('#fiRead').onclick = async () => { await markRead(f, !isRead(f)); pick(el, f); };
+  v.querySelector('#fiOrder').onclick = async () => { const { orderFromDoc } = await import('./order_in.js'); orderFromDoc({ fax: f.name }, f.idx?.sender || f.name, { name: f.idx?.sender || '' }); };
   v.querySelector('#fiPrint').onclick = () => {
     if (pdf) { window.open(src, '_blank'); return; }
     const imgs = Array.from({ length: ui.pages }, (_, i) => `<img src="${location.origin}${url(f, conv ? `&page=${i}` : '')}" style="width:100%;${ui.rot ? `transform:rotate(${ui.rot}deg);` : ''}page-break-after:always">`).join('');

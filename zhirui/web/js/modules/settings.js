@@ -6,7 +6,7 @@ import { toast, modal, confirm, tabs, prompt } from '../core/ui.js';
 import { setTheme, getTheme, setSkin, getSkin } from '../app.js';
 
 const ui = { tab: 'company' };
-const TABS = [['company', '公司資料'], ['users', '帳號'], ['backup', '備份'], ['print', '套印與顯示'], ['ai', 'AI 辨識'], ['logs', '操作日誌']];
+const TABS = [['company', '公司資料'], ['users', '帳號'], ['backup', '備份'], ['print', '套印與顯示'], ['ai', 'AI 辨識'], ['aicost', 'AI 費用'], ['logs', '操作日誌']];
 export default {
   id: 'settings', name: '設定備份', group: '管理', icon: 'settings',
   render(el, { sub }) { this.el = el; if (sub && TABS.some(t => t[0] === sub)) ui.tab = sub; draw(el); },
@@ -79,6 +79,8 @@ async function draw(el) {
     $('#prSave', box).onclick = async () => { await store.batch([{ col: 'settings', id: 'invoice_print', data: { ...ip, dx: +$('#ip-dx', box).value || 0, dy: +$('#ip-dy', box).value || 0 } }, { col: 'settings', id: 'pricing', data: { ...pr, decimals: +$('#pr-dec', box).value } }]); toast('已儲存'); };
     box.querySelectorAll('#thm button').forEach(b => b.onclick = () => { setTheme(b.dataset.v); box.querySelectorAll('#thm button').forEach(x => x.classList.toggle('on', x === b)); });
     box.querySelectorAll('#skn button').forEach(b => b.onclick = () => { setSkin(b.dataset.v); box.querySelectorAll('#skn button').forEach(x => x.classList.toggle('on', x === b)); });
+  } else if (ui.tab === 'aicost') {
+    await aiCost(box);
   } else if (ui.tab === 'ai') {
     let st = { provider: 'gemini', configured: false, hint: '', model: '', keys: {} }; try { st = await api.get('/api/ai'); } catch (e) {}
     const gem = st.provider === 'gemini';
@@ -111,3 +113,36 @@ async function draw(el) {
     box.innerHTML = `<div class="tw"><table><thead><tr><th>時間</th><th>誰</th><th>動作</th><th>內容</th></tr></thead><tbody>${logs.map(l => `<tr><td class="nowrap muted">${l.at ? new Date(l.at).toLocaleString('zh-TW', { hour12: false }) : ''}</td><td>${esc(l.who || who(l.uid))}</td><td><span class="pill">${esc(l.action)}</span></td><td>${esc(l.what)}</td></tr>`).join('') || '<tr><td colspan="4" class="muted">還沒有紀錄</td></tr>'}</tbody></table></div>`;
   }
 }
+
+// ---------- AI 費用紀錄：伺服器每次呼叫 AI 記一筆（data/ai_usage.jsonl），這裡依月份彙總 ----------
+const AI_FEAT = { faxidx: '傳真內容索引', order: '訂單轉單（傳真／Email）', po: '如陽採購單辨識', 'order-doc': '拍照：客戶訂單', pur: '拍照：廠商進貨單', quote: '拍照：廠商報價', check: '支票拍照辨識', agent: 'AI 助理' };
+const aiUi = { ym: '' };
+async function aiCost(box) {
+  const now = new Date(); const ym = aiUi.ym || `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`; const y = ym.slice(0, 4);
+  const rate = +(store.setting('aicost').rate) || 32;
+  box.innerHTML = '<div class="muted">載入中…</div>';
+  let R; try { R = await api.get(`/api/ai/usage?from=${y}-01-01&to=${y}-12-31`); } catch (e) { box.innerHTML = `<div class="banner">${esc(e.message)}</div>`; return; }
+  const rows = R.rows || []; const mOf = r => { const d = new Date(r.t); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; };
+  const usd = a => a.reduce((s, r) => s + (+r.usd || 0), 0); const nt = v => 'NT$ ' + (v * rate).toLocaleString('zh-TW', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const us = v => '$' + v.toFixed(v < 1 ? 4 : 2);
+  const cur = rows.filter(r => mOf(r) === ym); const unk = cur.filter(r => r.usd == null).length;
+  const byF = {}; for (const r of cur) { const o = byF[r.f] ||= { n: 0, usd: 0, in: 0, out: 0 }; o.n++; o.usd += +r.usd || 0; o.in += r.in + (r.cr || 0) + (r.cw || 0); o.out += r.out; }
+  const byD = {}; for (const r of cur) { const d = new Date(r.t).getDate(); const o = byD[d] ||= { n: 0, usd: 0 }; o.n++; o.usd += +r.usd || 0; }
+  const byM = Array.from({ length: 12 }, (_, i) => { const k = `${y}-${String(i + 1).padStart(2, '0')}`; const a = rows.filter(r => mOf(r) === k); return { k, n: a.length, usd: usd(a) }; });
+  const when = t => { const d = new Date(t); const p = n => String(n).padStart(2, '0'); return `${p(d.getMonth() + 1)}/${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`; };
+  box.innerHTML = `<div class="tools"><button class="btn sm" id="acPrev">‹</button><input type="month" id="acYm" value="${ym}" style="font-weight:600"><button class="btn sm" id="acNext">›</button><span class="sp"></span><label class="small muted">匯率 1 美元 ＝ <input id="acRate" class="num" value="${rate}" style="width:56px"> 台幣</label></div>
+    <div class="kpis"><div class="kpi"><span>${+ym.slice(5)} 月 AI 費用</span><b>${nt(usd(cur))}</b><small>${us(usd(cur))}・${cur.length} 次</small></div><div class="kpi"><span>${y} 年累計</span><b>${nt(usd(rows))}</b><small>${us(usd(rows))}・${rows.length} 次</small></div><div class="kpi"><span>${+ym.slice(5)} 月平均每次</span><b>${cur.length ? nt(usd(cur) / cur.length) : '—'}</b></div></div>
+    ${unk ? `<div class="banner">有 ${unk} 次用的模型不在價格表裡，沒有算進費用。</div>` : ''}
+    <div class="grid2"><div><h2>依功能（${+ym.slice(5)} 月）</h2><div class="tw"><table><thead><tr><th>功能</th><th class="n">次數</th><th class="n">token（入／出）</th><th class="n">費用</th></tr></thead><tbody>${Object.entries(byF).sort((a, b) => b[1].usd - a[1].usd).map(([f, o]) => `<tr><td>${esc(AI_FEAT[f] || f)}</td><td class="n">${o.n}</td><td class="n">${o.in.toLocaleString()}／${o.out.toLocaleString()}</td><td class="n">${nt(o.usd)}</td></tr>`).join('') || '<tr><td colspan="4" class="muted">這個月沒有使用 AI</td></tr>'}</tbody></table></div></div>
+      <div><h2>${y} 年各月</h2><div class="tw"><table><thead><tr><th>月份</th><th class="n">次數</th><th class="n">費用</th></tr></thead><tbody>${byM.map(o => `<tr class="row ${o.k === ym ? 'sel' : ''}" data-ym="${o.k}"><td>${+o.k.slice(5)} 月</td><td class="n">${o.n || ''}</td><td class="n">${o.n ? nt(o.usd) : ''}</td></tr>`).join('')}</tbody><tfoot><tr><td>全年</td><td class="n">${rows.length}</td><td class="n">${nt(usd(rows))}</td></tr></tfoot></table></div></div></div>
+    <h2>每日（${+ym.slice(5)} 月）</h2><div class="tw"><table><thead><tr><th>日期</th><th class="n">次數</th><th class="n">費用</th></tr></thead><tbody>${Object.keys(byD).sort((a, b) => b - a).map(d => `<tr><td>${+ym.slice(5)}/${d}</td><td class="n">${byD[d].n}</td><td class="n">${nt(byD[d].usd)}</td></tr>`).join('') || '<tr><td colspan="3" class="muted">—</td></tr>'}</tbody></table></div>
+    <h2>明細（${+ym.slice(5)} 月，新的在前${cur.length > 300 ? '，只列最近 300 筆' : ''}）</h2><div class="tw"><table><thead><tr><th>時間</th><th>功能</th><th>模型</th><th class="n">輸入</th><th class="n">輸出</th><th class="n">費用</th><th>使用者／備註</th></tr></thead><tbody>${cur.slice(0, 300).map(r => `<tr><td class="nowrap">${when(r.t)}</td><td>${esc(AI_FEAT[r.f] || r.f)}</td><td class="mono small">${esc(r.m)}</td><td class="n">${(r.in + (r.cr || 0) + (r.cw || 0)).toLocaleString()}</td><td class="n">${r.out.toLocaleString()}</td><td class="n">${r.usd == null ? '<span class="muted">未知</span>' : r.m.startsWith('gemini') ? '<span class="muted">免費額度</span>' : nt(r.usd)}</td><td class="small">${esc([r.u, r.n].filter(Boolean).join('・'))}</td></tr>`).join('') || '<tr><td colspan="7" class="muted">—</td></tr>'}</tbody></table></div>
+    <p class="muted small" style="margin:0">費用依 Anthropic 公告的每百萬 token 價格估算（Haiku 5.5 輸入 $0.10／輸出 $0.50；Opus 5.5 輸入 $4／輸出 $20）；實際以 Anthropic 帳單為準。Gemini 用免費額度，不計費。從這個版本開始記錄，之前的用量沒有紀錄。</p>`;
+  const go = v => { aiUi.ym = v; aiCost(box); };
+  const shift = (v, n) => { const [a, b] = v.split('-').map(Number); const d = new Date(a, b - 1 + n, 1); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; };
+  $('#acPrev', box).onclick = () => go(shift(ym, -1)); $('#acNext', box).onclick = () => go(shift(ym, 1));
+  $('#acYm', box).onchange = ev => ev.target.value && go(ev.target.value);
+  box.querySelectorAll('[data-ym]').forEach(tr => tr.onclick = () => go(tr.dataset.ym));
+  $('#acRate', box).onchange = async ev => { const v = +ev.target.value; if (v > 0) { await store.saveSetting('aicost', { ...store.setting('aicost'), rate: v }); aiCost(box); } };
+}
+

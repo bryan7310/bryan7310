@@ -246,4 +246,4 @@ async function piGo(PI, m, close, onDone) {
 }
 
 // 手機版拍照上傳用
-export { piMatch };
+export { piMatch, piUnit };

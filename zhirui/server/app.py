@@ -600,6 +600,11 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_json({'ok': ok, 'msg': msg, 'backup': self.state.backup})
 
         # AI 辨識（支票拍照）：金鑰存在 data/ai.json，不進資料庫、不同步到瀏覽器
+        if path == '/api/ai/usage' and method == 'GET':
+            try:
+                return self.send_json(ai_usage(self.state.data_dir, q('from', ''), q('to', '')))
+            except OcrError as e:
+                return self.error(str(e), e.status)
         if path == '/api/ai' and method == 'GET':
             return self.send_json(ai_status(self.state.data_dir))
         if path == '/api/ai' and method == 'POST':
@@ -658,6 +663,11 @@ class Handler(BaseHTTPRequestHandler):
         if path == '/api/ocr/doc' and method == 'POST':
             try:
                 return self.send_json(doc_extract(self.state.data_dir, body or {}))
+            except OcrError as e:
+                return self.error(str(e), e.status)
+        if path == '/api/ocr/order' and method == 'POST':
+            try:
+                return self.send_json(order_extract(self.state.data_dir, body or {}, self.faxin_path))
             except OcrError as e:
                 return self.error(str(e), e.status)
         if path == '/api/ocr/po' and method == 'POST':
@@ -1005,6 +1015,59 @@ def ai_status(data_dir):
             'mock': bool(os.environ.get('ZR_OCR_MOCK'))}
 
 
+# ---------- AI 費用紀錄：每次呼叫 AI 記一行到 data/ai_usage.jsonl（設定 → AI 費用 可以查） ----------
+AI_LOG_DIR = None
+AI_LOG_LOCK = threading.Lock()
+# 每百萬 token 美元：(輸入, 輸出, 快取讀取, 快取寫入)。依 Anthropic 公告價格；Gemini 用免費額度，不計費
+AI_PRICES = [('claude-haiku-5-5', (0.10, 0.50, 0.01, 0.125)), ('claude-opus-5-5', (4.0, 20.0, 0.20, 5.0)),
+             ('claude-fable-5-2', (8.0, 40.0, 0.20, 10.0))]
+
+
+def ai_log(feature, model, inp=0, out=0, cache_r=0, cache_w=0, user='', note=''):
+    """feature：faxidx 傳真索引、order 訂單轉單、po 採購單、pur／quote／order-doc 拍照單據、check 支票、agent AI 助理"""
+    try:
+        model = str(model or '')
+        usd = None
+        if model.startswith('gemini'):
+            usd = 0.0
+        else:
+            for pre, (pi, po, pr, pw) in AI_PRICES:
+                if model.startswith(pre):
+                    usd = round(((inp or 0) * pi + (out or 0) * po + (cache_r or 0) * pr + (cache_w or 0) * pw) / 1e6, 6)
+                    break
+        row = {'t': int(time.time() * 1000), 'f': feature, 'm': model, 'in': int(inp or 0), 'out': int(out or 0),
+               'cr': int(cache_r or 0), 'cw': int(cache_w or 0), 'usd': usd, 'u': user or '', 'n': note or ''}
+        if not AI_LOG_DIR:
+            return
+        with AI_LOG_LOCK:
+            with open(os.path.join(AI_LOG_DIR, 'ai_usage.jsonl'), 'a', encoding='utf-8') as f:
+                f.write(json.dumps(row, ensure_ascii=False) + '\n')
+    except Exception:   # 記帳失敗不影響辨識
+        pass
+
+
+def ai_usage(data_dir, frm='', to=''):
+    """frm／to：YYYY-MM-DD（含）；回傳區間內每一筆（新的在前）"""
+    fp = os.path.join(data_dir, 'ai_usage.jsonl')
+    rows = []
+    try:
+        lo = int(time.mktime(time.strptime(frm, '%Y-%m-%d')) * 1000) if frm else 0
+        hi = int((time.mktime(time.strptime(to, '%Y-%m-%d')) + 86400) * 1000) if to else 1 << 62
+    except ValueError:
+        raise OcrError('日期格式不對')
+    if os.path.isfile(fp):
+        with open(fp, encoding='utf-8') as f:
+            for line in f:
+                try:
+                    r = json.loads(line)
+                except Exception:
+                    continue
+                if lo <= r.get('t', 0) < hi:
+                    rows.append(r)
+    rows.sort(key=lambda r: -r.get('t', 0))
+    return {'rows': rows, 'prices': {k: v for k, v in AI_PRICES}}
+
+
 def _parse_json_text(text):
     text = (text or '').strip()
     try:
@@ -1071,6 +1134,7 @@ def ocr_gemini(cfg, media, b64):
     fields = _parse_json_text(text)
     u = out.get('usageMetadata') or {}
     sys.stderr.write('ocr/check gemini %s in=%s out=%s\n' % (model, u.get('promptTokenCount'), u.get('candidatesTokenCount')))
+    ai_log('check', model, u.get('promptTokenCount'), u.get('candidatesTokenCount'))
     return fields
 
 
@@ -1161,6 +1225,7 @@ def _ocr_raw(data_dir, data_url):
     fields = _parse_json_text(text)
     u = out.get('usage') or {}
     sys.stderr.write('ocr/check %s in=%s out=%s\n' % (out.get('model'), u.get('input_tokens'), u.get('output_tokens')))
+    ai_log('check', out.get('model'), u.get('input_tokens'), u.get('output_tokens'), u.get('cache_read_input_tokens'), u.get('cache_creation_input_tokens'))
     return fields
 
 
@@ -1245,6 +1310,7 @@ def agent_step(data_dir, body, me):
     sys.stderr.write('agent %s %s stop=%s in=%s cache_r=%s cache_w=%s out=%s\n' % (
         (me or {}).get('name', ''), out.get('model'), out.get('stop_reason'), u.get('input_tokens'),
         u.get('cache_read_input_tokens'), u.get('cache_creation_input_tokens'), u.get('output_tokens')))
+    ai_log('agent', out.get('model'), u.get('input_tokens'), u.get('output_tokens'), u.get('cache_read_input_tokens'), u.get('cache_creation_input_tokens'), (me or {}).get('name', ''))
     return {'content': out.get('content') or [], 'stop_reason': out.get('stop_reason'),
             'stop_details': out.get('stop_details'), 'usage': u, 'model': out.get('model')}
 
@@ -1343,10 +1409,167 @@ def faxidx_read_one(data_dir, fp):
     text = ''.join(b.text for b in resp.content if b.type == 'text')
     u = resp.usage
     sys.stderr.write('faxidx %s in=%s out=%s\n' % (resp.model, u.input_tokens, u.output_tokens))
+    ai_log('faxidx', resp.model, u.input_tokens, u.output_tokens, getattr(u, 'cache_read_input_tokens', 0), getattr(u, 'cache_creation_input_tokens', 0), note=os.path.basename(fp))
     return _parse_json_text(text)
 
 
 FAXIDX_STATE = {'running': False, 'err': '', 'current': ''}
+
+# ---------- 訂單辨識：傳真、Email 附件或信件內文 → 客戶、單號、明細（用 Haiku，結果存起來，同一份不重複花錢） ----------
+ORDER_MODEL = FAXIDX_MODEL
+ORDER_PROMPT = """你在讀台灣螺絲公司「志瑞螺絲企業有限公司」收到的客戶訂單（採購單、訂購單、詢價單；可能是傳真、PDF、照片或 Email 內文）。只要回傳 JSON：
+- buyer：下單（或詢價）的公司名稱，照抄全名；buyer_fax：對方傳真或電話號碼；contact：聯絡人
+- doc_type：採購單／訂單／詢價單／其他；po_no：對方的單號；po_date：單據日期 YYYY-MM-DD（民國年轉西元）
+- lines：每一個品項一行
+  - part_no：客戶自己的料號／產品編號（照抄，不要改），沒有填空字串
+  - name：品名規格照抄（例如「十字盤頭螺絲 M4*10 白鐵」「六角螺帽 3/8"」）
+  - material：材質（白鐵、鐵、SUS304…），沒有填空字串；finish：表面處理（鍍鋅、鍍鎳、染黑…），沒有填空字串
+  - qty：數量（數字，去掉千分位）；unit：單位照抄（PCS、支、K、KG…）；price：單價（沒寫填 0）
+  - due：交期 YYYY-MM-DD，沒有填空字串；note：這一行的備註
+  - cancelled：被劃線刪除或寫「取消」的行填 true
+- remark：整張單的備註（交貨地點、包裝要求…）
+- doubts：看不清楚或不確定的地方寫在這裡；看不清楚的欄位填空字串或 0，不要猜
+志瑞自己是賣方，不是 buyer。"""
+_S = {'type': 'string'}
+ORDER_SCHEMA = {
+    'type': 'object', 'additionalProperties': False,
+    'required': ['buyer', 'buyer_fax', 'contact', 'doc_type', 'po_no', 'po_date', 'remark', 'doubts', 'lines'],
+    'properties': {
+        'buyer': _S, 'buyer_fax': _S, 'contact': _S, 'doc_type': _S, 'po_no': _S, 'po_date': _S, 'remark': _S, 'doubts': _S,
+        'lines': {'type': 'array', 'items': {
+            'type': 'object', 'additionalProperties': False,
+            'required': ['part_no', 'name', 'material', 'finish', 'qty', 'unit', 'price', 'due', 'note', 'cancelled'],
+            'properties': {'part_no': _S, 'name': _S, 'material': _S, 'finish': _S, 'qty': {'type': 'number'}, 'unit': _S,
+                           'price': {'type': 'number'}, 'due': _S, 'note': _S, 'cancelled': {'type': 'boolean'}}}}}}
+ORDER_LOCK = threading.Lock()
+
+
+def _order_cache(data_dir, key, val=None):
+    fp = os.path.join(data_dir, 'orderocr.json')
+    with ORDER_LOCK:
+        try:
+            with open(fp, encoding='utf-8') as f:
+                c = json.load(f)
+        except Exception:
+            c = {}
+        if val is None:
+            return c.get(key)
+        c[key] = val
+        if len(c) > 2000:
+            for k in sorted(c, key=lambda k: c[k].get('_at', 0))[:len(c) - 2000]:
+                c.pop(k, None)
+        tmp = fp + '.tmp'
+        with open(tmp, 'w', encoding='utf-8') as f:
+            json.dump(c, f, ensure_ascii=False)
+        os.replace(tmp, fp)
+
+
+def order_extract(data_dir, body, fax_path):
+    """body：{fax: 檔名} 或 {mail: 信件 id, n: 附件編號}（n 省略＝讀信件內文）；again＝重新辨識（會再花一次錢）"""
+    import zrmail as MB
+    blocks = []
+    MEDIA = {'.pdf': 'application/pdf', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.gif': 'image/gif', '.webp': 'image/webp'}
+
+    def add_file(fp, ext, data=None):
+        ext = (ext or '').lower()
+        if ext in ('.tif', '.tiff', '.bmp'):
+            if fp is None:
+                raise OcrError('TIF 附件請先存成 PDF 或 JPG 再辨識')
+            n, pre = Handler.faxin_tif_static(data_dir, fp)
+            for i in range(min(n, 4)):
+                with open(f'{pre}-{i}.png', 'rb') as f:
+                    blocks.append({'type': 'image', 'source': {'type': 'base64', 'media_type': 'image/png', 'data': base64.b64encode(f.read()).decode('ascii')}})
+            return
+        media = MEDIA.get(ext)
+        if not media:
+            raise OcrError('這種檔案不能辨識（只能 PDF、JPG、PNG、TIF）')
+        if data is None:
+            with open(fp, 'rb') as f:
+                data = f.read()
+        if len(data) > 20 * 1024 * 1024:
+            raise OcrError('檔案太大')
+        b64 = base64.b64encode(data).decode('ascii')
+        blocks.append({'type': 'document', 'source': {'type': 'base64', 'media_type': media, 'data': b64}} if media == 'application/pdf'
+                      else {'type': 'image', 'source': {'type': 'base64', 'media_type': media, 'data': b64}})
+
+    if body.get('fax'):
+        fp = fax_path(str(body['fax']))
+        if not fp:
+            raise OcrError('找不到這個傳真檔', 404)
+        key = 'fax:%s:%d' % (body['fax'], int(os.stat(fp).st_mtime))
+        hit = None if body.get('again') else _order_cache(data_dir, key)
+        if hit:
+            return {**hit, 'cached': True}
+        add_file(fp, os.path.splitext(fp)[1])
+    elif body.get('mail'):
+        mid = str(body['mail'])
+        m = MB.message(data_dir, mid)
+        if not m:
+            raise OcrError('找不到這封信', 404)
+        n = body.get('n')
+        whole = n is None or n == ''
+        key = 'mail:%s:%s' % (mid, 'body' if whole else int(n))
+        hit = None if body.get('again') else _order_cache(data_dir, key)
+        if hit:
+            return {**hit, 'cached': True}
+        if whole:
+            txt = (m.get('text') or re.sub(r'<[^>]+>', ' ', m.get('html') or '')).strip()
+            if not txt:
+                raise OcrError('這封信沒有文字內容')
+            blocks.append({'type': 'text', 'text': '寄件人：%s <%s>\n主旨：%s\n\n%s' % (m.get('from_name', ''), m.get('from', ''), m.get('subject', ''), txt[:20000])})
+        else:
+            r = MB.attachment(data_dir, mid, int(n))
+            if not r:
+                raise OcrError('找不到附件', 404)
+            a, data = r
+            add_file(None, os.path.splitext(a.get('name') or '')[1] or mimetypes.guess_extension(a.get('type') or '') or '', data)
+            blocks.append({'type': 'text', 'text': '（這是 Email 附件。信件寄件人：%s <%s>，主旨：%s）' % (m.get('from_name', ''), m.get('from', ''), m.get('subject', ''))})
+    else:
+        raise OcrError('沒有指定要辨識的傳真或信件')
+    mock = os.environ.get('ZR_ORDER_MOCK')
+    if mock:   # 測試用：不呼叫 Claude
+        with open(mock, encoding='utf-8') as f:
+            out = json.load(f)
+        ai_log('order', ORDER_MODEL, 1800, 400, note='測試 ' + key)
+    else:
+        akey = ai_cfg(data_dir).get('anthropic_api_key') or ''
+        if not akey:
+            raise OcrError('還沒設定 Claude（Anthropic）API 金鑰：請到「設定備份 → AI 辨識」貼上金鑰', 409)
+        try:
+            import anthropic
+        except Exception:
+            raise OcrError('伺服器沒有安裝 Claude 元件，請在伺服器電腦執行：python -m pip install anthropic', 500)
+        client = anthropic.Anthropic(api_key=akey, timeout=180.0, max_retries=2)
+        try:
+            resp = client.messages.create(model=ORDER_MODEL, max_tokens=8000, system=ORDER_PROMPT, thinking={'type': 'disabled'},
+                                          output_config={'effort': 'medium', 'format': {'type': 'json_schema', 'schema': ORDER_SCHEMA}},
+                                          messages=[{'role': 'user', 'content': blocks + [{'type': 'text', 'text': '請讀這份客戶訂單，依指定的 JSON 格式回傳。'}]}])
+        except anthropic.AuthenticationError:
+            raise OcrError('Claude 金鑰無效，請到「設定備份 → AI 辨識」重新設定', 502)
+        except anthropic.RateLimitError:
+            raise OcrError('Claude 暫時忙碌，請稍後再試', 502)
+        except anthropic.BadRequestError as e:
+            raise OcrError('Claude 不接受這個檔案：%s' % e.message, 502)
+        except anthropic.APIStatusError as e:
+            raise OcrError('Claude 服務回應 %d：%s' % (e.status_code, e.message), 502)
+        except anthropic.APIConnectionError:
+            raise OcrError('連不上 Claude 服務，請確認伺服器電腦有網路', 502)
+        if resp.stop_reason == 'refusal':
+            raise OcrError('Claude 拒絕處理這個檔案', 502)
+        if resp.stop_reason == 'max_tokens':
+            raise OcrError('明細太多，這次沒有讀完，請再試一次', 502)
+        text = ''.join(b.text for b in resp.content if b.type == 'text')
+        u = resp.usage
+        sys.stderr.write('order %s in=%s out=%s\n' % (resp.model, u.input_tokens, u.output_tokens))
+        ai_log('order', resp.model, u.input_tokens, u.output_tokens, getattr(u, 'cache_read_input_tokens', 0), getattr(u, 'cache_creation_input_tokens', 0), note=key)
+        out = _parse_json_text(text)
+        if isinstance(out, dict):
+            out['_usd'] = round((u.input_tokens * 0.10 + u.output_tokens * 0.50) / 1e6, 5)   # Haiku 5.5 價格
+    if not isinstance(out, dict) or not isinstance(out.get('lines'), list):
+        raise OcrError('沒有讀到訂單明細', 502)
+    out['_at'] = int(time.time())
+    _order_cache(data_dir, key, out)
+    return out
 
 
 def faxidx_loop(state):
@@ -1440,6 +1663,7 @@ def po_extract(data_dir, body, system=None, schema=None, ask='請讀這張採購
     out = _parse_json_text(text)
     u = resp.usage
     sys.stderr.write('ocr/%s %s in=%s out=%s lines=%d\n' % (tag, resp.model, u.input_tokens, u.output_tokens, len(out.get('lines') or [])))
+    ai_log('order-doc' if tag == 'order' else tag, resp.model, u.input_tokens, u.output_tokens, getattr(u, 'cache_read_input_tokens', 0), getattr(u, 'cache_creation_input_tokens', 0))
     return out
 
 
@@ -1554,6 +1778,8 @@ def main():
     os.makedirs(data_dir, exist_ok=True)
     db = DB(os.path.join(data_dir, 'zhirui.db'))
     state = State(db, data_dir)
+    global AI_LOG_DIR
+    AI_LOG_DIR = data_dir   # AI 費用紀錄寫在 data/ai_usage.jsonl
     try:
         fax_token(data_dir)   # 傳真小幫手要讀的 token 檔，先建好
     except Exception:

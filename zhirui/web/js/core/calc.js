@@ -53,7 +53,7 @@ export const goodsWt = g => {
 };
 // 舊系統的進貨單（歷史單據載入後放進來），成本推算也會用到
 let HIST_PUR = [];
-export function setHistPur(bills) { HIST_PUR = bills || []; C = null; }
+export function setHistPur(bills) { HIST_PUR = bills || []; C = null; QH = null; }
 export function uRate(u, g) {
   if (!g) return null;
   const [c1, f1] = unitFactor(u), [c2, f2] = unitFactor(g.unit || '');
@@ -215,7 +215,7 @@ export function costOf(l, date, purIdx, gm, poIdx, loose) {
 
 // 同一客戶上一次銷貨單價（新平台＋舊系統歷史銷貨單）
 let LSP = null, LSPgen = -1, HIST_SALE = [];
-export function setHistSale(bills) { HIST_SALE = bills || []; LSP = null; }
+export function setHistSale(bills) { HIST_SALE = bills || []; LSP = null; QH = null; }
 export const histSaleReady = () => HIST_SALE.length > 0;
 export function lastSale(cid, gid, date, exclude) {
   if (!cid || !gid) return null;
@@ -225,6 +225,20 @@ export function lastSale(cid, gid, date, exclude) {
     for (const a of LSP.values()) a.sort((x, y) => y.date.localeCompare(x.date) || String(y.no).localeCompare(String(x.no)));
   }
   const a = LSP.get(cid + '|' + gid) || []; return a.find(x => x.id !== exclude && (!date || x.date <= date)) || a.find(x => x.id !== exclude) || null;
+}
+// 數量歷史（開單防呆用）：同一對象、同一商品過去每行的數量（換成商品基本單位）。kind：S＝銷貨、P＝進貨
+let QH = null, QHgen = -1;
+export function qtyHist(kind, cid, gid, exclude) {
+  if (!QH || QHgen !== store.gen) {
+    QH = new Map(); QHgen = store.gen; const gm = {}; store.list('goods').forEach(x => gm[x.id] = x);
+    const put = (k, v) => { let a = QH.get(k); if (!a) QH.set(k, a = []); a.push(v); };
+    for (const b of [...store.list('bills'), ...HIST_SALE, ...HIST_PUR]) {
+      const kd = b.type === 'SALE' ? 'S' : b.type === 'PUR' ? 'P' : ''; if (!kd) continue;
+      for (const l of b.lines || []) { if (!l.gid || !(+l.qty > 0)) continue; const q = bqty(l, gm[l.gid]); if (!(q > 0)) continue; const v = { q, id: b.id, cid: b.cid }; put(kd + '|' + l.gid, v); if (b.cid) put(kd + '|' + b.cid + '|' + l.gid, v); }
+    }
+  }
+  const pick = k => (QH.get(k) || []).filter(x => !exclude || x.id !== exclude).map(x => x.q);
+  return { mine: cid ? pick(kind + '|' + cid + '|' + gid) : [], all: pick(kind + '|' + gid) };
 }
 export function unitPrice(g, type, unit) {
   const sale = type === 'SALE' || type === 'SALE_RET' || type === 'QUO'; if (type === 'TRANSFER' || type === 'OUT') return '';

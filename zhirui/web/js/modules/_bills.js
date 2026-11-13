@@ -2,7 +2,7 @@
 import { $, $$, esc, fmt, fmtQ, fp4, today, uid, matchQ, qTerms, roc, slash, thisMonth, money, isoOf, downloadText, ls, dayN, lineSeq } from '../core/util.js';
 import { store } from '../core/store.js';
 import { toast, modal, confirm, combo, pager, tabs, printHTML, keepWhile } from '../core/ui.js';
-import { TYPES, totals, lineAmt, calc, nextNo, cname, cshort, cdisp, wname, gname, goodsLabel, customers, suppliers, defWh, qtyAt, bqty, uRate, lastSale, unitPrice, unitFactor, setHistPur, setHistSale, histSaleReady, costOf, lineUnit, lineKg } from '../core/calc.js';
+import { TYPES, totals, lineAmt, calc, nextNo, cname, cshort, cdisp, wname, gname, goodsLabel, customers, suppliers, defWh, qtyAt, bqty, uRate, lastSale, unitPrice, unitFactor, setHistPur, setHistSale, histSaleReady, costOf, lineUnit, lineKg, qtyHist } from '../core/calc.js';
 import { api } from '../core/api.js';
 import { printName } from '../core/names.js';
 import { labelPicker } from './labels.js';
@@ -517,7 +517,47 @@ function updateTotals(el) {
   st('#t-wt', kgText(billKg(e)));
   st('#t-sub', fmt(t.sub)); st('#t-tax', e.tax ? fmt(t.tax) : '—'); st('#t-total', fmt(t.total)); st('#t-due', fmt(t.total - (+e.paid || 0)));
 }
-async function saveBill(close, then) {
+// ---------- 開單防呆：儲存前檢查容易打錯的地方（只提醒，可以照樣儲存） ----------
+const med = a => { const b = a.slice().sort((x, y) => x - y); return b.length ? b[Math.floor(b.length / 2)] : 0; };
+const times = (a, b) => { const r = a / b; return r >= 10 ? Math.round(r) + ' 倍' : (Math.round(r * 10) / 10) + ' 倍'; };
+export function billChecks(e) {
+  const T = TYPES[e.type]; if (!T || !T.lines || e.hist) return [];
+  const C = calc(); const out = []; const sale = ['SALE', 'QUO'].includes(e.type), pur = ['PUR', 'PO'].includes(e.type);
+  const seq = lineSeq(e.lines); const name = (l, i) => `第 ${seq[i]} 行 ${C.g[l.gid]?.name || l.n || ''}`;
+  // 日期：新單或改過日期，離今天太遠
+  const orig = e.id ? store.get('bills', e.id) : null;
+  if (e.date && (!orig || orig.date !== e.date)) { const dd = dayN(e.date) - dayN(today()); if (dd > 7) out.push(`單據日期 ${slash(e.date)} 是 ${dd} 天後`); else if (dd < -60) out.push(`單據日期 ${slash(e.date)} 是 ${-dd} 天前`); }
+  const seen = new Map(); const need = new Map();
+  e.lines.forEach((l, i) => {
+    if (l.txt !== undefined || !l.gid) return; const g = C.g[l.gid]; if (!g) return;
+    if (seen.has(l.gid)) out.push(`第 ${seq[seen.get(l.gid)]} 行和第 ${seq[i]} 行是同一個商品「${g.name}」`); else seen.set(l.gid, i);
+    const q = +l.qty || 0, p = +l.price || 0;
+    if ((sale || pur || e.type === 'SALE_RET') && q > 0 && !(p > 0)) out.push(`${name(l, i)}：單價是 0`);
+    // 單價和上次差太多（多打或少打一個 0）
+    if (p > 0 && (sale || pur)) {
+      const [cls, f] = lineUnit(l, g); let last = 0, when = '';
+      if (sale) { const x = lastSale(e.cid, g.id, e.date, e.id); if (x) { let c2, per; if (x.u) { const [c, f2] = unitFactor(x.u); c2 = c; per = x.price / f2; } else if (x.unit === 'a' && g.aunit) { c2 = unitFactor(g.unit || '')[0]; per = x.price / (+x.rate || +g.arate || 1); } else { c2 = unitFactor(g.unit || '')[0]; per = x.price; } if (c2 === cls) { last = per * f; when = slash(x.date); } } }
+      else { const d0 = dayN(e.date || today()); const li = (C.purIdx[g.id] || []).filter(x => x.cls === cls && x.d <= d0 && x.no !== e.no).sort((a, c) => c.d - a.d); const x = li.find(y => y.cid && y.cid === e.cid) || li[0]; if (x) { last = x.per * f; when = slash(x.date); } }
+      if (last > 0 && p >= last * 2.5) out.push(`${name(l, i)}：單價 ${fp4(p)} 是上次（${when}，${fp4(last)}）的 ${times(p, last)}`);
+      else if (last > 0 && p <= last * 0.4) out.push(`${name(l, i)}：單價 ${fp4(p)} 只有上次（${when}，${fp4(last)}）的 ${Math.round(p / last * 100)}%`);
+      if (e.type === 'SALE') { const r = costOf(l, e.date) || costOf(l, e.date, null, null, null, true); if (r && p < r.c * 0.9999) out.push(`${name(l, i)}：單價 ${fp4(p)} 低於成本 ${fp4(r.c)}`); }
+    }
+    // 數量比以往多很多（多打一個 0）
+    if (q > 0 && (sale || pur || e.type === 'SALE_RET')) {
+      const bq = bqty(l, g); const h = qtyHist(pur ? 'P' : 'S', e.cid, g.id, e.id);
+      const ref = h.mine.length >= 2 ? h.mine : h.all.length >= 3 ? h.all : null;
+      if (ref) { const mx = Math.max(...ref), md = med(ref); if (bq >= mx * 5 && bq >= md * 10) out.push(`${name(l, i)}：數量 ${fmtQ(q)} 是以往${ref === h.mine ? '這個' + (T.party === 'S' ? '廠商' : '客戶') : ''}最多（${fmtQ(mx)} ${g.unit || ''}）的 ${times(bq, mx)}`); }
+    }
+    if ((T.stock === -1 || T.transfer) && e.wid) need.set(l.gid, (need.get(l.gid) || 0) + bqty(l, g));
+  });
+  // 庫存：原本有庫存、出了這張會變負數（原本就是負的不提醒）
+  for (const [gid, q] of need) {
+    let have = qtyAt(gid, e.wid); if (orig && orig.wid === e.wid) for (const l of orig.lines || []) if (l.gid === gid) have += bqty(l, C.g[gid]);
+    if (have > 0 && q > have) out.push(`「${C.g[gid].name}」${wname(e.wid)}只剩 ${fmtQ(have)} ${C.g[gid].unit || ''}，這張要出 ${fmtQ(q)}`);
+  }
+  return out;
+}
+async function saveBill(close, then, force) {
   const e = edit, T = TYPES[e.type]; let err = '';
   const C = calc();
   if (!e.date) err = '請填單據日期';
@@ -535,6 +575,7 @@ async function saveBill(close, then) {
   if (!err && !T.lines && !(+e.amount > 0)) err = '請輸入金額';
   if (!err && T.money && !T.lines && !e.aid) err = '請選擇結算帳戶';
   if (err) { e._err = err; if (T.lines && !e.lines.length) e.lines.push({ gid: '', qty: '', price: '' }); drawBill(); toast('無法儲存：' + err); return; }
+  if (!force && !e.hist) { const w = billChecks(e); if (w.length && !(await confirm(`這張${T.name}有 ${w.length} 個地方請確認：\n\n` + w.map(x => '・' + x).join('\n') + '\n\n確定沒問題就按「照樣儲存」。', { title: '儲存前請確認', ok: '照樣儲存', cancel: '回去修改' }))) return; }
   const id = e.id || uid('b');
   const doc = { type: e.type, no: e.no.trim(), date: e.date, note: e.note || '', createdAt: e.createdAt || Date.now(), updatedAt: Date.now() };
   if (T.party) doc.cid = e.cid;
