@@ -190,7 +190,7 @@ function gsearch() {
   const gs = store.list('goods').filter(g => matchQ(goodsLabel(g), q)).slice(0, 8);
   if (gs.length) out.push(['商品', gs.map(g => ({ href: `#master/goods?id=${g.id}`, label: goodsLabel(g), sub: money(Object.values(C.stock[g.id] || {}).reduce((a, b) => a + b, 0)) + ' ' + (g.unit || '') }))]);
   const bs = store.list('bills').filter(b => matchQ(b.no + ' ' + (C.ct[b.cid]?.name || '') + ' ' + (b.note || ''), q)).slice(0, 6);
-  if (bs.length) out.push(['單據', bs.map(b => ({ href: `#${b.type === 'SALE' || b.type === 'SALE_RET' ? 'sales' : b.type === 'PUR' || b.type === 'PUR_RET' || b.type === 'PO' ? 'purchase' : b.type === 'QUO' || b.type === 'RFQ' ? 'quotes' : 'stock'}?open=${b.id}`, label: `${b.no}`, sub: `${b.date} ${cdisp(C.ct[b.cid])}` }))]);
+  if (bs.length) out.push(['單據', bs.map(b => ({ href: `#${b.type === 'SALE' || b.type === 'SALE_RET' ? 'sales' : b.type === 'PUR' || b.type === 'PUR_RET' || b.type === 'PO' ? 'purchase' : b.type === 'QUO' || b.type === 'RFQ' ? 'quotes' : b.type === 'SO' ? 'custorders' : 'stock'}?open=${b.id}`, label: `${b.no}`, sub: `${b.date} ${cdisp(C.ct[b.cid])}` }))]);
   const ps = store.list('pricing').filter(p => matchQ([p.name, p.spec, p.sup, p.code].join(' '), q)).slice(0, 6);
   if (ps.length) out.push(['查價', ps.map(p => ({ href: `#pricing?q=${encodeURIComponent(gq.value)}`, label: `${p.name} ${p.spec || ''}`, sub: p.sup }))]);
   gres.innerHTML = out.length ? out.map(([h, items]) => `<div class="gh">${h}</div>` + items.map(i => `<a href="${i.href}">${esc(i.label)}<small>${esc(i.sub || '')}</small></a>`).join('')).join('') : '<div class="gh">找不到</div>';

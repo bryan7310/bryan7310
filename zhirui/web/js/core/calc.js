@@ -21,7 +21,8 @@ export const TYPES = {
   QUO: { name: '報價單', pre: 'BJ', party: 'C', lines: true, doc: true },
   RFQ: { name: '詢價單', pre: 'XJ', party: 'S', lines: true, doc: true },
   PO: { name: '採購單', pre: 'PO', party: 'S', lines: true, doc: true },
-  PRC: { name: '加工單', pre: 'JG', party: 'S', lines: true, doc: true },   // 委託加工：送電鍍、熱處理、耐落給廠商的單子（不動庫存、不進應付）
+  PRC: { name: '加工單', pre: 'JG', party: 'S', lines: true, doc: true },
+  SO: { name: '客戶訂單', pre: 'DD', party: 'C', lines: true, doc: true },   // 客戶下的訂單（傳真、Email 轉入）：不動庫存、不進應收；出貨時轉成銷貨單   // 委託加工：送電鍍、熱處理、耐落給廠商的單子（不動庫存、不進應付）
 };
 
 export const lineAmt = l => rnd0((+l.qty || 0) * (+l.price || 0));
@@ -241,7 +242,7 @@ export function qtyHist(kind, cid, gid, exclude) {
   return { mine: cid ? pick(kind + '|' + cid + '|' + gid) : [], all: pick(kind + '|' + gid) };
 }
 export function unitPrice(g, type, unit) {
-  const sale = type === 'SALE' || type === 'SALE_RET' || type === 'QUO'; if (type === 'TRANSFER' || type === 'OUT') return '';
+  const sale = type === 'SALE' || type === 'SALE_RET' || type === 'QUO' || type === 'SO'; if (type === 'TRANSFER' || type === 'OUT') return '';
   const base = +(sale ? g.salePrice : g.purPrice) || 0;
   if (unit === 'a') { const ap = +(sale ? g.asale : g.apur) || 0; return ap || (base ? Math.round(base * (+g.arate || 1) * 100) / 100 : ''); }
   return base || '';

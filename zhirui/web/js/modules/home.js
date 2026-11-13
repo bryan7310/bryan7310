@@ -103,5 +103,5 @@ function draw(el) {
   rt.querySelectorAll('[data-rt-del]').forEach(b => b.addEventListener('click', async () => { const x = store.get('bills', b.dataset.rtDel); if (!x) return; if (await confirm(`刪除門市銷售 ${fmt(C.tot[x.id]?.total || 0)} 元（${x.no}）？`, { danger: true, ok: '刪除' })) { await store.remove('bills', x.id); store.log('刪除', `銷貨單 ${x.no}｜門市銷售`); } }));
   if (ui.focus) { ui.focus = false; setTimeout(() => el.querySelector('#rtAmt')?.focus(), 30); }
 }
-const href = b => b.type === 'SALE' || b.type === 'SALE_RET' ? 'sales' : b.type === 'PUR' || b.type === 'PUR_RET' || b.type === 'PO' ? 'purchase' : b.type === 'QUO' || b.type === 'RFQ' ? 'quotes' : TYPES[b.type].money ? 'money' : 'stock';
+const href = b => b.type === 'SALE' || b.type === 'SALE_RET' ? 'sales' : b.type === 'PUR' || b.type === 'PUR_RET' || b.type === 'PO' ? 'purchase' : b.type === 'QUO' || b.type === 'RFQ' ? 'quotes' : b.type === 'SO' ? 'custorders' : TYPES[b.type].money ? 'money' : 'stock';
 const todo = items => { const li = items.filter(([n]) => n > 0); return li.length ? `<div style="display:grid;gap:6px">${li.map(([, txt, h]) => `<a href="${h}" style="display:flex;gap:8px;align-items:center;color:inherit"><span class="pill bad">!</span>${esc(txt)}</a>`).join('')}</div>` : '<div class="muted">目前沒有需要處理的事 ✓</div>'; };

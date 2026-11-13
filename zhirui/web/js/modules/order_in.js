@@ -4,7 +4,7 @@
 import { esc, fmtQ, fp4, slash, today, toHalf } from '../core/util.js';
 import { api } from '../core/api.js';
 import { store } from '../core/store.js';
-import { modal, toast, combo } from '../core/ui.js';
+import { modal, toast, combo, confirm } from '../core/ui.js';
 import { calc, customers, cdisp, goodsLabel, lastSale, unitPrice } from '../core/calc.js';
 import { matchCo } from './faxin.js';
 import { piMatch, piUnit } from './purchase_import.js';
@@ -77,7 +77,7 @@ export async function orderFromDoc(src, title, hint) {
           <td><input class="num" data-p="${i}" value="${esc(x.price)}" inputmode="decimal" placeholder="${(lp => lp ? '上次 ' + fp4(lp.price) : '')(st.cid && x.gid ? lastSale(st.cid, x.gid) : null)}" style="width:100%"></td>
           <td class="small">${esc(r.due ? slash(r.due) : '')}</td></tr>`; }).join('')}</tbody></table></div>
       <div class="muted small">已勾 ${nUse} 項，其中 ${nOk} 項對到商品。單價空白會自動帶這個客戶上次的單價。${P.cached ? '（這份之前辨識過，沒有再花錢）' : P._usd ? `（這次辨識約 NT$${(P._usd * 32).toFixed(2)}）` : ''}</div>`;
-    m.el.querySelector('.mf').innerHTML = `<button class="btn" id="oiAgain" title="重新請 AI 讀一次（會再花一次錢）">重新辨識</button><span class="sp"></span><button class="btn" data-close>關閉</button><button class="btn" id="oiQuo" ${nUse ? '' : 'disabled'}>開成報價單</button><button class="btn pri" id="oiSale" ${nUse ? '' : 'disabled'}>開成銷貨單</button>`;
+    m.el.querySelector('.mf').innerHTML = `<button class="btn" id="oiAgain" title="重新請 AI 讀一次（會再花一次錢）">重新辨識</button><span class="sp"></span><button class="btn" data-close>關閉</button><button class="btn" id="oiQuo" ${nUse ? '' : 'disabled'}>開成報價單</button><button class="btn" id="oiSale" ${nUse ? '' : 'disabled'}>直接開銷貨單</button><button class="btn pri" id="oiSo" ${nUse ? '' : 'disabled'} title="先存成客戶訂單，出貨時再轉銷貨單（可分批出）">存成客戶訂單</button>`;
     m.el.querySelector('.mf [data-close]').onclick = () => m.close();
     combo(mb.querySelector('#oiCus'), { items: () => customers().map(c => ({ id: c.id, label: c.short || c.name, sub: [c.code, c.short ? c.name : ''].filter(Boolean).join(' '), text: [c.code, c.name, c.short, ...(c.aliases || [])].join(' ') })), onPick: it => { st.cid = it.id; build(); paint(); }, onClear: () => { st.cid = ''; } });
     mb.querySelectorAll('[data-g]').forEach(inp => { const i = +inp.dataset.g; combo(inp, { inline: true, items: () => store.list('goods').map(g => ({ id: g.id, label: goodsLabel(g, 'SALE'), sub: g.unit || '', text: goodsLabel(g) + ' ' + (g.spec || '') + ' ' + (g.spec2 || '') })), onPick: it => { st.rows[i].gid = it.id; paint(); }, onClear: () => { st.rows[i].gid = ''; } }); });
@@ -88,6 +88,7 @@ export async function orderFromDoc(src, title, hint) {
     m.el.querySelector('#oiAgain').onclick = async () => { m.el.querySelector('.mb').innerHTML = '<div class="muted" style="padding:20px 0">重新辨識中…</div>'; if (await load(true)) { build(); paint(); } };
     m.el.querySelector('#oiSale').onclick = () => go('SALE');
     m.el.querySelector('#oiQuo').onclick = () => go('QUO');
+    m.el.querySelector('#oiSo').onclick = () => go('SO');
   };
   const go = async type => {
     const rows = st.rows.filter(x => x.use);
@@ -107,11 +108,19 @@ export async function orderFromDoc(src, title, hint) {
     });
     const note = [po ? `客戶單號 ${po}` : '', P.remark || ''].filter(Boolean).join('；');
     const preset = { cid: st.cid, lines, note };
-    if (type === 'QUO' && P.contact) preset.attn = P.contact;
+    if ((type === 'QUO' || type === 'SO') && P.contact) preset.attn = P.contact;
+    if (type === 'SO') {
+      // 同一份傳真／信件、或同客戶同客戶單號已經存過 → 先問
+      const dup = store.list('bills').find(b => b.type === 'SO' && ((b.src && JSON.stringify(b.src) === JSON.stringify(src)) || (po && b.cid === st.cid && b.cpo === po)));
+      if (dup && !await confirm(`這張訂單好像已經存過了：客戶訂單 ${dup.no}（${slash(dup.date)}）。\n還要再存一張嗎？`, { ok: '再存一張', cancel: '不要' })) return;
+      const iso = /^\d{4}-\d\d-\d\d$/;
+      Object.assign(preset, { cpo: po, src, note: P.remark || '', date: iso.test(P.po_date || '') ? P.po_date : today() });
+      const dues = (P.lines || []).filter(r => !r.cancelled && iso.test(r.due || '')).map(r => r.due).sort(); if (dues[0]) preset.deliv = dues[0];
+    }
     m.close();
     openBill(type, null, null, preset);
     const miss = lines.filter(l => !l.gid).length;
-    toast(`已開好${type === 'SALE' ? '銷貨單' : '報價單'}草稿（還沒存）${miss ? `，有 ${miss} 項沒對到商品，請在單上選` : ''}`);
+    toast(`已開好${{ SALE: '銷貨單', QUO: '報價單', SO: '客戶訂單' }[type]}草稿（還沒存，按儲存才算）${miss ? `，有 ${miss} 項沒對到商品，請在單上選` : ''}`);
   };
   paint();
 }
