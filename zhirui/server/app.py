@@ -312,6 +312,10 @@ class Handler(BaseHTTPRequestHandler):
         try:
             if path == '/api/kerry/cfg' and method == 'GET':
                 return self.send_json(KR.cfg_public(dd))
+            if path == '/api/kerry/delete' and method == 'POST':
+                r = KR.delete(dd, body.get('no'))
+                sys.stderr.write('kerry delete %s %s\n' % (me.get('name', ''), body.get('no')))
+                return self.send_json(r)
             if path == '/api/kerry/send' and method == 'POST':
                 r = KR.send(dd, body.get('ship') or {}, bool(body.get('confirm')))
                 sys.stderr.write('kerry send %s %s %s\n' % (me.get('name', ''), (body.get('ship') or {}).get('no', ''), json.dumps(r, ensure_ascii=False)[:200]))

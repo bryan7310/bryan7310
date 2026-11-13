@@ -408,7 +408,7 @@ function bindBill(el, close) {
   el.querySelector('#faxBill')?.addEventListener('click', () => faxDialog(e, () => drawBill()));
   el.querySelector('#toSale')?.addEventListener('click', () => convertBill(e, 'SALE', close));
   el.querySelector('#soShip')?.addEventListener('click', () => soToSale(e, close));
-  el.querySelector('#kerryBill')?.addEventListener('click', afterSave(async b => { const { kerryShip } = await import('./kerry.js'); kerryShip(store.get('bills', b.id) || b, nb => { if (!nb?.kerry || !edit || edit.id !== nb.id) return; edit.kerry = nb.kerry; const btn = el.querySelector('#kerryBill'); if (btn) btn.textContent = '嘉里 ' + (nb.kerry.no || '已送'); }); }));
+  el.querySelector('#kerryBill')?.addEventListener('click', afterSave(async b => { const { kerryShip } = await import('./kerry.js'); kerryShip(store.get('bills', b.id) || b, nb => { if (!nb || !edit || edit.id !== nb.id) return; if (nb.kerry) edit.kerry = nb.kerry; else delete edit.kerry; const btn = el.querySelector('#kerryBill'); if (btn) btn.textContent = nb.kerry ? '嘉里 ' + (nb.kerry.no || '已送') : '送嘉里'; }); }));
   el.querySelector('#soClose')?.addEventListener('click', async () => { const b = store.get('bills', e.id); if (!b) return; const { closed, ...rest } = b; await store.save('bills', e.id, e.closed ? rest : { ...b, closed: today() }); toast(e.closed ? '已重新打開' : '已結案'); close(); });
   el.querySelector('#toPur')?.addEventListener('click', () => convertBill(e, 'PUR', close));
   // 上一張／下一張、放大
@@ -586,7 +586,7 @@ async function saveBill(close, then, force) {
   if (T.lines) { doc.wid = e.wid; doc.lines = e.lines.map(l => { if (l.txt !== undefined) return { txt: String(l.txt).trim() }; const o = { gid: l.gid || '', qty: +l.qty || 0, price: +l.price || 0 }; if (!l.gid && l.n) { o.n = l.n; if (l.unit) o.unit = l.unit; } if (l.u) o.u = l.u; if (l.sq) o.sq = l.sq; if (String(l.memo || '').trim()) o.memo = String(l.memo).trim(); if (l.unit === 'a' && +l.rate > 1) { o.unit = 'a'; o.rate = +l.rate; } else if (l.u && l.gid) { const r = uRate(l.u, C.g[l.gid]); if (r && r !== 1) o.rate = r; } if (l.batch) o.batch = l.batch; if (+l.wt > 0) o.wt = +l.wt; return o; }); }
   if (T.transfer) doc.toWid = e.toWid;
   if (T.doc) { doc.disc = +e.disc || 0; doc.tax = !!e.tax; for (const k of ['attn', 'valid', 'deliv', 'payterm', 'toBill', 'received', 'fromQuote', 'orderId', 'proc', 'cpo', 'src', 'closed']) if (e[k]) doc[k] = e[k]; delete doc.wid; }
-  else if (T.lines && T.party) { doc.disc = +e.disc || 0; doc.tax = !!e.tax; doc.paid = +e.paid || 0; doc.aid = e.aid || ''; for (const k of ['invNo', 'fromQuote', 'fromPO', 'fromSO', 'sq', 'kerry']) if (e[k]) doc[k] = e[k]; }
+  else if (T.lines && T.party) { doc.disc = +e.disc || 0; doc.tax = !!e.tax; doc.paid = +e.paid || 0; doc.aid = e.aid || ''; for (const k of ['invNo', 'fromQuote', 'fromPO', 'fromSO', 'sq', 'kerry', 'noKerry']) if (e[k]) doc[k] = e[k]; }
   if (T.money && !T.lines) { doc.aid = e.aid || ''; doc.amount = +e.amount || 0; if (e.cat) doc.cat = e.cat; for (const k of ['ref', 'checkId']) if (e[k]) doc[k] = e[k]; }
   if (e.hist) { doc.hist = true; if (e.cn) doc.cn = e.cn; if (e.oamt != null) doc.oamt = e.oamt; }
   doc.createdBy = e.createdBy || store.user.id; if (e.id) doc.updatedBy = store.user.id;

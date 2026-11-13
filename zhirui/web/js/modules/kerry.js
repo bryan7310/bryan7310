@@ -14,7 +14,7 @@ import { matchCo } from './faxin.js';
 
 export const COLS = ['出貨日期', '收貨人', '收貨人地址', '收貨人電話1', '收貨人電話2', '件數', '重量', '出貨單號', '代收貨款', '貨品內容', '備註'];
 const KERRY = 'https://webedi.kerrytj.com/login.aspx';
-const ui = { date: '', pick: new Set(), rows: {}, busy: false };
+const ui = { date: '', pick: new Set(), rows: {}, busy: false, showSkip: false };
 const shipDate = b => (b.date && b.date > today() ? b.date : today());   // 託運日期不能是過去
 const mem = () => store.setting('kerry').c || {};
 // 嘉里「維護收貨人」匯出的收貨人清單（設定 kerrybook）：對到客戶就優先用它的地址電話
@@ -37,16 +37,17 @@ export function rowOf(b) {
 }
 function draw(el) {
   const C = calc();
-  const list = C.bills.filter(b => b.type === 'SALE' && !b.hist && b.date === ui.date).sort((a, b) => String(a.no).localeCompare(String(b.no)));
+  const day = C.bills.filter(b => b.type === 'SALE' && !b.hist && b.date === ui.date).sort((a, b) => String(a.no).localeCompare(String(b.no)));
+  const skipped = day.filter(b => b.noKerry); const list = ui.showSkip ? day : day.filter(b => !b.noKerry);
   for (const id of [...ui.pick]) if (!list.some(b => b.id === id)) ui.pick.delete(id);
   const bad = b => { const r = rowOf(b); return !r.name || !r.addr || !r.tel || !(+r.n >= 1 && +r.n <= 999); };
   el.innerHTML = `<div class="head"><h1>嘉里託運</h1><span class="sub">勾要寄嘉里的出貨單 → 下載 Excel → 到嘉里「多筆匯入」上傳</span><span class="sp"></span><a class="btn" href="${KERRY}" target="_blank" rel="noopener">開嘉里網路託運</a><button class="btn" id="kHelp">第一次設定</button><button class="btn" id="kBook" title="嘉里網站「基本維護 → 維護收貨人」匯出的 Excel">匯入嘉里收貨人${(store.setting('kerrybook').list || []).length ? `（${store.setting('kerrybook').list.length}）` : ''}</button><input type="file" id="kBookFile" accept=".xls,.xlsx,.csv" hidden>${(store.user?.role || 'admin') === 'admin' ? '<button class="btn" id="kCfg">帳號設定</button>' : ''}</div>
     <div class="panel" style="display:grid;gap:10px">
-      <div class="tools"><label>出貨日期 <input type="date" id="kDate" value="${esc(ui.date)}"></label><button class="btn sm" data-d="-1">‹ 前一天</button><button class="btn sm" data-d="1">後一天 ›</button><span class="sp"></span><span class="muted small">${list.length} 張出貨單，勾選 ${ui.pick.size} 張</span><button class="btn" id="kGo" ${ui.pick.size ? '' : 'disabled'}>下載 Excel（${ui.pick.size}）</button><button class="btn pri" id="kSendAll" ${ui.pick.size && !ui.busy ? '' : 'disabled'}>勾選的直接送嘉里（${ui.pick.size}）</button></div>
+      <div class="tools"><label>出貨日期 <input type="date" id="kDate" value="${esc(ui.date)}"></label><button class="btn sm" data-d="-1">‹ 前一天</button><button class="btn sm" data-d="1">後一天 ›</button><span class="sp"></span><span class="muted small">${list.length} 張出貨單，勾選 ${ui.pick.size} 張${skipped.length ? `・<a href="#" id="kSkip">${ui.showSkip ? '隱藏' : '顯示'}不寄嘉里的 ${skipped.length} 張</a>` : ''}</span><button class="btn" id="kGo" ${ui.pick.size ? '' : 'disabled'}>下載 Excel（${ui.pick.size}）</button><button class="btn pri" id="kSendAll" ${ui.pick.size && !ui.busy ? '' : 'disabled'}>勾選的直接送嘉里（${ui.pick.size}）</button></div>
       <div class="tw"><table><thead><tr><th style="width:30px"><input type="checkbox" id="kAll" ${list.length && ui.pick.size === list.length ? 'checked' : ''} aria-label="全選"></th><th>出貨單號</th><th>收貨人</th><th>收貨人地址</th><th>電話1</th><th>電話2</th><th class="n" style="width:60px">件數</th><th class="n" style="width:70px">重量 kg</th><th class="n" style="width:90px">代收貨款</th><th style="width:90px">貨品內容</th><th>備註</th><th>嘉里</th></tr></thead><tbody>
       ${list.map(b => { const r = rowOf(b); const inp = (k, w, cls = '') => `<input data-b="${b.id}" data-k="${k}" value="${esc(r[k])}" class="${cls}" style="width:${w};min-width:0">`;
         return `<tr ${ui.pick.has(b.id) && bad(b) ? 'style="background:var(--bad-soft)"' : ''}><td><input type="checkbox" data-p="${b.id}" ${ui.pick.has(b.id) ? 'checked' : ''}></td><td class="mono nowrap">${esc(b.no)}<div class="muted small">${esc(cdisp(C.ct[b.cid]) || '')}・${fmt(totals(b).total)}</div></td>
-          <td>${inp('name', '140px')}</td><td>${inp('addr', '100%')}</td><td>${inp('tel', '110px')}</td><td>${inp('tel2', '100px')}</td><td>${inp('n', '50px', 'num')}</td><td>${inp('kg', '60px', 'num')}</td><td>${inp('cod', '80px', 'num')}</td><td>${inp('what', '80px')}</td><td>${inp('note', '100%')}</td><td class="nowrap">${b.kerry?.no || b.kerry?.at ? `<span class="pill ok" title="${esc(b.kerry.at || '')}">${esc(b.kerry.no || '已送出')}</span>` : `<button class="btn xs" data-send="${b.id}">送嘉里</button>`}</td></tr>`; }).join('') || `<tr><td colspan="12"><div class="empty"><b>${esc(slash(ui.date))} 沒有出貨單</b>換一天看看</div></td></tr>`}
+          <td>${inp('name', '140px')}</td><td>${inp('addr', '100%')}</td><td>${inp('tel', '110px')}</td><td>${inp('tel2', '100px')}</td><td>${inp('n', '50px', 'num')}</td><td>${inp('kg', '60px', 'num')}</td><td>${inp('cod', '80px', 'num')}</td><td>${inp('what', '80px')}</td><td>${inp('note', '100%')}</td><td class="nowrap">${b.kerry?.no || b.kerry?.at ? `<span class="pill ok" title="${esc(b.kerry.at || '')}">${esc(b.kerry.no || '已送出')}</span> <button class="btn xs danger" data-kdel="${b.id}" title="到嘉里網站刪掉這筆託運單（只有當天可以）">刪除</button>` : b.noKerry ? `<span class="pill">不寄嘉里</span> <button class="btn xs" data-unskip="${b.id}">改回要寄</button>` : `<button class="btn xs" data-send="${b.id}">送嘉里</button> <button class="btn xs" data-skip="${b.id}" title="這張不寄嘉里，從清單拿掉（銷貨單不會刪）">不寄</button>`}</td></tr>`; }).join('') || `<tr><td colspan="12"><div class="empty"><b>${esc(slash(ui.date))} 沒有出貨單</b>換一天看看</div></td></tr>`}
       </tbody></table></div>
       <p class="muted small" style="margin:0">收貨人、地址、電話預設帶客戶資料；這裡改過的，下載時會記住，下次同一個客戶直接帶。重量依商品單重估算（無條件進位到整數公斤）。紅底＝必填欄位（收貨人、地址、電話1、件數）沒填。</p>
     </div>`;
@@ -57,6 +58,11 @@ function draw(el) {
   el.querySelectorAll('[data-k]').forEach(inp => inp.oninput = () => { ui.rows[inp.dataset.b][inp.dataset.k] = inp.value; });
   el.querySelector('#kHelp').onclick = help;
   el.querySelector('#kCfg')?.addEventListener('click', cfgDialog);
+  el.querySelector('#kSkip')?.addEventListener('click', ev => { ev.preventDefault(); ui.showSkip = !ui.showSkip; draw(el); });
+  const setSkip = async (id, on) => { const cur = store.get('bills', id); if (!cur) return; const { id: _, noKerry, ...rest } = cur; await store.save('bills', id, on ? { ...rest, noKerry: true } : rest); ui.pick.delete(id); };
+  el.querySelectorAll('[data-skip]').forEach(b => b.onclick = () => setSkip(b.dataset.skip, true));
+  el.querySelectorAll('[data-unskip]').forEach(b => b.onclick = () => setSkip(b.dataset.unskip, false));
+  el.querySelectorAll('[data-kdel]').forEach(btn => btn.onclick = async () => { const b = store.get('bills', btn.dataset.kdel); if (b) { await kerryDelete(b); if (el.isConnected) draw(el); } });
   const f = el.querySelector('#kBookFile'); el.querySelector('#kBook').onclick = () => f.click(); { f.onchange = async () => { const file = f.files[0]; if (!file) return; try { const n = await importBook(file); ui.rows = {}; toast(`已匯入嘉里收貨人 ${n} 筆`); if (el.isConnected) draw(el); } catch (e) { toast('匯入失敗：' + (e.message || e)); } f.value = ''; }; }
   el.querySelectorAll('[data-send]').forEach(btn => btn.onclick = async () => { const b = store.get('bills', btn.dataset.send); if (!b) return; btn.disabled = true; btn.textContent = '送出中…'; await sendOne(b); if (el.isConnected) draw(el); });
   el.querySelector('#kSendAll').onclick = async () => {
@@ -128,6 +134,16 @@ export async function sendOne(b, quiet) {
   if (!quiet) toast(res.no ? `已送嘉里，託運單號 ${res.no}` : `已送嘉里（${res.msg || '沒抓到託運單號，請到嘉里網站查'}）`);
   return true;
 }
+/** 刪掉已送到嘉里的託運單（伺服器到嘉里網站刪），成功就清掉銷貨單上的託運單號 */
+export async function kerryDelete(b) {
+  if (!b?.kerry) return false;
+  if (!b.kerry.no) { toast('這張沒有記到託運單號，請到嘉里網站「維護託運登錄」手動刪除'); return false; }
+  if (!await confirm(`到嘉里刪掉託運單 ${b.kerry.no}（${b.no}）？\n只有託運日期當天可以刪，刪了不能復原。`, { danger: true, ok: '刪除' })) return false;
+  try { await api.post('/api/kerry/delete', { no: b.kerry.no }); } catch (e) { toast('刪除失敗：' + (e.message || e)); return false; }
+  const cur = store.get('bills', b.id); if (cur) { const { id, kerry, ...rest } = cur; await store.save('bills', b.id, rest); }
+  store.log('嘉里託運', `${b.no}｜刪除託運單 ${b.kerry.no}`); toast(`已刪除嘉里託運單 ${b.kerry.no}`);
+  return true;
+}
 /** 銷貨單上的「送嘉里」：先確認收貨資料再送 */
 export function kerryShip(b, onDone) {
   if (!b) return;
@@ -136,8 +152,9 @@ export function kerryShip(b, onDone) {
     body: `${b.kerry ? `<div class="banner">這張 ${esc(b.kerry.at ? new Date(b.kerry.at).toLocaleString('zh-TW', { hour12: false }) : '')} 已經送過嘉里了${b.kerry.no ? `（託運單號 ${esc(b.kerry.no)}）` : ''}，再送會多一筆託運單。</div>` : ''}
       <div class="grid" style="grid-template-columns:1fr 1fr">${f('name', '收貨人')}${f('tel', '電話1')}${f('addr', '收貨人地址', 'style="grid-column:1/-1"')}${f('tel2', '電話2')}${f('what', '貨品內容')}${f('n', '件數（1～999）')}${f('kg', '重量 kg')}${f('cod', '代收貨款（不代收留空）')}${f('note', '備註')}</div>
       <p class="muted small" style="margin:0">託運日期 ${esc(slash(shipDate(b)))}・出貨單號 ${esc(b.no)}。送出後要改，請到嘉里網站「維護託運登錄」（當天可以改、刪）。</p><div class="err" id="ks-err"></div>`,
-    footer: '<span class="sp"></span><button class="btn" data-close>取消</button><button class="btn pri" id="ks-go">送到嘉里</button>',
+    footer: `${b.kerry ? '<button class="btn danger" id="ks-del">刪除嘉里託運單</button>' : ''}<span class="sp"></span><button class="btn" data-close>取消</button><button class="btn pri" id="ks-go">${b.kerry ? '再送一筆' : '送到嘉里'}</button>`,
     onOpen(el, close) {
+      el.querySelector('#ks-del')?.addEventListener('click', async () => { if (await kerryDelete(b)) { close(); onDone && onDone(store.get('bills', b.id)); } });
       el.querySelector('#ks-go').onclick = async ev => {
         for (const k of ['name', 'tel', 'addr', 'tel2', 'what', 'n', 'kg', 'cod', 'note']) r[k] = el.querySelector('#ks-' + k).value.trim();
         if (!r.name || !r.addr || !r.tel || !(+r.n >= 1 && +r.n <= 999)) { el.querySelector('#ks-err').textContent = '收貨人、地址、電話1 要填，件數 1～999'; return; }

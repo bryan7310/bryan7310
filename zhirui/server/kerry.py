@@ -255,6 +255,48 @@ def send(data_dir, d, confirm=False):
         return {'ok': True, 'no': no, 'msg': r3.get('Message') or '已新增'}
 
 
+def _rows(page):
+    """託運明細表：[(託運單號, hidShippingID, 整列文字)]"""
+    out = []
+    for tr in re.findall(r'<tr[^>]*>(.*?)</tr>', page, re.S):
+        hid = re.search(r'name="[^"]*hidShippingID"[^>]*value="([^"]*)"|value="([^"]*)"[^>]*name="[^"]*hidShippingID"', tr)
+        tds = [re.sub(r'\s+', ' ', html.unescape(re.sub(r'<[^>]+>', ' ', td))).strip() for td in re.findall(r'<td[^>]*>(.*?)</td>', tr, re.S)]
+        nos = [t for t in tds if re.fullmatch(r'\d{9,12}', t)]
+        if hid and nos:
+            out.append((nos[0], hid.group(1) or hid.group(2) or '', ' '.join(tds)))
+    return out
+
+
+def delete(data_dir, kno):
+    """刪掉嘉里的一筆託運單（只有託運日期當天可以）：託運明細表勾那一筆 → 按「刪除」"""
+    kno = str(kno or '').strip()
+    if not re.fullmatch(r'\d{6,14}', kno):
+        raise KerryError('託運單號不對', 400)
+    if os.environ.get('ZR_KERRY_MOCK'):
+        return {'ok': True, 'msg': '（測試模式）已刪除'}
+    c = cfg_load(data_dir)
+    with LOCK:
+        s = _Session()
+        _login(s, c)
+        _, page = s.get('shipping/uploadadd.aspx')
+        hit = [r for r in _rows(page) if r[0] == kno]
+        if not hit:
+            raise KerryError('嘉里的託運明細裡找不到託運單號 %s（只有託運日期當天的可以刪；已經過了就要打電話給嘉里）' % kno, 404)
+        sid = hit[0][1]
+        h = _hidden(page)
+        form = dict(h)
+        form.update({'__EVENTTARGET': '', '__EVENTARGUMENT': '', 'ctl00$ContentPlaceHolder1$US_GridViewData$us_hidSelectedIds': sid,
+                     'ctl00$ContentPlaceHolder1$US_GridViewData$btnDelete': '刪除'})
+        for k in ('ddlShipperType', 'ddlCustomerNo', 'ddlFieldsName'):
+            form.setdefault('ctl00$ContentPlaceHolder1$' + k, '0')
+        _, page2 = s.post('shipping/uploadadd.aspx', urllib.parse.urlencode(form).encode('utf-8'), {'Content-Type': 'application/x-www-form-urlencoded'}, 'shipping/uploadadd.aspx')
+        _, page3 = s.get('shipping/uploadadd.aspx')
+        if any(r[0] == kno for r in _rows(page3)):
+            msg = re.search(r"alert\('([^']{2,120})'\)", page2)
+            raise KerryError('嘉里沒有刪掉：%s' % (msg.group(1) if msg else '請到嘉里網站「維護託運登錄」手動刪除'), 422)
+        return {'ok': True, 'msg': '已刪除嘉里託運單 %s' % kno}
+
+
 def test(data_dir, body=None):
     c = {**cfg_load(data_dir), **{k: v for k, v in (body or {}).items() if k in DEFAULT_CFG and (k != 'password' or v)}}
     if os.environ.get('ZR_KERRY_MOCK'):
