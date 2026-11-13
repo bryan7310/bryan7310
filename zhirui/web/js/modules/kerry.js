@@ -10,12 +10,19 @@ import { calc, cdisp, totals } from '../core/calc.js';
 import { printName } from '../core/names.js';
 import { billKg } from './ship.js';
 import { loadXlsx } from './purchase_import.js';
+import { matchCo } from './faxin.js';
 
 export const COLS = ['出貨日期', '收貨人', '收貨人地址', '收貨人電話1', '收貨人電話2', '件數', '重量', '出貨單號', '代收貨款', '貨品內容', '備註'];
 const KERRY = 'https://webedi.kerrytj.com/login.aspx';
 const ui = { date: '', pick: new Set(), rows: {}, busy: false };
 const shipDate = b => (b.date && b.date > today() ? b.date : today());   // 託運日期不能是過去
 const mem = () => store.setting('kerry').c || {};
+// 嘉里「維護收貨人」匯出的收貨人清單（設定 kerrybook）：對到客戶就優先用它的地址電話
+let BOOK = null, BOOKgen = -1;
+function bookOf(cid) {
+  if (!BOOK || BOOKgen !== store.gen) { BOOK = new Map(); BOOKgen = store.gen; for (const x of store.setting('kerrybook').list || []) { const c = matchCo(x.name, x.tel); if (c && c.kind === 'C' && !BOOK.has(c.id)) BOOK.set(c.id, x); } }
+  return BOOK.get(cid) || null;
+}
 const tel = t => String(t || '').split(/[、,，;；/／]/)[0].replace(/\s+/g, '').replace(/^\((\d+)\)/, '$1-').replace(/[()]/g, '');   // (04)2330-2106 → 04-2330-2106；多支電話取第一支
 
 export default {
@@ -25,15 +32,15 @@ export default {
 };
 export function rowOf(b) {
   if (ui.rows[b.id]) return ui.rows[b.id];
-  const C = calc(); const c = C.ct[b.cid] || {}; const m = mem()[b.cid] || {}; const w = billKg(b).kg;
-  return ui.rows[b.id] = { name: m.name || printName(c.name || '') || cdisp(c), addr: m.addr || c.addr || '', tel: m.tel || tel(c.phone), tel2: m.tel2 || tel(c.mobile), n: m.n || 1, kg: w > 0 ? Math.max(1, Math.ceil(w)) : '', cod: '', what: m.what || '螺絲', note: '' };
+  const C = calc(); const c = C.ct[b.cid] || {}; const m = mem()[b.cid] || {}; const k = bookOf(b.cid) || {}; const w = billKg(b).kg;
+  return ui.rows[b.id] = { name: m.name || k.name || printName(c.name || '') || cdisp(c), addr: m.addr || k.addr || c.addr || '', tel: m.tel || tel(k.tel) || tel(c.phone), tel2: m.tel2 || tel(k.tel2) || tel(c.mobile), n: m.n || 1, kg: w > 0 ? Math.max(1, Math.ceil(w)) : '', cod: '', what: m.what || '螺絲', note: '' };
 }
 function draw(el) {
   const C = calc();
   const list = C.bills.filter(b => b.type === 'SALE' && !b.hist && b.date === ui.date).sort((a, b) => String(a.no).localeCompare(String(b.no)));
   for (const id of [...ui.pick]) if (!list.some(b => b.id === id)) ui.pick.delete(id);
   const bad = b => { const r = rowOf(b); return !r.name || !r.addr || !r.tel || !(+r.n >= 1 && +r.n <= 999); };
-  el.innerHTML = `<div class="head"><h1>嘉里託運</h1><span class="sub">勾要寄嘉里的出貨單 → 下載 Excel → 到嘉里「多筆匯入」上傳</span><span class="sp"></span><a class="btn" href="${KERRY}" target="_blank" rel="noopener">開嘉里網路託運</a><button class="btn" id="kHelp">第一次設定</button>${(store.user?.role || 'admin') === 'admin' ? '<button class="btn" id="kCfg">帳號設定</button>' : ''}</div>
+  el.innerHTML = `<div class="head"><h1>嘉里託運</h1><span class="sub">勾要寄嘉里的出貨單 → 下載 Excel → 到嘉里「多筆匯入」上傳</span><span class="sp"></span><a class="btn" href="${KERRY}" target="_blank" rel="noopener">開嘉里網路託運</a><button class="btn" id="kHelp">第一次設定</button><button class="btn" id="kBook" title="嘉里網站「基本維護 → 維護收貨人」匯出的 Excel">匯入嘉里收貨人${(store.setting('kerrybook').list || []).length ? `（${store.setting('kerrybook').list.length}）` : ''}</button><input type="file" id="kBookFile" accept=".xls,.xlsx,.csv" hidden>${(store.user?.role || 'admin') === 'admin' ? '<button class="btn" id="kCfg">帳號設定</button>' : ''}</div>
     <div class="panel" style="display:grid;gap:10px">
       <div class="tools"><label>出貨日期 <input type="date" id="kDate" value="${esc(ui.date)}"></label><button class="btn sm" data-d="-1">‹ 前一天</button><button class="btn sm" data-d="1">後一天 ›</button><span class="sp"></span><span class="muted small">${list.length} 張出貨單，勾選 ${ui.pick.size} 張</span><button class="btn" id="kGo" ${ui.pick.size ? '' : 'disabled'}>下載 Excel（${ui.pick.size}）</button><button class="btn pri" id="kSendAll" ${ui.pick.size && !ui.busy ? '' : 'disabled'}>勾選的直接送嘉里（${ui.pick.size}）</button></div>
       <div class="tw"><table><thead><tr><th style="width:30px"><input type="checkbox" id="kAll" ${list.length && ui.pick.size === list.length ? 'checked' : ''} aria-label="全選"></th><th>出貨單號</th><th>收貨人</th><th>收貨人地址</th><th>電話1</th><th>電話2</th><th class="n" style="width:60px">件數</th><th class="n" style="width:70px">重量 kg</th><th class="n" style="width:90px">代收貨款</th><th style="width:90px">貨品內容</th><th>備註</th><th>嘉里</th></tr></thead><tbody>
@@ -50,6 +57,7 @@ function draw(el) {
   el.querySelectorAll('[data-k]').forEach(inp => inp.oninput = () => { ui.rows[inp.dataset.b][inp.dataset.k] = inp.value; });
   el.querySelector('#kHelp').onclick = help;
   el.querySelector('#kCfg')?.addEventListener('click', cfgDialog);
+  const f = el.querySelector('#kBookFile'); el.querySelector('#kBook').onclick = () => f.click(); { f.onchange = async () => { const file = f.files[0]; if (!file) return; try { const n = await importBook(file); ui.rows = {}; toast(`已匯入嘉里收貨人 ${n} 筆`); if (el.isConnected) draw(el); } catch (e) { toast('匯入失敗：' + (e.message || e)); } f.value = ''; }; }
   el.querySelectorAll('[data-send]').forEach(btn => btn.onclick = async () => { const b = store.get('bills', btn.dataset.send); if (!b) return; btn.disabled = true; btn.textContent = '送出中…'; await sendOne(b); if (el.isConnected) draw(el); });
   el.querySelector('#kSendAll').onclick = async () => {
     const sel = list.filter(b => ui.pick.has(b.id)); const done = sel.filter(b => b.kerry);
@@ -85,6 +93,20 @@ function help() {
       <li>存檔。以後每次：在這裡下載 Excel → 嘉里「託運登錄」→「多筆匯入」→ 託運類別「常溫」、託運人編號選志瑞、上傳格式選剛剛建的 → 選檔案上傳 → 在嘉里確認資料後送出。</li></ol>
       <p class="muted small">嘉里要求：件數 1～999；代收貨款 1～50,000（不代收留空）。常溫託運週一到週五 16:00、週六 14:00 截止。</p>`,
     footer: `<a class="btn" href="${KERRY}" target="_blank" rel="noopener">開嘉里網路託運</a><span class="sp"></span><button class="btn pri" data-close>知道了</button>` });
+}
+
+// ---------- 嘉里收貨人清單匯入 ----------
+async function importBook(file) {
+  const XLSX = await loadXlsx(); const wb = XLSX.read(await file.arrayBuffer(), { type: 'array' });
+  const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, defval: '' });
+  const H = rows[0].map(x => String(x).trim()); const ix = names => names.map(n => H.indexOf(n)).find(i => i >= 0);
+  const c = { code: ix(['收貨人編號', '收貨人代號']), name: ix(['收貨人']), tel: ix(['電話', '電話1', '收貨人電話1']), addr: ix(['地址', '收貨人地址']), tel2: ix(['電話2', '收貨人電話2']) };
+  if (c.name == null || c.addr == null) throw new Error('找不到「收貨人」「地址」欄');
+  const list = rows.slice(1).map(r => ({ code: String(r[c.code] ?? '').trim(), name: String(r[c.name] ?? '').trim(), tel: String(r[c.tel] ?? '').trim(), addr: String(r[c.addr] ?? '').trim(), tel2: String(r[c.tel2] ?? '').trim() })).filter(x => x.name && x.addr);
+  if (!list.length) throw new Error('檔案裡沒有收貨人');
+  await store.saveSetting('kerrybook', { list, at: new Date().toISOString(), file: file.name });
+  store.log('匯入', `嘉里收貨人清單 ${list.length} 筆`);
+  return list.length;
 }
 
 // ---------- 直接送嘉里（伺服器代登入、上傳、送出） ----------

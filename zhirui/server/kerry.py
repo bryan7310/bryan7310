@@ -184,6 +184,25 @@ def _find_no(page, name, day):
     return best
 
 
+def _customer_no(s, shipper_type):
+    """託運人編號下拉選單的值（例如 11251）：要先選託運類別（網頁會 postback）才會列出來"""
+    def opts(page):
+        m = re.search(r'name="[^"]*ddlCustomerNo"[^>]*>(.*?)</select>', page, re.S)
+        return [o for o in (re.findall(r'<option[^>]*value="([^"]+)"', m.group(1)) if m else []) if o not in ('0', '*')]
+    _, page = s.get('shipping/uploadadd.aspx')
+    o = opts(page)
+    if not o:
+        h = _hidden(page)
+        form = {k: v for k, v in h.items() if k.startswith('__')}
+        form.update({'__EVENTTARGET': 'ctl00$ContentPlaceHolder1$ddlShipperType', '__EVENTARGUMENT': '',
+                     'ctl00$ContentPlaceHolder1$ddlShipperType': shipper_type, 'ctl00$ContentPlaceHolder1$ddlCustomerNo': '0', 'ctl00$ContentPlaceHolder1$ddlFieldsName': '0'})
+        _, page = s.post('shipping/uploadadd.aspx', urllib.parse.urlencode(form).encode('utf-8'), {'Content-Type': 'application/x-www-form-urlencoded'}, 'shipping/uploadadd.aspx')
+        o = opts(page)
+    if not o:
+        raise KerryError('嘉里頁面上找不到託運人編號，請在「帳號設定」填託運人編號代碼（例如 11251）')
+    return o[0]
+
+
 def send(data_dir, d, confirm=False):
     """送一筆。回傳 {ok, no, msg} 或 {need_confirm: 訊息}"""
     row = _row(d)
@@ -201,15 +220,12 @@ def send(data_dir, d, confirm=False):
     with LOCK:
         s = _Session()
         _login(s, c)
-        url, page = s.get('shipping/uploadadd.aspx')
-        cust = c.get('customer_no')
-        if not cust:   # 託運人編號下拉選單的值（例如 11251），沒設定就取第一個
-            m = re.search(r'name="[^"]*ddlCustomerNo"[^>]*>(.*?)</select>', page, re.S)
-            opts = re.findall(r'<option[^>]*value="([^"]+)"', m.group(1)) if m else []
-            opts = [o for o in opts if o not in ('0', '*')]
-            if not opts:
-                raise KerryError('嘉里頁面上找不到託運人編號')
-            cust = opts[0]
+        cust = c.get('customer_no') or _customer_no(s, c.get('shipper_type') or '1')
+        if not c.get('customer_no'):   # 找到就記起來，下次不用再找
+            try:
+                cfg_save(data_dir, {'customer_no': cust})
+            except Exception:
+                pass
         body, ctype = _multipart({'ddlShipperType': c.get('shipper_type') or '1', 'ddlCustomerNo': cust, 'ddlFieldsName': c.get('fields') or 'ZR01', 'ask': 'uploadShippingData'}, fname, xlsx)
         _, t = s.post('AjaxData/ImportExcelData.ashx', body, {'Content-Type': ctype, 'X-Requested-With': 'XMLHttpRequest'}, 'shipping/uploadadd.aspx')
         r1 = _json(t, '上傳')
@@ -245,6 +261,5 @@ def test(data_dir, body=None):
         return '（測試模式）登入成功'
     s = _Session()
     _login(s, c)
-    _, page = s.get('shipping/uploadadd.aspx')
-    has = 'value="%s"' % (c.get('fields') or 'ZR01') in page
-    return '登入成功' + ('，找到上傳格式「%s」' % (c.get('fields') or 'ZR01') if has else '，但沒找到上傳格式「%s」，請確認嘉里「設定上傳格式」' % (c.get('fields') or 'ZR01'))
+    cust = c.get('customer_no') or _customer_no(s, c.get('shipper_type') or '1')
+    return '登入成功，託運人編號代碼 %s' % cust
