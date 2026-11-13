@@ -162,12 +162,18 @@ def _login(s, c):
 
 
 def _data(x):
-    """嘉里回的 Data 有時是 JSON 字串、有時已經是陣列"""
+    """嘉里回的 Data 是「裝著 JSON 字串的陣列」，例如 ["[{...}]"]（網頁上用 JSON.parse 拆開）；也接受直接是字串或物件陣列"""
     if x is None or x == '':
         return []
-    if isinstance(x, (list, dict)):
-        return x
-    return json.loads(x)
+    if isinstance(x, str):
+        return _data(json.loads(x))
+    if isinstance(x, list) and x and all(isinstance(i, str) for i in x):
+        out = []
+        for i in x:
+            v = json.loads(i)
+            out.extend(v if isinstance(v, list) else [v])
+        return out
+    return x
 
 
 def _multipart(fields, fname, data):
@@ -259,8 +265,8 @@ def send(data_dir, d, confirm=False):
         if st == '4' and not confirm:
             return {'need_confirm': r1.get('Message') or '當日收貨人託運資料已重複'}
         lst = _data(r1.get('Data'))
-        _, t = s.post('shipping/Add.aspx/VerifyDeliveryJoint', json.dumps({'listData': lst}, ensure_ascii=False).encode('utf-8'),
-                      {'Content-Type': 'application/json; charset=utf-8', 'X-Requested-With': 'XMLHttpRequest'}, 'shipping/uploadadd.aspx')
+        _, t = s.post('shipping/Add.aspx/VerifyDeliveryJoint', json.dumps({'listData': lst}, ensure_ascii=False, separators=(',', ':')).encode('utf-8'),
+                      {'Content-Type': 'application/json; charset=utf-8', 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json, text/javascript, */*; q=0.01', 'Origin': 'https://webedi.kerrytj.com'}, 'shipping/uploadadd.aspx')
         r2 = _json(t, '檢核') or {}
         r2 = r2.get('d', r2) if isinstance(r2, dict) else {}
         if isinstance(r2, str):
@@ -268,8 +274,8 @@ def send(data_dir, d, confirm=False):
         if str(r2.get('ResultStatus')) == '3' and not confirm:
             return {'need_confirm': r2.get('Message') or '聯運區域需要確認'}
         final = _data(r2.get('Data')) if r2.get('Data') else lst
-        _, t = s.post('AjaxData/ImportExcelData.ashx', urllib.parse.urlencode({'ask': 'insertShippingDetail', 'shippingDetailList': json.dumps(final, ensure_ascii=False), 'FileName': fname}).encode('utf-8'),
-                      {'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8', 'X-Requested-With': 'XMLHttpRequest'}, 'shipping/uploadadd.aspx')
+        _, t = s.post('AjaxData/ImportExcelData.ashx', urllib.parse.urlencode({'ask': 'insertShippingDetail', 'shippingDetailList': json.dumps(final, ensure_ascii=False, separators=(',', ':')), 'FileName': fname}).encode('utf-8'),
+                      {'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8', 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json, text/javascript, */*; q=0.01', 'Origin': 'https://webedi.kerrytj.com'}, 'shipping/uploadadd.aspx')
         r3 = _json(t, '新增')
         if str(r3.get('ResultStatus')) != '1':
             raise KerryError('嘉里新增失敗：%s' % (r3.get('Message') or ''), 422)
