@@ -25,6 +25,7 @@ import master from './master.js';
 import settings from './settings.js';
 import apply from './apply.js';
 import assistant from './assistant.js';
+import links from './links.js';
 
 // 門市銷售、出貨銷貨、採購進貨三個最常用的排在最上面（不分組）
-export const MODULES = [home, retail, sales, purchase, processing, assistant, pricing, quotes, orders, faxes, drawing, stock, labels, receivables, mail, payables, invoices, checksOut, checksIn, money, email, faxin, reports, master, settings, apply];
+export const MODULES = [home, retail, sales, purchase, processing, assistant, pricing, quotes, orders, faxes, drawing, stock, labels, receivables, mail, payables, invoices, checksOut, checksIn, money, email, faxin, links, reports, master, settings, apply];
