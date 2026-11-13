@@ -2,7 +2,7 @@
 import { $, $$, esc, fmt, fmtQ, fp4, today, uid, matchQ, qTerms, roc, slash, thisMonth, money, isoOf, downloadText, ls, dayN, lineSeq } from '../core/util.js';
 import { store } from '../core/store.js';
 import { toast, modal, confirm, combo, pager, tabs, printHTML, keepWhile } from '../core/ui.js';
-import { TYPES, totals, lineAmt, calc, nextNo, cname, cshort, cdisp, wname, gname, goodsLabel, customers, suppliers, defWh, qtyAt, bqty, uRate, lastSale, unitPrice, unitFactor, setHistPur, setHistSale, histSaleReady, costOf, lineUnit, lineKg, qtyHist } from '../core/calc.js';
+import { TYPES, totals, lineAmt, calc, nextNo, cname, cshort, cdisp, wname, gname, goodsLabel, customers, suppliers, defWh, qtyAt, bqty, uRate, lastSale, unitPrice, unitFactor, setHistPur, setHistSale, histSaleReady, costOf, lineUnit, lineKg, qtyHist, goodsWt } from '../core/calc.js';
 import { api } from '../core/api.js';
 import { printName } from '../core/names.js';
 import { labelPicker } from './labels.js';
@@ -227,7 +227,7 @@ function drawBill() {
       ${e.type === 'PRC' ? `<div class="f" style="grid-column:span 2"><label for="b-proc">加工內容（印在加工單上）</label><input id="b-proc" list="procList" value="${esc(e.proc || '')}" placeholder="例如：電鍍鎳、三價鍍鋅＋除氫、熱處理、耐落（全周）"><datalist id="procList">${PROC_OPTS.map(x => `<option value="${esc(x)}">`).join('')}</datalist></div>` : ''}
       ${T.doc ? `<div class="f"><label for="b-valid">${e.type === 'PO' || e.type === 'SO' ? '交期' : e.type === 'PRC' ? '預計回廠日' : '有效期限'}</label><input type="date" id="b-valid" value="${esc(e.valid || e.deliv || '')}"></div>${e.type === 'SO' ? `<div class="f"><label for="b-cpo">客戶單號</label><input id="b-cpo" value="${esc(e.cpo || '')}"></div>` : ''}<div class="f"><label for="b-attn">聯絡人</label><input id="b-attn" value="${esc(e.attn || '')}"></div>` : ''}
     </div>
-    ${T.lines ? `<div class="tw"><table class="lines" id="lines"><thead><tr><th style="width:44px" class="c">項次</th><th style="min-width:260px">商品</th><th style="width:100px" class="r">數量</th><th style="width:96px">單位</th>${priced ? '<th style="width:100px" class="r">單價</th><th style="width:90px" class="r">小計</th>' : ''}<th style="width:170px">${ship ? '備註（印在出貨單最後一欄）' : '備註'}</th>${showCost ? '<th style="width:90px" class="r">成本單價</th><th style="width:170px">成本來源</th>' : ''}<th style="width:30px"></th></tr></thead><tbody>${e.lines.map((l, i) => lineRow(l, i)).join('')}</tbody></table></div>
+    ${T.lines ? `<div class="tw"><table class="lines" id="lines"><thead><tr><th style="width:44px" class="c">項次</th><th style="min-width:260px">商品</th><th style="width:100px" class="r">數量</th><th style="width:96px">單位</th>${priced ? '<th style="width:100px" class="r">單價</th><th style="width:90px" class="r">小計</th>' : ''}<th style="width:170px">${ship ? '備註（印在出貨單最後一欄）' : '備註'}</th>${showCost ? '<th style="width:90px" class="r">成本單價</th><th style="width:170px">成本來源</th>' : ''}${WT_TYPES.includes(e.type) ? '<th style="width:86px" class="r" title="每支幾公克；預設帶這個商品上次的單重，可以改">單重 g</th>' : ''}<th style="width:30px"></th></tr></thead><tbody>${e.lines.map((l, i) => lineRow(l, i)).join('')}</tbody></table></div>
       <div class="tools"><button class="btn sm" id="addLine">＋ 加一行</button><button class="btn sm" id="addTxt">＋ 加備註</button><button class="btn sm" id="newGoods">＋ 新增商品</button>${ship ? '<button class="btn sm" id="xlLines">從 Excel 匯入明細</button><button class="btn sm" id="xlTpl">下載匯入範本</button><span class="muted small">Excel 欄位：客料號、數量、採購單號</span>' : ''}${ship && e.type === 'SALE' ? '<button class="btn sm" id="sqPdf" title="匯入崧泉 ERP 的「訂單出貨憑證」PDF：明細加進這張單，出貨單號、日期等資訊一起記下">匯入崧泉出貨單 PDF</button><button class="btn sm" id="ryPo" title="匯入如陽科技的「採購憑單」（PDF 或照片）：用 AI 讀出採購單號和明細，依產品編號（客料號）對到商品；劃線取消的行會跳過">匯入如陽採購單</button>' : ''}</div>
       ${ship ? `<div class="sumbox"><div><span>總重（約）</span><b id="t-wt" title="依商品單重計算；沒填單重的用規格估算"></b></div><div><span>商品小計</span><b id="t-sub"></b></div><div><label class="check"><input type="checkbox" id="b-tax" ${e.tax ? 'checked' : ''}> 加 5% 營業稅</label><b id="t-tax"></b></div><div class="big"><span>合計</span><b id="t-total"></b></div></div>`
       : T.party ? `<div class="tools" style="justify-content:flex-end"><label class="check"><input type="checkbox" id="b-tax" ${e.tax ? 'checked' : ''}> 加 5% 營業稅</label><div class="f" style="width:120px"><input id="b-disc" class="num" placeholder="折讓" value="${e.disc || ''}" title="整單折讓金額"></div></div>
@@ -235,7 +235,7 @@ function drawBill() {
     <div class="f"><label for="b-note">${ship ? '整張單備註（各行都沒填備註時，印在出貨單第一行最後一欄）' : '備註'}</label><textarea id="b-note" style="min-height:44px">${esc(e.note || '')}</textarea></div>
     ${e._err ? `<div class="err">${esc(e._err)}</div>` : ''}`;
   let footer = ship
-    ? `<div class="dd" id="prDD"><button class="btn" id="prMenu" aria-haspopup="true" aria-expanded="false">列印 ▾</button><div class="dd-menu" hidden><button class="btn" id="printShip">列印出貨單</button><button class="btn" id="printShipPn" title="品名前加印客料號">料號列印</button><button class="btn" id="printShipNa">列印（不含金額）</button><button class="btn" id="printShipPnNa" title="品名前加印客料號，不印單價、金額">豐餘列印</button><button class="btn" id="printRy" title="照如陽舊系統的出貨單：客料號＋品名、單價、金額、採購單號">如陽列印</button>${e.type === 'SALE' ? '<button class="btn" id="printSq" title="照崧泉「訂單出貨憑證」的欄位重印">崧泉列印</button>' : ''}</div></div><button class="btn sm" id="shipFmt" title="調整出貨單格式">格式</button><button class="btn" id="lblBill" ${e.id ? '' : 'title="會先儲存這張單"'}>標籤</button>${e.type === 'SALE' ? `<button class="btn" id="stkAdj" ${e.id ? '' : 'title="會先儲存這張單"'}>調整即時庫存</button>` : ''}<button class="btn danger" id="delBill" ${e.id ? '' : 'disabled title="還沒儲存的單據不用刪除"'}>刪除單據</button><span class="sp"></span><button class="btn" data-close>取消</button><button class="btn pri" id="saveBill">儲存</button>`
+    ? `<div class="dd" id="prDD"><button class="btn" id="prMenu" aria-haspopup="true" aria-expanded="false">列印 ▾</button><div class="dd-menu" hidden><button class="btn" id="printShip">列印出貨單</button><button class="btn" id="printShipPn" title="品名前加印客料號">料號列印</button><button class="btn" id="printShipNa">列印（不含金額）</button><button class="btn" id="printShipPnNa" title="品名前加印客料號，不印單價、金額">豐餘列印</button><button class="btn" id="printRy" title="照如陽舊系統的出貨單：客料號＋品名、單價、金額、採購單號">如陽列印</button>${e.type === 'SALE' ? '<button class="btn" id="printSq" title="照崧泉「訂單出貨憑證」的欄位重印">崧泉列印</button>' : ''}</div></div><button class="btn sm" id="shipFmt" title="調整出貨單格式">格式</button><button class="btn" id="lblBill" ${e.id ? '' : 'title="會先儲存這張單"'}>標籤</button>${e.type === 'SALE' ? `<button class="btn" id="stkAdj" ${e.id ? '' : 'title="會先儲存這張單"'}>調整即時庫存</button><button class="btn" id="kerryBill" title="用嘉里網路託運帳號直接建一筆託運單">${e.kerry ? '嘉里 ' + esc(e.kerry.no || '已送') : '送嘉里'}</button>` : ''}<button class="btn danger" id="delBill" ${e.id ? '' : 'disabled title="還沒儲存的單據不用刪除"'}>刪除單據</button><span class="sp"></span><button class="btn" data-close>取消</button><button class="btn pri" id="saveBill">儲存</button>`
     : `${e.id ? `<button class="btn danger" id="delBill">刪除</button>` : ''}${e.id && T.doc ? `<button class="btn" id="faxBill">傳真</button>` : ''}${e.id && (e.type === 'QUO' || e.type === 'PO' || e.type === 'PUR' || e.type === 'PRC') ? `<button class="btn" id="printBill">列印</button>` : ''}${e.id && e.type === 'QUO' && !e.toBill ? `<button class="btn" id="toSale">轉成銷貨單</button>` : ''}${e.src ? `<a class="btn" href="${esc(srcUrl(e.src))}" target="_blank" rel="noopener">看原始單</a>` : ''}${e.id && e.type === 'SO' ? `<button class="btn" id="soClose">${e.closed ? '重新打開' : '結案'}</button>${!e.closed && soLeft(e).length ? '<button class="btn pri" id="soShip">出貨（轉銷貨單）</button>' : ''}` : ''}${e.id && e.type === 'PO' && !e.received ? `<button class="btn" id="toPur">轉成進貨單</button>` : ''}<span class="sp"></span><button class="btn" data-close>取消</button><button class="btn pri" id="saveBill">儲存</button>`;
   const nav = navList(e.type); const pos = e.id ? nav.findIndex(b => b.id === e.id) : nav.length;
   let headExtra = T.lines ? `<button class="btn sm" id="navPrev" ${pos > 0 ? '' : 'disabled'} title="Alt+←">◀ 上一張</button><button class="btn sm" id="navNext" ${e.id && pos < nav.length - 1 ? '' : 'disabled'} title="Alt+→">下一張 ▶</button><button class="btn sm pri" id="saveBill2" title="Ctrl+S">儲存</button><button class="btn sm" id="dlgMax">${ls.get('zr.billMax', false) ? '還原' : '放大'}</button>` : '';
@@ -249,7 +249,8 @@ function navList(type) { return store.list('bills').filter(b => b.type === type 
 function lineRow(l, i) {
   const C = calc(); const g = C.g[l.gid]; const T = TYPES[edit.type];
   const priced = !T.transfer && edit.type !== 'OUT'; const showCost = ['SALE', 'SALE_RET', 'QUO', 'SO'].includes(edit.type);
-  const span = 3 + (priced ? 2 : 0) + 1 + (showCost ? 2 : 0);
+  const showWt = WT_TYPES.includes(edit.type);
+  const span = 3 + (priced ? 2 : 0) + 1 + (showCost ? 2 : 0) + (showWt ? 1 : 0);
   const del = `<td class="c-del"><button class="icon-btn" data-del="${i}" aria-label="刪除這行"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button></td>`;
   if (l.txt !== undefined) return `<tr data-i="${i}" class="noteln"><td class="c-no"></td><td colspan="${span}"><div style="display:flex;align-items:center;gap:6px"><span class="pill" style="flex:none">備註</span><input data-f="txt" value="${esc(l.txt)}" placeholder="這一行備註，會印在單據上（例如：以上請分兩包裝、急件）"></div></td>${del}</tr>`;
   const have = lineHave(l);
@@ -265,7 +266,7 @@ function lineRow(l, i) {
     <td class="c-u">${g ? `<select data-f="unit">${units.map(([v, lb]) => `<option value="${v}" ${(l.unit === 'a' ? 'a' : l.u || g.unit || 'PCS') === v ? 'selected' : ''}>${esc(lb)}</option>`).join('')}</select>` : `<input data-f="nu" value="${esc(l.unit || '')}" placeholder="單位">`}</td>
     ${priced ? `<td class="c-p"><input data-f="price" class="num" inputmode="decimal" value="${esc(l.price)}">${(w => w ? `<div class="pwarn">${esc(w)}</div>` : '')(priceWarn(l, g))}</td><td class="n c-s" id="ls-${i}">${fmt(lineAmt(l))}</td>` : ''}
     <td class="c-m"><input data-f="memo" value="${esc(l.memo || '')}" placeholder="${edit.type === 'SALE' || edit.type === 'SALE_RET' ? '例如採購單號' : ''}"></td>
-    ${cost}${del}</tr>`;
+    ${cost}${showWt ? `<td class="c-wt">${g && unitFactor(g.unit || 'PCS')[0] === 'p' ? `<input data-f="wt" class="num" inputmode="decimal" value="${esc(l.wt ?? '')}" placeholder="${(w => w ? fp4(w) : '')(goodsWt(g))}" title="每支幾公克">` : ''}</td>` : ''}${del}</tr>`;
 }
 /** 歷史明細：某客戶／廠商與某商品的全部交易（新平台單據＋舊系統歷史單據） */
 /** 商品的歷史銷貨（kind='S'）或進貨（kind='P'）明細：所有客戶／廠商，新平台＋舊系統 */
@@ -407,6 +408,7 @@ function bindBill(el, close) {
   el.querySelector('#faxBill')?.addEventListener('click', () => faxDialog(e, () => drawBill()));
   el.querySelector('#toSale')?.addEventListener('click', () => convertBill(e, 'SALE', close));
   el.querySelector('#soShip')?.addEventListener('click', () => soToSale(e, close));
+  el.querySelector('#kerryBill')?.addEventListener('click', afterSave(async b => { const { kerryShip } = await import('./kerry.js'); kerryShip(store.get('bills', b.id) || b, nb => { if (!nb?.kerry || !edit || edit.id !== nb.id) return; edit.kerry = nb.kerry; const btn = el.querySelector('#kerryBill'); if (btn) btn.textContent = '嘉里 ' + (nb.kerry.no || '已送'); }); }));
   el.querySelector('#soClose')?.addEventListener('click', async () => { const b = store.get('bills', e.id); if (!b) return; const { closed, ...rest } = b; await store.save('bills', e.id, e.closed ? rest : { ...b, closed: today() }); toast(e.closed ? '已重新打開' : '已結案'); close(); });
   el.querySelector('#toPur')?.addEventListener('click', () => convertBill(e, 'PUR', close));
   // 上一張／下一張、放大
@@ -495,7 +497,7 @@ function bindLines(el) {
       if (f === 'gid') {
         combo(inp, {
           items: () => store.list('goods').map(g => ({ id: g.id, label: goodsLabel(g, edit.type), sub: g.unit || '', text: goodsLabel(g) + ' ' + (g.vcode || '') })), allowFree: TYPES[edit.type].doc, inline: true,
-          onPick: it => { const g = C.g[it.id]; l.gid = it.id; delete l.n; l.u = ''; l.unit = ''; delete l.rate; if (!applyLast(l, g)) { const p = unitPrice(g, edit.type); if (p !== '') l.price = p; } if (!l.qty) l.qty = ''; redrawLines(el); setTimeout(() => el.querySelector(`tr[data-i="${i}"] [data-f="qty"]`)?.focus(), 0); },
+          onPick: it => { const g = C.g[it.id]; l.gid = it.id; delete l.n; l.u = ''; l.unit = ''; delete l.rate; if (WT_TYPES.includes(edit.type)) { const w = lastWt(it.id, edit.id); if (w) l.wt = w; else delete l.wt; } if (!applyLast(l, g)) { const p = unitPrice(g, edit.type); if (p !== '') l.price = p; } if (!l.qty) l.qty = ''; redrawLines(el); setTimeout(() => el.querySelector(`tr[data-i="${i}"] [data-f="qty"]`)?.focus(), 0); },
           onBlur: val => { if (!l.gid && TYPES[edit.type].doc) { l.n = val; } },
         });
       } else if (f === 'unit') inp.addEventListener('change', () => { const g = C.g[l.gid]; if (inp.value === 'a') { l.unit = 'a'; l.rate = +g.arate || 1; l.u = ''; } else { l.unit = ''; delete l.rate; l.u = inp.value === (g.unit || 'PCS') ? '' : inp.value; } redrawLines(el); });
@@ -581,10 +583,10 @@ async function saveBill(close, then, force) {
   const id = e.id || uid('b');
   const doc = { type: e.type, no: e.no.trim(), date: e.date, note: e.note || '', createdAt: e.createdAt || Date.now(), updatedAt: Date.now() };
   if (T.party) doc.cid = e.cid;
-  if (T.lines) { doc.wid = e.wid; doc.lines = e.lines.map(l => { if (l.txt !== undefined) return { txt: String(l.txt).trim() }; const o = { gid: l.gid || '', qty: +l.qty || 0, price: +l.price || 0 }; if (!l.gid && l.n) { o.n = l.n; if (l.unit) o.unit = l.unit; } if (l.u) o.u = l.u; if (l.sq) o.sq = l.sq; if (String(l.memo || '').trim()) o.memo = String(l.memo).trim(); if (l.unit === 'a' && +l.rate > 1) { o.unit = 'a'; o.rate = +l.rate; } else if (l.u && l.gid) { const r = uRate(l.u, C.g[l.gid]); if (r && r !== 1) o.rate = r; } if (l.batch) o.batch = l.batch; return o; }); }
+  if (T.lines) { doc.wid = e.wid; doc.lines = e.lines.map(l => { if (l.txt !== undefined) return { txt: String(l.txt).trim() }; const o = { gid: l.gid || '', qty: +l.qty || 0, price: +l.price || 0 }; if (!l.gid && l.n) { o.n = l.n; if (l.unit) o.unit = l.unit; } if (l.u) o.u = l.u; if (l.sq) o.sq = l.sq; if (String(l.memo || '').trim()) o.memo = String(l.memo).trim(); if (l.unit === 'a' && +l.rate > 1) { o.unit = 'a'; o.rate = +l.rate; } else if (l.u && l.gid) { const r = uRate(l.u, C.g[l.gid]); if (r && r !== 1) o.rate = r; } if (l.batch) o.batch = l.batch; if (+l.wt > 0) o.wt = +l.wt; return o; }); }
   if (T.transfer) doc.toWid = e.toWid;
   if (T.doc) { doc.disc = +e.disc || 0; doc.tax = !!e.tax; for (const k of ['attn', 'valid', 'deliv', 'payterm', 'toBill', 'received', 'fromQuote', 'orderId', 'proc', 'cpo', 'src', 'closed']) if (e[k]) doc[k] = e[k]; delete doc.wid; }
-  else if (T.lines && T.party) { doc.disc = +e.disc || 0; doc.tax = !!e.tax; doc.paid = +e.paid || 0; doc.aid = e.aid || ''; for (const k of ['invNo', 'fromQuote', 'fromPO', 'fromSO', 'sq']) if (e[k]) doc[k] = e[k]; }
+  else if (T.lines && T.party) { doc.disc = +e.disc || 0; doc.tax = !!e.tax; doc.paid = +e.paid || 0; doc.aid = e.aid || ''; for (const k of ['invNo', 'fromQuote', 'fromPO', 'fromSO', 'sq', 'kerry']) if (e[k]) doc[k] = e[k]; }
   if (T.money && !T.lines) { doc.aid = e.aid || ''; doc.amount = +e.amount || 0; if (e.cat) doc.cat = e.cat; for (const k of ['ref', 'checkId']) if (e[k]) doc[k] = e[k]; }
   if (e.hist) { doc.hist = true; if (e.cn) doc.cn = e.cn; if (e.oamt != null) doc.oamt = e.oamt; }
   doc.createdBy = e.createdBy || store.user.id; if (e.id) doc.updatedBy = store.user.id;
@@ -630,6 +632,16 @@ async function soToSale(so, close) {
   const lines = left.map(x => ({ ...x.l, qty: x.left }));
   close();
   openBill('SALE', null, onSavedCb, { cid: so.cid, lines, disc: 0, tax: !!so.tax, note: `由客戶訂單 ${so.no}${so.cpo ? '（客戶單號 ' + so.cpo + '）' : ''} 出貨`, fromSO: so.id });
+}
+// 單重（g／支）：同一個商品最近一次單據上填的單重；沒填過就空白（用商品資料的單重估算）
+const WT_TYPES = ['SALE', 'SALE_RET'];
+let LW = null, LWgen = -1;
+function lastWt(gid, exclude) {
+  if (!LW || LWgen !== store.gen) {
+    LW = new Map(); LWgen = store.gen;
+    for (const b of store.list('bills')) for (const l of b.lines || []) { if (!l.gid || !(+l.wt > 0)) continue; const o = LW.get(l.gid); const k = (b.date || '') + (b.updatedAt || 0); if (!o || k > o.k) LW.set(l.gid, { w: +l.wt, k, id: b.id }); }
+  }
+  const o = LW.get(gid); return o && o.id !== exclude ? o.w : (o ? o.w : 0);
 }
 async function convertBill(src, type, close) {
   const d = today();

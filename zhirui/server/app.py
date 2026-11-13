@@ -304,6 +304,32 @@ class Handler(BaseHTTPRequestHandler):
             body = f.read()
         self.send_bytes(body, ctype, headers={'Last-Modified': lm}, cache='no-cache')
 
+    def kerry_api(self, method, path, body, me):
+        """嘉里大榮：帳號設定（管理者）、測試登入、送出一筆託運"""
+        import kerry as KR
+        dd = self.state.data_dir
+        admin = me.get('role', 'admin') == 'admin'
+        try:
+            if path == '/api/kerry/cfg' and method == 'GET':
+                return self.send_json(KR.cfg_public(dd))
+            if path == '/api/kerry/send' and method == 'POST':
+                r = KR.send(dd, body.get('ship') or {}, bool(body.get('confirm')))
+                sys.stderr.write('kerry send %s %s %s\n' % (me.get('name', ''), (body.get('ship') or {}).get('no', ''), json.dumps(r, ensure_ascii=False)[:200]))
+                return self.send_json(r)
+            if not admin:
+                return self.error('只有管理者可以設定嘉里帳號', 403)
+            if path == '/api/kerry/cfg' and method == 'POST':
+                return self.send_json(KR.cfg_save(dd, body))
+            if path == '/api/kerry/test' and method == 'POST':
+                return self.send_json({'ok': True, 'msg': KR.test(dd, body)})
+        except KR.KerryError as e:
+            if path == '/api/kerry/test':
+                return self.send_json({'ok': False, 'msg': str(e)})
+            return self.error(str(e), e.status)
+        except Exception as e:  # noqa: BLE001
+            return self.error('連嘉里失敗：%s' % str(e)[:200], 502)
+        return self.error('不支援', 404)
+
     def email_api(self, method, path, q, body, me):
         import zrmail as MB
         dd = self.state.data_dir
@@ -570,6 +596,8 @@ class Handler(BaseHTTPRequestHandler):
             return self.faxin_api(path, q)
         if path.startswith('/api/email/'):
             return self.email_api(method, path, q, body or {}, me)
+        if path.startswith('/api/kerry/'):
+            return self.kerry_api(method, path, body or {}, me)
         m = FILE_RE.match(path)
         if m:
             fp = os.path.join(self.files_dir(), m.group(1))

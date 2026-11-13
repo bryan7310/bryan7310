@@ -76,7 +76,7 @@ export function lineKg(l, g) {
   const [c, f] = unitFactor(g.unit || 'PCS');
   if (c === 'kg') return bqty(l, g);
   if (c !== 'p') return 0;
-  return bqty(l, g) * f * goodsWt(g) / 1000;
+  return bqty(l, g) * f * (+l.wt > 0 ? +l.wt : goodsWt(g)) / 1000;   // 單據上有填單重（g）就用它
 }
 
 // ---------- 單號 ----------
