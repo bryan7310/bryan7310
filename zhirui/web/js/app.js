@@ -31,7 +31,7 @@ async function boot() {
 function showLogin(msg) {
   $('#app').hidden = true;
   const el = document.createElement('div'); el.className = 'login'; el.id = 'login';
-  el.innerHTML = `<form class="card" id="loginForm"><h1><span class="logo"></span>志瑞螺絲作業平台</h1>
+  el.innerHTML = `<form class="card" id="loginForm"><h1><span class="logo"></span>志瑞螺絲智能ERP</h1>
     ${msg ? `<div class="banner">${esc(msg)}</div>` : ''}
     <div class="f"><label for="lg">帳號</label><input id="lg" name="login" autocomplete="username" autofocus required></div>
     <div class="f"><label for="pw">密碼</label><input id="pw" name="pw" type="password" autocomplete="current-password" required></div>
@@ -156,7 +156,7 @@ function route() {
   document.body.classList.remove('open');
   $('#modals').innerHTML = ''; document.querySelectorAll('.combo-list').forEach(x => x.remove());
   $('#crumb').innerHTML = `${esc(m.name)}${m.sub ? `<small>${esc(m.sub)}</small>` : ''}`;
-  document.title = m.name + '｜志瑞螺絲作業平台';
+  document.title = m.name + '｜志瑞螺絲智能ERP';
   $('#topActions').innerHTML = '';
   // 換一個全新的畫面容器：上一頁掛在容器上的事件（例如分頁按鍵）不會留到這一頁
   const fresh = view.cloneNode(false); view.replaceWith(fresh); view = fresh; view.addEventListener('click', tabClick);
