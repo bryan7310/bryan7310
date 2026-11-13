@@ -199,6 +199,9 @@ function gsearch() {
 gq.addEventListener('input', debounce(gsearch, 150));
 gq.addEventListener('focus', () => { if (gq.value) gsearch(); });
 gq.addEventListener('blur', () => setTimeout(() => { gres.hidden = true; }, 150));
+// 滑鼠按住結果時不讓搜尋框失焦（不然清單 0.15 秒後收起，按久一點放開就點不到）；點下去才收起並跳頁
+gres.addEventListener('mousedown', e => { if (e.target.closest('a')) e.preventDefault(); });
+gres.addEventListener('click', e => { if (e.target.closest('a')) { gres.hidden = true; gq.blur(); } });
 gq.addEventListener('keydown', e => { if (e.key === 'Escape') { gres.hidden = true; gq.blur(); } if (e.key === 'Enter') { const a = gres.querySelector('a'); if (a) { location.hash = a.getAttribute('href'); gres.hidden = true; gq.blur(); } } });
 document.addEventListener('keydown', e => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); gq.focus(); gq.select(); } });
 
