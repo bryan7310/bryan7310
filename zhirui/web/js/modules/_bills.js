@@ -72,7 +72,7 @@ export function billList(el, opts, ui) {
   let list = base.filter(b => inPeriod(b, ui.from, ui.to));
   list = list.sort((a, b) => (b.date || '').localeCompare(a.date || '') || String(b.no).localeCompare(String(a.no)));
   const [s, e, pg] = pager(opts.key, list.length, ui.page);
-  const sumT = list.reduce((a, b) => a + (TYPES[b.type].ps || 1) * (b.hist ? (+b.oamt || 0) : (C.tot[b.id]?.total || 0)), 0);
+  const sumT = list.reduce((a, b) => a + (TYPES[b.type].ps || 1) * (b.hist ? totals(b).total : (C.tot[b.id]?.total || 0)), 0);
   const byId = new Map(list.map(b => [b.id, b]));
   const csvBtn = `<button class="btn" id="bcsv" ${list.length ? '' : 'disabled'}>匯出 Excel (CSV)</button>`;
   el.innerHTML = `
