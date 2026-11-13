@@ -15,6 +15,7 @@ import { uploadPage, onUploadChange, uploadsWaiting } from './upload.js';
 import { settingsPage, applyTheme, themeName } from './settings.js';
 import { faxPage, faxUnread } from './fax.js';
 import { emailPage, mailUnread } from './email.js';
+import { soPage, soOpenCount, soLateCount } from './so.js';
 
 const $ = s => document.querySelector(s);
 const view = $('#view'), bar = $('#tabbar');
@@ -28,6 +29,7 @@ const IC = {
   tag: '<path d="M3 12V4h8l10 10-8 8z"/><circle cx="7.5" cy="8" r="1.3"/>',
   po: '<path d="M7 3h10v18H7z"/><path d="M10 7h4M10 11h4M10 15h2"/><path d="M4 8h3M4 12h3"/>',
   mail: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/>',
+  so: '<path d="M5 4h14v16H5z"/><path d="M8.5 9l1.5 1.5 3-3M8.5 15h7"/>',
   fax: '<path d="M7 9V3h10v6"/><rect x="3" y="9" width="18" height="9" rx="2"/><path d="M7 14h10v7H7z"/>',
 };
 // 底部選單（固定 5 項）；還沒做好的頁先顯示「第 N 階段」，並提供電腦版連結
@@ -75,7 +77,7 @@ function notBoss() {
 let cur = '';
 function route() {
   const parts = location.hash.replace(/^#\/?/, '').split('/'); const id = parts[0].split('?')[0] || 'home';
-  const tabOf = { g: 'stock', rep: 'home', lbl: 'home', po: 'stock', set: 'home', fax: 'home', em: 'home' };
+  const tabOf = { g: 'stock', rep: 'home', lbl: 'home', po: 'stock', set: 'home', fax: 'home', em: 'home', so: 'home' };
   const t = TABS.find(x => x[0] === (tabOf[id] || id)) || TABS[0]; cur = tabOf[id] ? id : t[0];
   bar.innerHTML = TABS.map(([k, n, ic]) => `<a href="#${k}" class="${k === t[0] ? 'on' : ''}">${SVG(ic)}<span>${n}</span></a>`).join('');
   if (cur === 'home') home();
@@ -86,6 +88,7 @@ function route() {
   else if (cur === 'lbl') labelPage(view, parts[1], parts.slice(2).join('/'));
   else if (cur === 'up') { uploadPage(view, parts.slice(1).join('/')); if (parts[1]) window.scrollTo(0, 0); }
   else if (cur === 'set') settingsPage(view);
+  else if (cur === 'so') { soPage(view, parts[1], parts.slice(2).join('/')); window.scrollTo(0, 0); }
   else if (cur === 'em') { emailPage(view, parts[1], parts[2], parts[3]); window.scrollTo(0, 0); }
   else if (cur === 'fax') { faxPage(view, parts[1], parts.slice(2).join('/')); window.scrollTo(0, 0); }
   else if (cur === 'po') { poPage(view, parts[1], parts.slice(2).join('/')); if (parts[1] === 'v') window.scrollTo(0, 0); }
@@ -124,6 +127,7 @@ function todos(C) {
   return [
     [faxUnread(), `${faxUnread()} 張傳真還沒看`, '#fax'],
     [mailUnread(), `${mailUnread()} 封新信還沒看`, '#em'],
+    [soLateCount(), `${soLateCount()} 張客戶訂單已過交期還沒出完`, '#so'],
     [uw, `${uw} 筆拍照上傳待確認`, '#up'],
     [dr, `${dr} 張出貨單草稿待確認`, '#bill/drafts'],
     [oLate.length, `訂貨排程有 ${oLate.length} 筆逾期`, '/#orders'],
@@ -149,6 +153,7 @@ function home() {
       <a href="#bill"><i>${SVG(IC.bill)}</i>開出貨單</a>
       <a href="#up"><i>${SVG(IC.cam)}</i>拍照上傳</a>
       <a href="#lbl"><i>${SVG(IC.tag)}</i>印標籤</a>
+      <a href="#so"><i>${SVG(IC.so)}</i>客戶訂單${soOpenCount() ? `（${soOpenCount()}）` : ''}</a>
       <a href="#po"><i>${SVG(IC.po)}</i>採購單${(n => n ? `（${n}）` : '')((ls.get('zr.m.po', null)?.lines || []).length)}</a>
       <a href="#fax"><i>${SVG(IC.fax)}</i>收傳真${faxUnread() ? `（${faxUnread()}）` : ''}</a>
       <a href="#em"><i>${SVG(IC.mail)}</i>瀏覽信箱${mailUnread() ? `（${mailUnread()}）` : ''}</a>
