@@ -1,5 +1,5 @@
 // 單據共用：清單、編輯器、列印（銷貨、進貨、報價、採購、出入庫、調撥、收付款）
-import { $, $$, esc, fmt, fmtQ, fp4, today, uid, matchQ, qTerms, roc, slash, thisMonth, money, isoOf, downloadText, ls, dayN, lineSeq } from '../core/util.js';
+import { $, $$, esc, fmt, fmtQ, fp4, today, uid, matchQ, qTerms, roc, slash, thisMonth, money, isoOf, downloadText, ls, dayN, lineSeq, shiftMonth, range25, month25 } from '../core/util.js';
 import { store } from '../core/store.js';
 import { toast, modal, confirm, combo, pager, tabs, printHTML, keepWhile } from '../core/ui.js';
 import { TYPES, totals, lineAmt, calc, nextNo, cname, cshort, cdisp, wname, gname, goodsLabel, customers, suppliers, defWh, qtyAt, bqty, uRate, lastSale, unitPrice, unitFactor, setHistPur, setHistSale, histSaleReady, costOf, lineUnit, lineKg, qtyHist, goodsWt } from '../core/calc.js';
@@ -20,24 +20,24 @@ export const partyLabel = b => { const C = calc(); const c = C.ct[b.cid]; return
  */
 // ---------- 期間快捷鍵（全部、本月、上月、上月 25 結帳）與日期區間 ----------
 const monthEnd = ym => { const [y, m] = ym.split('-').map(Number); return isoOf(new Date(y, m, 0)); };
+// 月份一律 25 結（上月 26 日～本月 25 日）
 function quickPeriods() {
-  const d = new Date(), y = d.getFullYear(), m = d.getMonth();
+  const cur = month25(), prev = shiftMonth(cur, -1); const [f1, t1] = range25(cur), [f2, t2] = range25(prev);
   return [
     { label: '全部', from: '', to: '' },
-    { label: `${m + 1}月`, from: isoOf(new Date(y, m, 1)), to: isoOf(new Date(y, m + 1, 0)) },
-    { label: `${m === 0 ? 12 : m}月`, from: isoOf(new Date(y, m - 1, 1)), to: isoOf(new Date(y, m, 0)) },
-    { label: '上月25結', from: isoOf(new Date(y, m - 2, 26)), to: isoOf(new Date(y, m - 1, 25)) },
+    { label: `${+cur.slice(5)}月`, from: f1, to: t1, title: `25 結：${f1.slice(5).replace('-', '/')}～${t1.slice(5).replace('-', '/')}` },
+    { label: `${+prev.slice(5)}月`, from: f2, to: t2, title: `25 結：${f2.slice(5).replace('-', '/')}～${t2.slice(5).replace('-', '/')}` },
   ];
 }
 const inPeriod = (b, f, t) => (!f || (b.date || '') >= f) && (!t || (b.date || '') <= t);
 /** 期間列：快捷鍵（附張數）、其他月份、日期區間 */
 function periodBar(ui, count) {
   const ps = quickPeriods();
-  return `<div class="tools" style="margin-top:8px;align-items:center"><span class="muted small">期間</span>${ps.map(p => `<button type="button" class="btn sm ${p.from === ui.from && p.to === ui.to ? 'pri' : ''}" data-per="${p.from}|${p.to}">${p.label}${count ? `（${count(p)}）` : ''}</button>`).join('')}<input type="month" id="bmon" title="其他月份" aria-label="其他月份"><span class="muted small">日期區間</span><input type="date" id="bfrom" value="${esc(ui.from)}"><span class="muted">～</span><input type="date" id="bto" value="${esc(ui.to)}"></div>`;
+  return `<div class="tools" style="margin-top:8px;align-items:center"><span class="muted small">期間</span>${ps.map(p => `<button type="button" class="btn sm ${p.from === ui.from && p.to === ui.to ? 'pri' : ''}" data-per="${p.from}|${p.to}"${p.title ? ` title="${p.title}"` : ''}>${p.label}${count ? `（${count(p)}）` : ''}</button>`).join('')}<input type="month" id="bmon" title="其他月份" aria-label="其他月份"><span class="muted small">日期區間</span><input type="date" id="bfrom" value="${esc(ui.from)}"><span class="muted">～</span><input type="date" id="bto" value="${esc(ui.to)}"></div>`;
 }
 function bindPeriod(el, ui, redraw) {
   el.querySelectorAll('[data-per]').forEach(b => b.addEventListener('click', () => { [ui.from, ui.to] = b.dataset.per.split('|'); ui.page = 0; redraw(); }));
-  $('#bmon', el)?.addEventListener('change', e2 => { if (!e2.target.value) return; ui.from = e2.target.value + '-01'; ui.to = monthEnd(e2.target.value); ui.page = 0; redraw(); });
+  $('#bmon', el)?.addEventListener('change', e2 => { if (!e2.target.value) return; [ui.from, ui.to] = range25(e2.target.value); ui.page = 0; redraw(); });
   $('#bfrom', el)?.addEventListener('change', e2 => { ui.from = e2.target.value; ui.page = 0; redraw(); });
   $('#bto', el)?.addEventListener('change', e2 => { ui.to = e2.target.value; ui.page = 0; redraw(); });
 }

@@ -1,5 +1,5 @@
 // 報表：應收帳款明細、客戶出貨明細、銷售利潤、商品銷售彙總、客戶對帳單、進貨統計、庫存金額
-import { $, esc, fmt, fmtQ, fp4, money, today, thisMonth, slash, roc, downloadText, sum, ls, matchQ, isoOf } from '../core/util.js';
+import { $, esc, fmt, fmtQ, fp4, money, today, thisMonth, slash, roc, downloadText, sum, ls, matchQ, isoOf, range25, month25, shiftMonth } from '../core/util.js';
 import { store } from '../core/store.js';
 import { api } from '../core/api.js';
 import { tabs, combo, printHTML, toast, onSearch } from '../core/ui.js';
@@ -9,7 +9,7 @@ import { openBill } from './_bills.js';
 import { printName } from '../core/names.js';
 import { mailImport } from './mail.js';
 
-const ui = { tab: 'ar', from: thisMonth() + '-01', to: today(), cid: '', q: '', gq: '', mail: new Set() };
+const ui = { tab: 'ar', from: range25(month25())[0], to: range25(month25())[1], cid: '', q: '', gq: '', mail: new Set() };
 // 應收帳款明細：勾選要統計的客戶（null＝全部），記在這台瀏覽器
 let arSel = (() => { const v = ls.get('rp-ar-sel'); return Array.isArray(v) ? new Set(v) : null; })();
 const arSave = () => ls.set('rp-ar-sel', arSel ? [...arSel] : null);
@@ -32,8 +32,8 @@ function draw(el) {
   $('#rpTo', el)?.addEventListener('change', ev => { ui.to = ev.target.value; body(el); });
   el.querySelectorAll('[data-q]').forEach(b => b.addEventListener('click', () => {
     const d = new Date(), y = d.getFullYear(), m = d.getMonth();
-    if (b.dataset.q === 't25') { ui.from = dstr(new Date(y, m - 1, 26)); ui.to = dstr(new Date(y, m, 25)); }
-    else if (b.dataset.q === 'c25') { ui.from = dstr(new Date(y, m - 2, 26)); ui.to = dstr(new Date(y, m - 1, 25)); }
+    if (b.dataset.q === 't25') [ui.from, ui.to] = range25(month25());
+    else if (b.dataset.q === 'c25') [ui.from, ui.to] = range25(shiftMonth(month25(), -1));
     else { ui.from = dstr(new Date(y, m - 1, 1)); ui.to = dstr(new Date(y, m, 0)); }
     draw(el);
   }));

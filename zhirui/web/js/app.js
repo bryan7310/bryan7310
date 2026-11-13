@@ -26,7 +26,7 @@ async function boot() {
   store.subscribe(onChange);
   window.addEventListener('hashchange', route);
   route();
-  setTimeout(() => preloadHist(), 1500);
+  setTimeout(() => preloadHist().then(() => store.emit(new Set(['hist']))), 1500);   // 舊系統進貨載好後成本會變：總覽毛利重算
 }
 function showLogin(msg) {
   $('#app').hidden = true;

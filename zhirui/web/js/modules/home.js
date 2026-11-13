@@ -1,7 +1,8 @@
 // 總覽：今天該注意的事
-import { esc, fmt, money, today, thisMonth, daysLeft, slash, ymLabel, roc, uid } from '../core/util.js';
+import { esc, fmt, money, today, thisMonth, daysLeft, slash, ymLabel, roc, uid, ym25, month25 } from '../core/util.js';
+import { histAR, histTot } from './receivables.js';
 import { store } from '../core/store.js';
-import { calc, TYPES, cshort, nextNo, defWh } from '../core/calc.js';
+import { calc, TYPES, cshort, nextNo, defWh, costOf } from '../core/calc.js';
 import { toast, confirm } from '../core/ui.js';
 import { openBill } from './_bills.js';
 import { arSummary } from './receivables.js';
@@ -51,10 +52,13 @@ function retailPanel(C, t) {
     ${list.length ? `<tfoot><tr><td colspan="2">${esc(slash(day))} 合計 ${list.length} 筆</td><td class="n">${fmt(sum)}</td><td colspan="2"></td></tr></tfoot>` : ''}</table></div></div>`;
 }
 function draw(el) {
-  const C = calc(); const m = thisMonth(); const t = today();
+  // 本月銷貨／進貨：25 結（上月 26 日～本月 25 日），舊系統搬來的銷貨單一起算（跟應收帳款同一套）
+  const C = calc(); const t = today(); const m25 = month25(); const im = (b, s) => (s && b.arYm || ym25(b.date)) === m25;
   let sales = 0, profit = 0, n = 0;
-  for (const b of C.bills) if ((b.type === 'SALE' || b.type === 'SALE_RET') && (b.date || '').startsWith(m)) { const s = b.type === 'SALE' ? 1 : -1; const net = C.tot[b.id]?.net || 0; sales += s * net; profit += s * (net - (C.cogs[b.id] || 0)); n++; }
-  let pur = 0; for (const b of C.bills) if ((b.type === 'PUR' || b.type === 'PUR_RET') && (b.date || '').startsWith(m)) pur += (b.type === 'PUR' ? 1 : -1) * (C.tot[b.id]?.net || 0);
+  for (const b of C.bills) if ((b.type === 'SALE' || b.type === 'SALE_RET') && im(b, 1)) { const s = b.type === 'SALE' ? 1 : -1; const net = C.tot[b.id]?.net || 0; sales += s * net; profit += s * (net - (C.cogs[b.id] || 0)); n++; }
+  for (const b of histAR()) if ((b.type === 'SALE' || b.type === 'SALE_RET') && im(b, 1)) { const s = b.type === 'SALE' ? 1 : -1; const net = histTot(b).net; let cost = 0; for (const l of b.lines || []) { if (!l.gid) continue; const r = costOf(l, b.date, C.purIdx, C.g, C.poIdx); if (r) cost += r.c * (+l.qty || 0); } sales += s * net; profit += s * (net - cost); n++; }
+  let pur = 0; for (const b of C.bills) if ((b.type === 'PUR' || b.type === 'PUR_RET') && im(b)) pur += (b.type === 'PUR' ? 1 : -1) * (C.tot[b.id]?.net || 0);
+  const m = thisMonth();   // 發票照統一發票的日曆月
   const ar = arSummary(), ap = apSummary();
   const cin = store.list('checks_in').filter(c => !c.col); const late = cin.filter(c => c.due && c.due < t), soon = cin.filter(c => c.due >= t && daysLeft(c.due) <= 7);
   const cout = store.list('checks_out').filter(c => !c.printedAt);
@@ -67,8 +71,8 @@ function draw(el) {
     <div class="head"><h1>總覽</h1><span class="sub">${esc(roc(t))}・${esc(store.user.name)}</span></div>
     ${memoBoard(MU)}
     <div class="kpis">
-      <a class="kpi" href="#sales"><span>本月銷貨（未稅）</span><b>${fmt(sales)}</b><small>${n} 張・毛利 ${fmt(profit)}</small></a>
-      <a class="kpi" href="#purchase"><span>本月進貨（未稅）</span><b>${fmt(pur)}</b></a>
+      <a class="kpi" href="#sales"><span>本月銷貨（未稅・25 結）</span><b>${fmt(sales)}</b><small>${n} 張・毛利 ${fmt(profit)}</small></a>
+      <a class="kpi" href="#purchase"><span>本月進貨（未稅・25 結）</span><b>${fmt(pur)}</b></a>
       <a class="kpi ${ar.late ? 'alert' : ''}" href="#receivables"><span>應收未收</span><b>${fmt(ar.open)}</b><small>${ar.openN} 筆${ar.late ? `・逾期 ${ar.late} 筆` : ''}</small></a>
       <a class="kpi" href="#payables"><span>應付待開票</span><b>${fmt(ap.open)}</b><small>${ap.openN} 筆</small></a>
       <a class="kpi ${late.length ? 'alert' : ''}" href="#checks-in"><span>待代收客票</span><b>${fmt(cin.reduce((s, c) => s + (+c.amt || 0), 0))}</b><small>${cin.length} 張${late.length ? `・已到期 ${late.length}` : ''}${soon.length ? `・7 天內 ${soon.length}` : ''}</small></a>

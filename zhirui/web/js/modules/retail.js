@@ -1,5 +1,5 @@
 // 門市銷售（簡易版）：只有日期和金額，輸入就開一張銷貨單；當天的明細列在下面
-import { esc, fmt, today, slash, addDays } from '../core/util.js';
+import { esc, fmt, today, slash, addDays, ym25 } from '../core/util.js';
 import { store } from '../core/store.js';
 import { confirm } from '../core/ui.js';
 import { calc } from '../core/calc.js';
@@ -16,8 +16,8 @@ async function yearMonths(C, cid, y) {
   for (let i = 0; i < 12; i++) { const ym = y + '-' + String(i + 1).padStart(2, '0'); if (ym < CUT_M) { m[i].ar = true; m[i].amt = Math.round(+(st[ym]?.amt) || 0); } }
   for (const b of C.bills) {
     if ((b.type !== 'SALE' && b.type !== 'SALE_RET') || b.cid !== cid || b.hist) continue;
-    const d = String(b.date || ''); if (d < CUT || !d.startsWith(y + '-')) continue;
-    const k = +d.slice(5, 7) - 1; if (k < 0 || k > 11 || m[k].ar) continue;
+    const d = String(b.date || ''); const ym = ym25(d); if (d < CUT || !ym.startsWith(y + '-')) continue;   // 25 結
+    const k = +ym.slice(5, 7) - 1; if (k < 0 || k > 11 || m[k].ar) continue;
     const s = b.type === 'SALE_RET' ? -1 : 1; m[k].n += s > 0 ? 1 : 0; m[k].amt += s * (C.tot[b.id]?.total || 0);
   }
   return m;
@@ -37,7 +37,7 @@ async function drawYear(el, C) {
     ${cur.map((x, i) => `<tr ${i + 1 > nowM ? 'class="muted"' : ''}><td>${i + 1} 月</td><td class="n">${x.ar ? (x.amt ? '<span class="muted small" title="應收帳款的門市收入，沒有筆數">應收</span>' : '') : (x.n || '')}</td><td class="n" style="font-weight:600">${x.amt ? fmt(x.amt) : ''}</td><td class="n muted">${prev[i].amt ? fmt(prev[i].amt) : ''}</td><td class="n">${i + 1 <= nowM ? diff(x.amt, prev[i].amt) : ''}</td></tr>`).join('')}</tbody>
     <tfoot><tr><td>全年</td><td class="n">${tn || ''}</td><td class="n" style="font-size:18px">${fmt(ta)}</td><td class="n">${fmt(pa)}</td><td class="n">${diff(ta, pa)}</td></tr>
     <tr><td>月平均</td><td class="n"></td><td class="n">${fmt(Math.round(ta / Math.max(1, nowM)))}</td><td class="n">${fmt(Math.round(pa / 12))}</td><td></td></tr></tfoot></table></div>
-    <div class="muted small" style="margin-top:6px">2026/11/06 以前：應收帳款每月的「門市收入」（應收月份，25 日結）；2026/11/06 起：門市銷售單（退回單會扣掉）。不含舊系統出貨單。${y === +today().slice(0, 4) ? '今年月平均以已過的月份計算。' : ''}</div>`;
+    <div class="muted small" style="margin-top:6px">2026/11/06 以前：應收帳款每月的「門市收入」（應收月份，25 日結）；2026/11/06 起：門市銷售單（退回單會扣掉，一樣 25 日結）。不含舊系統出貨單。${y === +today().slice(0, 4) ? '今年月平均以已過的月份計算。' : ''}</div>`;
 }
 export default {
   id: 'retail', name: '門市銷售', icon: 'money',

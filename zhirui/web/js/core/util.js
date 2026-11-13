@@ -15,6 +15,10 @@ export const slash = iso => iso ? String(iso).replace(/-/g, '/') : '—';
 export const dayN = s => Math.floor(Date.parse(String(s || '').slice(0, 10) + 'T00:00:00Z') / 864e5) || 0;
 export const daysLeft = iso => dayN(iso) - dayN(today());
 export const shiftMonth = (ym, n) => { const [y, m] = ym.split('-').map(Number); const d = new Date(y, m - 1 + n, 1); return d.getFullYear() + '-' + pad(d.getMonth() + 1); };
+/** 25 結：日期屬於哪個帳務月份（26 日以後算下個月）；帳務月份的起訖（上月 26 日～本月 25 日） */
+export const ym25 = date => { const d = String(date || ''); if (d.length < 10) return d.slice(0, 7); return +d.slice(8, 10) >= 26 ? shiftMonth(d.slice(0, 7), 1) : d.slice(0, 7); };
+export const range25 = ym => [shiftMonth(ym, -1) + '-26', ym + '-25'];
+export const month25 = () => ym25(today());
 
 // 金額四捨五入到整數（和舊進銷存一致）
 export const rnd0 = n => { n = +n || 0; const x = Math.round(Math.abs(n) * 1e6) / 1e6; return Math.sign(n) * Math.floor(x + 0.5); };
