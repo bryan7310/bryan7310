@@ -83,6 +83,8 @@ async function draw(el, f) {
   panel.innerHTML = `<p style="margin-top:0"><b>${esc(P.title || f)}</b></p>
     ${errs.length ? `<div class="banner">${errs.map(esc).join('<br>')}</div>` : ''}
     ${P.newgoods?.length ? `<h3>新建商品（${P.newgoods.length}）</h3><div class="tw"><table><thead><tr><th>料號</th><th>品名</th><th>類別</th><th>單位</th><th class="n">進價</th></tr></thead><tbody>${P.newgoods.map(g => `<tr><td class="mono">${esc(g.code)}</td><td>${esc(g.name)}</td><td>${esc(g.cat)}</td><td>${esc(g.unit)}</td><td class="n">${fp4(g.purPrice)}</td></tr>`).join('')}</tbody></table></div>` : ''}
+    ${P.docs?.length ? `<h3>新增單據（${P.docs.length}）</h3>${P.note ? `<p class="muted small">${esc(P.note)}</p>` : ''}<div class="tw"><table><thead><tr><th>單據</th><th>明細</th><th>狀態</th></tr></thead><tbody>${P.docs.map(x => { const ex = store.get(x.col, x.id); const ls = (x.data.lines || []).map(l => l.txt !== undefined ? `<span class="muted">［${esc(l.txt)}］</span>` : `${esc(C.g[l.gid]?.name || (P.newgoods || []).find(g => g.id === l.gid)?.name || l.n || '（沒對到商品）')} × ${l.qty}${l.u ? ' ' + esc(l.u) : ''} @${l.price}`).join('<br>'); return `<tr><td class="nowrap">${esc(x.label)}</td><td class="small">${ls}</td><td>${ex ? '<span class="pill">已經有了，略過</span>' : '<span class="pill ok">新增</span>'}</td></tr>`; }).join('')}</tbody></table></div>` : ''}
+    ${P.skipped?.length ? `<h3>略過（${P.skipped.length}）</h3><ul class="small">${P.skipped.map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}
     ${P.wt ? `<h3>修改商品</h3><p>${esc(C.g[P.wt.gid]?.code + ' ' + C.g[P.wt.gid]?.name)}：單重填 ${P.wt.wt} g／支</p>` : ''}
     ${P.updates?.length ? (() => { const li = u => `<li>${esc(u.label)}：${Object.keys(u.set).map(k => `${esc(FIELD[k] || k)} ${esc(show(k, u.from[k]))} → <b>${esc(show(k, u.set[k]))}</b>`).join('、')}${u.why ? `<br><span class="muted small">${esc(u.why)}</span>` : ''}</li>`;
       return `<h3>修改既有資料（${upTodo.length}${upSkip.length ? `，另 ${upSkip.length} 筆略過` : ''}）</h3>${P.updatesNote ? `<p class="small muted">${esc(P.updatesNote)}</p>` : ''}<ul>${upTodo.slice(0, 40).map(li).join('')}</ul>${upTodo.length > 40 ? `<details><summary>其餘 ${upTodo.length - 40} 筆（點開看全部）</summary><ul>${upTodo.slice(40).map(li).join('')}</ul></details>` : ''}${upSkip.length ? `<details><summary class="muted">略過 ${upSkip.length} 筆</summary><ul>${upSkip.map(x => `<li>${esc(x.u.label)}：${esc(x.why)}</li>`).join('')}</ul></details>` : ''}`; })() : ''}
@@ -101,13 +103,14 @@ async function draw(el, f) {
     <div class="tools" style="margin-top:12px"><span class="muted small">按下之前不會寫入任何資料。</span><span class="sp"></span><button class="btn pri" id="apGo" ${errs.length || rows.some(r => !r.ok) ? 'disabled' : ''}>確認寫入</button></div>
     <div id="apOut"></div>`;
   $('#apGo', el)?.addEventListener('click', async ev => {
-    const what = [P.newgoods?.length ? `新建 ${P.newgoods.length} 個商品` : '', P.wt ? '修改 1 個商品' : '', rows.length ? `建立 ${rows.length} 張進貨單` : '', upTodo.length ? `修改 ${upTodo.length} 筆資料` : '', dwTodo.length ? `掛 ${dwTodo.length} 張客戶圖面` : '', whTodo.length ? `新建 ${whTodo.length} 個倉庫` : '', P.kits?.length ? `設定 ${P.kits.length} 個螺絲包配方` : '', delTodo.length ? `刪除 ${delTodo.length} 個沒用過的商品` : '', mgTodo.length ? `合併 ${mgTodo.length} 組商品（${mgTodo.reduce((a, m) => a + m.merge.length, 0)} 個料號會刪除，無法一鍵復原；每天的自動備份仍可還原）` : ''].filter(Boolean).join('、');
+    const docTodo = (P.docs || []).filter(x => !store.get(x.col, x.id));
+    const what = [docTodo.length ? `新增 ${docTodo.length} 張單據` : '', P.newgoods?.length ? `新建 ${P.newgoods.length} 個商品` : '', P.wt ? '修改 1 個商品' : '', rows.length ? `建立 ${rows.length} 張進貨單` : '', upTodo.length ? `修改 ${upTodo.length} 筆資料` : '', dwTodo.length ? `掛 ${dwTodo.length} 張客戶圖面` : '', whTodo.length ? `新建 ${whTodo.length} 個倉庫` : '', P.kits?.length ? `設定 ${P.kits.length} 個螺絲包配方` : '', delTodo.length ? `刪除 ${delTodo.length} 個沒用過的商品` : '', mgTodo.length ? `合併 ${mgTodo.length} 組商品（${mgTodo.reduce((a, m) => a + m.merge.length, 0)} 個料號會刪除，無法一鍵復原；每天的自動備份仍可還原）` : ''].filter(Boolean).join('、');
     if (!await confirm(`確定寫入？\n${what}。`, { ok: '確認寫入' })) return;
     ev.target.disabled = true; ev.target.textContent = '寫入中…';
     const out = $('#apOut', el);
     try {
       const ops = []; const newId = {};
-      for (const g of P.newgoods || []) { const id = uid('g'); newId[g.code] = id; ops.push({ col: 'goods', id, data: { code: g.code, name: g.name, spec: '', vcode: g.vcode || '', cat: g.cat, unit: g.unit, salePrice: 0, purPrice: g.purPrice, cost: 0, safety: 0, note: g.note || P.goodsNote || '' } }); }
+      for (const g of P.newgoods || []) { const id = g.id && !store.get('goods', g.id) ? g.id : uid('g'); newId[g.code] = id; ops.push({ col: 'goods', id, data: { code: g.code, name: g.name, spec: '', vcode: g.vcode || '', cat: g.cat, unit: g.unit, salePrice: 0, purPrice: g.purPrice, cost: 0, safety: 0, note: g.note || P.goodsNote || '' } }); }
       const whId = {}; for (const w of P.newwh || []) { const ex = whByName(w.name); if (ex) whId[w.name] = ex.id; else { const id = uid('w'); whId[w.name] = id; ops.push({ col: 'warehouses', id, data: { name: w.name } }); } }
       for (const k of P.kits || []) {
         const d = { ...store.get('goods', k.gid) }; delete d.id;
@@ -140,6 +143,7 @@ async function draw(el, f) {
         const g = { ...store.get('goods', d.gid), dwg: { id: j.id, name: j.name, type: j.type, size: j.size, at: Date.now() } }; delete g.id;
         await store.save('goods', d.gid, g); store.log('上傳圖面', `商品「${g.name}」${j.name}（${P.title || f}）`); dwN++;
       }
+      for (const x of P.docs || []) { if (store.get(x.col, x.id)) continue; const lines = (x.data.lines || []).map(l => l.gid && !store.get('goods', l.gid) && newId[(P.newgoods || []).find(g => g.id === l.gid)?.code] ? { ...l, gid: newId[(P.newgoods || []).find(g => g.id === l.gid).code] } : l); await store.save(x.col, x.id, { ...x.data, lines, createdBy: x.data.createdBy || store.user.id }); store.log('匯入', `${x.label}（${P.title || f}）`); }
       const wid = defWh()?.id || ''; const aid = store.list('accounts')[0]?.id || ''; const made = [];
       for (const b of P.bills || []) {
         const lines = b.lines.map(l => { const o = { gid: l.gid || newId[l.code] || '', qty: l.qty, price: l.price }; if (!o.gid) o.n = l.n || l.code; if (l.u) o.u = l.u; if (l.memo) o.memo = l.memo; return o; });
