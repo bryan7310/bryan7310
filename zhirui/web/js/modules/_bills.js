@@ -74,8 +74,9 @@ export function billList(el, opts, ui) {
   const [s, e, pg] = pager(opts.key, list.length, ui.page);
   const sumT = list.reduce((a, b) => a + (TYPES[b.type].ps || 1) * (b.hist ? (+b.oamt || 0) : (C.tot[b.id]?.total || 0)), 0);
   const byId = new Map(list.map(b => [b.id, b]));
+  const csvBtn = `<button class="btn" id="bcsv" ${list.length ? '' : 'disabled'}>匯出 Excel (CSV)</button>`;
   el.innerHTML = `
-    <div class="head"><h1>${esc(opts.title)}</h1><span class="sp"></span><button class="btn" id="bcsv" ${list.length ? '' : 'disabled'}>匯出 Excel (CSV)</button>${(opts.newTypes || []).map(t => `<button class="btn ${t === opts.newTypes[0] ? 'pri' : ''}" data-new="${t}">＋ ${TYPES[t].name}</button>`).join('')}${opts.extraHead || ''}</div>
+    <div class="head"><h1>${esc(opts.title)}</h1><span class="sp"></span>${opts.csvLast ? '' : csvBtn}${(opts.newTypes || []).map(t => `<button class="btn ${t === (opts.priType || opts.newTypes[0]) ? 'pri' : ''}" data-new="${t}">＋ ${TYPES[t].name}</button>`).join('')}${opts.extraHead || ''}${opts.csvLast ? csvBtn : ''}</div>
     <div class="panel">
       <div class="tools">${opts.tabList ? tabs('t', opts.tabList, ui.tab) : ''}<input type="search" id="bq" placeholder="搜尋單號、客戶／廠商、商品、備註" value="${esc(ui.q)}"><span class="muted small">${list.length} 張・合計 ${fmt(sumT)}</span>${histNote}</div>
       ${periodBar(ui, p => base.filter(b => inPeriod(b, p.from, p.to)).length)}
