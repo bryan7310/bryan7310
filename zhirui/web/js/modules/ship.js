@@ -32,6 +32,21 @@ export function shipTpl() {
 
 // ---------- 產生出貨單 ----------
 /** opt：noAmt 不印金額、pn 品名前加客料號、tpl 指定格式、preview 預覽（不列印） */
+/** 交給伺服器電腦的「列印小幫手」直接印中一刀（不用在瀏覽器選紙張；跟手機版同一條路，印表機在設定 mprint） */
+export async function hostPrint(b, opt = {}) {
+  const set = store.setting('mprint') || {};
+  const o = { ...opt }; if (set.off) o.off = set.off;
+  const d = shipDoc(b, o);
+  const html = `<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><title>銷貨單 ${esc(b.no)}</title><style>${d.css}</style></head><body>${d.html}</body></html>`;
+  const id = uid('pj');
+  await store.save('printjobs', id, { status: 'queued', billId: b.id, no: b.no, type: b.type, fmt: o.pn ? (o.noAmt ? 'fy' : 'pn') : o.noAmt ? 'na' : 'std', printer: set.printer || 'EPSON LQ-310 ESC/P2 (云盒_75 USB3)', html, by: store.user.name, at: new Date().toISOString() });
+  store.log('列印', `銷貨單 ${b.no}（電腦版，主機直接列印${o.label ? '，' + o.label : ''}）`);
+  toast(`銷貨單 ${b.no} 已交給主機列印（約 10 秒後出紙）`);
+  // 印完或失敗時提醒
+  const t0 = Date.now(); const chk = () => { const j = store.get('printjobs', id); if (j?.status === 'done') return toast(`銷貨單 ${b.no} 已印出`); if (j?.status === 'failed') return toast(`銷貨單 ${b.no} 列印失敗：${j.msg || ''}`); if (Date.now() - t0 < 90000) setTimeout(chk, 3000); else toast('主機列印還沒完成：請確認伺服器電腦上的列印小幫手有在執行'); };
+  setTimeout(chk, 3000);
+  return id;
+}
 export function shipDoc(b, opt = {}) {
   const TP = opt.tpl || shipTpl(); const SO = opt.off || offset(); const NA = !!opt.noAmt, PN = !!opt.pn;
   const C = calc(); const c = C.ct[b.cid] || {}; const co = store.setting('company');
