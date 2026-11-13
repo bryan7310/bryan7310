@@ -35,7 +35,9 @@ function ensureHistAR(force) {
   })().catch(e => console.warn('舊系統銷貨單載入失敗', e)).finally(() => { histBusy = false; store.emit(new Set(['receivables'])); });
 }
 const bt = b => b.hist ? totals(b) : calc().tot[b.id];
-const saleMonths = () => [...calc().bills, ...HIST_AR].filter(b => b.type === 'SALE' && b.cid).map(b => apYm(b.date));
+// 銷貨單可指定「應收月份」（arYm）：例如月初的單要算進上個月；沒填就依日期（25 結）
+const arYmOf = b => b.arYm || apYm(b.date);
+const saleMonths = () => [...calc().bills, ...HIST_AR].filter(b => b.type === 'SALE' && b.cid).map(arYmOf);
 
 // 自動加稅：銷貨單沒勾含稅時，依客戶在舊系統應收資料「最後一個月」有沒有收稅決定是否加 5%（月合計 × 5%，四捨五入）；
 // 舊資料裡沒有的新客戶：預設加稅（舊資料大多數客戶都有收稅）；門市銷售（C999）不加
@@ -51,9 +53,10 @@ export function arRows(ym) {
   const C = calc();
   const auto = new Map();
   for (const b of [...C.bills, ...HIST_AR]) {
-    if ((b.type !== 'SALE' && b.type !== 'SALE_RET') || apYm(b.date) !== ym || !b.cid) continue;
+    if ((b.type !== 'SALE' && b.type !== 'SALE_RET') || arYmOf(b) !== ym || !b.cid) continue;
     const s = b.type === 'SALE' ? 1 : -1; const t = bt(b);
-    const a = auto.get(b.cid) || auto.set(b.cid, { amt: 0, tax: 0, free: 0, bills: [] }).get(b.cid);
+    const a = auto.get(b.cid) || auto.set(b.cid, { amt: 0, tax: 0, free: 0, bills: [], moved: 0 }).get(b.cid);
+    if (b.arYm && b.arYm !== apYm(b.date)) a.moved++;
     a.amt += s * t.net; a.tax += s * t.tax; if (!t.tax && !b.retail) a.free += s * t.net; a.bills.push(b);
   }
   const taxable = taxPlan();
@@ -64,6 +67,8 @@ export function arRows(ym) {
     const a = r.cid ? auto.get(r.cid) : null; if (r.cid) used.add(r.cid);
     const amt = r.amt != null && (r.manual || !a) ? +r.amt : (a ? a.amt : +r.amt || 0);
     const tax = r.tax != null && (r.manual || !a) ? +r.tax : (a ? a.tax : +r.tax || 0);
+    // 舊應收資料的月份（自動彙總沒有那個月的單據），只有被指定移進來的單：加在舊資料金額上
+    if (a && a.moved && a.moved === a.bills.length && r.amt != null && !r.manual) { const amt2 = +r.amt + a.amt, tax2 = (+r.tax || 0) + a.tax; out.push({ ...r, amt: amt2, tax: tax2, auto: a, total: r.tot != null ? +r.tot + a.amt + a.tax : amt2 + tax2, name: r.cid ? cshort(r.cid) : r.cust }); continue; }
     out.push({ ...r, amt, tax, auto: a, total: r.tot != null ? +r.tot : amt + tax, name: r.cid ? cshort(r.cid) : r.cust });
   }
   for (const [cid, a] of auto) if (!used.has(cid)) { if (Math.abs(a.amt) < 0.5) continue; const c = C.ct[cid]; out.push({ id: null, ym, cid, cust: cshort(cid), name: cshort(cid), amt: a.amt, tax: a.tax, total: a.amt + a.tax, auto: a, method: c?.payMethod || '' }); }

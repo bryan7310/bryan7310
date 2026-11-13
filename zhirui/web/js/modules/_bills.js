@@ -110,7 +110,8 @@ function billRow(b, opts, C) {
   }
   if (opts.status) status += opts.status(b);
   if (b.hist) status = '';
-  return `<tr class="row" data-id="${b.id}" ${b.hist ? 'data-hist="1"' : ''}><td class="nowrap">${esc(slash(b.date))}</td><td class="mono nowrap">${esc(b.no)}${opts.tabList && opts.tabList.length > 2 ? `<span class="sub">${T.name}</span>` : ''}</td><td class="nowrap">${esc(T.party ? partyLabel(b) : T.transfer ? wname(b.wid) + ' → ' + wname(b.toWid) : wname(b.wid))}</td><td class="muted">${content}</td>${opts.cols ? opts.cols.map(c => `<td class="${c.cls || ''}">${c.cell(b)}</td>`).join('') : ''}<td class="n">${fmt(b.hist ? b.oamt : T.lines ? t.total : b.amount)}</td><td>${status}</td><td class="r nowrap">${b.hist ? (b.type === 'PO' && b.cid ? `<button class="btn xs" data-hfax="${b.id}">傳真</button>` : `<button class="btn xs" data-hprint="${b.id}">列印</button>`) : opts.actions ? opts.actions(b) : ''}</td></tr>`;
+  if (b.arYm) status += ` <span class="pill" title="這張算在指定月份的應收">應收 ${+b.arYm.slice(5)} 月</span>`;
+  return `<tr class="row" data-id="${b.id}" ${b.hist ? 'data-hist="1"' : ''}><td class="nowrap">${esc(slash(b.date))}</td><td class="mono nowrap">${esc(b.no)}${opts.tabList && opts.tabList.length > 2 ? `<span class="sub">${T.name}</span>` : ''}</td><td class="nowrap">${esc(T.party ? partyLabel(b) : T.transfer ? wname(b.wid) + ' → ' + wname(b.toWid) : wname(b.wid))}</td><td class="muted">${content}</td>${opts.cols ? opts.cols.map(c => `<td class="${c.cls || ''}">${c.cell(b)}</td>`).join('') : ''}<td class="n">${fmt(b.hist ? totals(b).total : T.lines ? t.total : b.amount)}</td><td>${status}</td><td class="r nowrap">${b.hist ? (b.type === 'PO' && b.cid ? `<button class="btn xs" data-hfax="${b.id}">傳真</button>` : `<button class="btn xs" data-hprint="${b.id}">列印</button>`) : opts.actions ? opts.actions(b) : ''}</td></tr>`;
 }
 
 // ---------- 舊系統歷史單據（唯讀，存在伺服器另一個表，向伺服器查） ----------
@@ -225,6 +226,7 @@ function drawBill() {
       ${T.transfer ? `<div class="f"><label for="b-toWid">調入倉庫</label><select id="b-toWid">${whs.map(w => `<option value="${w.id}" ${w.id === e.toWid ? 'selected' : ''}>${esc(w.name)}</option>`).join('')}</select></div>` : ''}
       ${T.money && !T.lines ? `<div class="f"><label for="b-amount">金額</label><input id="b-amount" class="num" inputmode="decimal" value="${esc(e.amount)}"></div><div class="f"><label for="b-aid">結算帳戶</label><select id="b-aid">${accts.map(a => `<option value="${a.id}" ${a.id === e.aid ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}</select></div>` : ''}
       ${!T.lines && !T.party ? `<div class="f"><label for="b-cat">項目</label><input id="b-cat" value="${esc(e.cat || '')}" placeholder="例如：運費、水電"></div>` : ''}
+      ${e.type === 'SALE' || e.type === 'SALE_RET' ? `<div class="f"><label for="b-arym">應收月份</label><input type="month" id="b-arym" value="${esc(e.arYm || '')}" title="空白＝依日期（25 結）；這張要算到別的月份應收才填"></div>` : ''}
       ${e.type === 'PRC' ? `<div class="f" style="grid-column:span 2"><label for="b-proc">加工內容（印在加工單上）</label><input id="b-proc" list="procList" value="${esc(e.proc || '')}" placeholder="例如：電鍍鎳、三價鍍鋅＋除氫、熱處理、耐落（全周）"><datalist id="procList">${PROC_OPTS.map(x => `<option value="${esc(x)}">`).join('')}</datalist></div>` : ''}
       ${T.doc ? `<div class="f"><label for="b-valid">${e.type === 'PO' || e.type === 'SO' ? '交期' : e.type === 'PRC' ? '預計回廠日' : '有效期限'}</label><input type="date" id="b-valid" value="${esc(e.valid || e.deliv || '')}"></div>${e.type === 'SO' ? `<div class="f"><label for="b-cpo">客戶單號</label><input id="b-cpo" value="${esc(e.cpo || '')}"></div>` : ''}<div class="f"><label for="b-attn">聯絡人</label><input id="b-attn" value="${esc(e.attn || '')}"></div>` : ''}
     </div>
@@ -307,7 +309,7 @@ function lineHave(l) { if (!l.gid || !edit || !edit.wid || TYPES[edit.type].doc)
 function bindBill(el, close) {
   const e = edit, T = TYPES[e.type], C = calc();
   const v = (id, f) => { const x = el.querySelector('#' + id); if (x) x.addEventListener('input', () => { f(x.value); e._dirty = true; updateTotals(el); }); };
-  v('b-date', x => e.date = x); v('b-no', x => e.no = x); v('b-note', x => e.note = x); v('b-amount', x => e.amount = x); v('b-cat', x => e.cat = x); v('b-paid', x => e.paid = x); v('b-disc', x => e.disc = x); v('b-cpo', x => e.cpo = x); v('b-valid', x => { if (e.type === 'PO' || e.type === 'PRC' || e.type === 'SO') e.deliv = x; else e.valid = x; }); v('b-proc', x => e.proc = x); v('b-attn', x => e.attn = x);
+  v('b-date', x => e.date = x); v('b-no', x => e.no = x); v('b-note', x => e.note = x); v('b-amount', x => e.amount = x); v('b-cat', x => e.cat = x); v('b-paid', x => e.paid = x); v('b-disc', x => e.disc = x); v('b-cpo', x => e.cpo = x); v('b-arym', x => e.arYm = x); v('b-valid', x => { if (e.type === 'PO' || e.type === 'PRC' || e.type === 'SO') e.deliv = x; else e.valid = x; }); v('b-proc', x => e.proc = x); v('b-attn', x => e.attn = x);
   ['b-wid', 'b-toWid', 'b-aid'].forEach(id => { const x = el.querySelector('#' + id); if (x) x.addEventListener('change', () => { e[id.slice(2)] = x.value; if (id === 'b-wid') redrawLines(el); }); });
   const tax = el.querySelector('#b-tax'); if (tax) tax.addEventListener('change', () => { e.tax = tax.checked; updateTotals(el); });
   const cid = el.querySelector('#b-cid');
@@ -593,6 +595,7 @@ async function saveBill(close, then, force) {
   if (T.doc) { doc.disc = +e.disc || 0; doc.tax = !!e.tax; for (const k of ['attn', 'valid', 'deliv', 'payterm', 'toBill', 'received', 'fromQuote', 'orderId', 'proc', 'cpo', 'src', 'closed']) if (e[k]) doc[k] = e[k]; delete doc.wid; }
   else if (T.lines && T.party) { doc.disc = +e.disc || 0; doc.tax = !!e.tax; doc.paid = +e.paid || 0; doc.aid = e.aid || ''; for (const k of ['invNo', 'fromQuote', 'fromPO', 'fromSO', 'sq', 'kerry', 'noKerry', 'kerryQ']) if (e[k]) doc[k] = e[k]; }
   if (T.money && !T.lines) { doc.aid = e.aid || ''; doc.amount = +e.amount || 0; if (e.cat) doc.cat = e.cat; for (const k of ['ref', 'checkId']) if (e[k]) doc[k] = e[k]; }
+  if ((e.type === 'SALE' || e.type === 'SALE_RET') && (e.arYm || e.hist)) doc.arYm = e.arYm || '';
   if (e.hist) { doc.hist = true; if (e.cn) doc.cn = e.cn; if (e.oamt != null) doc.oamt = e.oamt; }
   doc.createdBy = e.createdBy || store.user.id; if (e.id) doc.updatedBy = store.user.id;
   if (e.hist) return saveHist(e, T, { ...e._orig, ...doc, id }, close);
