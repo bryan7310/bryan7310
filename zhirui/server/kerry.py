@@ -161,6 +161,15 @@ def _login(s, c):
         raise KerryError('嘉里登入失敗：%s' % (msg.group(1) if msg else '帳號或密碼不對'), 401)
 
 
+def _data(x):
+    """嘉里回的 Data 有時是 JSON 字串、有時已經是陣列"""
+    if x is None or x == '':
+        return []
+    if isinstance(x, (list, dict)):
+        return x
+    return json.loads(x)
+
+
 def _multipart(fields, fname, data):
     b = '----zr' + secrets.token_hex(12)
     out = io.BytesIO()
@@ -249,13 +258,16 @@ def send(data_dir, d, confirm=False):
                 pass
         if st == '4' and not confirm:
             return {'need_confirm': r1.get('Message') or '當日收貨人託運資料已重複'}
-        lst = json.loads(r1.get('Data') or '[]')
+        lst = _data(r1.get('Data'))
         _, t = s.post('shipping/Add.aspx/VerifyDeliveryJoint', json.dumps({'listData': lst}, ensure_ascii=False).encode('utf-8'),
                       {'Content-Type': 'application/json; charset=utf-8', 'X-Requested-With': 'XMLHttpRequest'}, 'shipping/uploadadd.aspx')
-        r2 = (_json(t, '檢核') or {}).get('d') or {}
+        r2 = _json(t, '檢核') or {}
+        r2 = r2.get('d', r2) if isinstance(r2, dict) else {}
+        if isinstance(r2, str):
+            r2 = _data(r2) if r2.strip().startswith('{') else {}
         if str(r2.get('ResultStatus')) == '3' and not confirm:
             return {'need_confirm': r2.get('Message') or '聯運區域需要確認'}
-        final = json.loads(r2.get('Data') or '[]') if r2.get('Data') else lst
+        final = _data(r2.get('Data')) if r2.get('Data') else lst
         _, t = s.post('AjaxData/ImportExcelData.ashx', urllib.parse.urlencode({'ask': 'insertShippingDetail', 'shippingDetailList': json.dumps(final, ensure_ascii=False), 'FileName': fname}).encode('utf-8'),
                       {'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8', 'X-Requested-With': 'XMLHttpRequest'}, 'shipping/uploadadd.aspx')
         r3 = _json(t, '新增')
