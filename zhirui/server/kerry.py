@@ -194,7 +194,8 @@ def _find_no(page, name, day):
         tds = [re.sub(r'\s+', ' ', html.unescape(re.sub(r'<[^>]+>', ' ', td))).strip() for td in re.findall(r'<td[^>]*>(.*?)</td>', tr, re.S)]
         if len(tds) < 8:
             continue
-        if name[:10] in ' '.join(tds) and (day in ' '.join(tds) or day.replace('-', '/') in ' '.join(tds)):
+        j = ' '.join(tds)
+        if name[:10] in j and any(x in j for x in (day, day.replace('-', '/'), day.replace('-', ''))):   # 嘉里表上日期寫成 20261113
             for t in tds:
                 if re.fullmatch(r'\d{9,12}', t):
                     best = t
