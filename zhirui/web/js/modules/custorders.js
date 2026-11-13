@@ -15,7 +15,8 @@ export default {
 function draw(el) {
   billList(el, {
     key: 'custorders', title: '客戶訂單', types: ['SO'], newTypes: ['SO'],
-    extraHead: '<a class="btn" href="#faxin">從傳真轉入</a><a class="btn" href="#email">從 Email 轉入</a>',
+    extraHead: '<button class="btn" id="soImp">匯入 Excel</button><a class="btn" href="#faxin">從傳真轉入</a><a class="btn" href="#email">從 Email 轉入</a>',
+    bind: el2 => el2.querySelector('#soImp')?.addEventListener('click', async () => { const { importSO } = await import('./so_import.js'); importSO(() => { if (el.isConnected) draw(el); }); }),
     cols: [
       { label: '客戶單號', cell: b => `<span class="mono">${esc(b.cpo || '')}</span>` },
       { label: '交期', cell: b => { if (!b.deliv) return ''; const s = soStatus(b); const d = daysLeft(b.deliv); const late = (s === 'open' || s === 'part') && d < 0; return `<span class="${late ? 'pill bad' : ''}">${esc(slash(b.deliv))}${late ? ` 逾期 ${-d} 天` : ''}</span>`; } },
