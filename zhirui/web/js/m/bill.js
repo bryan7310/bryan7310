@@ -1,9 +1,9 @@
 // 手機版：開出貨單。客戶、品項（數量×單價，預設該客戶上次成交價）、小計、稅、總計、本單毛利；存草稿、送出、送出並交給主機列印中一刀。
 // 存檔格式跟電腦版銷貨單完全一樣（bills 集合），電腦版直接看得到、可以再修改。草稿另存 drafts 集合，不影響庫存與帳款。
-import { esc, fmt, fmtQ, today, uid, ls, slash } from '../core/util.js';
+import { esc, fmt, fmtQ, fp4, today, uid, ls, slash } from '../core/util.js';
 import { api } from '../core/api.js';
 import { store } from '../core/store.js';
-import { calc, totals, lineAmt, nextNo, defWh, cdisp, cname, lastSale, unitPrice, costOf } from '../core/calc.js';
+import { calc, totals, lineAmt, nextNo, defWh, cdisp, cname, gname, lastSale, unitPrice, costOf } from '../core/calc.js';
 import { shipDoc, ruyangTpl } from '../modules/ship.js';
 import { scanQR } from '../core/qr.js';
 import { search, findByCode, pickCustomer } from './stock.js';
@@ -37,12 +37,13 @@ function profitOf(doc) {
 }
 
 // ---------- 開單頁 ----------
-export function billPage(view, sub) {
+export function billPage(view, sub, arg) {
+  if (sub === 'v' && arg) return billView(view, decodeURIComponent(arg));
   const e = load(); const c = e.cid ? store.get('contacts', e.cid) : null;
   const drafts = store.list('drafts');
   const ry = c && /如陽/.test(c.name);
   if (e.fmt === 'ry' && !ry) e.fmt = 'std';
-  view.innerHTML = `<div class="hd"><h1>開出貨單</h1><span class="sp"></span>${drafts.length ? `<button class="chip" id="dl">草稿 ${drafts.length}</button>` : ''}</div>
+  view.innerHTML = `<div class="hd"><h1>出貨單</h1><span class="sp"></span>${drafts.length ? `<button class="chip" id="dl">草稿 ${drafts.length}</button>` : ''}</div>
     ${lastSent ? sentCard() : ''}
     ${e.draftId ? `<div class="note" style="margin:0 0 8px">正在編輯草稿${(s => s ? `（${esc(s.by || '')} ${new Date(s.at).toLocaleString('zh-TW', { hour12: false })}）` : '')(store.get('drafts', e.draftId))}</div>` : ''}
     <div class="card list">
@@ -62,6 +63,8 @@ export function billPage(view, sub) {
     <p><button class="btn" id="saveprint">送出並列印（中一刀）</button></p>
     <p><button class="btn ghost danger" id="clr">清除這張</button></p>
     <div class="note" id="ph"></div>
+    <div class="sec">最近的出貨單</div>
+    <div class="card list">${recentHtml()}</div>
     ${(m => `<details class="card set"><summary>主機列印設定</summary>
       <div class="f"><label for="mp-pr">印表機名稱（主機上的）</label><input id="mp-pr" value="${esc(m.printer || PRINTER_DEF)}"></div>
       <div class="f2"><div class="f"><label for="mp-l">往右移（mm）</label><input id="mp-l" inputmode="decimal" value="${esc(m.off?.left ?? 6)}"></div><div class="f"><label for="mp-t">往下移（mm）</label><input id="mp-t" inputmode="decimal" value="${esc(m.off?.top ?? 4)}"></div></div>
@@ -154,6 +157,35 @@ export async function queuePrint(b, f) {
   return id;
 }
 const ST = { queued: '排隊中，等主機列印', printing: '列印中…', done: '已印出', failed: '列印失敗' };
+// ---------- 最近的出貨單（瀏覽、看明細、重印） ----------
+const lastPrint = id => store.list('printjobs').filter(j => j.billId === id).sort((a, b) => String(b.at).localeCompare(String(a.at)))[0];
+function recentHtml() {
+  const L = store.list('bills').filter(b => b.type === 'SALE' && !b.hist).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0) || String(b.no).localeCompare(String(a.no))).slice(0, 20);
+  return L.map(b => { const j = lastPrint(b.id); const n = (b.lines || []).filter(l => l.txt === undefined).length;
+    return `<a href="#bill/v/${encodeURIComponent(b.id)}"><div class="gm"><b>${esc(cdisp(store.get('contacts', b.cid)) || cname(b.cid))}</b><small>${esc(b.no)}・${esc(slash(b.date))}・${n} 項・${fmt(totals(b).total)} 元</small></div><span class="go">${j ? `<small class="${j.status === 'failed' ? 'bad' : j.status === 'done' ? 'good' : 'warn'}">${esc(ST[j.status] || j.status)}</small>` : ''} ›</span></a>`; }).join('') || '<div class="row muted">還沒有出貨單</div>';
+}
+function billView(view, id) {
+  const b = store.get('bills', id); const C = calc();
+  if (!b) { view.innerHTML = '<div class="hd"><a class="back" href="#bill">‹ 出貨單</a></div><div class="card ph"><b>找不到這張出貨單</b></div>'; return; }
+  const t = totals(b); const j = lastPrint(b.id); const nm = store.get('contacts', b.cid)?.name || '';
+  const fmts = [['std', '一般'], ['pn', '料號列印'], ['na', '不含金額'], ['fy', '豐餘列印'], ...(/如陽/.test(nm) ? [['ry', '如陽列印']] : [])];
+  let f = /豐餘/.test(nm) ? 'fy' : /如陽/.test(nm) ? 'ry' : 'std';
+  const unitOf = l => { const g = C.g[l.gid]; return l.unit === 'a' ? (g?.aunit || '') : l.u || g?.unit || l.unit || ''; };
+  view.innerHTML = `<div class="hd"><a class="back" href="#bill">‹ 出貨單</a></div>
+    <div class="card"><b style="font-size:17px">${esc(cdisp(store.get('contacts', b.cid)) || cname(b.cid))}</b>
+      <div class="small">${esc(b.no)}　${esc(slash(b.date))}</div>
+      <div class="small">${(b.lines || []).filter(l => l.txt === undefined).length} 項・未稅 ${fmt(t.net)}${b.tax ? `・稅 ${fmt(t.tax)}` : ''}・<b>合計 ${fmt(t.total)} 元</b></div>
+      ${b.note ? `<div class="muted small">${esc(b.note)}</div>` : ''}
+      ${j ? `<div class="small">列印：<span class="${j.status === 'failed' ? 'bad' : j.status === 'done' ? 'good' : 'warn'}">${esc(ST[j.status] || j.status)}</span>${j.msg ? ' ' + esc(j.msg) : ''}</div>` : ''}</div>
+    <div class="sec">品項</div>
+    <div class="card list">${(b.lines || []).map(l => l.txt !== undefined ? `<div class="row muted small">${esc(l.txt)}</div>` : `<div class="row"><div class="gm"><b>${esc(l.gid ? gname(l.gid) : l.n || '')}</b><small>${fmtQ(l.qty)} ${esc(unitOf(l))} × ${fp4(+l.price || 0)}${l.memo ? '・' + esc(l.memo) : ''}</small></div><span class="go">${fmt(lineAmt(l))}</span></div>`).join('')}</div>
+    <div class="sec">列印格式</div>
+    <div class="chips" id="vf">${fmts.map(([k, n]) => `<button class="chip ${f === k ? 'on' : ''}" data-f="${k}">${n}</button>`).join('')}</div>
+    <p><button class="btn" id="vp">列印這張（中一刀）</button></p>
+    <div class="btn2"><a class="btn ghost" href="#lbl/b/${encodeURIComponent(b.id)}">印標籤</a><a class="btn ghost" href="/#sales?open=${encodeURIComponent(b.id)}">電腦版打開</a></div>`;
+  view.querySelectorAll('#vf [data-f]').forEach(x => x.onclick = () => { f = x.dataset.f; view.querySelectorAll('#vf [data-f]').forEach(y => y.classList.toggle('on', y === x)); });
+  view.querySelector('#vp').onclick = async ev => { ev.target.disabled = true; try { await queuePrint(b, f); toast(`${b.no} 已交給主機列印`); } catch (e) { toast('排入列印失敗：' + e.message); } ev.target.disabled = false; billView(view, id); };
+}
 function sentCard() {
   const j = lastSent.jobId ? store.get('printjobs', lastSent.jobId) : null; const b = store.get('bills', lastSent.billId);
   return `<div class="card sent"><b>已送出 ${esc(lastSent.no)}</b>${b ? `<small>${esc(cname(b.cid))}・${fmt(totals(b).total)} 元・電腦版「銷貨單」看得到</small>` : ''}

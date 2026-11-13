@@ -82,7 +82,7 @@ function route() {
   bar.innerHTML = TABS.map(([k, n, ic]) => `<a href="#${k}" class="${k === t[0] ? 'on' : ''}">${SVG(ic)}<span>${n}</span></a>`).join('');
   if (cur === 'home') home();
   else if (cur === 'stock') stockPage(view);
-  else if (cur === 'bill') billPage(view, parts[1]);
+  else if (cur === 'bill') { billPage(view, parts[1], parts.slice(2).join('/')); if (parts[1] === 'v') window.scrollTo(0, 0); }
   else if (cur === 'ar') arPage(view, parts[1], parts.slice(2).join('/'));
   else if (cur === 'rep') { reportPage(view); window.scrollTo(0, 0); }
   else if (cur === 'lbl') labelPage(view, parts[1], parts.slice(2).join('/'));
@@ -150,7 +150,7 @@ function home() {
     <div class="sec">快捷</div>
     <div class="card quick">
       <a href="#stock"><i>${SVG(IC.stock)}</i>查庫存</a>
-      <a href="#bill"><i>${SVG(IC.bill)}</i>開出貨單</a>
+      <a href="#bill"><i>${SVG(IC.bill)}</i>出貨單</a>
       <a href="#up"><i>${SVG(IC.cam)}</i>拍照上傳</a>
       <a href="#lbl"><i>${SVG(IC.tag)}</i>印標籤</a>
       <a href="#so"><i>${SVG(IC.so)}</i>客戶訂單${soOpenCount() ? `（${soOpenCount()}）` : ''}</a>
