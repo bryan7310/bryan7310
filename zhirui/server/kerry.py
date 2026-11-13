@@ -28,7 +28,9 @@ import zipfile
 
 BASE = 'https://webedi.kerrytj.com/'
 COLS = ['出貨日期', '收貨人', '收貨人地址', '收貨人電話1', '收貨人電話2', '件數', '重量', '出貨單號', '代收貨款', '貨品內容', '備註']
-DEFAULT_CFG = {'account': '', 'password': '', 'shipper_type': '1', 'customer_no': '', 'fields': 'ZR01'}
+DEFAULT_CFG = {'account': '', 'password': '', 'shipper_type': '1', 'customer_no': '', 'fields': 'ZR01', 'date_fmt': ''}
+# 出貨日期的寫法：嘉里文件沒寫清楚，第一次送時依序試，嘉里接受的那種記在設定 date_fmt
+DATE_FMTS = ['%Y%m%d', '%Y-%m-%d', '%Y/%m/%d', '%Y/%#m/%#d']
 LOCK = threading.Lock()
 
 
@@ -57,7 +59,7 @@ def cfg_public(data_dir):
 
 def cfg_save(data_dir, body):
     c = cfg_load(data_dir)
-    for k in ('account', 'shipper_type', 'customer_no', 'fields'):
+    for k in ('account', 'shipper_type', 'customer_no', 'fields', 'date_fmt'):
         if k in body:
             c[k] = str(body[k] or '').strip()
     if body.get('password'):
@@ -108,7 +110,7 @@ def _row(d):
         if not str(d.get(k) or '').strip():
             raise KerryError('請填%s' % label, 400)
     kg = str(d.get('kg') or '').strip()
-    return [str(d.get('ship_date') or datetime.date.today().isoformat()).replace('-', '/'), str(d['name']).strip()[:40], str(d['addr']).strip(),
+    return [str(d.get('ship_date') or datetime.date.today().isoformat()), str(d['name']).strip()[:40], str(d['addr']).strip(),
             str(d['tel']).strip(), str(d.get('tel2') or '').strip(), str(n), kg, str(d.get('no') or '')[:24], cod, str(d.get('what') or '')[:20], str(d.get('note') or '')]
 
 
@@ -226,12 +228,25 @@ def send(data_dir, d, confirm=False):
                 cfg_save(data_dir, {'customer_no': cust})
             except Exception:
                 pass
-        body, ctype = _multipart({'ddlShipperType': c.get('shipper_type') or '1', 'ddlCustomerNo': cust, 'ddlFieldsName': c.get('fields') or 'ZR01', 'ask': 'uploadShippingData'}, fname, xlsx)
-        _, t = s.post('AjaxData/ImportExcelData.ashx', body, {'Content-Type': ctype, 'X-Requested-With': 'XMLHttpRequest'}, 'shipping/uploadadd.aspx')
-        r1 = _json(t, '上傳')
-        st = str(r1.get('ResultStatus'))
+        iso = row[0]; day = datetime.date.fromisoformat(iso)
+        fmts = ([c['date_fmt']] if c.get('date_fmt') else []) + [f for f in DATE_FMTS if f != c.get('date_fmt')]
+        for i, fmt in enumerate(fmts):
+            row[0] = day.strftime(fmt)
+            xlsx = _xlsx([COLS, row])
+            body, ctype = _multipart({'ddlShipperType': c.get('shipper_type') or '1', 'ddlCustomerNo': cust, 'ddlFieldsName': c.get('fields') or 'ZR01', 'ask': 'uploadShippingData'}, fname, xlsx)
+            _, t = s.post('AjaxData/ImportExcelData.ashx', body, {'Content-Type': ctype, 'X-Requested-With': 'XMLHttpRequest'}, 'shipping/uploadadd.aspx')
+            r1 = _json(t, '上傳')
+            st = str(r1.get('ResultStatus'))
+            if st == '2' and '日期' in str(r1.get('Message') or '') and i < len(fmts) - 1:
+                continue   # 日期寫法不對，換下一種
+            break
         if st == '2':
             raise KerryError('嘉里不接受：%s' % (r1.get('Message') or '格式錯誤'), 422)
+        if c.get('date_fmt') != fmt:
+            try:
+                cfg_save(data_dir, {'date_fmt': fmt})
+            except Exception:
+                pass
         if st == '4' and not confirm:
             return {'need_confirm': r1.get('Message') or '當日收貨人託運資料已重複'}
         lst = json.loads(r1.get('Data') or '[]')
@@ -249,7 +264,7 @@ def send(data_dir, d, confirm=False):
         no = ''
         try:
             _, page = s.get('shipping/uploadadd.aspx')
-            no = _find_no(page, row[1], row[0].replace('/', '-'))
+            no = _find_no(page, row[1], iso)
         except Exception:
             pass
         return {'ok': True, 'no': no, 'msg': r3.get('Message') or '已新增'}
