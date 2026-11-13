@@ -19,6 +19,7 @@ import json
 import os
 import re
 import secrets
+import ssl
 import threading
 import time
 import urllib.parse
@@ -114,7 +115,10 @@ def _row(d):
 class _Session:
     def __init__(self):
         self.jar = http.cookiejar.CookieJar()
-        self.op = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(self.jar))
+        # 嘉里的憑證缺「Subject Key Identifier」，Python 3.13 起預設的嚴格檢查會擋；照樣驗證憑證，只關掉這條嚴格規則
+        ctx = ssl.create_default_context()
+        ctx.verify_flags &= ~getattr(ssl, 'VERIFY_X509_STRICT', 0)
+        self.op = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(self.jar), urllib.request.HTTPSHandler(context=ctx))
         self.op.addheaders = [('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/156.0 Safari/537.36'), ('Accept-Language', 'zh-TW,zh;q=0.9')]
 
     def get(self, path):
