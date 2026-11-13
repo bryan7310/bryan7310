@@ -6,6 +6,8 @@ import { toast, confirm } from '../core/ui.js';
 import { openBill } from './_bills.js';
 import { arSummary } from './receivables.js';
 import { apSummary } from './payables.js';
+import { memoBoard, bindMemoBoard } from './memos.js';
+const MU = { showDone: false };
 
 export default {
   id: 'home', name: '總覽', icon: 'home',
@@ -63,6 +65,7 @@ function draw(el) {
   const recent = [...C.bills].filter(b => !TYPES[b.type].doc).sort((a, b) => (b.updatedAt || b.createdAt || 0) - (a.updatedAt || a.createdAt || 0)).slice(0, 8);
   el.innerHTML = `
     <div class="head"><h1>總覽</h1><span class="sub">${esc(roc(t))}・${esc(store.user.name)}</span></div>
+    ${memoBoard(MU)}
     <div class="kpis">
       <a class="kpi" href="#sales"><span>本月銷貨（未稅）</span><b>${fmt(sales)}</b><small>${n} 張・毛利 ${fmt(profit)}</small></a>
       <a class="kpi" href="#purchase"><span>本月進貨（未稅）</span><b>${fmt(pur)}</b></a>
@@ -93,6 +96,7 @@ function draw(el) {
         <div class="tw"><table><tbody>${[...late, ...soon].sort((a, b) => a.due.localeCompare(b.due)).slice(0, 8).map(c => `<tr><td class="nowrap" style="${c.due < t ? 'color:var(--bad)' : ''}">${esc(roc(c.due))}</td><td>${esc(c.cid ? cshort(c.cid) : c.name)}</td><td class="muted">${esc(c.bank || '')}</td><td class="n">${money(c.amt)}</td></tr>`).join('') || '<tr><td class="muted">沒有 7 天內到期的客票</td></tr>'}</tbody></table></div>
       </div>
     </div>`;
+  bindMemoBoard(el, MU, () => draw(el));
   el.querySelectorAll('tr[data-href]').forEach(tr => tr.addEventListener('click', () => location.hash = tr.dataset.href));
   // 門市銷售
   const rt = el.querySelector('#retail');

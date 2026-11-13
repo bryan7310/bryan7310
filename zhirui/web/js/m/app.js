@@ -16,6 +16,8 @@ import { settingsPage, applyTheme, themeName } from './settings.js';
 import { faxPage, faxUnread } from './fax.js';
 import { emailPage, mailUnread } from './email.js';
 import { soPage, soOpenCount, soLateCount } from './so.js';
+import { memoBoard, bindMemoBoard } from '../modules/memos.js';
+const MU = { showDone: false };
 
 const $ = s => document.querySelector(s);
 const view = $('#view'), bar = $('#tabbar');
@@ -141,6 +143,7 @@ function home() {
   const k = homeNums(); const td = todos(k.C);
   const pct = (k.rate * 100).toFixed(1);
   view.innerHTML = `<div class="hd"><h1>${themeName() === 'pop' ? '嗨，老闆！' : '首頁'}</h1><span class="sub">${esc(roc(today()))}</span><span class="sp"></span><a class="gear" href="#set" aria-label="設定">${SVG('<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/>')}</a></div>
+    ${memoBoard(MU, true)}
     <div class="kpis">
       <a class="card kpi" href="/#sales"><span>今日出貨額</span><b>${fmt(k.day)}</b><small>${k.dayN} 張・未稅</small></a>
       <a class="card kpi" href="#rep"><span>本月營收</span><b>${fmt(k.sales)}</b><small>${k.n} 張・未稅</small></a>
@@ -161,6 +164,7 @@ function home() {
     <div class="sec">待處理</div>
     <div class="card list">${td.length ? td.map(([, txt, h]) => `<a href="${h}"><span class="dot"></span>${esc(txt)}<span class="go">›</span></a>`).join('') : '<div class="row muted">目前沒有需要處理的事 ✓</div>'}</div>
     <div class="note">連結到「電腦版」的頁面，之後的階段會換成手機版頁面。</div>`;
+  bindMemoBoard(view, MU, () => { if (cur === 'home') home(); }, true);
 }
 
 // 有新版就自動重新載入（主畫面 App 常常一直開著，不會自己更新）：切回 App 時、每 10 分鐘檢查一次；
