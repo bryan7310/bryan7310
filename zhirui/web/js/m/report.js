@@ -41,7 +41,7 @@ function compute(hist) {
     x.net += net; x.cost += cost; x.n++; x.hn++; x.hnet += net; if (x.m === cur && b.cid) addC(b.cid, net, cost);
   }
   const low = store.list('goods').filter(g => +g.safety > 0).map(g => ({ g, q: Object.values(C.stock[g.id] || {}).reduce((a, b) => a + b, 0) })).filter(x => x.q < +x.g.safety).sort((a, b) => a.q / a.g.safety - b.q / b.g.safety);
-  return { months: months.map(m => M[m]), cust: [...cust.values()].sort((a, b) => b.net - a.net), low, C, miss: [...miss.values()].sort((a, b) => b.amt - a.amt) };
+  return { months: months.map(m => M[m]), cust: [...cust.values()].sort((a, b) => b.net - a.net), low, C, miss: [...miss.values()].sort((a, b) => (b.last?.date || '').localeCompare(a.last?.date || '') || b.amt - a.amt) };   // 最近有出貨的排最上面
 }
 
 const pct = (p, n) => n ? (p / n * 100).toFixed(1) + '%' : '—';
@@ -77,8 +77,8 @@ export async function reportPage(view) {
       <div class="sec">缺貨提醒 <span class="muted">${k.low.length} 項低於安全庫存</span></div>
       <div class="card list">${k.low.slice(0, 20).map(x => `<a href="#g/${encodeURIComponent(x.g.id)}"><div class="gm"><b>${esc(x.g.name)}</b><small>${esc(x.g.code)}・安全庫存 ${fmtQ(x.g.safety)}</small></div><span class="go ${x.q <= 0 ? 'bad' : ''}">${fmtQ(x.q)} ›</span></a>`).join('') || '<div class="row muted">沒有低於安全庫存的商品 ✓</div>'}</div>
       <div class="sec" id="nocost">查不到成本的商品 <span class="muted">${k.miss.length} 項・近 6 個月</span></div>
-      ${k.miss.length ? `<div class="note" style="text-align:left;margin:0 0 8px">這些商品找不到進貨單、採購單或查價牌價，毛利把成本算成 0。填「每 1 單位的成本」按儲存，會存到商品的「手動成本」（跟電腦版商品資料同一欄），毛利馬上重算。依近 6 個月銷售金額由大到小。</div>` : ''}
-      <div id="ncl">${k.miss.slice(0, 60).map(x => { const g = k.C.g[x.gid]; return `<div class="card ln" data-g="${x.gid}"><div class="gm"><b>${esc(g.name)}</b><small>${esc(g.code || '')}・${x.n} 筆・${fmt(x.amt)} 元${x.last ? `・最近售價 ${x.last.price}${x.last.u ? '/' + esc(x.last.u) : ''}` : ''}</small></div>
+      ${k.miss.length ? `<div class="note" style="text-align:left;margin:0 0 8px">這些商品找不到進貨單、採購單或查價牌價，毛利把成本算成 0。填「每 1 單位的成本」按儲存，會存到商品的「手動成本」（跟電腦版商品資料同一欄），毛利馬上重算。依最近出貨日排序，最近出過貨的在最上面。</div>` : ''}
+      <div id="ncl">${k.miss.slice(0, 60).map(x => { const g = k.C.g[x.gid]; return `<div class="card ln" data-g="${x.gid}"><div class="gm"><b>${esc(g.name)}</b><small>${esc(g.code || '')}・${x.n} 筆・${fmt(x.amt)} 元${x.last?.date ? `・最近出貨 ${esc(x.last.date.slice(5).replace('-', '/'))}` : ''}${x.last ? `・最近售價 ${x.last.price}${x.last.u ? '/' + esc(x.last.u) : ''}` : ''}</small></div>
         <div class="lnr nc"><label>成本（每 ${esc(g.unit || '單位')}）<input inputmode="decimal" data-c="${x.gid}" placeholder="例如 0.35"></label><button class="btn ghost" data-sv="${x.gid}">儲存</button></div></div>`; }).join('') || '<div class="card"><div class="row muted">都查得到成本 ✓</div></div>'}</div>
       ${k.miss.length > 60 ? `<div class="note">只列前 60 項（共 ${k.miss.length} 項），填完會自動補上下一批。</div>` : ''}`;
     view.querySelector('#ncl').addEventListener('click', async ev => {
