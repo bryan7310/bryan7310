@@ -2,8 +2,9 @@
 import { esc, fmt, today, thisMonth, roc, ls } from '../core/util.js';
 import { api } from '../core/api.js';
 import { store } from '../core/store.js';
-import { calc } from '../core/calc.js';
-import { arSummary } from '../modules/receivables.js';
+import { calc, costOf } from '../core/calc.js';
+import { apYm } from '../modules/payables.js';
+import { arSummary, histAR, histTot } from '../modules/receivables.js';
 import { preloadHist } from '../modules/_bills.js';
 import { stockPage, goodsPage } from './stock.js';
 import { billPage, onBillChange, draftCount } from './bill.js';
@@ -106,13 +107,23 @@ function placeholder([, name, , stage, desk]) {
 // ---------- 首頁：今日出貨額、本月營收、本月毛利（毛利率）、逾期應收家數 ----------
 /** 跟電腦版總覽同一套算法：銷貨單減銷貨退回，未稅金額；毛利＝未稅金額－成本 */
 export function homeNums() {
-  const C = calc(); const m = thisMonth(), t = today();
+  // 本月＝25 結（上月 26 日～本月 25 日），跟應收帳款同一套；銷貨單有指定應收月份的照指定
+  const C = calc(); const t = today(), m = apYm(t); const inM = b => (b.arYm || apYm(b.date || '')) === m;
   let day = 0, dayN = 0, sales = 0, profit = 0, n = 0;
   for (const b of C.bills) {
     if (b.type !== 'SALE' && b.type !== 'SALE_RET') continue;
-    const d = b.date || ''; if (!d.startsWith(m)) continue;
+    const d = b.date || ''; if (!inM(b)) continue;
     const s = b.type === 'SALE' ? 1 : -1; const net = C.tot[b.id]?.net || 0;
     sales += s * net; profit += s * (net - (C.cogs[b.id] || 0)); n++;
+    if (d === t) { day += s * net; dayN++; }
+  }
+  // 舊系統搬來的銷貨單（還在舊系統開的單）一起算：未稅金額、成本用跟報表一樣的推算
+  for (const b of histAR()) {
+    if (b.type !== 'SALE' && b.type !== 'SALE_RET') continue;
+    const d = b.date || ''; if (!inM(b)) continue;
+    const s = b.type === 'SALE' ? 1 : -1; const net = histTot(b).net;
+    let cost = 0; for (const l of b.lines || []) { if (!l.gid) continue; const r = costOf(l, b.date, C.purIdx, C.g, C.poIdx); if (r) cost += r.c * (+l.qty || 0); }
+    sales += s * net; profit += s * (net - cost); n++;
     if (d === t) { day += s * net; dayN++; }
   }
   const ar = arSummary();
@@ -146,7 +157,7 @@ function home() {
     ${memoBoard(MU, true)}
     <div class="kpis">
       <a class="card kpi" href="/#sales"><span>今日出貨額</span><b>${fmt(k.day)}</b><small>${k.dayN} 張・未稅</small></a>
-      <a class="card kpi" href="#rep"><span>本月營收</span><b>${fmt(k.sales)}</b><small>${k.n} 張・未稅</small></a>
+      <a class="card kpi" href="#rep"><span>本月營收</span><b>${fmt(k.sales)}</b><small>${k.n} 張・未稅・25 結</small></a>
       <a class="card kpi good" href="#rep"><span>本月毛利</span><b>${fmt(k.profit)}</b><small>毛利率 ${k.sales ? pct + '%' : '—'}</small></a>
       <a class="card kpi ${k.lateCust ? 'alert' : ''}" href="#ar"><span>逾期應收</span><b>${k.lateCust} 家</b><small>${k.late} 筆・未收共 ${fmt(k.open)}</small></a>
     </div>

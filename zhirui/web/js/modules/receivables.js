@@ -34,7 +34,18 @@ function ensureHistAR(force) {
     HIST_AR = out;
   })().catch(e => console.warn('舊系統銷貨單載入失敗', e)).finally(() => { histBusy = false; store.emit(new Set(['receivables'])); });
 }
-const bt = b => b.hist ? totals(b) : calc().tot[b.id];
+// 舊系統單據的總額（oamt）有的已含 5% 稅：拆回未稅＋稅，才不會被當成未稅再自動加一次稅
+const bt = b => {
+  if (!b.hist) return calc().tot[b.id];
+  const t = totals(b); if (b.oamt == null) return t;
+  const n = totals({ ...b, hist: false, tax: false }).net;
+  if (Math.abs(b.oamt - n) >= 1.5 && Math.abs(b.oamt - Math.round(n * 1.05)) < 2) return { ...t, net: n, tax: b.oamt - n, total: b.oamt };
+  return t;
+};
+/** 已載入的舊系統銷貨單／退回（舊應收資料最後一個月之後的；手機首頁本月營收也用） */
+/** 舊系統單據的未稅／稅（跟應收同一套拆法；手機首頁、報表也用） */
+export const histTot = b => bt({ ...b, hist: true });
+export const histAR = () => { ensureHistAR(); return HIST_AR; };
 // 銷貨單可指定「應收月份」（arYm）：例如月初的單要算進上個月；沒填就依日期（25 結）
 const arYmOf = b => b.arYm || apYm(b.date);
 const saleMonths = () => [...calc().bills, ...HIST_AR].filter(b => b.type === 'SALE' && b.cid).map(arYmOf);
