@@ -91,7 +91,7 @@ function printFy(items) {
   const md = String(ui.date || today()).split('-'); const d = `${+md[1]}/${+md[2]}`; const ven = cfg().vendor || '501823'; let html = '';
   for (const it of items) for (const s of split(it)) for (let k = 0; k < s.n; k++) html += `<div class="lb"><div><b>廠商:</b><i class="red">${esc(ven)}</i></div><div><b>交貨:</b><i class="red">${esc(d)}</i></div><div><b>單號:</b><i>${esc(it.po)}</i></div><div><b>數量:</b><i>${s.q}</i></div><div class="w"><b>料號:</b><i>${esc(it.pn)}</i></div><div class="w"><b>短文:</b><i>${esc(it.spec)}</i></div><div><b>單重(g):</b><i>${+it.wt}</i></div><div><b>檢驗日期:</b></div><div><b>總重(kg):</b><i>${kg(+it.wt * s.q / 1000)}</i></div><div><b>檢驗標章:</b></div></div>`;
   const [css, tip] = sized(`@page{size:50mm 40mm;margin:0}*{box-sizing:border-box}body{margin:0;color:#000;font-family:"Microsoft JhengHei","微軟正黑體","PingFang TC","Noto Sans TC",sans-serif;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-.lb{width:50mm;height:40mm;padding:2mm 1.6mm;display:grid;grid-template-columns:27.5mm 1fr;grid-template-rows:repeat(6,1fr);align-items:center;column-gap:.6mm;page-break-after:always;overflow:hidden;font-size:9.5pt;line-height:1}.lb:last-child{page-break-after:auto}@media screen{.lb{border:1px dashed #999;margin:4mm;display:inline-grid;vertical-align:top}}
+.lb{width:50mm;height:40mm;padding:2mm 1.6mm;display:grid;grid-template-columns:27.5mm 1fr;grid-template-rows:repeat(6,1fr);align-items:center;column-gap:.6mm;page-break-after:always;overflow:hidden;font-size:9.5pt;line-height:1}.lb:last-child,.lb:not(:has(~ .lb)){page-break-after:auto}@media screen{.lb{border:1px dashed #999;margin:4mm;display:inline-grid;vertical-align:top}}
 .lb>div{white-space:nowrap;overflow:hidden;transform-origin:left center}.lb .w{grid-column:1/3}.lb b{color:#e00;font-weight:900}.lb i{font-style:normal;color:#000;font-weight:bold;margin-left:.4mm;font-variant-numeric:tabular-nums;-webkit-text-stroke:.15pt #000}.lb i.red{color:#e00;-webkit-text-stroke:.15pt #e00}`, '列印方式：按 Ctrl+P，紙張選 5 × 4 cm 標籤（寬 50 mm、高 40 mm），邊界「無」，縮放 100%；黑白印表機紅字會印成黑色。');
   printHTML(`豐餘標籤 ${ui.date}`, css, html + FIT, { tip });
 }
@@ -101,7 +101,7 @@ function printRy(items) {
   const dd = String(ui.date || today()).split('-'); const d = `${dd[0]}/${dd[1]}/${dd[2]}`; let html = '';
   for (const it of items) for (const s of split(it)) for (let k = 0; k < s.n; k++) html += `<div class="lb"><div><b>編號:</b>${esc(it.pn)}</div><div><b>品名:</b>${esc(it.nm ?? ryName(it.name))}</div><div><b>規格:</b>${esc(it.spec)}</div><div><b>數量:</b>${s.q} ${esc(it.unit || 'PCS')}</div><div><b>日期:</b>${esc(d)}</div><div class="rohs"><span>ROHS</span></div></div>`;
   const [css, tip] = sized(`@page{size:50mm 40mm;margin:0}*{box-sizing:border-box}body{margin:0;color:#000;font-family:Arial,"Helvetica","PMingLiU","MingLiU","新細明體",sans-serif;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-.lb{width:50mm;height:40mm;padding:1.6mm 2mm 1.6mm;display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:repeat(5,1fr) 1.25fr;align-items:center;page-break-after:always;overflow:hidden;line-height:1}.lb:last-child{page-break-after:auto}@media screen{.lb{border:1px dashed #999;margin:4mm;display:inline-grid;vertical-align:top}}
+.lb{width:50mm;height:40mm;padding:1.6mm 2mm 1.6mm;display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:repeat(5,1fr) 1.25fr;align-items:center;page-break-after:always;overflow:hidden;line-height:1}.lb:last-child,.lb:not(:has(~ .lb)){page-break-after:auto}@media screen{.lb{border:1px dashed #999;margin:4mm;display:inline-grid;vertical-align:top}}
 .lb>div{white-space:nowrap;overflow:hidden;font-size:12pt;transform-origin:left center}.lb b{font-weight:normal;font-family:"PMingLiU","MingLiU","新細明體",serif;margin-right:.6mm}
 .lb .rohs{display:flex;align-items:center;justify-content:center;border:.5mm solid #e00;color:#e00;height:85%;margin:0 1mm;font-size:15pt;letter-spacing:.5pt;transform:none!important}`, '列印方式：按 Ctrl+P，紙張選 5 × 4 cm 標籤（寬 50 mm、高 40 mm），邊界「無」，縮放 100%；黑白印表機紅字會印成黑色。');
   printHTML(`如陽標籤 ${ui.date}`, css, html + FIT, { tip });
@@ -111,7 +111,7 @@ function printGen(items) {
   for (const it of items) for (let k = 0; k < Math.max(0, Math.round(+it.copies || 0)); k++) html += `<div class="lb"><div><b>品名:</b>${esc(it.name)}</div><div><b>規格:</b>${esc(it.spec)}</div><div><b>數量:</b>${esc(it.qty)}${it.unit ? `<span class="u">${esc(it.unit)}</span>` : ''}</div><div><b>日期:</b>${esc(d)}</div></div>`;
   if (!html) return toast('張數都是 0，沒有可列印的標籤');
   const [css, tip] = sized(`@page{size:50mm 40mm;margin:0}*{box-sizing:border-box}body{margin:0;color:#000;font-family:"PMingLiU","MingLiU","新細明體","細明體","Noto Serif TC","Songti TC",serif}
-.lb{width:50mm;height:40mm;padding:3mm 1.8mm 3mm;display:grid;grid-template-rows:repeat(4,1fr);align-items:center;page-break-after:always;overflow:hidden;line-height:1}.lb:last-child{page-break-after:auto}@media screen{.lb{border:1px dashed #999;margin:4mm;display:inline-grid;vertical-align:top}}
+.lb{width:50mm;height:40mm;padding:3mm 1.8mm 3mm;display:grid;grid-template-rows:repeat(4,1fr);align-items:center;page-break-after:always;overflow:hidden;line-height:1}.lb:last-child,.lb:not(:has(~ .lb)){page-break-after:auto}@media screen{.lb{border:1px dashed #999;margin:4mm;display:inline-grid;vertical-align:top}}
 .lb>div{white-space:nowrap;overflow:hidden;font-size:17pt;transform-origin:left center}.lb b{font-weight:normal}.lb .u{margin-left:5mm}`, '列印方式：按 Ctrl+P，紙張選 5 × 4 cm 標籤（寬 50 mm、高 40 mm），邊界「無」，縮放 100%。');
   printHTML(`一般標籤 ${d}`, css, html + FIT, { tip });
 }
@@ -214,6 +214,6 @@ function printAddr(F, n) {
   let html = ''; for (let k = 0; k < n; k++) html += addrLabelHTML(F);
   const [css, tip] = sized(`@page{size:50mm 40mm;margin:0}*{box-sizing:border-box}body{margin:0}
 ${ALB_CSS}
-.alb{page-break-after:always}.alb:last-child{page-break-after:auto}@media screen{.alb{border:1px dashed #999;margin:4mm;display:inline-grid;vertical-align:top}}`, '列印方式：按 Ctrl+P，紙張選 5 × 4 cm 標籤（寬 50 mm、高 40 mm），邊界「無」，縮放 100%。');
+.alb{page-break-after:always}.alb:last-child,.alb:not(:has(~ .alb)){page-break-after:auto}@media screen{.alb{border:1px dashed #999;margin:4mm;display:inline-grid;vertical-align:top}}`, '列印方式：按 Ctrl+P，紙張選 5 × 4 cm 標籤（寬 50 mm、高 40 mm），邊界「無」，縮放 100%。');
   printHTML(`地址標籤 ${F.l4}`, css, html + FIT.replace('.lb>div', '.alb>div'), { tip });
 }

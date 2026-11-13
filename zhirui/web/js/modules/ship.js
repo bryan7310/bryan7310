@@ -102,7 +102,7 @@ export function shipDoc(b, opt = {}) {
   }
   const css = `@page{size:${+TP.paperW}mm ${+TP.paperH}mm;margin:0}
 *{box-sizing:border-box}body{margin:0;color:#000;font-family:${ff};font-size:${+TP.headSize}pt;font-weight:${wt}}
-.page{width:${+TP.width}mm;height:${+TP.height}mm;margin:${SO.top}mm 0 0 ${SO.left}mm;display:flex;flex-direction:column;page-break-after:always;overflow:hidden}.page:last-child{page-break-after:auto}
+.page{width:${+TP.width}mm;height:${+TP.height}mm;margin:${SO.top}mm 0 0 ${SO.left}mm;display:flex;flex-direction:column;page-break-after:always;overflow:hidden}.page:last-child,.page:not(:has(~ .page)){page-break-after:auto}
 @media screen{.page{outline:1px dashed #bbb;margin-bottom:6mm}}
 .lb{color:${ink}}
 .title{text-align:center;font-size:${+TP.titleSize}pt;font-weight:bold;color:${ink};margin-top:1mm}
@@ -383,7 +383,7 @@ export function printSongquan(b) {
     parts.forEach((part, p) => { html += `<div class="pg">${copy(s, part, p, pages)}<div class="cut"></div>${copy(s, part, p, pages)}</div>`; });
   }
   const css = `@page{size:A4 portrait;margin:5mm 9mm}*{box-sizing:border-box}body{margin:0;font-family:"MingLiU","PMingLiU","新細明體",serif;font-size:13pt;color:#000}
-.pg{display:flex;flex-direction:column;page-break-after:always;page-break-inside:avoid}.pg:last-child{page-break-after:auto}
+.pg{display:flex;flex-direction:column;page-break-after:always;page-break-inside:avoid}.pg:last-child,.pg:not(:has(~ .pg)){page-break-after:auto}
 @media screen{body{background:#eee}.pg{width:192mm;min-height:287mm;background:#fff;margin:0 auto 6mm;padding:0 2mm;box-shadow:0 0 0 1px #ccc}}
 .cp{height:141mm;overflow:hidden;padding-top:2mm}.cp:last-child{height:auto;max-height:141mm}.hdr{display:flex;align-items:flex-start;gap:3mm}.hl{flex:1;min-width:0}.qr{width:17mm;height:17mm;image-rendering:pixelated;flex:none}.cut{border-top:1px dashed #888;margin:0 -2mm}
 .top{display:flex;align-items:baseline;justify-content:center;position:relative}.top h1{font-size:15pt;font-weight:bold;margin:0 0 1.5mm;letter-spacing:3pt}.pno{position:absolute;right:0;top:0;font-size:10pt}
