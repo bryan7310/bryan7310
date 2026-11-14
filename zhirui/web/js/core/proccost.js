@@ -30,15 +30,17 @@ const like = (a, b) => { if (!a || !b) return false; if (a.includes(b) || b.incl
 
 /** 加工料號（Z04、H_…）每 KG 的價格：取最接近（優先不晚於）這個日期的進貨；這些料號的單價本來就是每 KG，
  *  不管商品單位設成什麼；max 用來排除批價（例如熱處理不足量 500 元一批） */
+/** 量少時一批的低消（數量 1、單價 100 元以上，例如熱處理 500、鍍鋅 1000 一批）是特例，不當每 KG 單價 */
+export const isLot = x => x.q > 0 && x.q <= 1 && x.per >= 100;
 function kgPrice(li, d, max) {
-  const c = (li || []).filter(x => x.per > 0 && (!max || x.per <= max));
+  const c = (li || []).filter(x => x.per > 0 && !isLot(x) && (!max || x.per <= max));
   c.sort((a, b) => (a.d > d) - (b.d > d) || Math.abs(a.d - d) - Math.abs(b.d - d));
   return c[0] || null;
 }
 const MEDIAN = new WeakMap();
 function heatMedian(purIdx, heatMap) {
   if (MEDIAN.has(purIdx)) return MEDIAN.get(purIdx);
-  const ps = []; for (const arr of heatMap.values()) for (const h of arr) for (const x of purIdx[h.id] || []) if (x.cls === 'kg' && x.per > 0 && x.per <= 30) ps.push(x);
+  const ps = []; for (const arr of heatMap.values()) for (const h of arr) for (const x of purIdx[h.id] || []) if (x.per > 0 && !isLot(x) && x.per <= 30) ps.push(x);
   ps.sort((a, b) => b.d - a.d); const r = ps.slice(0, 15).map(x => x.per).sort((a, b) => a - b);
   const m = r.length ? r[Math.floor(r.length / 2)] : 0; MEDIAN.set(purIdx, m); return m;
 }
@@ -67,7 +69,7 @@ export function procCost(g, cls, f, date, d, purIdx, gm, wtOf) {
   // 換算後每 KG 要在 8～400 元之間才採用（論支的單價可能是每百支、每千支，依序試）；都不合理就當查不到
   let rawKg = 0, rawSrc = '';
   const ok = v => v >= 8 && v <= 400;
-  const rl = (purIdx[raw.id] || []).filter(x => x.per > 0).sort((a, b) => (a.d > d) - (b.d > d) || Math.abs(a.d - d) - Math.abs(b.d - d));
+  const rl = (purIdx[raw.id] || []).filter(x => x.per > 0 && !isLot(x)).sort((a, b) => (a.d > d) - (b.d > d) || Math.abs(a.d - d) - Math.abs(b.d - d));
   for (const x of rl) {
     if (x.cls === 'kg') { if (ok(x.per)) { rawKg = x.per; rawSrc = `${x.no}（${x.date}）`; break; } continue; }
     if (x.cls !== 'p' || !(wt > 0)) continue;

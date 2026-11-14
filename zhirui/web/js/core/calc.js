@@ -115,7 +115,7 @@ export function calc() {
   const bills = store.list('bills').sort((a, b) => (a.date || '').localeCompare(b.date || '') || (a.createdAt || 0) - (b.createdAt || 0));
   const purIdx = {}, poIdx = {};
   for (const b of bills) { if (b.type !== 'PO') continue; for (const l of b.lines || []) { if (!l.gid || !(+l.price > 0)) continue; const [cls, f] = lineUnit(l, g[l.gid]); (poIdx[l.gid] ??= []).push({ d: dayN(b.date), date: b.date, no: b.no, cls, per: (+l.price) / f }); } }
-  for (const b of [...bills, ...HIST_PUR]) { if (b.type !== 'PUR') continue; for (const l of b.lines || []) { if (!l.gid || !(+l.price > 0) || !g[l.gid]) continue; const [cls, f] = lineUnit(l, g[l.gid]); (purIdx[l.gid] ??= []).push({ d: dayN(b.date), date: b.date, no: b.no, cls, per: (+l.price) / f, cid: b.cid, hist: !!b.hist }); } }
+  for (const b of [...bills, ...HIST_PUR]) { if (b.type !== 'PUR') continue; for (const l of b.lines || []) { if (!l.gid || !(+l.price > 0) || !g[l.gid]) continue; const [cls, f] = lineUnit(l, g[l.gid]); (purIdx[l.gid] ??= []).push({ d: dayN(b.date), date: b.date, no: b.no, cls, per: (+l.price) / f, q: +l.qty || 0, cid: b.cid, hist: !!b.hist }); } }
   const costMiss = {}, costLn = {};
   const saleCost = (b, l, i) => { if (!l.gid) return 0; const r = costOf(l, b.date, purIdx, g, poIdx); (costLn[b.id] ??= [])[i] = r; if (!r) { costMiss[b.id] = (costMiss[b.id] || 0) + 1; return 0; } return r.c * (+l.qty || 0); };
   const add = (gid, wid, q) => { if (!gid || !wid) return; (stock[gid] ??= {}); stock[gid][wid] = (stock[gid][wid] || 0) + q; };

@@ -4,7 +4,7 @@ import { store } from '../core/store.js';
 import { api } from '../core/api.js';
 import { toast, modal, confirm, tabs, prompt } from '../core/ui.js';
 import { setTheme, getTheme, setSkin, getSkin } from '../app.js';
-import { PROC_DEFAULT, PROC_NAMES, procMap } from '../core/proccost.js';
+import { PROC_DEFAULT, PROC_NAMES, procMap, isLot } from '../core/proccost.js';
 import { calc } from '../core/calc.js';
 
 const ui = { tab: 'company' };
@@ -124,8 +124,8 @@ const aiUi = { ym: '' };
 // 加工成本：表面處理 → 加工料號對照（成品沒有進貨單時，用原料＋熱處理＋加工費每 KG 乘單重推成本）
 function procCfg(box) {
   const map = procMap(); const C = calc(); const byCode = new Map(Object.values(C.g).map(g => [g.code, g]));
-  const last = code => { const g = byCode.get(code); const li = g ? (C.purIdx[g.id] || []).filter(x => x.per > 0).sort((a, b) => b.d - a.d) : []; return li[0] ? `${li[0].per}／KG（${li[0].date}${li[0].cid ? ' ' + esc(C.ct[li[0].cid]?.short || C.ct[li[0].cid]?.name || '') : ''}）` : '<span class="muted">沒有進貨紀錄</span>'; };
-  box.innerHTML = `<p class="muted small" style="margin:0">成品（例如平華司M6*13*1 鍍鎳鐵）自己沒有進貨單時，成本＝原料（料號第 3 碼改成 D：黑身／白皮）每 KG 進價＋熱處理每 KG（雙合鑫、金元達有同尺寸同品項的 H_ 熱處理料號才加）＋下面對照的加工費每 KG，再乘單重。加工費取該料號最近一次進貨單價。華司、墊片用「-PW」，有熱處理的用「-H」。</p>
+  const last = code => { const g = byCode.get(code); const li = g ? (C.purIdx[g.id] || []).filter(x => x.per > 0 && !isLot(x)).sort((a, b) => b.d - a.d) : []; return li[0] ? `${li[0].per}／KG（${li[0].date}${li[0].cid ? ' ' + esc(C.ct[li[0].cid]?.short || C.ct[li[0].cid]?.name || '') : ''}）` : '<span class="muted">沒有進貨紀錄</span>'; };
+  box.innerHTML = `<p class="muted small" style="margin:0">成品（例如平華司M6*13*1 鍍鎳鐵）自己沒有進貨單時，成本＝原料（料號第 3 碼改成 D：黑身／白皮）每 KG 進價＋熱處理每 KG（雙合鑫、金元達有同尺寸同品項的 H_ 熱處理料號才加）＋下面對照的加工費每 KG，再乘單重。加工費取該料號最近一次進貨單價（量少一批的低消，例如 500、1000 元一批，不算）。華司、墊片用「-PW」，有熱處理的用「-H」。</p>
     <div class="tw"><table><thead><tr><th>表面處理</th><th>加工料號</th><th>品名</th><th>最近單價</th></tr></thead><tbody>
     ${Object.keys(PROC_DEFAULT).map(k => `<tr><td>${esc(k)}　${esc(PROC_NAMES[k] || '')}</td><td><input data-pk="${esc(k)}" value="${esc(map[k] || '')}" style="width:140px" placeholder="${esc(PROC_DEFAULT[k])}"></td><td>${esc(byCode.get(map[k])?.name || '')}${map[k] && !byCode.get(map[k]) ? '<span class="warn-t">找不到這個料號</span>' : ''}</td><td>${map[k] ? last(map[k]) : ''}</td></tr>`).join('')}
     </tbody></table></div>
