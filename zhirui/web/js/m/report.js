@@ -3,7 +3,7 @@
 import { esc, fmt, money, thisMonth, shiftMonth, fmtQ, today } from '../core/util.js';
 import { api } from '../core/api.js';
 import { store } from '../core/store.js';
-import { calc, totals, costOf, cdisp } from '../core/calc.js';
+import { calc, totals, costOf, cdisp, costUnitFor, withCost } from '../core/calc.js';
 import { apYm, apRange } from '../modules/payables.js';
 import { histTot } from '../modules/receivables.js';
 // 月份一律 25 結（上月 26 日～本月 25 日），跟應收帳款同一套；銷貨單有指定應收月份的照指定
@@ -83,13 +83,13 @@ export async function reportPage(view) {
       <div class="sec" id="nocost">查不到成本的商品 <span class="muted">${k.miss.length} 項・近 6 個月</span></div>
       ${k.miss.length ? `<div class="note" style="text-align:left;margin:0 0 8px">這些商品找不到進貨單、採購單或查價牌價，毛利把成本算成 0。填「每 1 單位的成本」按儲存，會存到商品的「手動成本」（跟電腦版商品資料同一欄），毛利馬上重算。依最近出貨日排序，最近出過貨的在最上面。</div>` : ''}
       <div id="ncl">${k.miss.slice(0, 60).map(x => { const g = k.C.g[x.gid]; return `<div class="card ln" data-g="${x.gid}"><div class="gm"><b>${esc(g.name)}</b><small>${esc(g.code || '')}・${x.n} 筆・${fmt(x.amt)} 元${x.last?.date ? `・最近出貨 ${esc(x.last.date.slice(5).replace('-', '/'))}` : ''}${x.last ? `・最近售價 ${x.last.price}${x.last.u ? '/' + esc(x.last.u) : ''}` : ''}</small></div>
-        <div class="lnr nc"><label>成本（每 ${esc(g.unit || '單位')}）<input inputmode="decimal" data-c="${x.gid}" placeholder="例如 0.35"></label><button class="btn ghost" data-sv="${x.gid}">儲存</button></div></div>`; }).join('') || '<div class="card"><div class="row muted">都查得到成本 ✓</div></div>'}</div>
+        <div class="lnr nc"><label>成本（每 ${esc(costUnitFor(g, x.last?.u) || '單位')}）<input inputmode="decimal" data-c="${x.gid}" data-u="${esc(costUnitFor(g, x.last?.u))}" placeholder="例如 0.35"></label><button class="btn ghost" data-sv="${x.gid}">儲存</button></div></div>`; }).join('') || '<div class="card"><div class="row muted">都查得到成本 ✓</div></div>'}</div>
       ${k.miss.length > 60 ? `<div class="note">只列前 60 項（共 ${k.miss.length} 項），填完會自動補上下一批。</div>` : ''}`;
     view.querySelector('#ncl').addEventListener('click', async ev => {
       const b = ev.target.closest('[data-sv]'); if (!b) return; const gid = b.dataset.sv; const inp = view.querySelector(`[data-c="${gid}"]`);
       const v = +String(inp.value).replace(/[,\s]/g, ''); if (!(v > 0)) { inp.focus(); return; }
-      const g = store.get('goods', gid); if (!g) return; const { id, ...rest } = g; b.disabled = true;
-      try { await store.save('goods', id, { ...rest, cost: v }); store.log('修改', `商品「${g.name}」手動成本 ${v}（手機報表）`); }
+      const g = store.get('goods', gid); if (!g) return; const u = inp.dataset.u || g.unit || ''; b.disabled = true;
+      try { await store.save('goods', g.id, withCost(g, v, u)); store.log('修改', `商品「${g.name}」手動成本 每 ${u} ${v}（手機報表）`); }
       catch (e) { b.disabled = false; alert('儲存失敗：' + e.message); return; }
       const y = window.scrollY; draw(hist); window.scrollTo(0, y);
     });

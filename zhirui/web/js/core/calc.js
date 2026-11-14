@@ -35,6 +35,10 @@ export function totals(b) {
 
 // ---------- 單位 ----------
 const PIECE = /^(pcs|只|支|個|顆|粒|件|pc|)$/i;
+/** 填手動成本用的單位：最近出貨的單位跟商品單位不同類（例如 PCS 對 KG）就用出貨單位，否則用商品單位 */
+export const costUnitFor = (g, saleU) => saleU && unitFactor(saleU)[0] !== unitFactor(g?.unit || '')[0] ? saleU : (g?.unit || '');
+/** 存手動成本：單位跟商品單位同類就不記 costUnit */
+export const withCost = (g, v, u) => { const { id, ...d } = g; d.cost = v; if (u && unitFactor(u)[0] !== unitFactor(g.unit || '')[0]) d.costUnit = u; else delete d.costUnit; return d; };
 export function unitFactor(u) { // [類別, 每單位幾個基本件]
   u = String(u ?? '').trim();
   if (/^h$/i.test(u) || /^100(pcs|支|個)$/i.test(u)) return ['p', 100];
@@ -200,7 +204,8 @@ function costG(g, gid, cls, f, date, purIdx, poIdx, sane, gm) {
     if (bc === cls) { const b = bomCost(g, date, purIdx, gm, poIdx); if (b.c > 0) return { c: b.c / bf * f, src: `配方成本（自備零件 ${b.n} 項${b.miss ? `，其中 ${b.miss} 項查不到成本` : ''}${+g.labor ? '＋工錢' : ''}）` }; }
   }
   if (g && cls === 'p') { const pc = platCost(g); if (pc && sane(pc.per * f, 0.01, 5)) return { c: pc.per * f, src: pc.src }; }
-  if (g && +g.cost > 0) { const [bc, bf] = unitFactor(g.unit || ''); if (bc === cls) return { c: (+g.cost) / bf * f, src: '商品成本（手動）', manual: true }; }
+  // 手動成本：預設是每 1 個商品單位；costUnit 有填（例如商品是 PCS、卻論 KG 賣）就是每 1 個 costUnit
+  if (g && +g.cost > 0) { const [bc, bf] = unitFactor(g.costUnit || g.unit || ''); if (bc === cls) return { c: (+g.cost) / bf * f, src: `商品成本（手動${g.costUnit ? '，每 ' + g.costUnit : ''}）`, manual: true }; }
   return null;
 }
 /** loose：不拿單價或牌價檢查合理性（商品資料上看「目前成本」用，進貨單一律優先） */

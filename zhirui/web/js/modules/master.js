@@ -214,6 +214,7 @@ function goodsExtraBind(el, d) {
     const gid = d.id || 'tmp:new';
     const r = costOf({ gid, qty: 1, price: 0 }, today(), C.purIdx, { ...C.g, [gid]: tmp }, C.poIdx, true);
     const ci = el.querySelector('#f-cost'); if (ci) { ci.placeholder = r && !r.manual ? `自動：${fp(r.c)}` : ''; if (ci.value === '0') ci.value = ''; }
+    const lc = el.querySelector('label[for="f-cost"]'); if (lc && d.costUnit && !lc.dataset.cu) { lc.dataset.cu = '1'; lc.textContent += `　每 ${d.costUnit}`; }   // 手動成本是論 KG 等出貨單位填的
     const recs = (C.purIdx[d.id] || []).slice().sort((x, y) => y.d - x.d).slice(0, 3);
     const unit = esc(g.unit || 'PCS');
     box.innerHTML = r

@@ -3,7 +3,7 @@ import { $, esc, fmt, fmtQ, fp4, money, today, thisMonth, slash, roc, downloadTe
 import { store } from '../core/store.js';
 import { api } from '../core/api.js';
 import { tabs, combo, printHTML, toast, onSearch } from '../core/ui.js';
-import { calc, TYPES, totals, lineAmt, cname, cshort, gname, customers, suppliers, costOf } from '../core/calc.js';
+import { calc, TYPES, totals, lineAmt, cname, cshort, gname, customers, suppliers, costOf, costUnitFor, withCost } from '../core/calc.js';
 import { openMaster } from './master.js';
 import { openBill } from './_bills.js';
 import { printName } from '../core/names.js';
@@ -167,14 +167,14 @@ async function body(el) {
     box.innerHTML = `<div class="kpis"><div class="kpi"><span>查不到成本的商品</span><b>${list.length}</b><small>項</small></div><div class="kpi"><span>出貨筆數</span><b>${sum(list, x => x.n)}</b></div><div class="kpi"><span>這些品項的銷售金額</span><b>${fmt(sum(list, x => x.a))}</b><small>毛利把成本算成 0</small></div></div>
       <div class="muted small" style="margin:6px 0">期間內出貨過、但找不到進貨單、採購單或查價牌價的商品（含舊系統歷史出貨單），依銷售金額由大到小。在「成本」填每 1 個基本單位的成本，按 Enter 或「儲存」會存到商品的「手動成本」，毛利馬上重算；點該列其他地方可以修改商品資料。</div>
       ${list.length ? `<div class="tw"><table><thead><tr><th>料號</th><th>品名</th><th>客料號</th><th>單位</th><th class="n">出貨筆數</th><th class="n">銷售金額</th><th>最近出貨</th><th class="n">最近售價</th><th class="n">成本（每單位）</th><th></th></tr></thead><tbody>
-      ${list.map(x => { const g = C.g[x.gid]; return `<tr class="row" data-ncg="${x.gid}" title="點一下修改商品資料"><td class="mono nowrap">${esc(g.code || '')}</td><td>${esc(g.name)}</td><td>${esc(g.spec || '')}</td><td class="muted">${esc(g.unit || '')}</td><td class="n">${x.n}</td><td class="n">${fmt(x.a)}</td><td class="nowrap">${esc(lastTxt(x))}</td><td class="n nowrap">${esc(priceTxt(x))}</td><td class="n"><input class="num" data-ncc="${x.gid}" inputmode="decimal" placeholder="例如 0.35" style="width:100px" aria-label="${esc(g.name)} 成本"></td><td class="nowrap"><button type="button" class="btn sm pri" data-ncs="${x.gid}">儲存</button> <button type="button" class="btn sm" data-nce="${x.gid}">修改商品</button></td></tr>`; }).join('')}</tbody>
+      ${list.map(x => { const g = C.g[x.gid]; return `<tr class="row" data-ncg="${x.gid}" title="點一下修改商品資料"><td class="mono nowrap">${esc(g.code || '')}</td><td>${esc(g.name)}</td><td>${esc(g.spec || '')}</td><td class="muted">${esc(g.unit || '')}</td><td class="n">${x.n}</td><td class="n">${fmt(x.a)}</td><td class="nowrap">${esc(lastTxt(x))}</td><td class="n nowrap">${esc(priceTxt(x))}</td><td class="n"><input class="num" data-ncc="${x.gid}" data-u="${esc(costUnitFor(g, x.last?.u))}" inputmode="decimal" placeholder="每 ${esc(costUnitFor(g, x.last?.u) || '單位')}" style="width:100px" aria-label="${esc(g.name)} 成本（每 ${esc(costUnitFor(g, x.last?.u))}）"></td><td class="nowrap"><button type="button" class="btn sm pri" data-ncs="${x.gid}">儲存</button> <button type="button" class="btn sm" data-nce="${x.gid}">修改商品</button></td></tr>`; }).join('')}</tbody>
       <tfoot><tr><td colspan="4">合計 ${list.length} 項</td><td class="n">${sum(list, x => x.n)}</td><td class="n">${fmt(sum(list, x => x.a))}</td><td colspan="4"></td></tr></tfoot></table></div>` : '<div class="empty"><b>這段期間出貨的商品都查得到成本 ✓</b></div>'}`;
     const saveCost = async gid => {
       const inp = box.querySelector(`[data-ncc="${gid}"]`); const raw = String(inp.value).replace(/[,\s]/g, ''); const v = +raw;
       if (!raw || !(v > 0)) { inp.focus(); return toast('請填大於 0 的成本'); }
-      const g = store.get('goods', gid); if (!g) return; const { id, ...rest } = g;
-      try { await store.save('goods', id, { ...rest, cost: v }); } catch (e) { return toast('儲存失敗：' + (e.message || e)); }
-      store.log('修改', `商品「${g.name}」手動成本 ${v}（未知成本明細）`); toast(`已存「${g.code || g.name}」成本 ${v}`);
+      const g = store.get('goods', gid); if (!g) return; const u = inp.dataset.u || g.unit || '';
+      try { await store.save('goods', g.id, withCost(g, v, u)); } catch (e) { return toast('儲存失敗：' + (e.message || e)); }
+      store.log('修改', `商品「${g.name}」手動成本 每 ${u} ${v}（未知成本明細）`); toast(`已存「${g.code || g.name}」成本 每 ${u} ${v}`);
     };
     box.querySelectorAll('[data-ncc]').forEach(i => i.addEventListener('keydown', ev => { if (ev.key === 'Enter') { ev.preventDefault(); saveCost(i.dataset.ncc); } }));
     box.querySelectorAll('[data-ncs]').forEach(b => b.addEventListener('click', () => saveCost(b.dataset.ncs)));
