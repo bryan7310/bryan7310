@@ -4,9 +4,11 @@ import { store } from '../core/store.js';
 import { api } from '../core/api.js';
 import { toast, modal, confirm, tabs, prompt } from '../core/ui.js';
 import { setTheme, getTheme, setSkin, getSkin } from '../app.js';
+import { PROC_DEFAULT, PROC_NAMES, procMap } from '../core/proccost.js';
+import { calc } from '../core/calc.js';
 
 const ui = { tab: 'company' };
-const TABS = [['company', '公司資料'], ['users', '帳號'], ['backup', '備份'], ['print', '套印與顯示'], ['ai', 'AI 辨識'], ['aicost', 'AI 費用'], ['logs', '操作日誌']];
+const TABS = [['company', '公司資料'], ['users', '帳號'], ['backup', '備份'], ['print', '套印與顯示'], ['ai', 'AI 辨識'], ['aicost', 'AI 費用'], ['proc', '加工成本'], ['logs', '操作日誌']];
 export default {
   id: 'settings', name: '設定備份', group: '管理', icon: 'settings',
   render(el, { sub }) { this.el = el; if (sub && TABS.some(t => t[0] === sub)) ui.tab = sub; draw(el); },
@@ -79,6 +81,8 @@ async function draw(el) {
     $('#prSave', box).onclick = async () => { await store.batch([{ col: 'settings', id: 'invoice_print', data: { ...ip, dx: +$('#ip-dx', box).value || 0, dy: +$('#ip-dy', box).value || 0 } }, { col: 'settings', id: 'pricing', data: { ...pr, decimals: +$('#pr-dec', box).value } }]); toast('已儲存'); };
     box.querySelectorAll('#thm button').forEach(b => b.onclick = () => { setTheme(b.dataset.v); box.querySelectorAll('#thm button').forEach(x => x.classList.toggle('on', x === b)); });
     box.querySelectorAll('#skn button').forEach(b => b.onclick = () => { setSkin(b.dataset.v); box.querySelectorAll('#skn button').forEach(x => x.classList.toggle('on', x === b)); });
+  } else if (ui.tab === 'proc') {
+    procCfg(box);
   } else if (ui.tab === 'aicost') {
     await aiCost(box);
   } else if (ui.tab === 'ai') {
@@ -117,6 +121,18 @@ async function draw(el) {
 // ---------- AI 費用紀錄：伺服器每次呼叫 AI 記一筆（data/ai_usage.jsonl），這裡依月份彙總 ----------
 const AI_FEAT = { faxidx: '傳真內容索引', order: '訂單轉單（傳真／Email）', po: '如陽採購單辨識', 'order-doc': '拍照：客戶訂單', pur: '拍照：廠商進貨單', quote: '拍照：廠商報價', check: '支票拍照辨識', agent: 'AI 助理' };
 const aiUi = { ym: '' };
+// 加工成本：表面處理 → 加工料號對照（成品沒有進貨單時，用原料＋熱處理＋加工費每 KG 乘單重推成本）
+function procCfg(box) {
+  const map = procMap(); const C = calc(); const byCode = new Map(Object.values(C.g).map(g => [g.code, g]));
+  const last = code => { const g = byCode.get(code); const li = g ? (C.purIdx[g.id] || []).filter(x => x.per > 0).sort((a, b) => b.d - a.d) : []; return li[0] ? `${li[0].per}／KG（${li[0].date}${li[0].cid ? ' ' + esc(C.ct[li[0].cid]?.short || C.ct[li[0].cid]?.name || '') : ''}）` : '<span class="muted">沒有進貨紀錄</span>'; };
+  box.innerHTML = `<p class="muted small" style="margin:0">成品（例如平華司M6*13*1 鍍鎳鐵）自己沒有進貨單時，成本＝原料（料號第 3 碼改成 D：黑身／白皮）每 KG 進價＋熱處理每 KG（雙合鑫、金元達有同尺寸同品項的 H_ 熱處理料號才加）＋下面對照的加工費每 KG，再乘單重。加工費取該料號最近一次進貨單價。華司、墊片用「-PW」，有熱處理的用「-H」。</p>
+    <div class="tw"><table><thead><tr><th>表面處理</th><th>加工料號</th><th>品名</th><th>最近單價</th></tr></thead><tbody>
+    ${Object.keys(PROC_DEFAULT).map(k => `<tr><td>${esc(k)}　${esc(PROC_NAMES[k] || '')}</td><td><input data-pk="${esc(k)}" value="${esc(map[k] || '')}" style="width:140px" placeholder="${esc(PROC_DEFAULT[k])}"></td><td>${esc(byCode.get(map[k])?.name || '')}${map[k] && !byCode.get(map[k]) ? '<span class="warn-t">找不到這個料號</span>' : ''}</td><td>${map[k] ? last(map[k]) : ''}</td></tr>`).join('')}
+    </tbody></table></div>
+    <div class="tools"><button class="btn pri" id="pcSave">儲存</button><button class="btn" id="pcReset">恢復預設</button></div>`;
+  $('#pcSave', box).onclick = async () => { const m = {}; box.querySelectorAll('[data-pk]').forEach(i => { const v = i.value.trim(); if (v && v !== PROC_DEFAULT[i.dataset.pk]) m[i.dataset.pk] = v; }); await store.saveSetting('proccost', { ...store.setting('proccost'), map: m }); toast('已儲存，成本已重算'); procCfg(box); };
+  $('#pcReset', box).onclick = async () => { await store.saveSetting('proccost', { ...store.setting('proccost'), map: {} }); toast('已恢復預設'); procCfg(box); };
+}
 async function aiCost(box) {
   const now = new Date(); const ym = aiUi.ym || `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`; const y = ym.slice(0, 4);
   const rate = +(store.setting('aicost').rate) || 32;
