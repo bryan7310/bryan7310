@@ -56,13 +56,17 @@ export function qqFor(g) {
 const IDX = new WeakMap();
 function idx(gm) {
   let x = IDX.get(gm); if (x) return x;
-  const code = new Map(), heat = new Map(), wsh = new Map();
+  const code = new Map(), heat = new Map(), wsh = new Map(), sib = new Map();
   for (const g of Object.values(gm)) {
     if (!g || !g.code) continue; code.set(g.code, g);
-    const m = CODE.exec(g.code); if (m && m[3] === 'D' && WASHER.test(g.name || '')) { const k = washerKey(m); if (k) (wsh.get(k) || wsh.set(k, []).get(k)).push(g); }
+    const m = CODE.exec(g.code);
+    if (m) {
+      const sk = m[1] + m[2] + '|' + m[4]; (sib.get(sk) || sib.set(sk, []).get(sk)).push(g);   // 同規格同材質、各種表面處理
+      if (WASHER.test(g.name || '')) { const k = washerKey(m); if (k) (wsh.get(k) || wsh.set(k, []).get(k)).push(g); }
+    }
     if (/^H_/.test(g.code) && /熱處理/.test(g.name || '')) { const k = bare(g.code.slice(2)); (heat.get(k) || heat.set(k, []).get(k)).push(g); }
   }
-  x = { code, heat, wsh }; IDX.set(gm, x); return x;
+  x = { code, heat, wsh, sib }; IDX.set(gm, x); return x;
 }
 /** 品項文字（品名裡尺寸前面那段），比對熱處理料號用 */
 const itemOf = (name, sz) => { const n = String(name || ''); const i = n.indexOf(sz); return (i > 0 ? n.slice(0, i) : '').replace(/熱處理|⊕|螺絲|螺|\s|[MWU]$/g, ''); };
@@ -100,36 +104,28 @@ export function heatFor(g, gm) {
  * 加工成本（每 1 個 cls 單位 × f），對不到就回 null。
  * g：成品；wtOf(g)：單重 g／支；purIdx：進貨索引（per＝每基本單位）；gm：商品表
  */
-export function procCost(g, cls, f, date, d, purIdx, gm, wtOf) {
+export function procCost(g, cls, f, date, d, purIdx, gm, wtOf, sane) {
   const m = CODE.exec(g?.code || ''); if (!m) return null;
   if (cls !== 'p' && cls !== 'kg') return null;
   const I = idx(gm); const map = procMap(); const r1 = n => Math.round(n * 100) / 100, r4 = n => Math.round(n * 10000) / 10000;
-  // 阡阡牌價（只給沒有進價的平華司補）：單重有實測用實測，沒有用牌價的每 KG 幾個
-  const qq = qqFor(g); const mult = qqMult();
-  const qWt = () => (+g.wt > 0 ? +g.wt : 0) || qq?.zn?.wt || qq?.plain?.wt || wtOf(g);
-  const zincKg = () => { const zg = map.A ? I.code.get(map.A) : null; const z = zg ? kgPrice(purIdx[zg.id], d, 200) : null; return z ? z.per : 0; };
-  /** 阡阡換算的黑身每支：有光面牌價用光面；沒有就鍍鋅牌價扣鍍鋅費 */
-  const qqRawPc = w => { if (qq?.plain) return { pc: qq.plain.per * mult, src: `阡阡 ${qq.plain.it.name} ${qq.plain.it.spec} 光面 ${r4(qq.plain.per)}×${mult}` }; if (qq?.zn && w > 0) { const z = zincKg(); const pc = qq.zn.per * mult - z * w / 1000; if (pc > 0) return { pc, src: `阡阡 ${qq.zn.it.name} ${qq.zn.it.spec} 鍍鋅 ${r4(qq.zn.per)}×${mult} 扣鍍鋅 ${z}/KG` }; } return null; };
+  const washer = WASHER.test(g.name || '');
   const per2 = (pc, w) => cls === 'p' ? pc * f : w > 0 ? pc / (w / 1000) * f : 0;
-  if (m[3] === 'D') {   // 黑身／白皮本身沒有進價：用阡阡
-    if (!qq) return null; const w = qWt(); const r = qqRawPc(w); if (!r) return null; const c = per2(r.pc, w); if (!(c > 0)) return null;
-    return { c, src: `阡阡牌價：${r.src}${cls === 'p' ? '' : `，單重 ${r4(w)}g`}` };
+  // 熱處理（成品和同規格的其他表面處理一樣：同尺寸同品項）
+  const h = m[3] === 'D' ? null : heatFor(g, gm); let heatKg = 0, heatSrc = '';
+  if (h) {
+    const hk = h.id ? kgPrice(purIdx[h.id], d, 30) : null;
+    heatKg = hk ? hk.per : heatMedian(purIdx, I.heat);
+    heatSrc = hk ? `${h.code} ${hk.no}` : `${h.code || '手動指定'}（沒有單價，用近期熱處理中位數）`;
   }
-  // 原料：同料號第 3 碼改 D；華司另外找同內徑範圍、同外徑厚度的黑身／白皮
-  const cands = []; const ex = I.code.get(m[1] + m[2] + 'D' + m[4]); if (ex) cands.push(ex);
-  if (WASHER.test(g.name || '')) { const k = washerKey(m); for (const x of (k && I.wsh.get(k)) || []) if (!cands.includes(x)) cands.push(x); }
-  let raw = null, rawKg = 0, rawSrc = '', wt = 0;
-  for (const r of cands) { if (r.id === g.id) continue; const w = wtOf(g) || wtOf(r); const v = rawKgOf(r, w); if (v) { raw = r; rawKg = v.kg; rawSrc = v.src; wt = w; break; } }
-  if (!raw && qq) {
-    // 原料都沒有進價：鍍鋅平華司直接用阡阡鍍鋅牌價；其他處理用阡阡換算的黑身＋加工費
-    const w = qWt();
-    if (m[3] === 'A' && qq.zn) { const c = per2(qq.zn.per * mult, w); if (c > 0) return { c, src: `阡阡牌價：${qq.zn.it.name} ${qq.zn.it.spec} 鍍鋅 ${r4(qq.zn.per)}×${mult}${cls === 'p' ? '' : `，單重 ${r4(w)}g`}` }; }
-    const r = qqRawPc(w); if (r && w > 0) { raw = { id: '', code: '阡阡牌價' }; rawKg = r.pc / (w / 1000); rawSrc = r.src; wt = w; }
-  }
-  if (!raw || (cls === 'p' && !(wt > 0))) return null;
-  // 原料每 KG：原料論 KG 買就直接用；論支買用單重換算
-  // 換算後每 KG 要在 8～400 元之間才採用（論支的單價可能是每百支、每千支，依序試）；都不合理就當查不到
-  function rawKgOf(r, w) {
+  /** 某種表面處理的加工費（每 KG）：D＝0；對照表沒有或沒有進價回 null */
+  const feeOf = (t, heat) => {
+    if (t === 'D') return { kg: 0, key: 'D', code: '' };
+    const key = heat && map[t + '-H'] ? t + '-H' : washer && map[t + '-PW'] ? t + '-PW' : t;
+    const pg = map[key] ? I.code.get(map[key]) : null; if (!pg) return null;
+    const pk = kgPrice(purIdx[pg.id], d, 200); return pk ? { kg: pk.per, key, code: pg.code, pk } : null;
+  };
+  // 原料每 KG：論 KG 買就直接用；論支買用單重換算；換算後每 KG 要在 8～400 元之間（論支的單價可能是每百支、每千支，依序試）
+  function kgOf(r, w) {
     const ok = v => v >= 8 && v <= 400;
     const rl = (purIdx[r.id] || []).filter(x => x.per > 0 && !isLot(x)).sort((a, b) => (a.d > d) - (b.d > d) || Math.abs(a.d - d) - Math.abs(b.d - d));
     for (const x of rl) {
@@ -140,21 +136,50 @@ export function procCost(g, cls, f, date, d, purIdx, gm, wtOf) {
     }
     return null;
   }
-  // 熱處理
-  const h = heatFor(g, gm); let heatKg = 0, heatSrc = '';
-  if (h) {
-    const hk = h.id ? kgPrice(purIdx[h.id], d, 30) : null;
-    heatKg = hk ? hk.per : heatMedian(purIdx, I.heat);
-    heatSrc = hk ? `${h.code} ${hk.no}` : `${h.code || '手動指定'}（沒有單價，用近期熱處理中位數）`;
+  // 原料候選，依序：同料號的黑身／白皮（第 3 碼 D）→ 華司同內徑範圍的黑身 → 同規格同材質、其他表面處理的進價（扣掉它的加工費）→ 華司同內徑範圍的其他處理
+  const tOf = r => CODE.exec(r.code)?.[3];
+  const sibs = (I.sib.get(m[1] + m[2] + '|' + m[4]) || []).filter(r => r.id !== g.id);
+  const wsh = washer ? (I.wsh.get(washerKey(m)) || []).filter(r => r.id !== g.id && !sibs.includes(r)) : [];
+  const cands = [...sibs.filter(r => tOf(r) === 'D'), ...wsh.filter(r => tOf(r) === 'D'), ...sibs.filter(r => tOf(r) !== 'D' && tOf(r) !== m[3]), ...wsh.filter(r => tOf(r) !== 'D' && tOf(r) !== m[3])];
+  let raw = null, rawKg = 0, rawSrc = '', wt = 0;
+  for (const r of cands) {
+    const w = (+g.wt > 0 ? +g.wt : 0) || wtOf(g) || wtOf(r); const v = kgOf(r, w); if (!v) continue;
+    const t = tOf(r); const fe = feeOf(t, !!h); if (!fe) continue;
+    const k = v.kg - fe.kg - (t !== 'D' && h ? heatKg : 0); if (!(k >= 3)) continue;
+    raw = r; rawKg = k; wt = w;
+    rawSrc = t === 'D' ? `${r.code} ${r1(v.kg)}/KG` : `${r.code}（${PROC_NAMES[fe.key] || fe.key}）進價 ${r1(v.kg)}/KG 扣${PROC_NAMES[fe.key] || fe.key} ${r1(fe.kg)}/KG${h ? `、熱處理 ${r1(heatKg)}/KG` : ''}`;
+    break;
   }
-  // 表面處理加工費
-  const washer = /華司|墊片/.test(g.name || '');
-  const key = h && map[m[3] + '-H'] ? m[3] + '-H' : washer && map[m[3] + '-PW'] ? m[3] + '-PW' : m[3];
-  const pg = map[key] ? I.code.get(map[key]) : null; if (!pg) return null;
-  const pk = kgPrice(purIdx[pg.id], d, 200); if (!pk) return null;
-  const kg = rawKg + heatKg + pk.per;
+  // 估不出單重、成品又論支：直接用同規格其他處理的每支進價（加工費差額沒辦法換算，不計）
+  if (!raw && cls === 'p') {
+    for (const r of cands) {
+      if ((+g.wt > 0) || wtOf(g) || wtOf(r)) continue;
+      const x = (purIdx[r.id] || []).filter(x => x.cls === 'p' && x.per > 0 && !isLot(x)).sort((a, b) => (a.d > d) - (b.d > d) || Math.abs(a.d - d) - Math.abs(b.d - d))[0];
+      const k = x && [1, 100, 1000].find(k => !sane || sane(x.per / k * f, 0.03, 3));   // 單價可能是每百支、每千支：跟售價比對
+      if (x && k) return { c: x.per / k * f, src: `同規格其他處理的進價：${r.code} ${x.no}（${x.date}）每${k === 1 ? '' : k === 100 ? '百' : '千'}支 ${r4(x.per)}（估不出單重，加工費差額未計）` };
+    }
+  }
+  // 都沒有進價的平華司：阡阡牌價（單重有實測用實測，沒有用牌價的每 KG 幾個）
+  const qq = !raw ? qqFor(g) : null; const mult = qqMult();
+  if (!raw && qq) {
+    const w = (+g.wt > 0 ? +g.wt : 0) || qq.zn?.wt || qq.plain?.wt || wtOf(g);
+    if (m[3] === 'A' && qq.zn) { const c = per2(qq.zn.per * mult, w); if (c > 0) return { c, src: `阡阡牌價：${qq.zn.it.name} ${qq.zn.it.spec} 鍍鋅 ${r4(qq.zn.per)}×${mult}${cls === 'p' ? '' : `，單重 ${r4(w)}g`}` }; }
+    let pc = 0, src = '';
+    if (qq.plain) { pc = qq.plain.per * mult; src = `阡阡 ${qq.plain.it.name} ${qq.plain.it.spec} 光面 ${r4(qq.plain.per)}×${mult}`; }
+    else if (qq.zn && w > 0) { const z = feeOf('A', false)?.kg || 0; pc = qq.zn.per * mult - z * w / 1000; src = `阡阡 ${qq.zn.it.name} ${qq.zn.it.spec} 鍍鋅 ${r4(qq.zn.per)}×${mult} 扣鍍鋅 ${z}/KG`; }
+    if (pc > 0 && w > 0) { raw = { id: '', code: '' }; rawKg = pc / (w / 1000); rawSrc = src; wt = w; }
+  }
+  if (!raw || (cls === 'p' && !(wt > 0))) return null;
+  // 黑身／白皮本身：就是上面算出的原料
+  if (m[3] === 'D') {
+    const c = cls === 'kg' ? rawKg * f : rawKg * wt / 1000 * f; if (!(c > 0)) return null;
+    return { c, src: `${raw.id ? '同規格其他處理推算' : '阡阡牌價'}：${rawSrc}${cls === 'p' ? `，單重 ${r4(wt)}g` : ''}`, proc: { raw: raw.id, rawKg, rawSrc, wt } };
+  }
+  // 成品：原料＋熱處理＋表面處理加工費
+  const fe = feeOf(m[3], !!h); if (!fe) return null;
+  const kg = rawKg + heatKg + fe.kg;
   const c = cls === 'kg' ? kg * f : kg * wt / 1000 * f;
   if (!(c > 0)) return null;
-  const src = `加工成本：原料 ${raw.id ? raw.code : rawSrc} ${r1(rawKg)}/KG${heatKg ? `＋熱處理 ${r1(heatKg)}/KG` : ''}＋${PROC_NAMES[key] || key} ${pg.code} ${r1(pk.per)}/KG${cls === 'p' ? `，單重 ${r4(wt)}g` : ''}`;
-  return { c, src, proc: { raw: raw.id, rawKg, rawSrc, heat: h ? (h.code || '手動') : '', heatKg, heatSrc, pg: pg.code, pgKg: pk.per, pgSrc: `${pk.no}（${pk.date}）`, wt } };
+  const src = `加工成本：原料 ${rawSrc}${heatKg ? `＋熱處理 ${r1(heatKg)}/KG` : ''}＋${PROC_NAMES[fe.key] || fe.key} ${fe.code} ${r1(fe.kg)}/KG${cls === 'p' ? `，單重 ${r4(wt)}g` : ''}`;
+  return { c, src, proc: { raw: raw.id, rawKg, rawSrc, heat: h ? (h.code || '手動') : '', heatKg, heatSrc, pg: fe.code, pgKg: fe.kg, pgSrc: fe.pk ? `${fe.pk.no}（${fe.pk.date}）` : '', wt } };
 }

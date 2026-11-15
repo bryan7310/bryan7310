@@ -205,7 +205,7 @@ function costG(g, gid, cls, f, date, purIdx, poIdx, sane, gm) {
     if (bc === cls) { const b = bomCost(g, date, purIdx, gm, poIdx); if (b.c > 0) return { c: b.c / bf * f, src: `配方成本（自備零件 ${b.n} 項${b.miss ? `，其中 ${b.miss} 項查不到成本` : ''}${+g.labor ? '＋工錢' : ''}）` }; }
   }
   // 加工品（黑身／白皮＋熱處理＋電鍍）：成品自己沒有進貨單時，用原料＋加工費每 KG 乘單重
-  if (g && gm) { const pr = procCost(g, cls, f, date, d, purIdx, gm, goodsWt); if (pr) return pr; }
+  if (g && gm) { const pr = procCost(g, cls, f, date, d, purIdx, gm, goodsWt, sane); if (pr) return pr; }
   if (g && cls === 'p') { const pc = platCost(g); if (pc && sane(pc.per * f, 0.01, 5)) return { c: pc.per * f, src: pc.src }; }
   // 手動成本：預設是每 1 個商品單位；costUnit 有填（例如商品是 PCS、卻論 KG 賣）就是每 1 個 costUnit
   if (g && +g.cost > 0) { const [bc, bf] = unitFactor(g.costUnit || g.unit || ''); if (bc === cls) return { c: (+g.cost) / bf * f, src: `商品成本（手動${g.costUnit ? '，每 ' + g.costUnit : ''}）`, manual: true }; }
