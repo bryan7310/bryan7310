@@ -4,7 +4,7 @@ import { store } from '../core/store.js';
 import { api } from '../core/api.js';
 import { toast, modal, confirm, tabs, prompt } from '../core/ui.js';
 import { setTheme, getTheme, setSkin, getSkin } from '../app.js';
-import { PROC_DEFAULT, PROC_NAMES, procMap, isLot } from '../core/proccost.js';
+import { PROC_DEFAULT, PROC_NAMES, procMap, isLot, qqMult } from '../core/proccost.js';
 import { calc } from '../core/calc.js';
 
 const ui = { tab: 'company' };
@@ -129,9 +129,10 @@ function procCfg(box) {
     <div class="tw"><table><thead><tr><th>表面處理</th><th>加工料號</th><th>品名</th><th>最近單價</th></tr></thead><tbody>
     ${Object.keys(PROC_DEFAULT).map(k => `<tr><td>${esc(k)}　${esc(PROC_NAMES[k] || '')}</td><td><input data-pk="${esc(k)}" value="${esc(map[k] || '')}" style="width:140px" placeholder="${esc(PROC_DEFAULT[k])}"></td><td>${esc(byCode.get(map[k])?.name || '')}${map[k] && !byCode.get(map[k]) ? '<span class="warn-t">找不到這個料號</span>' : ''}</td><td>${map[k] ? last(map[k]) : ''}</td></tr>`).join('')}
     </tbody></table></div>
+    <div class="f" style="max-width:520px"><label for="pcQQ">阡阡華司牌價倍數</label><input id="pcQQ" class="num" inputmode="decimal" value="${qqMult()}" style="width:100px"><div class="hint muted small">沒有進價的平華司用阡阡牌價補成本（內徑號數、外徑、厚度要一樣）。牌價比我們實際進價低，預設乘 1.24（比對 15 個有進價的鍍鋅華司的中位數）。鍍鋅華司直接用；其他處理用牌價扣鍍鋅費當黑身，再加上面的加工費。</div></div>
     <div class="tools"><button class="btn pri" id="pcSave">儲存</button><button class="btn" id="pcReset">恢復預設</button></div>`;
-  $('#pcSave', box).onclick = async () => { const m = {}; box.querySelectorAll('[data-pk]').forEach(i => { const v = i.value.trim(); if (v && v !== PROC_DEFAULT[i.dataset.pk]) m[i.dataset.pk] = v; }); await store.saveSetting('proccost', { ...store.setting('proccost'), map: m }); toast('已儲存，成本已重算'); procCfg(box); };
-  $('#pcReset', box).onclick = async () => { await store.saveSetting('proccost', { ...store.setting('proccost'), map: {} }); toast('已恢復預設'); procCfg(box); };
+  $('#pcSave', box).onclick = async () => { const m = {}; box.querySelectorAll('[data-pk]').forEach(i => { const v = i.value.trim(); if (v && v !== PROC_DEFAULT[i.dataset.pk]) m[i.dataset.pk] = v; }); const q = +$('#pcQQ', box).value; await store.saveSetting('proccost', { ...store.setting('proccost'), map: m, ...(q > 0 ? { qqMult: q } : {}) }); toast('已儲存，成本已重算'); procCfg(box); };
+  $('#pcReset', box).onclick = async () => { await store.saveSetting('proccost', { map: {} }); toast('已恢復預設'); procCfg(box); };
 }
 async function aiCost(box) {
   const now = new Date(); const ym = aiUi.ym || `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`; const y = ym.slice(0, 4);
