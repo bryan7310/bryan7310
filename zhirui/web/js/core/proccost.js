@@ -14,15 +14,30 @@ export const procMap = () => ({ ...PROC_DEFAULT, ...(store.setting('proccost')?.
 const CODE = /^([A-Z])(\d)([A-Z])(.+)$/;
 const sizeOf = rest => rest.split('_')[0];
 const bare = s => String(s || '').replace(/^[MWU]/, '');
+// 華司內徑範圍大：M6、M6.1～M6.5、1/4 都算同一個內徑（公制小數 0.6 以內算同一號；英制換成對應的公制號數）；外徑、厚度要一樣
+const WASHER = /華司|墊片/;
+const INCH = { '1/8': 3, '5/32': 4, '3/16': 5, '1/4': 6, '5/16': 8, '3/8': 10, '7/16': 11, '1/2': 12, '9/16': 14, '5/8': 16, '3/4': 20, '7/8': 22, '1': 25 };
+function idGroup(s) {
+  s = String(s || '').replace(/["”]/g, '');
+  if (/^W/.test(s)) { const v = INCH[s.slice(1)]; return v == null ? null : v; }
+  if (/^M/.test(s)) { const n = parseFloat(s.slice(1)); if (!(n > 0)) return null; const fl = Math.floor(n); return n - fl <= 0.6 + 1e-9 ? fl : fl + 1; }
+  return null;
+}
+const numS = s => { const n = parseFloat(s); return isNaN(n) ? String(s) : String(n); };
+function washerKey(m) {
+  const [sz, ...it] = m[4].split('_'); const parts = sz.split('*'); const gid = idGroup(parts[0]); if (gid == null) return null;
+  return [m[1] + m[2], it.join('_'), gid, ...parts.slice(1).map(numS)].join('|');
+}
 const IDX = new WeakMap();
 function idx(gm) {
   let x = IDX.get(gm); if (x) return x;
-  const code = new Map(), heat = new Map();
+  const code = new Map(), heat = new Map(), wsh = new Map();
   for (const g of Object.values(gm)) {
     if (!g || !g.code) continue; code.set(g.code, g);
+    const m = CODE.exec(g.code); if (m && m[3] === 'D' && WASHER.test(g.name || '')) { const k = washerKey(m); if (k) (wsh.get(k) || wsh.set(k, []).get(k)).push(g); }
     if (/^H_/.test(g.code) && /熱處理/.test(g.name || '')) { const k = bare(g.code.slice(2)); (heat.get(k) || heat.set(k, []).get(k)).push(g); }
   }
-  x = { code, heat }; IDX.set(gm, x); return x;
+  x = { code, heat, wsh }; IDX.set(gm, x); return x;
 }
 /** 品項文字（品名裡尺寸前面那段），比對熱處理料號用 */
 const itemOf = (name, sz) => { const n = String(name || ''); const i = n.indexOf(sz); return (i > 0 ? n.slice(0, i) : '').replace(/熱處理|⊕|螺絲|螺|\s|[MWU]$/g, ''); };
@@ -62,21 +77,26 @@ export function heatFor(g, gm) {
  */
 export function procCost(g, cls, f, date, d, purIdx, gm, wtOf) {
   const m = CODE.exec(g?.code || ''); if (!m || m[3] === 'D') return null;
-  const I = idx(gm); const raw = I.code.get(m[1] + m[2] + 'D' + m[4]); if (!raw || raw.id === g.id) return null;
-  const wt = wtOf(g) || wtOf(raw); if (cls === 'p' && !(wt > 0)) return null;
   if (cls !== 'p' && cls !== 'kg') return null;
+  // 原料：同料號第 3 碼改 D；華司另外找同內徑範圍、同外徑厚度的黑身／白皮
+  const I = idx(gm); const cands = []; const ex = I.code.get(m[1] + m[2] + 'D' + m[4]); if (ex) cands.push(ex);
+  if (WASHER.test(g.name || '')) { const k = washerKey(m); for (const x of (k && I.wsh.get(k)) || []) if (!cands.includes(x)) cands.push(x); }
+  let raw = null, rawKg = 0, rawSrc = '', wt = 0;
+  for (const r of cands) { if (r.id === g.id) continue; const w = wtOf(g) || wtOf(r); const v = rawKgOf(r, w); if (v) { raw = r; rawKg = v.kg; rawSrc = v.src; wt = w; break; } }
+  if (!raw || (cls === 'p' && !(wt > 0))) return null;
   // 原料每 KG：原料論 KG 買就直接用；論支買用單重換算
   // 換算後每 KG 要在 8～400 元之間才採用（論支的單價可能是每百支、每千支，依序試）；都不合理就當查不到
-  let rawKg = 0, rawSrc = '';
-  const ok = v => v >= 8 && v <= 400;
-  const rl = (purIdx[raw.id] || []).filter(x => x.per > 0 && !isLot(x)).sort((a, b) => (a.d > d) - (b.d > d) || Math.abs(a.d - d) - Math.abs(b.d - d));
-  for (const x of rl) {
-    if (x.cls === 'kg') { if (ok(x.per)) { rawKg = x.per; rawSrc = `${x.no}（${x.date}）`; break; } continue; }
-    if (x.cls !== 'p' || !(wt > 0)) continue;
-    const k = [1, 100, 1000].find(k => ok(x.per / k / (wt / 1000)));
-    if (k) { rawKg = x.per / k / (wt / 1000); rawSrc = `${x.no}（${x.date}，每${k === 1 ? '' : k === 100 ? '百' : '千'}支 ${x.per}）`; break; }
+  function rawKgOf(r, w) {
+    const ok = v => v >= 8 && v <= 400;
+    const rl = (purIdx[r.id] || []).filter(x => x.per > 0 && !isLot(x)).sort((a, b) => (a.d > d) - (b.d > d) || Math.abs(a.d - d) - Math.abs(b.d - d));
+    for (const x of rl) {
+      if (x.cls === 'kg') { if (ok(x.per)) return { kg: x.per, src: `${x.no}（${x.date}）` }; continue; }
+      if (x.cls !== 'p' || !(w > 0)) continue;
+      const k = [1, 100, 1000].find(k => ok(x.per / k / (w / 1000)));
+      if (k) return { kg: x.per / k / (w / 1000), src: `${x.no}（${x.date}，每${k === 1 ? '' : k === 100 ? '百' : '千'}支 ${x.per}）` };
+    }
+    return null;
   }
-  if (!rawKg) return null;
   // 熱處理
   const h = heatFor(g, gm); let heatKg = 0, heatSrc = '';
   if (h) {
