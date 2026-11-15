@@ -7,6 +7,7 @@ import { calc, totals, lineAmt, nextNo, cdisp, cname, suppliers, gname, unitFact
 import { queueFax, faxDial, isTaichung } from '../modules/faxes.js';
 import { scanQR } from '../core/qr.js';
 import { search, findByCode } from './stock.js';
+import { billHit } from './bill.js';
 
 const KEY = 'zr.m.po';
 const toast = msg => { const t = document.getElementById('toast'); t.textContent = msg; t.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(() => t.hidden = true, 2800); };
@@ -70,6 +71,7 @@ export function poPage(view, sub, arg) {
     <div class="acts"><button class="btn ghost" id="psave">只存採購單</button><button class="btn" id="pfax">存並傳真</button></div>
     ${e.lines.length || e.cid ? '<p><button class="btn ghost danger" id="pclr">清除這張</button></p>' : ''}
     <div class="sec">最近的採購單</div>
+    <div class="search"><input type="search" id="prq" placeholder="關鍵字：廠商、單號、日期、品名" value="${esc(prq)}" autocomplete="off" autocorrect="off" autocapitalize="off" enterkeyhint="search"></div>
     <div class="card list" id="prec">${recentHtml()}</div>`;
   const $ = q => view.querySelector(q); const redraw = () => poPage(view);
   drawTot(view);
@@ -78,6 +80,7 @@ export function poPage(view, sub, arg) {
   $('#pdv').onchange = ev => { e.deliv = ev.target.value; keep(); };
   $('#pat').oninput = ev => { e.attn = ev.target.value; keep(); };
   $('#pnote').oninput = ev => { e.note = ev.target.value; keep(); };
+  $('#prq').oninput = ev => { prq = ev.target.value; $('#prec').innerHTML = recentHtml(); };
   $('#padd').onclick = () => pickGoods(redraw);
   $('#pscan').onclick = () => scanQR(t => { const g = findByCode(t); if (!g) { toast('找不到料號：' + t); return; } addToPO(g.id); redraw(); }, { title: '掃商品 QR 碼' });
   const pl = $('#pl');
@@ -123,7 +126,8 @@ async function sendFax(b) {
 // 傳真狀態：最新一筆傳真工作
 const lastJob = b => { const f = (b?.faxLog || []).filter(x => x.job).slice(-1)[0]; return f ? store.get('faxjobs', f.job) : null; };
 const hm = iso => { const d = new Date(iso); return isNaN(d) ? '' : `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
-const recentHtml = () => store.list('bills').filter(b => b.type === 'PO').sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)).slice(0, 8).map(b => `<a href="#po/v/${encodeURIComponent(b.id)}"><div class="gm"><b>${esc(cname(b.cid))}</b><small>${esc(b.no)}・${esc(slash(b.date))}・${fmt(totals(b).total)} 元</small></div><span class="go">${faxTag(b)} ›</span></a>`).join('') || '<div class="row muted">還沒有採購單</div>';
+let prq = '';   // 最近採購單的關鍵字
+const recentHtml = () => store.list('bills').filter(b => b.type === 'PO' && billHit(b, prq)).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)).slice(0, prq.trim() ? 50 : 8).map(b => `<a href="#po/v/${encodeURIComponent(b.id)}"><div class="gm"><b>${esc(cname(b.cid))}</b><small>${esc(b.no)}・${esc(slash(b.date))}・${fmt(totals(b).total)} 元</small></div><span class="go">${faxTag(b)} ›</span></a>`).join('') || `<div class="row muted">${prq.trim() ? '找不到符合的採購單' : '還沒有採購單'}</div>`;
 function faxTag(b) {
   const j = lastJob(b); if (!j) return (b.faxLog || []).length ? '<small class="muted">已手動傳真</small>' : '<small class="muted">未傳真</small>';
   return j.status === 'sent' ? `<small class="good">已傳真 ${hm(j.doneAt || j.at)}</small>` : j.status === 'failed' ? '<small class="bad">傳真失敗</small>' : '<small class="warn">傳真中…</small>';

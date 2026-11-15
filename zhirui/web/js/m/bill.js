@@ -1,6 +1,6 @@
 // 手機版：開出貨單。客戶、品項（數量×單價，預設該客戶上次成交價）、小計、稅、總計、本單毛利；存草稿、送出、送出並交給主機列印中一刀。
 // 存檔格式跟電腦版銷貨單完全一樣（bills 集合），電腦版直接看得到、可以再修改。草稿另存 drafts 集合，不影響庫存與帳款。
-import { esc, fmt, fmtQ, fp4, today, uid, ls, slash } from '../core/util.js';
+import { esc, fmt, fmtQ, fp4, today, uid, ls, slash, matchQ } from '../core/util.js';
 import { api } from '../core/api.js';
 import { store } from '../core/store.js';
 import { calc, totals, lineAmt, nextNo, defWh, cdisp, cname, gname, lastSale, unitPrice, costOf } from '../core/calc.js';
@@ -64,7 +64,8 @@ export function billPage(view, sub, arg) {
     <p><button class="btn ghost danger" id="clr">清除這張</button></p>
     <div class="note" id="ph"></div>
     <div class="sec">最近的出貨單</div>
-    <div class="card list">${recentHtml()}</div>
+    <div class="search"><input type="search" id="rq" placeholder="關鍵字：客戶、單號、日期、品名" value="${esc(rq)}" autocomplete="off" autocorrect="off" autocapitalize="off" enterkeyhint="search"></div>
+    <div class="card list" id="rlist">${recentHtml()}</div>
     ${(m => `<details class="card set"><summary>主機列印設定</summary>
       <div class="f"><label for="mp-pr">印表機名稱（主機上的）</label><input id="mp-pr" value="${esc(m.printer || PRINTER_DEF)}"></div>
       <div class="f2"><div class="f"><label for="mp-l">往右移（mm）</label><input id="mp-l" inputmode="decimal" value="${esc(m.off?.left ?? 6)}"></div><div class="f"><label for="mp-t">往下移（mm）</label><input id="mp-t" inputmode="decimal" value="${esc(m.off?.top ?? 4)}"></div></div>
@@ -78,6 +79,7 @@ export function billPage(view, sub, arg) {
   $('#add').onclick = () => pickGoods(redraw);
   $('#scan').onclick = () => scanQR(text => { const g = findByCode(text); if (!g) { toast('找不到料號：' + text); return; } addToBill(g.id); toast('已加入：' + g.name); redraw(); }, { title: '掃商品 QR 碼' });
   $('#dl')?.addEventListener('click', () => draftList(redraw));
+  $('#rq').oninput = ev => { rq = ev.target.value; $('#rlist').innerHTML = recentHtml(); };
   view.querySelectorAll('[data-fmt]').forEach(b => b.onclick = () => { e.fmt = b.dataset.fmt; keep(); view.querySelectorAll('[data-fmt]').forEach(x => x.classList.toggle('on', x === b)); });
   const lines = $('#lines');
   lines.addEventListener('input', ev => {
@@ -159,10 +161,17 @@ export async function queuePrint(b, f) {
 const ST = { queued: '排隊中，等主機列印', printing: '列印中…', done: '已印出', failed: '列印失敗' };
 // ---------- 最近的出貨單（瀏覽、看明細、重印） ----------
 const lastPrint = id => store.list('printjobs').filter(j => j.billId === id).sort((a, b) => String(b.at).localeCompare(String(a.at)))[0];
+let rq = '';   // 最近出貨單的關鍵字
+/** 關鍵字比對：客戶名稱／代號、單號、日期、備註、品名（空白分隔＝每個字都要有） */
+export function billHit(b, q) {
+  if (!String(q || '').trim()) return true;
+  const c = store.get('contacts', b.cid);
+  return matchQ([c?.name, c?.code, cdisp(c), cname(b.cid), b.no, b.date, slash(b.date), b.note, ...(b.lines || []).map(l => (l.gid ? gname(l.gid) : l.n || '') + ' ' + (l.memo || ''))].join(' '), q);
+}
 function recentHtml() {
-  const L = store.list('bills').filter(b => b.type === 'SALE' && !b.hist).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0) || String(b.no).localeCompare(String(a.no))).slice(0, 20);
+  const L = store.list('bills').filter(b => b.type === 'SALE' && !b.hist && billHit(b, rq)).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0) || String(b.no).localeCompare(String(a.no))).slice(0, rq.trim() ? 50 : 20);
   return L.map(b => { const j = lastPrint(b.id); const n = (b.lines || []).filter(l => l.txt === undefined).length;
-    return `<a href="#bill/v/${encodeURIComponent(b.id)}"><div class="gm"><b>${esc(cdisp(store.get('contacts', b.cid)) || cname(b.cid))}</b><small>${esc(b.no)}・${esc(slash(b.date))}・${n} 項・${fmt(totals(b).total)} 元</small></div><span class="go">${j ? `<small class="${j.status === 'failed' ? 'bad' : j.status === 'done' ? 'good' : 'warn'}">${esc(ST[j.status] || j.status)}</small>` : ''} ›</span></a>`; }).join('') || '<div class="row muted">還沒有出貨單</div>';
+    return `<a href="#bill/v/${encodeURIComponent(b.id)}"><div class="gm"><b>${esc(cdisp(store.get('contacts', b.cid)) || cname(b.cid))}</b><small>${esc(b.no)}・${esc(slash(b.date))}・${n} 項・${fmt(totals(b).total)} 元</small></div><span class="go">${j ? `<small class="${j.status === 'failed' ? 'bad' : j.status === 'done' ? 'good' : 'warn'}">${esc(ST[j.status] || j.status)}</small>` : ''} ›</span></a>`; }).join('') || (rq.trim() ? '<div class="row muted">找不到符合的出貨單</div>' : '<div class="row muted">還沒有出貨單</div>');
 }
 function billView(view, id) {
   const b = store.get('bills', id); const C = calc();
