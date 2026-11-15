@@ -6,6 +6,7 @@
 - 測試：環境變數 ZR_MAIL_MOCK_DIR 指到一個放 .eml 檔的資料夾，就從那裡「收信」，不連郵件主機
 """
 import base64
+import unicodedata
 import email
 import email.policy
 import email.utils
@@ -296,7 +297,7 @@ def loop(data_dir):
 def listing(data_dir, q='', limit=300, before=0):
     idx = _rd(os.path.join(_dir(data_dir), 'index.json'), {'items': []})
     items = idx['items']
-    ts = [t for t in re.split(r'\s+', (q or '').lower().strip()) if t]
+    ts = [t for t in re.split(r'[\s,，]+', unicodedata.normalize('NFKC', q or '').lower()) if t]   # 多關鍵字：空白或逗號隔開，每個字都要有
     out = []
     for x in reversed(items):
         if before and x['date'] >= before:
@@ -361,7 +362,7 @@ def listing2(data_dir, folder='inbox', q='', limit=300, before=0):
         cnt[k] = cnt.get(k, 0) + 1
     pick = [x for x in items if (x.get('del') if folder == 'trash' else (not x.get('del') and x['folder'] == folder))]
     pick.sort(key=lambda x: x['date'], reverse=True)
-    ts = [t for t in re.split(r'\s+', (q or '').lower().strip()) if t]
+    ts = [t for t in re.split(r'[\s,，]+', unicodedata.normalize('NFKC', q or '').lower()) if t]   # 多關鍵字：空白或逗號隔開，每個字都要有
     out = []
     for x in pick:
         if before and x['date'] >= before:

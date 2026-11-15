@@ -6,6 +6,7 @@
 import json
 import os
 import re
+import unicodedata
 import sqlite3
 import threading
 import time
@@ -450,8 +451,9 @@ class DB:
             where.append('b.date<=?'); args.append(to)
         if gid:
             where.append('b.id IN (SELECT bill_id FROM hist_lines WHERE gid=?)'); args.append(gid)
-        if q:
-            where.append('(b.no LIKE ? OR b.cn LIKE ? OR b.data LIKE ?)'); args += [f'%{q}%'] * 3
+        # 多關鍵字：空白或逗號隔開，每個字都要有（不分順序），跟全站搜尋一樣
+        for t in [t for t in re.split(r'[\s,，]+', unicodedata.normalize('NFKC', q or '')) if t]:
+            where.append('(b.no LIKE ? OR b.cn LIKE ? OR b.data LIKE ?)'); args += [f'%{t}%'] * 3
         sql = 'SELECT b.data FROM hist_bills b' + (' WHERE ' + ' AND '.join(where) if where else '') + \
               ' ORDER BY b.date DESC, b.no DESC LIMIT ? OFFSET ?'
         args += [int(limit), int(offset)]
