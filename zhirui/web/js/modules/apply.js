@@ -16,14 +16,16 @@ export default {
   render(el, { sub, params }) { draw(el, String(params.f || sub || '')); },   // #apply?f=名稱 或 #apply/名稱（手機點連結時 ? 後面常被吃掉）
 };
 
-const FIELD = { date: '日期', no: '單號', note: '備註', name: '品名', code: '料號', cat: '類別', oldCodes: '舊料號' };
-const show = (k, v) => k === 'date' ? slash(v) : Array.isArray(v) ? v.join('、') : String(v ?? '');
+const FIELD = { bom: '配方', spec: '客料號', date: '日期', no: '單號', note: '備註', name: '品名', code: '料號', cat: '類別', oldCodes: '舊料號' };
+let NEWG = [];   // 這份資料要新建的商品（預覽時用 id 找料號）
+const show = (k, v) => k === 'bom' ? (v || []).map(x => `${store.get('goods', x.gid)?.code || NEWG.find(n => n.id === x.gid)?.code || x.gid}×${x.qty}${x.cust ? '(客供)' : ''}`).join('、') : k === 'date' ? slash(v) : Array.isArray(v) ? v.join('、') : String(v ?? '');
 async function draw(el, f) {
   el.innerHTML = '<div class="head"><h1>待確認匯入</h1></div><div class="panel"><div class="muted">載入中…</div></div>';
   if (!/^[\w-]+$/.test(f)) { el.querySelector('.panel').innerHTML = '<div class="banner">網址少了資料名稱</div>'; return; }
   let P;
   try { const r = await fetch('/pending/' + f + '.json', { cache: 'no-store' }); if (!r.ok) throw new Error(r.status === 404 ? '找不到這份資料（可能已經寫入並移除了）' : 'HTTP ' + r.status); P = await r.json(); }
   catch (e) { el.querySelector('.panel').innerHTML = `<div class="banner">${esc(e.message)}</div>`; return; }
+  NEWG = P.newgoods || [];
   const C = calc(); const goods = store.list('goods');
   const errs = [];
   for (const g of P.newgoods || []) if (goods.some(x => x.code === g.code)) errs.push(`新商品料號 ${g.code} 已經存在`);
