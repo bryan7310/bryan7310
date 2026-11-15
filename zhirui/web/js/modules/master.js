@@ -1,5 +1,5 @@
 // 基本資料：商品、客戶、供應商、倉庫、結算帳戶、名稱對應
-import { $, esc, fmt, fmtQ, uid, matchQ, qTerms, money, downloadText, today } from '../core/util.js';
+import { $, esc, fmt, fmtQ, uid, matchQ, qTerms, money, downloadText, today, SYN, synGroups, norm } from '../core/util.js';
 import { store } from '../core/store.js';
 import { toast, modal, confirm, tabs, pager, field, selectField, formData, combo, onSearch } from '../core/ui.js';
 import { calc, goodsLabel, qtyAll, customers, suppliers, costOf, cdisp } from '../core/calc.js';
@@ -13,7 +13,7 @@ import { imageViewer } from '../core/imgview.js';
 import { bomHTML, bomBind } from './assembly.js';
 
 const ui = { tab: 'goods', q: '', page: 0 };
-const TABS = [['goods', '商品'], ['customers', '客戶'], ['suppliers', '供應商'], ['warehouses', '倉庫'], ['accounts', '結算帳戶'], ['names', '名稱對應']];
+const TABS = [['goods', '商品'], ['customers', '客戶'], ['suppliers', '供應商'], ['warehouses', '倉庫'], ['accounts', '結算帳戶'], ['names', '名稱對應'], ['syn', '同義字']];
 export default {
   id: 'master', name: '基本資料', group: '管理', icon: 'master',
   render(el, { sub, params }) { this.el = el; if (sub && TABS.some(t => t[0] === sub)) ui.tab = sub; draw(el); if (params.id) { const col = ui.tab === 'customers' || ui.tab === 'suppliers' ? 'contacts' : ui.tab; const d = store.get(col, params.id); if (d) openMaster(col, d); } },
@@ -37,6 +37,7 @@ function draw(el) {
     col = 'accounts'; label = '結算帳戶'; head = ['名稱', '<span class="n">期初</span>', '<span class="n">目前餘額</span>'];
     rows = store.list('accounts').map(a => [a, [esc(a.name), `<span class="n">${fmt(a.init)}</span>`, `<span class="n">${fmt(C.accBal[a.id] || 0)}</span>`]]);
   } else if (t === 'names') return drawNames(el);
+  else if (t === 'syn') return drawSyn(el);
   const [s, e, pg] = pager('m', rows.length, ui.page);
   el.innerHTML = `<div class="head"><h1>基本資料</h1><span class="sp"></span>${col === 'contacts' ? `<button class="btn" id="dupBtn" title="找出名稱重複的${label}，以舊系統那筆為主合併">檢查重複</button><button class="btn" id="shortBtn" title="幫還沒有簡稱的${label}從全名擷取簡稱（介面顯示用；列印一律用全名）">擷取簡稱</button><button class="btn" id="fillExp" title="匯出還沒停用、缺統編／電話／地址的${label}，填好後用「匯入${label}資料」匯回">匯出待補資料</button><button class="btn" id="fillImp">匯入${label}資料</button>` : ''}${t === 'goods' || col === 'contacts' ? `<button class="btn" id="expBtn">匯出 CSV</button>` : ''}<button class="btn pri" id="addBtn">＋ 新增${label}</button></div>
     <div class="panel"><div class="tools">${tabs('m', TABS, t)}<input type="search" id="mq" placeholder="搜尋${label}" value="${esc(ui.q)}"><span class="muted small">${rows.length} 筆</span>${offN ? `<button type="button" class="btn sm ${ui.off ? 'pri' : ''}" id="offBtn">${ui.off ? '隱藏' : '顯示'}停用（${offN}）</button>` : ''}</div>
@@ -416,6 +417,47 @@ function drawNames(el) {
   el.querySelectorAll('[data-pick]').forEach(inp => { const r = rows[+inp.dataset.pick]; combo(inp, { items: () => (r.kind === 'C' ? customers(true) : suppliers(true)).map(c => ({ id: c.id, label: c.name, sub: [c.code, c.short].filter(Boolean).join(' '), text: [c.code, c.name, c.short, ...(c.aliases || [])].join(' ') })), onPick: it => done(r, it.id) }); });
   el.querySelectorAll('[data-new]').forEach(b => b.addEventListener('click', async () => { const r = rows[+b.dataset.new]; const id = uid('c'); await store.save('contacts', id, { kind: r.kind, code: '', name: r.name, short: r.name, aliases: [], init: 0, note: '由名稱對應新增' }); done(r, id); }));
   el.querySelectorAll('[data-skip]').forEach(b => b.addEventListener('click', () => done(rows[+b.dataset.skip], null)));
+}
+
+// ---------- 同義字：搜尋時打其中一個字，同一組的其他寫法也找得到（全站＋App） ----------
+const SYN_MAX = 5;
+let synEd = null;   // 編輯中的草稿（還沒儲存）；null＝顯示已儲存的
+function drawSyn(el) {
+  const saved = synGroups().map(g => [...g]);
+  const rows = synEd || saved;
+  const dirty = !!synEd;
+  const GT = store.list('goods').map(g => norm(g.name + ' ' + (g.spec || '')));
+  const cnt = w => { const t = norm(w); if (!t) return ''; let n = 0; for (const x of GT) if (x.includes(t)) n++; return n; };
+  el.innerHTML = `<div class="head"><h1>基本資料</h1></div>
+    <div class="panel"><div class="tools">${tabs('m', TABS, 'syn')}<span class="sp"></span>
+      <button type="button" class="btn" id="synAdd">＋ 新增一組</button><button type="button" class="btn" id="synDef">恢復預設</button>
+      ${dirty ? '<button type="button" class="btn" id="synUndo">取消修改</button>' : ''}<button type="button" class="btn pri" id="synSave" ${dirty ? '' : 'disabled'}>儲存</button></div>
+    <p class="muted">同一組裡的字互相通用：搜尋時打其中一個，另外幾個寫法的商品、單據也會一起找到（電腦版、App 全部的搜尋框都適用）。每組最多 ${SYN_MAX} 個字，至少要 2 個。較長的寫法請排在前面的組（例如「無頭內六角」排在「無頭」前面）。括號裡的數字是品名／規格含有這個字的商品數。</p>
+    <div class="tw"><table><thead><tr><th style="width:40px">#</th>${Array.from({ length: SYN_MAX }, (_, i) => `<th>寫法 ${i + 1}</th>`).join('')}<th></th></tr></thead><tbody>
+    ${rows.map((g, gi) => `<tr><td class="muted">${gi + 1}</td>${Array.from({ length: SYN_MAX }, (_, i) => { const w = g[i] || ''; const n = w ? cnt(w) : ''; return `<td><input data-g="${gi}" data-i="${i}" value="${esc(w)}" style="width:100%" aria-label="第 ${gi + 1} 組寫法 ${i + 1}">${w ? `<div class="muted small">（${n}）</div>` : ''}</td>`; }).join('')}
+      <td class="r"><button type="button" class="btn sm" data-up="${gi}" ${gi ? '' : 'disabled'} title="往上移">↑</button><button type="button" class="btn sm" data-del="${gi}">刪除</button></td></tr>`).join('') || `<tr><td colspan="${SYN_MAX + 2}" class="muted">沒有同義字。按「新增一組」。</td></tr>`}
+    </tbody></table></div><div class="err" id="synErr"></div></div>`;
+  el.addEventListener('tab', ev => { synEd = null; ui.tab = ev.detail.val; location.hash = '#master/' + ui.tab; }, { once: true });
+  const edit = () => { if (!synEd) synEd = saved.map(g => [...g]); return synEd; };
+  el.querySelectorAll('[data-g]').forEach(inp => inp.addEventListener('change', () => { const E = edit(); E[+inp.dataset.g][+inp.dataset.i] = inp.value.trim(); drawSyn(el); }));
+  $('#synAdd', el).onclick = () => { edit().push(['', '']); drawSyn(el); const ins = el.querySelectorAll(`[data-g="${synEd.length - 1}"]`); ins[0]?.focus(); };
+  el.querySelectorAll('[data-del]').forEach(b => b.onclick = () => { edit().splice(+b.dataset.del, 1); drawSyn(el); });
+  el.querySelectorAll('[data-up]').forEach(b => b.onclick = () => { const E = edit(), i = +b.dataset.up; [E[i - 1], E[i]] = [E[i], E[i - 1]]; drawSyn(el); });
+  $('#synDef', el).onclick = () => { synEd = SYN.map(g => [...g]); drawSyn(el); toast('已換成預設的同義字，按「儲存」才會生效'); };
+  $('#synUndo', el)?.addEventListener('click', () => { synEd = null; drawSyn(el); });
+  $('#synSave', el).onclick = async () => {
+    const err = $('#synErr', el); err.textContent = '';
+    const groups = [];
+    for (const [gi, g] of synEd.entries()) {
+      const ws = [...new Set(g.map(w => String(w || '').trim()).filter(Boolean))];
+      if (!ws.length) continue;
+      if (ws.length < 2) { err.textContent = `第 ${gi + 1} 組只有一個字「${ws[0]}」，至少要 2 個（或刪掉這組）`; return; }
+      for (const w of ws) { if (/[\s,，]/.test(w)) { err.textContent = `「${w}」裡有空白或逗號，同義字不能含空白、逗號`; return; } }
+      groups.push(ws.slice(0, SYN_MAX));
+    }
+    try { await store.saveSetting('syn', { groups, at: new Date().toISOString(), by: store.user?.name || '' }); store.log?.('修改', `同義字（${groups.length} 組）`); synEd = null; toast('同義字已儲存，全站搜尋馬上生效'); drawSyn(el); }
+    catch (e) { err.textContent = '儲存失敗：' + e.message; }
+  };
 }
 
 // ---------- 檢查重複：名稱相同（或只差公司字樣、括號備註）的客戶／供應商，以舊系統那筆為主合併 ----------

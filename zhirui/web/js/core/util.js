@@ -36,8 +36,12 @@ export const norm = s => toHalf(s).toLowerCase().replace(MUL_RE, '×').trim();
 // 多關鍵字搜尋：空白或逗號隔開，每個字都要出現
 export const qTerms = q => norm(q).split(/[\s,，]+/).filter(Boolean);
 // 搜尋同義詞：打其中一種寫法，另一種寫法的商品也找得到（商品、單據、查價等全站搜尋都適用）
+// 使用者可在「基本資料 › 同義字」修改（存在 settings/syn.groups）；沒設定過就用這份預設
 export const SYN = [['無頭內六角螺絲', '止付內六角螺絲', '止付螺絲', '無頭螺絲'], ['無頭內六角', '止付'], ['無頭', '止付'], ['鐵皮螺絲', '鐵板牙螺絲', '鐵板螺絲'], ['鐵皮', '鐵板牙', '鐵板'], ['耐落', '防鬆']];
-const synAlts = x => { const out = new Set([x]); for (const g of SYN) for (const k of g) { if (!x.includes(norm(k))) continue; for (const k2 of g) if (k2 !== k) out.add(x.replace(norm(k), norm(k2))); } return [...out]; };
+let synSrc = null;   // store 會設：() => settings/syn.groups
+export const setSynSource = fn => { synSrc = fn; };
+export const synGroups = () => { const g = synSrc ? synSrc() : null; return Array.isArray(g) ? g : SYN; };
+const synAlts = x => { const out = new Set([x]); for (const g of synGroups()) for (const k of g) { if (!k) continue; if (!x.includes(norm(k))) continue; for (const k2 of g) if (k2 && k2 !== k) out.add(x.replace(norm(k), norm(k2))); } return [...out]; };
 export const matchQ = (text, q) => { const ts = Array.isArray(q) ? q : qTerms(q); if (!ts.length) return true; const t = norm(text); return ts.every(x => synAlts(x).some(a => t.includes(a))); };
 
 // 國字金額（支票、發票）

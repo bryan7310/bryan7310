@@ -1,7 +1,7 @@
 // 資料層：一開始整批載入所有即時集合，之後用 long-polling 接收別台電腦的修改。
 // 修改先套用在本機（畫面立刻更新），再送到伺服器；失敗就還原並提示。
 import { api } from './api.js';
-import { uid } from './util.js';
+import { uid, setSynSource } from './util.js';
 
 const CACHE_DB = 'zhirui-cache', CACHE_KEY = 'bootstrap';
 
@@ -140,3 +140,4 @@ class Store {
 }
 
 export const store = new Store();
+setSynSource(() => store.get('settings', 'syn')?.groups);   // 基本資料 › 同義字
