@@ -13,7 +13,7 @@ import { resetHistCache } from './_bills.js';
 
 export default {
   id: 'apply', name: '待確認匯入', icon: 'plus', hidden: true,
-  render(el, { params }) { draw(el, String(params.f || '')); },
+  render(el, { sub, params }) { draw(el, String(params.f || sub || '')); },   // #apply?f=名稱 或 #apply/名稱（手機點連結時 ? 後面常被吃掉）
 };
 
 const FIELD = { date: '日期', no: '單號', note: '備註', name: '品名', code: '料號', cat: '類別', oldCodes: '舊料號' };
