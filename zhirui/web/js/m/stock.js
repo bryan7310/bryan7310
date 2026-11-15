@@ -1,17 +1,17 @@
 // 手機版：查庫存／查價。搜尋料號、品名、規格；表面處理篩選；點進去看庫存、售價、牌價、成本、毛利率、客戶上次成交價、供應商。
-import { esc, fmt, fmtQ, today, qTerms, matchQ, ls, slash, uid } from '../core/util.js';
+import { esc, fmt, fmtQ, fp4, today, qTerms, matchQ, ls, slash, uid } from '../core/util.js';
 import { api } from '../core/api.js';
 import { store } from '../core/store.js';
-import { calc, costOf, lastSale, uRate, cdisp, customers, goodsLabel, nextNo, TYPES } from '../core/calc.js';
+import { calc, costOf, lastSale, uRate, cdisp, customers, goodsLabel, nextNo, TYPES, totals, lineAmt, cname, gname } from '../core/calc.js';
 import { platCost } from '../core/pricing.js';
 import { qrSvg, scanQR } from '../core/qr.js';
-import { addToBill } from './bill.js';
+import { addToBill, billHit } from './bill.js';
 import { editGoods } from './goodsedit.js';
 
 // 材質篩選（商品「類別」欄）：鐵、白鐵（不鏽鋼）、合金（合金鋼）、其他（中碳鋼、彈簧鋼、銅、鋁、代工…）
 const MAIN = ['鐵', '不鏽鋼', '合金鋼'];
 const FINS = [['', '全部'], ['鐵', '鐵', g => g.cat === '鐵'], ['白鐵', '白鐵', g => g.cat === '不鏽鋼'], ['合金', '合金', g => g.cat === '合金鋼'], ['其他', '其他', g => !MAIN.includes(g.cat)]];
-const ui = { q: '', fin: '', scroll: 0 };
+const ui = { q: '', fin: '', scroll: 0, pq: '' };
 const custId = () => { const id = ls.get('zr.m.cid', ''); return id && store.get('contacts', id) ? id : ''; };
 const p2 = n => (Math.round((+n || 0) * 100) / 100).toLocaleString('zh-TW', { maximumFractionDigits: 4 });
 
@@ -46,8 +46,14 @@ export function stockPage(view) {
   view.innerHTML = `<div class="hd"><h1>查庫存</h1><span class="sp"></span><a class="chip" href="#po">採購單${(n => n ? ` ${n}` : '')((ls.get('zr.m.po', null)?.lines || []).length)}</a><button class="chip" id="cust">${c ? '客戶：' + esc(cdisp(c)) : '選客戶'}</button></div>
     <div class="search srow"><input type="search" id="q" placeholder="規格或品名，例如 M6*20" value="${esc(ui.q)}" autocomplete="off" autocorrect="off" autocapitalize="off" enterkeyhint="search"><button type="button" class="scanbtn" id="scan" aria-label="掃 QR 碼"><svg viewBox="0 0 24 24"><path d="M4 8V4h4M16 4h4v4M20 16v4h-4M8 20H4v-4"/><path d="M7 12h10"/></svg></button></div>
     <div class="chips">${FINS.map(([k, n]) => `<button class="chip ${ui.fin === k ? 'on' : ''}" data-fin="${k}">${n}</button>`).join('')}</div>
-    <div id="res"></div>`;
+    <div id="res"></div>
+    <div class="sec">最近的進貨單</div>
+    <div class="search"><input type="search" id="pq" placeholder="關鍵字：廠商、單號、日期、品名" value="${esc(ui.pq)}" autocomplete="off" autocorrect="off" autocapitalize="off" enterkeyhint="search"></div>
+    <div class="card list" id="pur">${purHtml()}</div>`;
   const q = view.querySelector('#q'), res = view.querySelector('#res');
+  const pq = view.querySelector('#pq');
+  pq.addEventListener('input', () => { ui.pq = pq.value; view.querySelector('#pur').innerHTML = purHtml(); });
+  pq.addEventListener('keydown', e => { if (e.key === 'Enter') pq.blur(); });
   const draw = () => {
     const list = search(ui.q, ui.fin); const C = calc();
     const add = `<p><button class="btn ghost" data-add>＋ 新增商品${qTerms(ui.q).length && !list.length ? `「${esc(ui.q.trim())}」` : ''}</button></p>`;
@@ -65,6 +71,18 @@ export function stockPage(view) {
   view.querySelector('#scan').onclick = () => scanQR(text => { const g = findByCode(text); if (g) location.hash = '#g/' + encodeURIComponent(g.id); else { ui.q = text; stockPage(view); } }, { title: '掃商品 QR 碼' });
   draw();
   if (ui.scroll) { window.scrollTo(0, ui.scroll); ui.scroll = 0; }
+}
+
+// ---------- 最近的進貨單（點開看品項，點品項到商品明細） ----------
+function purHtml() {
+  const k = ui.pq.trim();
+  const L = store.list('bills').filter(b => b.type === 'PUR' && !b.hist && billHit(b, ui.pq)).sort((a, b) => String(b.date).localeCompare(String(a.date)) || (b.createdAt || 0) - (a.createdAt || 0)).slice(0, k ? 50 : 10);
+  return L.map(b => { const ls_ = (b.lines || []).filter(l => l.txt === undefined); const g = id => store.get('goods', id);
+    return `<details class="pb"><summary><div class="gm"><b>${esc(cdisp(store.get('contacts', b.cid)) || cname(b.cid))}</b><small>${esc(b.no)}・${esc(slash(b.date))}・${ls_.length} 項・${fmt(totals(b).total)} 元</small></div><span class="go">›</span></summary>
+      ${ls_.map(l => { const body = `<div class="gm"><b>${esc(l.gid ? gname(l.gid) : l.n || '')}</b><small>${fmtQ(l.qty)} ${esc(l.u || g(l.gid)?.unit || '')} × ${fp4(+l.price || 0)}${l.memo ? '・' + esc(l.memo) : ''}</small></div><span class="go">${fmt(lineAmt(l))}</span>`;
+        return l.gid && g(l.gid) ? `<a href="#g/${encodeURIComponent(l.gid)}" class="pl">${body}</a>` : `<div class="row pl">${body}</div>`; }).join('')}
+      ${b.note ? `<div class="row pl muted small">${esc(b.note)}</div>` : ''}</details>`; }).join('')
+    || `<div class="row muted">${k ? '找不到符合的進貨單' : '還沒有進貨單'}</div>`;
 }
 
 /** QR 碼內容 → 商品：料號（不分大小寫）；也接受網址裡的 #g/商品 */
