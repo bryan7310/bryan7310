@@ -21,7 +21,7 @@
 | 客戶訂單、訂單匯入（豐餘 Excel）、傳真轉訂單 | 客戶訂單 `#custorders` | `custorders.js`、`so_import.js`、`order_in.js`；App `m/so.js` |
 | 委託加工、加工單 | 委託加工 `#processing` | `processing.js` |
 | 訂貨排程 | `#orders` | `orders.js` |
-| 庫存、出入庫、調撥 | 庫存數量 `#stock` | `stock.js`；App `m/stock.js` |
+| 庫存、出入庫、調撥；App 的查商品、盤點 | 庫存數量 `#stock` | `stock.js`；App 查商品 `m/stock.js`（盤點模式、新增商品）、`m/goodsedit.js` |
 | 應收帳款、收款沖帳、未收、應收月份 | 應收帳款 `#receivables` | `receivables.js`；App `m/ar.js` |
 | 應付帳款 | `#payables` | `payables.js` |
 | 收款單、付款單、帳戶 | 收款登記 `#money` | `money.js` |

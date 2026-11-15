@@ -38,7 +38,7 @@ const IC = {
 // 底部選單（固定 5 項）；還沒做好的頁先顯示「第 N 階段」，並提供電腦版連結
 const TABS = [
   ['home', '首頁', IC.home],
-  ['stock', '庫存', IC.stock],
+  ['stock', '商品', IC.stock],
   ['bill', '開單', IC.bill],
   ['ar', '帳款', IC.money],
   ['up', '上傳', IC.cam],
@@ -163,7 +163,7 @@ function home() {
     </div>
     <div class="sec">快捷</div>
     <div class="card quick">
-      <a href="#stock"><i>${SVG(IC.stock)}</i>查庫存</a>
+      <a href="#stock"><i>${SVG(IC.stock)}</i>查商品</a>
       <a href="#bill"><i>${SVG(IC.bill)}</i>出貨單</a>
       <a href="#up"><i>${SVG(IC.cam)}</i>拍照上傳</a>
       <a href="#lbl"><i>${SVG(IC.tag)}</i>印標籤</a>

@@ -1,4 +1,4 @@
-// 手機版：查庫存／查價。搜尋料號、品名、規格；表面處理篩選；點進去看庫存、售價、牌價、成本、毛利率、客戶上次成交價、供應商。
+// 手機版：查商品（查庫存／查價、新增修改商品、盤點）。搜尋料號、品名、規格；表面處理篩選；點進去看庫存、售價、牌價、成本、毛利率、客戶上次成交價、供應商。
 import { esc, fmt, fmtQ, fp4, today, qTerms, matchQ, ls, slash, uid } from '../core/util.js';
 import { api } from '../core/api.js';
 import { store } from '../core/store.js';
@@ -11,7 +11,7 @@ import { editGoods } from './goodsedit.js';
 // 材質篩選（商品「類別」欄）：鐵、白鐵（不鏽鋼）、合金（合金鋼）、其他（中碳鋼、彈簧鋼、銅、鋁、代工…）
 const MAIN = ['鐵', '不鏽鋼', '合金鋼'];
 const FINS = [['', '全部'], ['鐵', '鐵', g => g.cat === '鐵'], ['白鐵', '白鐵', g => g.cat === '不鏽鋼'], ['合金', '合金', g => g.cat === '合金鋼'], ['其他', '其他', g => !MAIN.includes(g.cat)]];
-const ui = { q: '', fin: '', scroll: 0, pq: '' };
+const ui = { q: '', fin: '', scroll: 0, pq: '', count: false };   // count＝盤點模式
 const custId = () => { const id = ls.get('zr.m.cid', ''); return id && store.get('contacts', id) ? id : ''; };
 const p2 = n => (Math.round((+n || 0) * 100) / 100).toLocaleString('zh-TW', { maximumFractionDigits: 4 });
 
@@ -43,9 +43,11 @@ export function search(q, fin) {
 // ---------- 清單頁 ----------
 export function stockPage(view) {
   const cid = custId(); const c = cid ? store.get('contacts', cid) : null;
-  view.innerHTML = `<div class="hd"><h1>查庫存</h1><span class="sp"></span><a class="chip" href="#po">採購單${(n => n ? ` ${n}` : '')((ls.get('zr.m.po', null)?.lines || []).length)}</a><button class="chip" id="cust">${c ? '客戶：' + esc(cdisp(c)) : '選客戶'}</button></div>
+  view.innerHTML = `<div class="hd"><h1>查商品</h1><span class="sp"></span><a class="chip" href="#po">採購單${(n => n ? ` ${n}` : '')((ls.get('zr.m.po', null)?.lines || []).length)}</a><button class="chip" id="cust">${c ? '客戶：' + esc(cdisp(c)) : '選客戶'}</button></div>
     <div class="search srow"><input type="search" id="q" placeholder="規格或品名，例如 M6*20" value="${esc(ui.q)}" autocomplete="off" autocorrect="off" autocapitalize="off" enterkeyhint="search"><button type="button" class="scanbtn" id="scan" aria-label="掃 QR 碼"><svg viewBox="0 0 24 24"><path d="M4 8V4h4M16 4h4v4M20 16v4h-4M8 20H4v-4"/><path d="M7 12h10"/></svg></button></div>
     <div class="chips">${FINS.map(([k, n]) => `<button class="chip ${ui.fin === k ? 'on' : ''}" data-fin="${k}">${n}</button>`).join('')}</div>
+    <div class="btn2"><button class="btn ghost" id="gnew">＋ 新增商品</button><button class="btn ${ui.count ? '' : 'ghost'}" id="cnt">${ui.count ? '結束盤點' : '盤點庫存'}</button></div>
+    ${ui.count ? '<div class="note" style="text-align:left">盤點模式：搜尋後點商品，直接填實際數量，差異會自動開其他入庫／出庫補平。</div>' : ''}
     <div id="res"></div>
     <div class="sec">最近的進貨單</div>
     <div class="search"><input type="search" id="pq" placeholder="關鍵字：廠商、單號、日期、品名" value="${esc(ui.pq)}" autocomplete="off" autocorrect="off" autocapitalize="off" enterkeyhint="search"></div>
@@ -56,18 +58,22 @@ export function stockPage(view) {
   pq.addEventListener('keydown', e => { if (e.key === 'Enter') pq.blur(); });
   const draw = () => {
     const list = search(ui.q, ui.fin); const C = calc();
-    const add = `<p><button class="btn ghost" data-add>＋ 新增商品${qTerms(ui.q).length && !list.length ? `「${esc(ui.q.trim())}」` : ''}</button></p>`;
-    if (!qTerms(ui.q).length && !ui.fin) { res.innerHTML = '<div class="note">輸入規格或品名開始搜尋，空白隔開多個字（例如「M6 20 鍍鋅」）。</div>' + add; return; }
-    res.innerHTML = list.length ? `<div class="card list">${list.map(g => { const t = total(C, g.id); const lp = cid ? lastSale(cid, g.id, today()) : null; return `<a href="#g/${encodeURIComponent(g.id)}" class="gi"><div class="gm"><b>${esc(g.name)}</b><small>${esc(g.code)}${g.spec ? '・' + esc(g.spec) : ''}</small></div><div class="gr"><b>${C.stock[g.id] ? fmtQ(t) : '—'}</b><small>${esc(g.unit || '')}${lp ? `・上次 ${p2(lp.price)}` : +g.salePrice ? `・售 ${p2(g.salePrice)}` : ''}</small>${stockTag(C, g)}</div></a>`; }).join('')}</div>${list.length >= 80 ? '<div class="note">只列前 80 項，請再多打幾個字縮小範圍。</div>' : ''}`
+    const add = qTerms(ui.q).length && !list.length ? `<p><button class="btn ghost" data-add>＋ 新增商品「${esc(ui.q.trim())}」</button></p>` : '';
+    if (!qTerms(ui.q).length && !ui.fin) { res.innerHTML = `<div class="note">輸入規格或品名開始搜尋，空白或逗號隔開多個字，每個字都要有（例如「M6 20 鍍鋅」）。${ui.count ? '找到後點商品就能盤點。' : ''}</div>`; return; }
+    res.innerHTML = list.length ? `<div class="card list">${list.map(g => { const t = total(C, g.id); const lp = cid ? lastSale(cid, g.id, today()) : null; return `<a href="#g/${encodeURIComponent(g.id)}" class="gi" data-gid="${esc(g.id)}"><div class="gm"><b>${esc(g.name)}</b><small>${esc(g.code)}${g.spec ? '・' + esc(g.spec) : ''}</small></div><div class="gr"><b>${C.stock[g.id] ? fmtQ(t) : '—'}</b><small>${esc(g.unit || '')}${lp ? `・上次 ${p2(lp.price)}` : +g.salePrice ? `・售 ${p2(g.salePrice)}` : ''}</small>${stockTag(C, g)}</div></a>`; }).join('')}</div>${list.length >= 80 ? '<div class="note">只列前 80 項，請再多打幾個字縮小範圍。</div>' : ''}`
       : '<div class="card ph"><b>找不到</b><span class="muted">換個寫法試試，例如「M6*20」或「6*20」。</span></div>';
     res.insertAdjacentHTML('beforeend', add);
   };
-  res.addEventListener('click', ev => { if (!ev.target.closest('[data-add]')) return; const nm = search(ui.q, ui.fin).length ? '' : ui.q.trim(); editGoods('new', null, id => { location.hash = '#g/' + encodeURIComponent(id); }, nm ? { name: nm } : {}); });
+  res.addEventListener('click', ev => {
+    const a = ev.target.closest('a.gi'); if (a && ui.count) { ev.preventDefault(); const g = store.get('goods', a.dataset.gid); if (g) { const y = window.scrollY; adjustStock(g, () => { draw(); window.scrollTo(0, y); }); } return; }
+    if (!ev.target.closest('[data-add]')) return; const nm = search(ui.q, ui.fin).length ? '' : ui.q.trim(); editGoods('new', null, id => { location.hash = '#g/' + encodeURIComponent(id); }, nm ? { name: nm } : {}); });
   let tm = 0;
   q.addEventListener('input', () => { clearTimeout(tm); tm = setTimeout(() => { ui.q = q.value; draw(); }, 150); });
   q.addEventListener('keydown', e => { if (e.key === 'Enter') q.blur(); });
   view.querySelectorAll('[data-fin]').forEach(b => b.onclick = () => { ui.fin = b.dataset.fin; view.querySelectorAll('[data-fin]').forEach(x => x.classList.toggle('on', x === b)); draw(); });
   view.querySelector('#cust').onclick = () => pickCustomer(() => stockPage(view));
+  view.querySelector('#gnew').onclick = () => editGoods('new', null, id => { location.hash = '#g/' + encodeURIComponent(id); }, ui.q.trim() && !search(ui.q, ui.fin).length ? { name: ui.q.trim() } : {});
+  view.querySelector('#cnt').onclick = () => { ui.count = !ui.count; stockPage(view); if (ui.count) view.querySelector('#q').focus(); };
   view.querySelector('#scan').onclick = () => scanQR(text => { const g = findByCode(text); if (g) location.hash = '#g/' + encodeURIComponent(g.id); else { ui.q = text; stockPage(view); } }, { title: '掃商品 QR 碼' });
   draw();
   if (ui.scroll) { window.scrollTo(0, ui.scroll); ui.scroll = 0; }
@@ -116,7 +122,7 @@ const perBase = (price, u, g, rate) => (+price || 0) / (+rate || (u ? uRate(u, g
 const margin = (p, c) => p > 0 && c > 0 ? ((p - c) / p * 100).toFixed(1) + '%' : '—';
 export function goodsPage(view, gid) {
   const g = store.get('goods', gid) || store.list('goods').find(x => String(x.code).toUpperCase() === String(gid).toUpperCase());
-  if (!g) { view.innerHTML = `<div class="hd"><a class="back" href="#stock">‹ 查庫存</a></div><div class="card ph"><b>找不到這個商品</b><span class="muted">${esc(gid)}</span></div>`; return; }
+  if (!g) { view.innerHTML = `<div class="hd"><a class="back" href="#stock">‹ 查商品</a></div><div class="card ph"><b>找不到這個商品</b><span class="muted">${esc(gid)}</span></div>`; return; }
   const C = calc(); const cid = custId(); const c = cid ? store.get('contacts', cid) : null;
   const whs = store.list('warehouses'); const t = total(C, g.id);
   const cost = costOf({ gid: g.id, qty: 1, price: 0 }, today(), C.purIdx, C.g, C.poIdx, true);
@@ -127,7 +133,7 @@ export function goodsPage(view, gid) {
   // 最近進貨（供應商）：新平台＋舊系統進貨單（成本計算用的同一份）
   const purs = (C.purIdx[g.id] || []).slice().sort((a, b) => b.d - a.d);
 
-  view.innerHTML = `<div class="hd"><a class="back" href="#stock">‹ 查庫存</a></div>
+  view.innerHTML = `<div class="hd"><a class="back" href="#stock">‹ 查商品</a></div>
     <div class="card"><div class="gname">${esc(g.name)}</div><div class="muted mono">${esc(g.code)}${g.spec ? '　' + esc(g.spec) : ''}${g.cat ? '　' + esc(g.cat) : ''}</div></div>
     <div class="btn2"><button class="btn" id="tobill">加入出貨單</button><a class="btn ghost" href="#lbl/g/${encodeURIComponent(g.id)}">印標籤</a></div>
     <p><a class="btn ${stockTag(C, g) ? '' : 'ghost'}" href="#po/g/${encodeURIComponent(g.id)}">${stockTag(C, g) ? '缺貨，' : ''}建立採購單</a></p>
@@ -135,7 +141,7 @@ export function goodsPage(view, gid) {
     <div class="card list">${whs.map(w => `<div class="row"><span>${esc(w.name)}</span><span class="go">${fmtQ((C.stock[g.id] || {})[w.id] || 0)} ${esc(g.unit || '')}</span></div>`).join('')}
       <div class="row"><b>合計</b><span class="go"><b>${C.stock[g.id] ? fmtQ(t) : '—'}</b> ${esc(g.unit || '')} ${stockTag(C, g)}</span></div>
       ${+g.safety > 0 ? `<div class="row muted"><span>安全庫存</span><span class="go">${fmtQ(g.safety)}</span></div>` : ''}${C.stock[g.id] ? '' : '<div class="row muted">新平台還沒有這項的進出貨紀錄</div>'}</div>
-    <p><button class="btn ghost" id="adj">修改庫存（盤點）</button></p>
+    <p><button class="btn ghost" id="adj">盤點庫存（修改數量）</button></p>
     <div class="btn2"><button class="btn ghost" id="ged">修改商品資料</button><button class="btn ghost" id="gcp">複製成新商品</button></div>
     <div class="sec">價格（每 ${esc(g.unit || '單位')}）</div>
     <div class="card list">
@@ -181,7 +187,7 @@ async function recentSales(box, g, C) {
 function adjustStock(g, done) {
   const C = calc(); const whs = store.list('warehouses');
   const el = document.createElement('div'); el.className = 'sheet';
-  el.innerHTML = `<div class="sheet-hd"><button class="link" data-x>取消</button><b>修改庫存</b><span style="width:40px"></span></div>
+  el.innerHTML = `<div class="sheet-hd"><button class="link" data-x>取消</button><b>盤點庫存</b><span style="width:40px"></span></div>
     <div class="card"><b>${esc(g.name)}</b><div class="muted mono">${esc(g.code)}</div></div>
     <div class="note" style="text-align:left">在「實際數量」填點到的數量，差異會自動開一張其他入庫或其他出庫補平，電腦版「庫存 › 出入庫」查得到。沒填的倉庫不調整。</div>
     <div class="card list">${whs.map(w => { const q = (C.stock[g.id] || {})[w.id] || 0; return `<div class="row"><div class="gm"><b>${esc(w.name)}</b><small>系統 ${fmtQ(q)} ${esc(g.unit || '')}・<span data-d="${w.id}">差異 —</span></small></div><input class="inl adjq" data-w="${w.id}" data-sys="${q}" inputmode="decimal" placeholder="${fmtQ(q)}" style="width:110px;border:1px solid var(--line);border-radius:10px;padding:8px 10px"></div>`; }).join('')}</div>
