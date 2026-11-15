@@ -57,7 +57,7 @@ async function draw(el, f) {
   const whByName = n => store.list('warehouses').find(w => w.name === n);
   const newCodes = new Set((P.newgoods || []).map(g => g.code));
   for (const k of P.kits || []) {
-    const g = C.g[k.gid]; if (!g) { errs.push(`找不到商品 ${k.label}`); continue; }
+    const g = C.g[k.gid] || (P.newgoods || []).find(n => n.id === k.gid); if (!g) { errs.push(`找不到商品 ${k.label}`); continue; }   // 也可以是這次新建的商品（newgoods 給 id）
     if ((g.bom || []).length) errs.push(`${k.label} 已經有配方，不會覆蓋（要改請到商品資料裡改）`);
     for (const x of k.bom) if (x.gid ? !C.g[x.gid] : !newCodes.has(x.code)) errs.push(`${k.label} 的配方零件 ${x.code || x.gid} 找不到`);
     if (k.cwh && !whByName(k.cwh) && !(P.newwh || []).some(w => w.name === k.cwh)) errs.push(`找不到客供倉 ${k.cwh}`);
@@ -111,15 +111,16 @@ async function draw(el, f) {
     const out = $('#apOut', el);
     try {
       const ops = []; const newId = {};
-      for (const g of P.newgoods || []) { const id = g.id && !store.get('goods', g.id) ? g.id : uid('g'); newId[g.code] = id; ops.push({ col: 'goods', id, data: { code: g.code, name: g.name, spec: '', vcode: g.vcode || '', cat: g.cat, unit: g.unit, salePrice: 0, purPrice: g.purPrice, cost: 0, safety: 0, note: g.note || P.goodsNote || '' } }); }
+      for (const g of P.newgoods || []) { const id = g.id && !store.get('goods', g.id) ? g.id : uid('g'); newId[g.code] = id; ops.push({ col: 'goods', id, data: { code: g.code, name: g.name, spec: g.spec || '', vcode: g.vcode || '', cat: g.cat, unit: g.unit, salePrice: 0, purPrice: g.purPrice, cost: 0, safety: 0, note: g.note || P.goodsNote || '' } }); }
       const whId = {}; for (const w of P.newwh || []) { const ex = whByName(w.name); if (ex) whId[w.name] = ex.id; else { const id = uid('w'); whId[w.name] = id; ops.push({ col: 'warehouses', id, data: { name: w.name } }); } }
       for (const k of P.kits || []) {
-        const d = { ...store.get('goods', k.gid) }; delete d.id;
+        const nk = (P.newgoods || []).find(n => n.id === k.gid); const kid = nk ? newId[nk.code] : k.gid;
+        const d = { ...(store.get('goods', kid) || ops.find(o => o.col === 'goods' && o.id === kid)?.data) }; delete d.id;
         d.bom = k.bom.map(x => ({ gid: x.gid || newId[x.code], qty: +x.qty, ...(x.cust ? { cust: true } : {}) }));
         if (+k.labor) d.labor = +k.labor;
         const cw = k.cwh && (whId[k.cwh] || whByName(k.cwh)?.id); if (cw) d.cwid = cw;
         if (k.custName && !d.custName) d.custName = k.custName;
-        ops.push({ col: 'goods', id: k.gid, data: d });
+        const oi = ops.findIndex(o => o.col === 'goods' && o.id === kid); if (oi >= 0) ops[oi] = { col: 'goods', id: kid, data: d }; else ops.push({ col: 'goods', id: kid, data: d });
       }
       if (P.wt) { const w = { ...store.get('goods', P.wt.gid) }; delete w.id; w.wt = P.wt.wt; ops.push({ col: 'goods', id: P.wt.gid, data: w }); }
       for (const u of upTodo) { const d = { ...store.get(u.col, u.id), ...u.set, updatedAt: Date.now(), updatedBy: store.user.id }; delete d.id; ops.push({ col: u.col, id: u.id, data: d }); }
