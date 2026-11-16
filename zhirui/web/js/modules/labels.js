@@ -7,10 +7,16 @@ import { api } from '../core/api.js';
 
 export const LBL_TYPES = [['fy', '豐餘標籤'], ['ry', '如陽標籤'], ['fm', '豐民標籤'], ['cc', '朝程標籤'], ['yb', '元貝標籤'], ['gen', '一般標籤']];
 const LBL_READY = { fy: 1, ry: 1, gen: 1 };
+const CUST = LBL_TYPES.filter(x => x[0] !== 'gen');   // 有客戶名稱的標籤：用下拉選
+// 上方切換：一般標籤在最左邊，客戶標籤用下拉（括號是已導入幾項）
+const typeBar = t => `${tabs('lt', [['gen', '一般標籤'], ['cust', '客戶標籤']], t === 'gen' ? 'gen' : 'cust')}${t === 'gen' ? '' : `<select id="lbl-cust" style="width:auto;margin-left:8px" aria-label="客戶標籤種類">${CUST.map(([k, v]) => { const n = store.list('labels').filter(x => x.type === k).length; return `<option value="${k}" ${k === t ? 'selected' : ''}>${v}${n ? `（${n}）` : ''}</option>`; }).join('')}</select>`}`;
+function bindTypeBar(el) {
+  $('#lbl-cust', el)?.addEventListener('change', ev => { ui.tab = ui.cust = ev.target.value; draw(el); });
+}
 // 如陽標籤：品名去掉 ⊕Θ 等符號（「⊕皿頭螺絲4*10」→「皿頭螺絲」）；規格補 M 和 L（4*10 → M4*10L）
 const ryName = name => genName(name).replace(/^[^\p{L}\p{N}]+/u, '');
 const rySpec = name => { let x = genSpec(name).spec; if (/^\d+(\.\d+)?\*/.test(x)) x = 'M' + x; if (/^M[\d.]+\*[\d.]+$/.test(x)) x += 'L'; return x; };
-const ui = { tab: 'fy', date: today(), genMode: 'goods', genF: { q: '', name: '', spec: '', qty: '', unit: 'PCS', copies: '1' } };
+const ui = { tab: 'fy', cust: 'fy', date: today(), genMode: 'goods', genF: { q: '', name: '', spec: '', qty: '', unit: 'PCS', copies: '1' } };
 const cfg = () => store.setting('labels');
 const size = () => cfg().size || '54';
 export default {
@@ -37,19 +43,20 @@ const genSpec = name => { const s = String(name || '').replace(/[＊×xX]/g, '*'
 const genName = name => { const s = String(name || ''); const { at } = genSpec(s); let n = (at > 0 ? s.slice(0, at) : s.split(/\s+/)[0]).trim(); const lead = (n.match(/^[^\p{L}\p{N}]+/u) || [''])[0]; let body = n.slice(lead.length); const ch = [...body]; if (ch.length > 7) body = ch.slice(-7).join(''); return lead + body; };
 
 function draw(el) {
+  if (ui.tab !== 'gen') ui.cust = ui.tab;
   const t = ui.tab; const items = store.list('labels').filter(x => x.type === t).sort((a, b) => (a.at || 0) - (b.at || 0)); const name = LBL_TYPES.find(x => x[0] === t)[1];
   const sizeSel = `<div class="f" style="width:130px"><label for="lbl-size">標籤尺寸</label><select id="lbl-size"><option value="54" ${size() === '54' ? 'selected' : ''}>5 × 4 cm</option><option value="88" ${size() === '88' ? 'selected' : ''}>8 × 8 cm</option></select></div>`;
   if (t === 'gen') {
     const F = ui.genF; let total = 0; items.forEach(x => total += Math.max(0, Math.round(+x.copies || 0)));
     const fld = (k, l, ph, attr = '') => `<div class="f" style="width:${k === 'name' ? 220 : k === 'spec' ? 180 : 110}px"><label for="gen-${k}">${l}</label><input id="gen-${k}" data-gen="${k}" value="${esc(F[k])}" placeholder="${ph}" ${attr}></div>`;
-    el.innerHTML = `<div class="head"><h1>標籤列印</h1><span class="sp"></span>${tabs('lt', LBL_TYPES, t)}</div>${addrBar()}
+    el.innerHTML = `<div class="head"><h1>標籤列印</h1><span class="sp"></span>${typeBar(t)}</div>${addrBar()}
       <div class="panel" style="display:grid;gap:10px"><div class="ptitle">新增一般標籤</div>
         ${tabs('gm', [['goods', '從商品帶入'], ['manual', '自己填']], ui.genMode)}
         ${ui.genMode === 'goods' ? `<div class="f" style="max-width:640px"><label for="gen-q">找商品（料號、品名、規格，多個字用空白隔開）</label><div class="combo"><input id="gen-q" value="${esc(F.q)}" placeholder="例如：喇叭 8#"></div></div>` : ''}
         <div class="tools" style="align-items:flex-end">${fld('name', '品名', '')}${fld('spec', '規格', '')}${fld('qty', '數量', '例如 5000', 'inputmode="numeric"')}${fld('unit', '單位', 'PCS')}${fld('copies', '張數', '1', 'type="number" min="1"')}<button class="btn pri" id="genAdd">加入</button></div></div>
       <div class="panel" style="display:grid;gap:10px"><div class="tools"><div class="f" style="width:160px"><label for="lbl-date">打印日期</label><input type="date" id="lbl-date" value="${ui.date}"></div>${sizeSel}<span class="sp"></span>${items.length ? '<button class="btn" id="lblClear">清空一般標籤</button>' : ''}<button class="btn pri" id="lblPrint" ${items.length ? '' : 'disabled'}>列印 ${total} 張</button></div>
         <div class="tw"><table><thead><tr><th>品名</th><th>規格</th><th>數量</th><th>單位</th><th class="n">張數</th><th></th></tr></thead><tbody>${items.map(it => `<tr>${['name', 'spec', 'qty', 'unit'].map(k => `<td><input data-gi="${k}" data-id="${it.id}" value="${esc(it[k] ?? '')}" style="width:${k === 'name' ? 200 : k === 'spec' ? 160 : 90}px;border:1px solid var(--line);border-radius:6px;padding:4px 6px"></td>`).join('')}<td class="n"><input data-gi="copies" data-id="${it.id}" type="number" min="1" value="${esc(it.copies)}" class="num" style="width:70px;border:1px solid var(--line);border-radius:6px;padding:4px 6px"></td><td><button class="btn xs" data-del="${it.id}">✕</button></td></tr>`).join('') || '<tr><td colspan="6"><div class="empty"><b>還沒有要印的標籤</b>在上面選商品或自己填，按「加入」。</div></td></tr>'}</tbody></table></div></div>`;
-    el.addEventListener('tab', ev => { if (ev.detail.key === 'lt') { ui.tab = ev.detail.val; } else { ui.genMode = ev.detail.val; } draw(el); }, { once: true });
+    el.addEventListener('tab', ev => { if (ev.detail.key === 'lt') { ui.tab = ev.detail.val === 'gen' ? 'gen' : ui.cust; } else { ui.genMode = ev.detail.val; } draw(el); }, { once: true }); bindTypeBar(el);
     el.querySelectorAll('[data-gen]').forEach(i => i.addEventListener('input', () => { F[i.dataset.gen] = i.value; }));
     el.querySelectorAll('[data-gen]').forEach(i => i.addEventListener('keydown', ev => { if (ev.key === 'Enter' && !ev.isComposing) { ev.preventDefault(); $('#genAdd', el).click(); } }));
     if ($('#gen-q', el)) combo($('#gen-q', el), { items: () => store.list('goods').map(g => ({ id: g.id, label: goodsLabel(g), sub: g.unit || '', text: goodsLabel(g) })), onPick: it => { const g = store.get('goods', it.id); F.q = goodsLabel(g); F.name = genName(g.name); F.spec = genSpec(g.name).spec; F.unit = !g.unit || String(g.unit).toUpperCase() === 'PCS' ? 'PCS' : g.unit; draw(el); setTimeout(() => $('#gen-qty', el)?.focus(), 0); } });
@@ -60,12 +67,12 @@ function draw(el) {
     const TF = t === 'ry' ? [['pn', '編號（客料號）', 150], ['nm', '品名', 110], ['spec', '規格', 100], ['unit', '單位', 60]] : [['po', '單號（採購單號）', 120], ['pn', '料號（客料號）', 120], ['spec', '短文（品名數字）', 110]];
     const NF = t === 'ry' ? [['qty', '數量', '', ''], ['pack', '每包數量', '空白＝印一張', '']] : [['qty', '數量', '', ''], ['wt', '單重 (g)', '每支幾克', 'step="any"'], ['pack', '每包數量', '每包幾支', '']];
     const C = calc();
-    el.innerHTML = `<div class="head"><h1>標籤列印</h1><span class="sp"></span>${tabs('lt', LBL_TYPES, t)}</div>${addrBar()}
+    el.innerHTML = `<div class="head"><h1>標籤列印</h1><span class="sp"></span>${typeBar(t)}</div>${addrBar()}
       ${!LBL_READY[t] ? `<div class="banner">${esc(name)}的格式還沒定義。告訴我這種標籤要印哪些欄位和版面，就可以開始使用；已導入的商品會先保留在這裡。</div>` : ''}
       <div class="panel" style="display:grid;gap:10px"><div class="tools"><div class="f" style="width:160px"><label for="lbl-date">交貨日期</label><input type="date" id="lbl-date" value="${ui.date}"></div>${t === 'fy' ? `<div class="f" style="width:130px"><label for="lbl-vendor">廠商代號</label><input id="lbl-vendor" value="${esc(cfg().vendor || '501823')}"></div>` : ''}${sizeSel}<span class="muted small" style="align-self:flex-end">在銷貨單按「標籤」勾選商品導入。${t === 'ry' ? '日期印在標籤上。' : ''}</span><span class="sp"></span>${items.length ? `<button class="btn" id="lblClear">清空${esc(name)}</button>` : ''}${LBL_READY[t] ? `<button class="btn pri" id="lblPrint" ${items.length ? '' : 'disabled'}>列印 <span id="lblTotal">${total}</span> 張</button>` : ''}</div>
         <div class="tw"><table><thead><tr><th>銷貨單／商品</th>${TF.map(f => `<th>${f[1]}</th>`).join('')}${NF.map(f => `<th class="n">${f[1]}</th>`).join('')}<th>會印出</th><th></th></tr></thead><tbody>
         ${items.map(it => `<tr><td class="muted small">${esc(it.billNo || '')}<br>${esc(it.name || '')}</td>${TF.map(([k, , w]) => `<td><input data-f="${k}" data-id="${it.id}" value="${esc(it[k] ?? '')}" style="width:${w}px;border:1px solid var(--line);border-radius:6px;padding:4px 6px"></td>`).join('')}${NF.map(([k, , ph, at]) => `<td class="n"><input data-f="${k}" data-id="${it.id}" type="number" ${at} value="${esc(it[k] ?? '')}" placeholder="${ph}" class="num" style="width:90px;border:1px solid var(--line);border-radius:6px;padding:4px 6px"></td>`).join('')}<td id="lp-${it.id}" class="small nowrap">${plan(it)}</td><td><button class="btn xs" data-del="${it.id}">✕</button></td></tr>`).join('') || `<tr><td colspan="${TF.length + NF.length + 3}"><div class="empty"><b>還沒有要印的標籤</b>打開一張銷貨單，按下方「標籤」，勾選要印的商品後導入。</div></td></tr>`}</tbody></table></div></div>`;
-    el.addEventListener('tab', ev => { ui.tab = ev.detail.val; draw(el); }, { once: true });
+    el.addEventListener('tab', ev => { ui.tab = ev.detail.val === 'gen' ? 'gen' : ui.cust; draw(el); }, { once: true }); bindTypeBar(el);
     $('#lbl-vendor', el)?.addEventListener('change', ev => store.saveSetting('labels', { ...cfg(), vendor: ev.target.value.trim() }));
     el.querySelectorAll('[data-f]').forEach(inp => inp.addEventListener('change', async () => {
       const it = store.get('labels', inp.dataset.id); if (!it) return; const k = inp.dataset.f; const d = { ...it, [k]: inp.value }; delete d.id;
