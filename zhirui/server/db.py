@@ -13,6 +13,8 @@ import time
 import hashlib
 import secrets
 
+SESSION_IDLE = 90 * 86400 * 1000   # 登入多久沒用就失效（毫秒）
+
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS docs(
   col TEXT NOT NULL, id TEXT NOT NULL, data TEXT NOT NULL,
@@ -528,8 +530,10 @@ class DB:
         if not token:
             return None
         with self.lock:
+            # 90 天沒用過的登入自動失效（每次使用都會延長）
             row = self.conn.execute(
-                'SELECT u.id, u.name, u.login, u.role FROM sessions s JOIN users u ON u.id=s.uid WHERE s.token=? AND u.disabled=0', (token,)).fetchone()
+                'SELECT u.id, u.name, u.login, u.role FROM sessions s JOIN users u ON u.id=s.uid WHERE s.token=? AND u.disabled=0 AND s.last>?',
+                (token, int(time.time() * 1000) - SESSION_IDLE)).fetchone()
             if not row:
                 return None
             self.conn.execute('UPDATE sessions SET last=? WHERE token=?', (int(time.time() * 1000), token))

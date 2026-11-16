@@ -73,10 +73,15 @@ LIVE_COLS = ['settings', 'contacts', 'goods', 'warehouses', 'accounts', 'bills',
              'pricing_cats', 'pricing', 'discounts', 'receivables', 'payables', 'invoices', 'purch_invoices',
              'checks_out', 'checks_in', 'orders', 'drawings', 'labels', 'mail', 'logs', 'faxjobs', 'printjobs', 'drafts', 'uploads']
 COOKIE = 'zr_session'
+PW_MIN = 6   # 新設密碼最少幾碼（舊密碼不受影響）
 LONG_POLL = 25
 # 附檔（客戶圖面）
 FILE_TYPES = {'.jpg': 'image/jpeg', '.png': 'image/png', '.gif': 'image/gif', '.webp': 'image/webp', '.pdf': 'application/pdf'}
 FILE_MAX = 25 * 1024 * 1024
+# 信件附件可以直接在網頁打開的類型（其他一律下載）
+# 只有老闆帳號能呼叫的功能（POST）
+ADMIN_ONLY = {'/api/optimize', '/api/ai', '/api/contacts/merge', '/api/restart'}
+MAIL_INLINE = {'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/bmp', 'application/pdf'}
 # 接收傳真：瀏覽這個資料夾裡的傳真檔（PDF、圖檔；TIF 會轉成 PNG 給瀏覽器看）
 FAXIN_DIR = os.environ.get('ZR_FAX_IN') or os.path.normpath(os.path.join(HERE, '..', 'fax'))
 FAXIN_EXT = {'.pdf', '.tif', '.tiff', '.jpg', '.jpeg', '.png', '.gif', '.bmp'}
@@ -95,6 +100,36 @@ FILE_RE = re.compile(r'^/api/files/([0-9a-f]{16}\.(?:jpg|png|gif|webp|pdf))(/del
 
 
 FAX_HELPER = {}
+# 登入失敗次數：同一個來源或同一個帳號 15 分鐘內錯 10 次 → 鎖 15 分鐘（防止一直猜密碼）
+LOGIN_FAILS = {}
+LOGIN_LOCK = threading.Lock()
+LOGIN_MAX, LOGIN_WINDOW = 10, 15 * 60
+
+
+def login_locked(keys):
+    now = time.time()
+    with LOGIN_LOCK:
+        wait = 0
+        for k in keys:
+            ts = [t for t in LOGIN_FAILS.get(k, []) if now - t < LOGIN_WINDOW]
+            LOGIN_FAILS[k] = ts
+            if len(ts) >= LOGIN_MAX:
+                wait = max(wait, LOGIN_WINDOW - (now - ts[-LOGIN_MAX]))
+        return int(wait)
+
+
+def login_failed(keys):
+    with LOGIN_LOCK:
+        if len(LOGIN_FAILS) > 5000:
+            LOGIN_FAILS.clear()
+        for k in keys:
+            LOGIN_FAILS.setdefault(k, []).append(time.time())
+
+
+def login_ok(keys):
+    with LOGIN_LOCK:
+        for k in keys:
+            LOGIN_FAILS.pop(k, None)
 PRINT_HELPER = {}
 ASR = {'model': None}
 ASR_LOCK = threading.Lock()
@@ -182,6 +217,10 @@ class Handler(BaseHTTPRequestHandler):
         if gz:
             self.send_header('Content-Encoding', 'gzip')
         self.send_header('Cache-Control', cache if isinstance(cache, str) else ('public, max-age=3600' if cache else 'no-store'))
+        # 安全標頭：瀏覽器不准猜檔案類型、別的網站不能把本平台嵌進框架、連到外站不帶網址
+        self.send_header('X-Content-Type-Options', 'nosniff')
+        self.send_header('X-Frame-Options', 'SAMEORIGIN')
+        self.send_header('Referrer-Policy', 'same-origin')
         for k, v in (headers or {}).items():
             self.send_header(k, v)
         self.end_headers()
@@ -208,6 +247,12 @@ class Handler(BaseHTTPRequestHandler):
 
     def user(self):
         return self.state.db.session_user(self.cookie())
+
+    def client_ip(self):
+        ip = self.client_address[0]
+        if ip in ('127.0.0.1', '::1'):   # Tailscale serve 轉進來的：真正的來源在 X-Forwarded-For
+            ip = (self.headers.get('X-Forwarded-For') or ip).split(',')[0].strip() or ip
+        return ip
 
     # ---------- 路由 ----------
     def do_HEAD(self):
@@ -355,9 +400,15 @@ class Handler(BaseHTTPRequestHandler):
             if not r:
                 return self.error('找不到附件', 404)
             a, data = r
-            disp = 'attachment' if q('dl') else 'inline'
-            return self.send_bytes(data, a.get('type') or 'application/octet-stream', cache='no-store',
-                                   headers={'Content-Disposition': f"{disp}; filename*=UTF-8''{quote(a['name'])}"})
+            # 附件類型是寄件人自己標的，不可信：只有圖片、PDF 可以直接在網頁看，其他（HTML、SVG、程式…）一律下載，
+            # 否則惡意的 HTML 附件一點開就會用登入者的身分執行。另外加 CSP sandbox，就算瀏覽器打開也不能跑程式
+            ctype = (a.get('type') or '').lower().split(';')[0].strip()
+            safe = ctype in MAIL_INLINE
+            disp = 'attachment' if q('dl') or not safe else 'inline'
+            hd = {'Content-Disposition': f"{disp}; filename*=UTF-8''{quote(a['name'])}"}
+            if ctype != 'application/pdf':
+                hd['Content-Security-Policy'] = 'sandbox'
+            return self.send_bytes(data, ctype if safe else 'application/octet-stream', cache='no-store', headers=hd)
         if path == '/api/email/cfg' and method == 'GET':
             return self.send_json(MB.cfg_public(dd))
         ids = [str(x) for x in (body.get('ids') or [])][:500]
@@ -503,22 +554,31 @@ class Handler(BaseHTTPRequestHandler):
         q = lambda k, d=None: (qs.get(k) or [d])[0]  # noqa: E731
 
         if path == '/api/status':
+            if not self.user():   # 沒登入只給登入畫面需要的
+                return self.send_json({'needSetup': db.user_count() == 0, 'started': START_AT, 'time': int(time.time() * 1000)})
             return self.send_json(self.status())
         if path == '/api/setup' and method == 'POST':
             if db.user_count():
                 return self.error('已經有帳號了，請直接登入', 403)
             b = body or {}
-            if not b.get('login') or not b.get('pw') or len(b['pw']) < 4:
-                return self.error('請填帳號與至少 4 碼的密碼')
+            if not b.get('login') or not b.get('pw') or len(b['pw']) < PW_MIN:
+                return self.error('請填帳號與至少 %d 碼的密碼' % PW_MIN)
             uid = db.add_user(b.get('name') or b['login'], b['login'], b['pw'])
             token = db.login(b['login'], b['pw'], self.headers.get('User-Agent', ''))
             return self.send_json({'ok': True, 'id': uid}, headers={'Set-Cookie': self.set_cookie(token)})
         if path == '/api/login' and method == 'POST':
             b = body or {}
+            keys = ('ip:' + self.client_ip(), 'id:' + str(b.get('login') or '').strip().lower())
+            wait = login_locked(keys)
+            if wait:
+                return self.error('密碼錯太多次，請 %d 分鐘後再試' % max(1, (wait + 59) // 60), 429)
             token = db.login(b.get('login') or '', b.get('pw') or '', self.headers.get('User-Agent', ''))
             if not token:
+                login_failed(keys)
+                sys.stderr.write('login failed %s %s\n' % keys)
                 time.sleep(0.5)
                 return self.error('帳號或密碼不對', 401)
+            login_ok(keys)
             return self.send_json({'ok': True, 'user': db.session_user(token)}, headers={'Set-Cookie': self.set_cookie(token)})
 
         if path.startswith('/api/fax/helper/'):
@@ -557,6 +617,8 @@ class Handler(BaseHTTPRequestHandler):
                     return self.error('不認識的集合：' + str(op['col']))
                 if not op.get('delete') and not isinstance(op.get('data'), dict):
                     return self.error('data 要是物件')
+                if op['col'] == 'logs' and me.get('role', 'admin') != 'admin' and (op.get('delete') or db.get('logs', str(op['id'])) is not None):
+                    return self.error('操作日誌只能新增，不能修改或刪除', 403)
             res = db.batch(ops, me['id'])
             return self.send_json({'ok': True, 'ver': db.ver, 'results': res})
         if path == '/api/hist':
@@ -576,8 +638,8 @@ class Handler(BaseHTTPRequestHandler):
             return self.error('只有老闆帳號可以新增或修改帳號', 403)
         if path == '/api/users' and method == 'POST':
             b = body or {}
-            if not b.get('login') or not b.get('pw') or len(b['pw']) < 4:
-                return self.error('請填帳號與至少 4 碼的密碼')
+            if not b.get('login') or not b.get('pw') or len(b['pw']) < PW_MIN:
+                return self.error('請填帳號與至少 %d 碼的密碼' % PW_MIN)
             if any(u['login'] == b['login'].strip().lower() for u in db.users()):
                 return self.error('這個帳號已經存在')
             uid = db.add_user(b.get('name') or b['login'], b['login'], b['pw'], 'admin' if b.get('role') == 'admin' else 'staff')
@@ -586,8 +648,8 @@ class Handler(BaseHTTPRequestHandler):
             uid = path.rsplit('/', 1)[1]
             b = body or {}
             if 'pw' in b and b['pw']:
-                if len(b['pw']) < 4:
-                    return self.error('密碼至少 4 碼')
+                if len(b['pw']) < PW_MIN:
+                    return self.error('密碼至少 %d 碼' % PW_MIN)
                 db.set_password(uid, b['pw'])
             if b.get('disabled') and sum(1 for u in db.users() if not u['disabled']) <= 1:
                 return self.error('至少要保留一個可用帳號')
@@ -620,6 +682,8 @@ class Handler(BaseHTTPRequestHandler):
             disp = 'attachment' if q('dl') else 'inline'
             return self.send_bytes(data, FILE_TYPES.get(ext, 'application/octet-stream'), cache=True,
                                    headers={'Content-Disposition': f"{disp}; filename*=UTF-8''{quote(name)}"})
+        if path in ADMIN_ONLY and method == 'POST' and me.get('role', 'admin') != 'admin':
+            return self.error('只有老闆帳號可以做這件事', 403)
         if path == '/api/optimize' and method == 'POST':
             # 先備份；備份失敗就不整理，避免沒有退路
             ok, msg = run_backup(self.state, manual=True)
@@ -790,7 +854,7 @@ class Handler(BaseHTTPRequestHandler):
     def fax_helper_api(self, method, path, qs, body):
         """傳真小幫手（在使用者桌面執行）：/next 取下一張待傳真、/report 回報結果；用 data/fax_helper.json 的 token 驗證"""
         tok = (qs.get('token') or [''])[0] or body.get('token') or ''
-        if not tok or tok != fax_token(self.state.data_dir):
+        if not tok or not secrets.compare_digest(str(tok), fax_token(self.state.data_dir)):
             return self.error('token 不對', 403)
         db = self.state.db
         FAX_HELPER['seen'] = time.time()
@@ -823,7 +887,7 @@ class Handler(BaseHTTPRequestHandler):
     def print_helper_api(self, method, path, qs, body):
         """列印小幫手（在伺服器電腦的桌面執行）：/next 取下一張待列印、/report 回報結果；token 和傳真小幫手同一個"""
         tok = (qs.get('token') or [''])[0] or body.get('token') or ''
-        if not tok or tok != fax_token(self.state.data_dir):
+        if not tok or not secrets.compare_digest(str(tok), fax_token(self.state.data_dir)):
             return self.error('token 不對', 403)
         db = self.state.db
         PRINT_HELPER['seen'] = time.time()
