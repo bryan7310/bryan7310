@@ -1,6 +1,6 @@
 // 手機版：應收帳款。未收總額（跟電腦版「應收帳款 › 未收款」同一份資料）、各客戶金額與帳齡、待兌現支票；記錄收款沖帳、拍支票登記。
 import { esc, fmt, money, today, thisMonth, shiftMonth, ymLabel, slash, daysLeft, uid, toHalf } from '../core/util.js';
-import { api } from '../core/api.js';
+import { api, aiOcr } from '../core/api.js';
 import { store } from '../core/store.js';
 import { cdisp } from '../core/calc.js';
 import { arSummary, allOpen, isLate, saveRow } from '../modules/receivables.js';
@@ -114,7 +114,7 @@ export const shrink = (file, max = 1800, q = 0.85) => new Promise((ok, bad) => {
 async function snapCheck(file, done) {
   const w = sheet('拍支票', '<div class="card ph"><b>辨識中…</b><span class="muted">約 10～30 秒</span></div>');
   let list;
-  try { const r = await api.post('/api/ocr/check', { image: await shrink(file) }); list = (Array.isArray(r.checks) && r.checks.length ? r.checks : [r.fields || {}]).map(preOf); }
+  try { const r = await aiOcr('/api/ocr/check', { image: await shrink(file) }); list = (Array.isArray(r.checks) && r.checks.length ? r.checks : [r.fields || {}]).map(preOf); }
   catch (e) { w.close(); toast(e.message || '辨識失敗'); return; }
   w.close();
   const next = i => { if (i >= list.length) { toast(`${list.length} 張支票都登記好了`); done(); return; } checkForm(list[i], i, list.length, () => next(i + 1), done); };

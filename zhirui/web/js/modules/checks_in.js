@@ -1,9 +1,9 @@
 // 支票登記：登記收到的客票、依到期日送代收、帳戶分類
 import { $, esc, money, today, roc, slash, parseNum, uid, daysLeft, qTerms, matchQ, toHalf, addDays, copyText } from '../core/util.js';
 import { store } from '../core/store.js';
-import { toast, modal, confirm, tabs, combo, pager, printHTML, onSearch } from '../core/ui.js';
+import { toast, modal, confirm, tabs, combo, pager, printHTML, onSearch, askOcrDup } from '../core/ui.js';
 import { customers, cshort, cdisp } from '../core/calc.js';
-import { api } from '../core/api.js';
+import { api, aiOcr } from '../core/api.js';
 import { printName } from '../core/names.js';
 
 const DEFAULT_ACCOUNTS = [{ id: 'chao', code: '超', bank: '上海銀行', holder: '陳彥超', alias: '陳彥超,超' }, { id: 'sh', code: '上海', bank: '上海銀行', holder: '志瑞螺絲', alias: '上海,海' }, { id: 'land', code: '土', bank: '土地銀行', holder: '志瑞螺絲', alias: '土銀,土' }];
@@ -111,7 +111,7 @@ function scanCheck() {
     let wait = modal({ title: '辨識中…', width: 360, body: '<div class="muted" style="padding:8px 0">正在讀取支票照片並辨識欄位，請稍候（約 10～30 秒）</div>', footer: '', closeOnBg: false });
     try {
       const image = await shrinkImage(file, 1800, 0.85);
-      const r = await api.post('/api/ocr/check', { image });
+      const r = await aiOcr('/api/ocr/check', { image }, askOcrDup);
       wait.close(); wait = null;
       const list = (Array.isArray(r.checks) && r.checks.length ? r.checks : [r.fields || {}]).map(preOf);
       if (list.length === 1) editCheck(null, list[0]);

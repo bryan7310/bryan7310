@@ -1,13 +1,13 @@
 // 出貨單：中一刀（241×140 mm）列印、格式設定、從 Excel 匯入明細、調整即時庫存、規格圖面快速檢視（移植自舊進銷存）
 import { esc, fmt, fmtQ, today, ls, uid, lineSeq } from '../core/util.js';
 import { store } from '../core/store.js';
-import { toast, modal, confirm, printHTML } from '../core/ui.js';
+import { toast, modal, confirm, printHTML, askOcrDup } from '../core/ui.js';
 import { calc, TYPES, totals, lineAmt, goodsLabel, goodsWt, lineKg, qtyAt, nextNo, defWh, unitPrice, lastSale } from '../core/calc.js';
 import { printName } from '../core/names.js';
 import { spGet, spDims, spSVG, spRows, spTable } from '../core/spec.js';
 import { loadXlsx } from './purchase_import.js';
 import { imageViewer } from '../core/imgview.js';
-import { api } from '../core/api.js';
+import { api, aiOcr } from '../core/api.js';
 
 // ---------- 格式 ----------
 const FONTS = { jh: ['微軟正黑體', '"Microsoft JhengHei","微軟正黑體","PingFang TC","Noto Sans TC",sans-serif'], ming: ['細明體', '"MingLiU","細明體","PMingLiU","新細明體",serif'], pming: ['新細明體', '"PMingLiU","新細明體","MingLiU",serif'], kai: ['標楷體', '"DFKai-SB","BiauKai","標楷體","Kaiti TC",serif'], times: ['Times New Roman＋新細明體', '"Times New Roman","PMingLiU","新細明體",serif'] };
@@ -403,7 +403,7 @@ export async function ruyangRead(f) {
   const pdf = f.type === 'application/pdf' || /\.pdf$/i.test(f.name);
   if (!pdf && !f.type.startsWith('image/')) throw new Error('請選 PDF 或照片');
   const data = pdf ? await fileB64(f) : await shrinkJpeg(f);
-  const r = await api.post('/api/ocr/po', { data, media: pdf ? 'application/pdf' : 'image/jpeg' });
+  const r = await aiOcr('/api/ocr/po', { data, media: pdf ? 'application/pdf' : 'image/jpeg' }, askOcrDup);
   if (!r || !Array.isArray(r.lines)) throw new Error('沒有讀到明細');
   return r;
 }

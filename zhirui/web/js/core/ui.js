@@ -42,6 +42,13 @@ export function confirm(msg, opts = {}) {
     });
   });
 }
+/** 電腦版：同一張照片辨識過時問要用上次結果還是重新辨識（給 api.js 的 aiOcr 用） */
+export async function askOcrDup(d) {
+  const when = new Date(d.t).toLocaleString('zh-TW', { hour12: false });
+  if (await confirm(`這張照片在 ${when} ${d.by ? '由 ' + d.by + ' ' : ''}辨識過了。
+直接用上次的結果不用再花 AI 費用。`, { title: '這張照片辨識過了', ok: '用上次結果', cancel: '重新辨識…' })) return 'reuse';
+  return await confirm('重新辨識會再花一次 AI 費用，確定要重新辨識嗎？', { title: '重新辨識', ok: '重新辨識' }) ? 'again' : null;
+}
 export function prompt(msg, def = '', opts = {}) {
   return new Promise(res => {
     let val = null;

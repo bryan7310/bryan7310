@@ -25,3 +25,20 @@ export const api = {
   updateUser: (id, patch) => call('POST', '/api/users/' + id, patch),
   backup: () => call('POST', '/api/backup', {}),
 };
+
+// ---------- AI 辨識防重複：同一張照片辨識過，伺服器回 dup＋上次結果，先問再決定要不要花錢 ----------
+export const ocrDupMsg = d => `這張照片在 ${new Date(d.t).toLocaleString('zh-TW', { hour12: false })} ${d.by ? '由 ' + d.by + ' ' : ''}辨識過了。`;
+/** ask(dup) 回 'reuse'（用上次結果，免費）、'again'（重新辨識，再花一次錢）或 null（取消） */
+export async function aiOcr(path, body, ask = askOcrDupNative) {
+  const r = await api.post(path, body);
+  if (!r || !r.dup) return r;
+  const how = await ask(r.dup);
+  if (how === 'reuse') { const { dup, ...rest } = r; return rest; }
+  if (how === 'again') return api.post(path, { ...body, again: 1 });
+  throw new ApiError('已取消：這張照片辨識過，沒有重新辨識', 0);
+}
+/** 手機用：系統對話框 */
+export function askOcrDupNative(d) {
+  if (window.confirm(ocrDupMsg(d) + '\n\n按「確定」直接用上次的結果（不花錢）\n按「取消」可以選擇重新辨識')) return 'reuse';
+  return window.confirm('重新辨識會再花一次 AI 費用，確定要重新辨識嗎？') ? 'again' : null;
+}

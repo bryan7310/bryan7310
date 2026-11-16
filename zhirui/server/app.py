@@ -759,20 +759,32 @@ class Handler(BaseHTTPRequestHandler):
             except OcrError as e:
                 return self.error(str(e), e.status)
         if path == '/api/ocr/doc' and method == 'POST':
+            b = body or {}
+            key, hit = ocr_seen(self.state.data_dir, 'doc:' + str(b.get('kind') or ''), b.get('data'), b)
+            if hit:
+                return self.send_json(hit)
             try:
-                return self.send_json(doc_extract(self.state.data_dir, body or {}))
+                r = doc_extract(self.state.data_dir, b)
             except OcrError as e:
                 return self.error(str(e), e.status)
+            ocr_remember(self.state.data_dir, key, r, me)
+            return self.send_json(r)
         if path == '/api/ocr/order' and method == 'POST':
             try:
                 return self.send_json(order_extract(self.state.data_dir, body or {}, self.faxin_path))
             except OcrError as e:
                 return self.error(str(e), e.status)
         if path == '/api/ocr/po' and method == 'POST':
+            b = body or {}
+            key, hit = ocr_seen(self.state.data_dir, 'po', b.get('data'), b)
+            if hit:
+                return self.send_json(hit)
             try:
-                return self.send_json(po_extract(self.state.data_dir, body or {}))
+                r = po_extract(self.state.data_dir, b)
             except OcrError as e:
                 return self.error(str(e), e.status)
+            ocr_remember(self.state.data_dir, key, r, me)
+            return self.send_json(r)
         if path == '/api/vision/status' and method == 'GET':
             try:
                 import vision
@@ -794,13 +806,18 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_json(r)
         if path == '/api/ocr/check' and method == 'POST':
             img = str((body or {}).get('image') or '')
+            key, hit = ocr_seen(self.state.data_dir, 'check', img.split(',', 1)[-1], body or {})
+            if hit:
+                return self.send_json(hit)
             try:
                 checks = ocr_check(self.state.data_dir, img)
             except OcrError as e:
                 return self.error(str(e), e.status)
             if not checks:
                 return self.error('照片裡沒有讀到支票，請重拍（對準、光線夠、整張入鏡）', 422)
-            return self.send_json({'ok': True, 'checks': checks, 'fields': checks[0]})
+            r = {'ok': True, 'checks': checks, 'fields': checks[0]}
+            ocr_remember(self.state.data_dir, key, r, me)
+            return self.send_json(r)
         return self.error('not found', 404)
 
     # ---------- 附檔（客戶圖面）：存在 data/files，檔名是亂數＋副檔名 ----------
@@ -1057,6 +1074,55 @@ OCR_PROMPT = (
     '6. dueDate 到期日：票面「中華民國 年 月 日」，民國年加 1911 換成西元，格式 YYYY-MM-DD（民國 113 年 12 月 31 日 → 2024-12-31）。\n'
     '看不清楚的欄位：字串回空字串、金額回 0，並在 notes 用中文簡短說明。不要猜。'
 )
+
+
+# ---------- AI 辨識防重複：同一張照片（內容一模一樣）辨識過就先提醒，可直接用上次結果、不再花錢 ----------
+# 記在 data/ocr_seen.json：{雜湊: {t, kind, by, result}}，最多留 300 筆
+OCR_SEEN_LOCK = threading.Lock()
+OCR_SEEN_MAX = 300
+
+
+def _seen_file(data_dir):
+    return os.path.join(data_dir, 'ocr_seen.json')
+
+
+def _seen_load(data_dir):
+    try:
+        with open(_seen_file(data_dir), encoding='utf-8') as f:
+            return json.load(f) or {}
+    except Exception:
+        return {}
+
+
+def ocr_seen(data_dir, kind, data, body):
+    """回 (key, 回應)：辨識過且沒有 again → 回應是 {dup:{t,by}, ...上次結果}；否則 None。body.again＝確定要重新辨識"""
+    data = str(data or '').strip()
+    if not data:
+        return None, None
+    key = kind + ':' + hashlib.sha256(data.encode('ascii', 'ignore')).hexdigest()
+    if body.get('again'):
+        return key, None
+    with OCR_SEEN_LOCK:
+        hit = _seen_load(data_dir).get(key)
+    if not hit or not isinstance(hit.get('result'), dict):
+        return key, None
+    return key, dict(hit['result'], dup={'t': hit.get('t'), 'by': hit.get('by') or ''})
+
+
+def ocr_remember(data_dir, key, result, me):
+    if not key or not isinstance(result, dict):
+        return
+    with OCR_SEEN_LOCK:
+        d = _seen_load(data_dir)
+        d.pop(key, None)
+        d[key] = {'t': int(time.time() * 1000), 'by': (me or {}).get('name') or (me or {}).get('login') or '', 'result': result}
+        if len(d) > OCR_SEEN_MAX:
+            for k in sorted(d, key=lambda k: d[k].get('t') or 0)[:len(d) - OCR_SEEN_MAX]:
+                d.pop(k, None)
+        tmp = _seen_file(data_dir) + '.tmp'
+        with open(tmp, 'w', encoding='utf-8') as f:
+            json.dump(d, f, ensure_ascii=False)
+        os.replace(tmp, _seen_file(data_dir))
 
 
 class OcrError(Exception):

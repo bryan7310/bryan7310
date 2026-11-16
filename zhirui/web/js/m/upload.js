@@ -2,7 +2,7 @@
 // 進貨單＝建立進貨單（庫存增加）、廠商報價＝存成詢價單、手寫訂單＝轉成出貨單草稿、支票＝登記客票。
 // 每次上傳記在 uploads 集合（照片存伺服器 data/files），狀態：辨識中 → 待確認 → 已入帳（或失敗可重試）。
 import { esc, fmt, fmtQ, today, uid, ls, slash } from '../core/util.js';
-import { api } from '../core/api.js';
+import { api, aiOcr } from '../core/api.js';
 import { store } from '../core/store.js';
 import { calc, nextNo, defWh, cdisp, cname, customers, suppliers, totals, lineAmt, unitFactor, lastSale } from '../core/calc.js';
 import { piMatch } from '../modules/purchase_import.js';
@@ -73,8 +73,8 @@ async function runOcr(id, url, pdf) {
   const u = store.get('uploads', id); if (!u) return;
   try {
     let result;
-    if (u.kind === 'check') { const r = await api.post('/api/ocr/check', { image: url }); result = { checks: Array.isArray(r.checks) && r.checks.length ? r.checks : [r.fields || {}] }; }
-    else result = await api.post('/api/ocr/doc', { kind: u.kind, data: url.split(',')[1], media: pdf ? 'application/pdf' : 'image/jpeg' });
+    if (u.kind === 'check') { const r = await aiOcr('/api/ocr/check', { image: url }); result = { checks: Array.isArray(r.checks) && r.checks.length ? r.checks : [r.fields || {}] }; }
+    else result = await aiOcr('/api/ocr/doc', { kind: u.kind, data: url.split(',')[1], media: pdf ? 'application/pdf' : 'image/jpeg' });
     const kindParty = (KINDS.find(k => k[0] === u.kind) || [])[2];
     const p = u.kind === 'check' ? null : matchParty(result.party, kindParty);
     await upd(id, { status: 'review', result, cid: p?.id || '', msg: '' });
