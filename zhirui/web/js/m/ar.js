@@ -4,7 +4,7 @@ import { api } from '../core/api.js';
 import { store } from '../core/store.js';
 import { cdisp } from '../core/calc.js';
 import { arSummary, allOpen, isLate, saveRow } from '../modules/receivables.js';
-import { preOf } from '../modules/checks_in.js';
+import { preOf, findDupCheck, dupText } from '../modules/checks_in.js';
 import { pickCustomer } from './stock.js';
 
 const ui = { f: 'all' };
@@ -123,6 +123,7 @@ async function snapCheck(file, done) {
 export function checkForm(p, i, n, onSaved, onCancel) {
   let cid = p.cid || '';
   const { el, close } = sheet(n > 1 ? `第 ${i + 1}／${n} 張` : '登記支票', `<div class="note" style="text-align:left;margin:0 0 8px">已由照片辨識帶入，請逐欄核對${p._ocr?.matched ? '' : p._ocr?.drawer ? `；發票人「${esc(p._ocr.drawer)}」對不到客戶，請選客戶` : ''}${p._ocr?.notes ? `；AI 提醒：${esc(p._ocr.notes)}` : ''}</div>
+    <div class="note" id="cdup" style="text-align:left;margin:0 0 8px;display:none;color:var(--bad);font-weight:600"></div>
     <div class="card">
       <div class="f"><label>客戶</label><button type="button" class="chip" id="cc">${cid ? esc(cdisp(store.get('contacts', cid))) : '選客戶'}</button></div>
       <div class="f"><label for="cn">發票人（名稱）</label><input id="cn" value="${esc(p.name || '')}"></div>
@@ -133,6 +134,11 @@ export function checkForm(p, i, n, onSaved, onCancel) {
       <div class="f"><label for="cnote">備註</label><input id="cnote" value=""></div></div>
     <p><button class="btn" id="ok">登記這張支票</button></p>`);
   el.querySelector('[data-x]').onclick = () => { close(); onCancel(); };
+  // 防呆：同一張支票已經登記過就提醒
+  const cur = () => { const v = id => el.querySelector(id).value.trim(); return { no: v('#cno'), acct: v('#cac'), name: v('#cn'), amt: Math.round(+toHalf(v('#ca')).replace(/[,\s]/g, '')), due: v('#cd') }; };
+  const dupWarn = () => { const x = findDupCheck(cur()); const b = el.querySelector('#cdup'); b.style.display = x ? '' : 'none'; b.textContent = x ? '⚠ 這張支票已經登記過：' + dupText(x) : ''; return x; };
+  ['#cno', '#cac', '#ca', '#cd', '#cn'].forEach(id => el.querySelector(id).addEventListener('change', dupWarn));
+  dupWarn();
   el.querySelector('#cc').onclick = () => pickCustomer(() => {}, id => { cid = id; const c = id ? store.get('contacts', id) : null; el.querySelector('#cc').textContent = c ? cdisp(c) : '選客戶'; if (c && !el.querySelector('#cn').value.trim()) el.querySelector('#cn').value = c.short || c.name; });
   el.querySelector('#ok').onclick = async () => {
     const v = id => el.querySelector(id).value.trim();
@@ -143,6 +149,8 @@ export function checkForm(p, i, n, onSaved, onCancel) {
     if (!name) { toast('請選客戶或填發票人'); return; }
     const doc = { name, bank: v('#cb'), no: toHalf(v('#cno')).toUpperCase(), acct: v('#cac'), due: v('#cd'), amt, note: v('#cnote'), recv: v('#cr') || today() };
     if (cid) doc.cid = cid;
+    const dup = findDupCheck(doc);
+    if (dup && !window.confirm(`這張支票已經登記過（${dupText(dup)}），確定還要再登記一次嗎？`)) return;
     try { await store.save('checks_in', uid('ci'), doc); } catch (e) { toast('登記失敗：' + e.message); return; }
     store.log('新增', `客票 ${name} ${money(amt)}（到期 ${doc.due}，手機拍照）`);
     close(); toast(`已登記 ${name} ${money(amt)}`); onSaved();

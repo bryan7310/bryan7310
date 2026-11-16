@@ -124,6 +124,17 @@ function scanCheck() {
   inp.click();
 }
 /** AI 辨識的一張支票 → 登記客票的預填值 */
+/** 防呆：同一張支票是否已經登記過。票號相同就算（兩邊都有帳號時帳號也要相同）；
+ *  沒有票號時，看發票人＋金額＋到期日都一樣。selfId＝修改中的那張，不跟自己比 */
+const normNo = s => toHalf(String(s || '')).replace(/[\s\-－_.]/g, '').toUpperCase();
+const normAcct = s => toHalf(String(s || '')).replace(/\D/g, '').replace(/^0+/, '');
+export function findDupCheck(x, selfId) {
+  const no = normNo(x.no), acct = normAcct(x.acct);
+  return store.list('checks_in').find(c => c.id !== selfId && (no
+    ? normNo(c.no) === no && (!acct || !normAcct(c.acct) || normAcct(c.acct) === acct)
+    : !normNo(c.no) && String(c.name || '').trim() === String(x.name || '').trim() && +c.amt === +x.amt && c.due === x.due)) || null;
+}
+export const dupText = c => `${c.name || ''}・票號 ${c.no || '—'}・${money(c.amt)} 元・${roc(c.due)} 到期・${roc(c.recv)} 收到${c.col ? '・已送代收' : ''}`;
 export function preOf(f) {
   const drawer = String(f.drawer || '').trim();
   const c = drawer ? matchCustomer(drawer) : null;
@@ -139,7 +150,7 @@ export function reviewChecks(list) {
     footer: '<span class="muted small" id="rvSum"></span><span class="sp"></span><button class="btn" data-close>關閉</button><button class="btn pri" id="rvNext">登記下一張</button>',
     onOpen(el) {
       const draw = () => {
-        el.querySelector('#rvBody').innerHTML = `<p class="muted small" style="margin:0 0 8px">每一張都要人工核對後才會登記。發票人對不到客戶的，打開後請自行選客戶。</p><div class="tw"><table><thead><tr><th>#</th><th>發票人 → 客戶</th><th>付款銀行</th><th>票號</th><th class="n">金額</th><th>到期日</th><th></th></tr></thead><tbody>${list.map((p, i) => `<tr class="${done.has(i) ? 'muted' : ''}"><td>${i + 1}</td><td>${p._ocr.matched ? `<b>${esc(p.name)}</b>` : p._ocr.drawer ? `${esc(p._ocr.drawer)} <span class="pill">找不到客戶</span>` : '<span class="pill">沒讀到</span>'}${p._ocr.notes ? `<div class="muted small">${esc(p._ocr.notes)}</div>` : ''}</td><td>${esc(p.bank)}</td><td class="mono">${esc(p.no)}</td><td class="n">${p.amt !== '' ? money(p.amt) : '—'}</td><td class="nowrap">${p.due ? roc(p.due) : '—'}</td><td class="r nowrap">${done.has(i) ? '<span class="pill ok">已登記</span>' : `<button class="btn xs pri" data-rv="${i}">登記</button>`}</td></tr>`).join('')}</tbody></table></div>`;
+        el.querySelector('#rvBody').innerHTML = `<p class="muted small" style="margin:0 0 8px">每一張都要人工核對後才會登記。發票人對不到客戶的，打開後請自行選客戶。</p><div class="tw"><table><thead><tr><th>#</th><th>發票人 → 客戶</th><th>付款銀行</th><th>票號</th><th class="n">金額</th><th>到期日</th><th></th></tr></thead><tbody>${list.map((p, i) => `<tr class="${done.has(i) ? 'muted' : ''}"><td>${i + 1}</td><td>${p._ocr.matched ? `<b>${esc(p.name)}</b>` : p._ocr.drawer ? `${esc(p._ocr.drawer)} <span class="pill">找不到客戶</span>` : '<span class="pill">沒讀到</span>'}${p._ocr.notes ? `<div class="muted small">${esc(p._ocr.notes)}</div>` : ''}</td><td>${esc(p.bank)}</td><td class="mono">${esc(p.no)}</td><td class="n">${p.amt !== '' ? money(p.amt) : '—'}</td><td class="nowrap">${p.due ? roc(p.due) : '—'}</td><td class="r nowrap">${done.has(i) ? '<span class="pill ok">已登記</span>' : `${findDupCheck(p) ? '<span class="pill bad" title="同票號的支票已經登記過">已登記過？</span> ' : ''}<button class="btn xs pri" data-rv="${i}">登記</button>`}</td></tr>`).join('')}</tbody></table></div>`;
         el.querySelector('#rvSum').textContent = `已登記 ${done.size} / ${list.length} 張`;
         el.querySelectorAll('[data-rv]').forEach(b => b.onclick = () => open(+b.dataset.rv));
         const nb = el.querySelector('#rvNext'); const next = list.findIndex((_, i) => !done.has(i)); nb.disabled = next < 0; nb.textContent = next < 0 ? '全部登記完成' : `登記第 ${next + 1} 張`;
@@ -183,17 +194,24 @@ function editCheck(c, pre, onSaved) {
       <div class="f"><label for="ck-acct">帳號</label><input id="ck-acct" class="mono" value="${esc(d.acct || '')}"></div><div class="f"><label for="ck-due">到期日</label><input type="date" id="ck-due" value="${esc(d.due || '')}"></div>
       <div class="f"><label for="ck-amt">金額</label><input id="ck-amt" class="num" value="${d.amt !== '' ? money(d.amt) : ''}"></div><div class="f"><label for="ck-recv">收到日</label><input type="date" id="ck-recv" value="${esc(d.recv || '')}"></div>
       <div class="f" style="grid-column:1/-1"><label for="ck-note">備註</label><input id="ck-note" value="${esc(d.note || '')}"></div>
-      ${c?.col ? `<div class="f"><label for="ck-col-a">代收帳戶</label><select id="ck-col-a">${accounts().map(a => `<option value="${a.id}" ${d.col.a === a.id ? 'selected' : ''}>${esc(acctTitle(a))}</option>`).join('')}<option value="" ${!d.col.a || !acctById(d.col.a) ? 'selected' : ''}>其他／未註記${d.col.raw ? `（${esc(d.col.raw)}）` : ''}</option></select></div><div class="f"><label for="ck-col-d">代收日期</label><input type="date" id="ck-col-d" value="${esc(d.col.d || '')}"></div>` : ''}</div><div id="ck-hist" class="muted small"></div>`,
+      ${c?.col ? `<div class="f"><label for="ck-col-a">代收帳戶</label><select id="ck-col-a">${accounts().map(a => `<option value="${a.id}" ${d.col.a === a.id ? 'selected' : ''}>${esc(acctTitle(a))}</option>`).join('')}<option value="" ${!d.col.a || !acctById(d.col.a) ? 'selected' : ''}>其他／未註記${d.col.raw ? `（${esc(d.col.raw)}）` : ''}</option></select></div><div class="f"><label for="ck-col-d">代收日期</label><input type="date" id="ck-col-d" value="${esc(d.col.d || '')}"></div>` : ''}</div><div id="ck-dup" class="banner" style="margin-top:10px;display:none"></div><div id="ck-hist" class="muted small"></div>`,
     footer: `${c ? '<button class="btn danger" id="ck-del">刪除</button>' : ''}${c?.col ? '<button class="btn" id="ck-undo">退回待代收</button>' : ''}<span class="sp"></span><button class="btn" data-close>${c ? '取消' : '關閉'}</button><button class="btn pri" id="ck-ok">${c ? '儲存' : '登記並繼續'}</button>`,
     onOpen(el, close) {
       let cid = d.cid;
       const fill = name => { const h = hist(name); const banks = [...new Set(h.map(x => x.bank).filter(Boolean))]; $('#ck-banks', el).innerHTML = banks.map(b => `<option>${esc(b)}</option>`).join(''); if (h[0] && !c) { if (!$('#ck-bank', el).value) $('#ck-bank', el).value = h[0].bank || ''; if (!$('#ck-acct', el).value) $('#ck-acct', el).value = h[0].acct || ''; } $('#ck-hist', el).innerHTML = h.length ? `最近：${h.slice(0, 3).map(x => `${roc(x.due)} ${esc(x.bank || '')} ${money(x.amt)}`).join('、')}（共 ${h.length} 張）` : ''; };
       combo($('#ck-name', el), { items: () => { const names = new Map(); customers().forEach(x => names.set(x.short || x.name, { id: x.id, label: x.short || x.name, sub: x.name !== (x.short || x.name) ? x.name : '', text: [x.code, x.name, x.short, ...(x.aliases || [])].join(' ') })); store.list('checks_in').forEach(x => { if (x.name && !names.has(x.name)) names.set(x.name, { id: x.cid || null, label: x.name, sub: '', text: x.name }); }); return [...names.values()]; }, allowFree: true, onPick: it => { cid = it.id; fill(it.label); }, onBlur: v => fill(v) });
       if (d.name) fill(d.name);
+      // 防呆：票號／帳號／金額一改就檢查是不是已經登記過
+      const cur = () => ({ no: $('#ck-no', el).value, acct: $('#ck-acct', el).value, name: $('#ck-name', el).value.trim(), amt: parseNum($('#ck-amt', el).value), due: $('#ck-due', el).value });
+      const dupWarn = () => { const x = findDupCheck(cur(), d.id); const b = $('#ck-dup', el); b.style.display = x ? '' : 'none'; b.innerHTML = x ? `⚠ 這張支票已經登記過：${esc(dupText(x))}` : ''; return x; };
+      ['ck-no', 'ck-acct', 'ck-amt', 'ck-due', 'ck-name'].forEach(id => $('#' + id, el).addEventListener('change', dupWarn));
+      dupWarn();
       $('#ck-ok', el).onclick = async () => {
         const amt = parseNum($('#ck-amt', el).value); const name = $('#ck-name', el).value.trim();
         if (!name) return toast('請填客戶'); if (!(amt > 0)) return toast('金額要大於 0'); if (!$('#ck-due', el).value) return toast('請填到期日');
         const out = { ...d, cid, name, bank: $('#ck-bank', el).value.trim(), no: toHalf($('#ck-no', el).value).trim().toUpperCase(), acct: $('#ck-acct', el).value.trim(), due: $('#ck-due', el).value, amt, recv: $('#ck-recv', el).value, note: $('#ck-note', el).value.trim() }; delete out.id;
+        const dup = findDupCheck(out, d.id);
+        if (dup && !await confirm(`這張支票已經登記過（${dupText(dup)}），確定還要再登記一次嗎？`, { danger: true, ok: '仍要登記' })) return;
         if (c?.col) { const a = $('#ck-col-a', el).value; out.col = { d: $('#ck-col-d', el).value || '', a, raw: a ? '' : (d.col.raw || '') }; }
         await store.save('checks_in', d.id || uid('ci'), out); toast(`已登記 ${name} ${money(amt)}`);
         if (c || pre) close(); else { ['ck-no', 'ck-amt', 'ck-note', 'ck-due'].forEach(id => $('#' + id, el).value = ''); $('#ck-name', el).focus(); }

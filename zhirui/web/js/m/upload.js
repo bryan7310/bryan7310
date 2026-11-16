@@ -6,7 +6,7 @@ import { api } from '../core/api.js';
 import { store } from '../core/store.js';
 import { calc, nextNo, defWh, cdisp, cname, customers, suppliers, totals, lineAmt, unitFactor, lastSale } from '../core/calc.js';
 import { piMatch } from '../modules/purchase_import.js';
-import { preOf } from '../modules/checks_in.js';
+import { preOf, findDupCheck } from '../modules/checks_in.js';
 import { checkForm, shrink } from './ar.js';
 import { search } from './stock.js';
 
@@ -195,7 +195,7 @@ async function commit(view, u) {
 }
 function checkReview(u) {
   const list = (u.result?.checks || []).map(preOf); const done = new Set(u.doneChecks || []);
-  return `<div class="sec">辨識到 ${list.length} 張支票</div><div class="card list">${list.map((p, i) => `<div class="row"><div class="gm"><b>${esc(p.name || '（發票人？）')}</b><small>${esc(p.bank || '')}・${esc(p.no || '')}・到期 ${esc(p.due || '?')}</small></div><span class="go">${p.amt ? fmt(p.amt) : '?'} ${done.has(i) ? '<small class="good">已登記</small>' : `<button class="chip" data-ck="${i}">核對登記</button>`}</span></div>`).join('')}</div>
+  return `<div class="sec">辨識到 ${list.length} 張支票</div><div class="card list">${list.map((p, i) => `<div class="row"><div class="gm"><b>${esc(p.name || '（發票人？）')}</b><small>${esc(p.bank || '')}・${esc(p.no || '')}・到期 ${esc(p.due || '?')}</small></div><span class="go">${p.amt ? fmt(p.amt) : '?'} ${done.has(i) ? '<small class="good">已登記</small>' : `${findDupCheck(p) ? '<small class="bad">已登記過？</small> ' : ''}<button class="chip" data-ck="${i}">核對登記</button>`}</span></div>`).join('')}</div>
     <div class="note" style="text-align:left">每一張都要打開核對後才會登記成客票；全部登記完這筆就變「已入帳」。</div>`;
 }
 function bindCheck(view, u) {
