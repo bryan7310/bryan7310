@@ -273,8 +273,8 @@ def _cls_fix(eng, crop):
     net.setInput(pad.transpose(2, 0, 1)[None])
     p = net.forward()[0]
     if int(np.argmax(p)) == 1 and float(p[1]) > 0.9:
-        return cv2.rotate(crop, cv2.ROTATE_180)
-    return crop
+        return cv2.rotate(crop, cv2.ROTATE_180), True
+    return crop, False
 
 
 # ---------- 文字辨識（CTC） ----------
@@ -343,7 +343,7 @@ def _recognize_all(eng, crops):
 
 
 def _group_lines(items):
-    """依 y 座標把框分成一行一行（同一行由左到右）"""
+    """依 y 座標把框分成一行一行（同一行由左到右）；xs＝每格的左右 x（轉正後的座標）"""
     rows = []
     for it in sorted(items, key=lambda t: t['cy']):
         for r in rows:
@@ -357,39 +357,68 @@ def _group_lines(items):
     lines = []
     for r in rows:
         its = sorted(r['items'], key=lambda t: t['x'])
-        lines.append({'text': '  '.join(t['text'] for t in its), 'y': round(r['cy']), 'cells': [t['text'] for t in its]})
+        lines.append({'text': '  '.join(t['text'] for t in its), 'y': round(r['cy']), 'h': round(r['h']),
+                      'cells': [t['text'] for t in its], 'xs': [[round(t['x']), round(t['x1'])] for t in its]})
     return lines
 
 
+def _tall_page(boxes):
+    """大部分的字框是直的 → 整張紙轉了 90 度（傳真橫印、手機橫拍）"""
+    tall = wide = 0.0
+    for pts, _ in boxes:
+        w = float(pts[:, 0].max() - pts[:, 0].min()); h = float(pts[:, 1].max() - pts[:, 1].min())
+        if h >= 2 * w:
+            tall += h
+        elif w >= 2 * h:
+            wide += w
+    return tall > 0 and tall > wide * 1.2
+
+
 def ocr(data_dir, img, min_score=0.5):
-    """img：BGR ndarray → {items:[{text,score,box}], lines:[{text,y,cells}], w, h, ms}"""
+    """img：BGR ndarray → {items:[{text,score,box}], lines:[{text,y,h,cells,xs}], w, h, uw, uh, rot, ms}
+    整張紙轉了 90／180 度會自動轉正：box 仍是原圖座標；lines 的 y、xs 是轉正後的座標（uw×uh），rot＝轉了幾度"""
+    import cv2
     t0 = time.time()
+    H0, W0 = img.shape[:2]
     with _LOCK:
         eng = _engine(data_dir)
-        boxes = _detect(eng, img)
+        src, r90 = img, False
+        boxes = _detect(eng, src)
+        if _tall_page(boxes):
+            src, r90 = cv2.rotate(img, cv2.ROTATE_90_COUNTERCLOCKWISE), True
+            boxes = _detect(eng, src)
         t1 = time.time()
-        keep, crops = [], []
+        keep, crops, flips = [], [], 0
         for pts, dscore in boxes:
-            crop = _crop(img, pts)
+            crop = _crop(src, pts)
             if crop.shape[0] < 4 or crop.shape[1] < 4:
                 continue
             keep.append(pts)
-            crops.append(_cls_fix(eng, crop))
+            c, f = _cls_fix(eng, crop)
+            crops.append(c)
+            flips += f
         recs = _recognize_all(eng, crops)
-        items = []
-        for pts, (text, score) in zip(keep, recs):
-            if not text or score < min_score:
-                continue
-            xs, ys = pts[:, 0], pts[:, 1]
-            items.append({'text': text, 'score': round(score, 3),
-                          'box': [[round(float(x)), round(float(y))] for x, y in pts],
-                          'x': float(xs.min()), 'cy': float(ys.mean()), 'h': float(ys.max() - ys.min())})
+    Hs, Ws = src.shape[:2]
+    r180 = len(crops) >= 3 and flips > len(crops) / 2
+    items = []
+    for pts, (text, score) in zip(keep, recs):
+        if not text or score < min_score:
+            continue
+        up = pts.copy()
+        if r180:
+            up[:, 0] = Ws - 1 - pts[:, 0]; up[:, 1] = Hs - 1 - pts[:, 1]
+        orig = pts.copy()
+        if r90:   # 轉過的圖 (a,b) → 原圖 (W0-1-b, a)
+            orig[:, 0] = W0 - 1 - pts[:, 1]; orig[:, 1] = pts[:, 0]
+        xs, ys = up[:, 0], up[:, 1]
+        items.append({'text': text, 'score': round(score, 3),
+                      'box': [[round(float(x)), round(float(y))] for x, y in orig],
+                      'x': float(xs.min()), 'x1': float(xs.max()), 'cy': float(ys.mean()), 'h': float(ys.max() - ys.min())})
     lines = _group_lines(items)
     for it in items:
-        for k in ('x', 'cy', 'h'):
+        for k in ('x', 'x1', 'cy', 'h'):
             it.pop(k, None)
-    h, w = img.shape[:2]
-    return {'items': items, 'lines': lines, 'w': w, 'h': h,
+    return {'items': items, 'lines': lines, 'w': W0, 'h': H0, 'uw': Ws, 'uh': Hs, 'rot': (90 if r90 else 0) + (180 if r180 else 0),
             'ms': int((time.time() - t0) * 1000), 'det_ms': int((t1 - t0) * 1000)}
 
 
@@ -448,3 +477,58 @@ def run(data_dir, body):
         out['codes_ms'] = int((time.time() - t) * 1000)
     out['w'], out['h'] = int(img.shape[1]), int(img.shape[0])
     return out
+
+
+# ---------- 整份文件（PDF／照片／TIF）→ 一行一行的文字（給單據解析用） ----------
+def _words_lines(page):
+    """PDF 本身有文字（電腦產生的 PDF）：直接取字和位置，不用 OCR"""
+    items = []
+    for x0, y0, x1, y1, w, *_ in page.get_text('words'):
+        if w.strip():
+            items.append({'text': w, 'x': x0 * 2, 'x1': x1 * 2, 'cy': (y0 + y1), 'h': (y1 - y0) * 2})
+    return _group_lines(items), page.rect.height * 2
+
+
+def ocr_document(data_dir, raw, ext, max_pages=3):
+    """raw：檔案內容；ext：.pdf／.jpg／.png／.tif… → {lines, uh, pages, ms, text_layer}
+    多頁時把每頁的 y 往下接成一長串"""
+    import cv2
+    import numpy as np
+    t0 = time.time()
+    ext = (ext or '').lower()
+    pages, text_layer = [], False   # 每頁：('lines', lines, 高) 或 ('img', ndarray)
+    if ext == '.pdf':
+        import pymupdf
+        doc = pymupdf.open(stream=raw, filetype='pdf')
+        for pg in list(doc)[:max_pages]:
+            if len(pg.get_text('words')) >= 10:
+                ls, h = _words_lines(pg)
+                pages.append(('lines', ls, h)); text_layer = True
+            else:
+                pix = pg.get_pixmap(dpi=200, colorspace=pymupdf.csGRAY)
+                img = np.frombuffer(pix.samples, np.uint8).reshape(pix.h, pix.w)
+                pages.append(('img', cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)))
+    else:
+        buf = np.frombuffer(raw, np.uint8)
+        imgs = []
+        if ext in ('.tif', '.tiff') and hasattr(cv2, 'imdecodemulti'):
+            ok, imgs = cv2.imdecodemulti(buf, cv2.IMREAD_COLOR)
+            imgs = list(imgs) if ok else []
+        if not imgs:
+            im = cv2.imdecode(buf, cv2.IMREAD_COLOR)
+            if im is None:
+                raise VisionError('讀不到圖片內容')
+            imgs = [im]
+        pages = [('img', im) for im in imgs[:max_pages]]
+    lines, off = [], 0
+    for p in pages:
+        if p[0] == 'lines':
+            ls, h = p[1], p[2]
+        else:
+            r = ocr(data_dir, p[1])
+            ls, h = r['lines'], r['uh']
+        for l in ls:
+            lines.append(dict(l, y=l['y'] + off))
+        off += h
+    return {'lines': lines, 'uh': off or 1, 'h': off or 1, 'pages': len(pages), 'text_layer': text_layer,
+            'ms': int((time.time() - t0) * 1000)}

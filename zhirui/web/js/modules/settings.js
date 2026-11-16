@@ -140,11 +140,17 @@ async function visionTab(box) {
   let st = { available: false, reason: '查不到狀態' }; try { st = await api.get('/api/vision/status'); } catch (e) { st.reason = e.message; }
   box.innerHTML = `<p class="muted" style="margin:0">自有影像辨識在主機上直接跑，<b>照片不會送到外面、不花 API 費用、斷網也能用</b>。目前提供：文字辨識（印刷字，中英數）與條碼／QR Code。手寫字、印章的準度不如雲端 AI。</p>
     <div class="banner ${st.available ? 'info' : ''}">${st.available ? `可以使用（OpenCV ${esc(st.opencv)}，模型 PP-OCRv6）${st.loaded ? '・模型已載入' : '・第一次辨識會先載入模型'}` : '無法使用：' + esc(st.reason)}</div>
+    <div class="tools" style="margin-bottom:8px"><b>印刷單據（App 拍照上傳的進貨單、報價、訂單；傳真／Email 訂單轉單）</b>
+      <select id="vsEng"><option value="auto">本機優先：讀得完整就不用 AI，讀不完整才送 AI</option><option value="local">只用本機（完全不花錢，讀不完整也給草稿）</option><option value="cloud">只用雲端 AI（跟以前一樣）</option></select>
+      <span class="muted small">支票一律用 AI</span></div>
     <div class="tools"><label class="btn pri" style="cursor:pointer">📷 選照片測試<input id="vsFile" type="file" accept="image/*" hidden></label>
       <div class="tabs" id="vsMode"><button type="button" data-v="all" class="on">文字＋條碼</button><button type="button" data-v="ocr">只辨識文字</button><button type="button" data-v="codes">只讀條碼</button></div>
       <span class="sp"></span><span class="muted small" id="vsMsg"></span></div>
     <div id="vsOut"></div>`;
   let mode = 'all';
+  const eng = $('#vsEng', box);
+  api.get('/api/ai').then(a => { eng.value = a.doc_engine || 'auto'; }).catch(() => { eng.disabled = true; });
+  eng.onchange = async () => { try { await api.post('/api/ai', { doc_engine: eng.value }); toast('已儲存'); } catch (e) { toast(e.message); } };
   box.querySelectorAll('#vsMode button').forEach(b => b.onclick = () => { mode = b.dataset.v; box.querySelectorAll('#vsMode button').forEach(x => x.classList.toggle('on', x === b)); });
   $('#vsFile', box).onchange = async ev => {
     const f = ev.target.files[0]; ev.target.value = ''; if (!f) return;

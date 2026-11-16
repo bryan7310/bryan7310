@@ -767,7 +767,8 @@ class Handler(BaseHTTPRequestHandler):
                 r = doc_extract(self.state.data_dir, b)
             except OcrError as e:
                 return self.error(str(e), e.status)
-            ocr_remember(self.state.data_dir, key, r, me)
+            if r.get('_engine') != 'local':
+                ocr_remember(self.state.data_dir, key, r, me)
             return self.send_json(r)
         if path == '/api/ocr/order' and method == 'POST':
             try:
@@ -1174,6 +1175,8 @@ def ai_update(data_dir, body):
         cfg[kname] = key
     elif body.get('clear'):
         cfg.pop(kname, None)
+    if body.get('doc_engine') in DOC_ENGINES:
+        cfg['doc_engine'] = body['doc_engine']
     if 'model' in body:
         m = re.sub(r'[^A-Za-z0-9._-]', '', str(body.get('model') or ''))
         if m:
@@ -1195,7 +1198,7 @@ def ai_status(data_dir):
     return {'provider': prov, 'configured': bool(key), 'hint': _hint(key),
             'model': c['gemini_model'] if prov == 'gemini' else AI_MODEL,
             'keys': {'gemini': _hint(c.get('gemini_api_key') or ''), 'claude': _hint(c.get('anthropic_api_key') or '')},
-            'mock': bool(os.environ.get('ZR_OCR_MOCK'))}
+            'mock': bool(os.environ.get('ZR_OCR_MOCK')), 'doc_engine': c.get('doc_engine') if c.get('doc_engine') in DOC_ENGINES else 'auto'}
 
 
 # ---------- AI 費用紀錄：每次呼叫 AI 記一行到 data/ai_usage.jsonl（設定 → AI 費用 可以查） ----------
@@ -1653,8 +1656,18 @@ def order_extract(data_dir, body, fax_path):
     blocks = []
     MEDIA = {'.pdf': 'application/pdf', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.gif': 'image/gif', '.webp': 'image/webp'}
 
+    src = []   # 給本機辨識：(檔案內容, 副檔名)
+
     def add_file(fp, ext, data=None):
         ext = (ext or '').lower()
+        try:
+            if data is not None:
+                src.append((data, ext))
+            elif fp:
+                with open(fp, 'rb') as f:
+                    src.append((f.read(), ext))
+        except OSError:
+            pass
         if ext in ('.tif', '.tiff', '.bmp'):
             if fp is None:
                 raise OcrError('TIF 附件請先存成 PDF 或 JPG 再辨識')
@@ -1709,6 +1722,12 @@ def order_extract(data_dir, body, fax_path):
             blocks.append({'type': 'text', 'text': '（這是 Email 附件。信件寄件人：%s <%s>，主旨：%s）' % (m.get('from_name', ''), m.get('from', ''), m.get('subject', ''))})
     else:
         raise OcrError('沒有指定要辨識的傳真或信件')
+    loc = local_first(data_dir, src[0][0], src[0][1], 'order') if src else None
+    if loc and loc.get('ok') is not False:
+        out = doc_to_order(loc)
+        out['_at'] = int(time.time())
+        _order_cache(data_dir, key, out)
+        return out
     mock = os.environ.get('ZR_ORDER_MOCK')
     if mock:   # 測試用：不呼叫 Claude
         with open(mock, encoding='utf-8') as f:
@@ -1750,9 +1769,21 @@ def order_extract(data_dir, body, fax_path):
             out['_usd'] = round((u.input_tokens * 0.10 + u.output_tokens * 0.50) / 1e6, 5)   # Haiku 5.5 價格
     if not isinstance(out, dict) or not isinstance(out.get('lines'), list):
         raise OcrError('沒有讀到訂單明細', 502)
+    out['_engine'] = 'claude'
+    if loc:
+        out['_local_why'] = loc.get('why') or []
     out['_at'] = int(time.time())
     _order_cache(data_dir, key, out)
     return out
+
+
+def doc_to_order(d):
+    """本機辨識結果（DOC_SCHEMA）→ 訂單轉單用的 ORDER_SCHEMA"""
+    return {'buyer': d.get('party') or '', 'buyer_fax': '', 'contact': '', 'doc_type': '採購單', 'po_no': d.get('doc_no') or '',
+            'po_date': d.get('date') or '', 'remark': '', 'doubts': d.get('doubts') or '', '_engine': 'local',
+            'lines': [{'part_no': r.get('code') or '', 'name': ' '.join(x for x in (r.get('name'), r.get('spec')) if x), 'material': '', 'finish': '',
+                       'qty': r.get('qty') or 0, 'unit': r.get('unit') or '', 'price': r.get('price') or 0, 'due': '', 'note': '', 'cancelled': False}
+                      for r in d.get('lines') or []]}
 
 
 def faxidx_loop(state):
@@ -1880,10 +1911,61 @@ def doc_extract(data_dir, body):
     kind = str(body.get('kind') or '')
     if kind not in DOC_PROMPTS:
         raise OcrError('不認識的單據類型')
+    media = str(body.get('media') or '')
+    loc = None
+    try:
+        raw = base64.b64decode(str(body.get('data') or ''))
+    except Exception:
+        raise OcrError('檔案格式不對')
+    loc = local_first(data_dir, raw, {'application/pdf': '.pdf', 'image/png': '.png'}.get(media, '.jpg'), kind)
+    if loc and loc.get('ok') is not False:
+        return loc
     if os.environ.get('ZR_DOC_MOCK'):   # 測試用：回傳固定的辨識結果（json 檔，依 kind 分）
         with open(os.environ['ZR_DOC_MOCK'], encoding='utf-8') as f:
-            return json.load(f).get(kind) or {'party': '', 'doc_no': '', 'date': '', 'doubts': '', 'lines': []}
-    return po_extract(data_dir, body, system=DOC_PROMPTS[kind], schema=DOC_SCHEMA, ask='請讀這張單據，依指定的 JSON 格式回傳。', tag=kind)
+            r = json.load(f).get(kind) or {'party': '', 'doc_no': '', 'date': '', 'doubts': '', 'lines': []}
+    else:
+        r = po_extract(data_dir, body, system=DOC_PROMPTS[kind], schema=DOC_SCHEMA, ask='請讀這張單據，依指定的 JSON 格式回傳。', tag=kind)
+    if loc:
+        r['_local_why'] = loc.get('why') or []
+    r['_engine'] = 'claude'
+    return r
+
+
+# ---------- 印刷單據：本機先讀（不花錢），讀不完整才送 AI ----------
+DOC_ENGINES = ('auto', 'local', 'cloud')   # 本機優先／只用本機／只用雲端 AI
+
+
+def doc_engine(data_dir):
+    e = ai_cfg(data_dir).get('doc_engine')
+    return e if e in DOC_ENGINES else 'auto'
+
+
+def local_first(data_dir, raw, ext, kind):
+    """依設定先用本機辨識。回傳：
+    - None：設定成只用雲端，或本機辨識不能用（沒裝模型）且不是「只用本機」
+    - dict 且 ok 不是 False：可以直接用（ok＝True 讀得完整；只用本機時讀不完整也直接給，ok 拿掉）
+    - dict 且 ok＝False：讀不完整，呼叫端改送 AI（why 記原因）"""
+    eng = doc_engine(data_dir)
+    if eng == 'cloud':
+        return None
+    try:
+        import vision
+        import docparse
+        st = vision.status(data_dir)
+        if not st.get('available'):
+            raise vision.VisionError(st.get('reason') or '本機辨識不能用')
+        t0 = time.time()
+        o = vision.ocr_document(data_dir, raw, ext)
+        r = docparse.parse(o, kind)
+        sys.stderr.write('local-doc %s ok=%s lines=%d %.1fs %s\n' % (kind, r['ok'], len(r['lines']), time.time() - t0, '；'.join(r['why'])[:120]))
+    except Exception as e:  # noqa: BLE001
+        sys.stderr.write('local-doc failed: %s\n' % e)
+        if eng == 'local':
+            raise OcrError('本機辨識失敗：%s' % e, 500)
+        return None
+    if eng == 'local':
+        r.pop('ok', None)
+    return r
 
 
 # ---------- 每日自動備份 ----------

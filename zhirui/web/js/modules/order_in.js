@@ -65,7 +65,7 @@ export async function orderFromDoc(src, title, hint) {
         <div class="f"><label>單別</label><div>${esc(P.doc_type || '—')}</div></div>
         <div class="f"><label>客戶單號</label><div class="mono">${esc(P.po_no || '—')}</div></div>
         <div class="f"><label>單據日期</label><div>${esc(P.po_date ? slash(P.po_date) : '—')}</div></div></div>
-      ${P.doubts ? `<div class="banner">AI 不確定的地方：${esc(P.doubts)}</div>` : ''}${P.remark ? `<div class="banner info">整張單備註：${esc(P.remark)}</div>` : ''}
+      ${P.doubts ? `<div class="banner">${P._engine === 'local' ? '' : 'AI 不確定的地方：'}${esc(P.doubts)}</div>` : ''}${P._local_why?.length ? `<div class="muted small">本機先讀過但不完整（${esc(P._local_why.slice(0, 2).join('；'))}），改用 AI 辨識</div>` : ''}${P.remark ? `<div class="banner info">整張單備註：${esc(P.remark)}</div>` : ''}
       <div class="tw"><table><thead><tr><th style="width:34px"></th><th>單上寫的（客料號・品名）</th><th style="min-width:300px">對到商品</th><th class="n" style="width:110px">數量</th><th style="width:60px">單位</th><th class="n" style="width:100px">單價</th><th style="width:96px">交期</th></tr></thead><tbody>
       ${st.rows.map((x, i) => { const r = x.r; const g = C().g[x.gid]; const top = x.cands.find(c => c.g.id === x.gid);
         return `<tr ${r.cancelled ? 'style="opacity:.5"' : ''}><td><input type="checkbox" data-use="${i}" ${x.use ? 'checked' : ''} ${r.cancelled ? 'disabled title="單上已取消"' : ''}></td>

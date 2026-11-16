@@ -147,7 +147,7 @@ function docReview(u) {
       ${R.party ? `<div class="row src">單據上寫：${esc(R.party)}</div>` : ''}
       <div class="row"><span>單號</span><span class="go">${esc(R.doc_no || '—')}</span></div>
       <div class="row"><span>日期</span><input type="date" id="rd" class="inl" value="${esc(rv[u.id].date || R.date || today())}"></div></div>
-    ${R.doubts ? `<div class="note" style="text-align:left">AI 提醒：${esc(R.doubts)}</div>` : ''}
+    ${R.doubts ? `<div class="note" style="text-align:left">${R._engine === 'local' ? '' : 'AI 提醒：'}${esc(R.doubts)}</div>` : ''}${R._engine === 'local' ? '' : R._local_why?.length ? `<div class="muted small" style="margin:4px 0">本機先讀過但不完整（${esc(R._local_why.slice(0, 2).join('；'))}），改用 AI 辨識</div>` : ''}
     <div class="sec">明細 <span class="muted">${lines.filter(l => l.on).length}／${lines.length} 項・對不到商品的請點「選商品」</span></div>
     <div id="rl">${lines.map((l, i) => { const g = l.gid ? C.g[l.gid] : null; return `<div class="card ln ${l.on ? '' : 'off'} ${l.on && (!g || !l.sure) ? 'warnbox' : ''}" data-i="${i}">
       <div class="lnh"><div class="gm"><small>單據：${esc(l.src)}</small><b>${g ? esc(g.name) : '<span class="bad">對不到商品</span>'}</b><small>${g ? esc(g.code) : ''}${l.pnote ? '・單價：' + esc(l.pnote) : ''}</small>${g && !l.sure ? `<div class="err" style="margin:4px 0 0">AI 配對不確定：是這個商品嗎？ <button class="chip" data-yes="${i}">對，是這個</button></div>` : ''}</div><label class="check" style="margin:0"><input type="checkbox" data-on ${l.on ? 'checked' : ''}>要</label></div>
