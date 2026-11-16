@@ -27,7 +27,7 @@ export function matchCo(name, fax) {
   return best ? best.c : null;
 }
 export const coOf = f => f.idx && !f.idx.err ? matchCo(f.idx.sender, f.idx.fax_no) : null;
-export const searchText = f => { const i = f.idx || {}; const c = coOf(f); return [f.name, when(f.mtime), i.sender, i.recipient, i.doc_type, i.doc_no, i.date, i.fax_no, i.summary, c && cdisp(c), c && c.name, c && c.code, ...(c?.aliases || [])].filter(Boolean).join(' '); };
+export const searchText = f => { const i = f.idx || {}; const c = coOf(f); return [f.name, when(f.at || f.mtime), i.sender, i.recipient, i.doc_type, i.doc_no, i.date, i.fax_no, i.summary, c && cdisp(c), c && c.name, c && c.code, ...(c?.aliases || [])].filter(Boolean).join(' '); };
 const ui = { sel: '', q: '', rot: 0, zoom: 1, page: 0, pages: 1 };
 const readMap = () => store.setting('faxin').read || {};
 export const isRead = f => readMap()[f.name] === f.mtime;
@@ -58,17 +58,27 @@ export async function markRead(f, on = true) {
   await store.saveSetting('faxin', { ...s, read });
   window.dispatchEvent(new Event('zr-nav'));
 }
-function shown() { const ts = qTerms(ui.q); return ts.length ? FILES.filter(f => matchQ(searchText(f), ts)) : FILES; }
+// 排序：time＝依時間、top＝未讀置頂（預設）、only＝只看未讀；記在這台裝置。keep＝正在看的那張，看了變已讀也先留在原位
+export const FAX_SORTS = [['top', '未讀置頂'], ['time', '依時間'], ['only', '只看未讀']];
+export const faxSort = v => { try { if (v) localStorage.setItem('zr-fax-sort', v); return localStorage.getItem('zr-fax-sort') || 'top'; } catch (e) { return v || 'top'; } };
+export function orderFax(items, mode = faxSort(), keep = '') {
+  if (mode === 'time') return items;
+  const un = f => !isRead(f) || f.name === keep;
+  if (mode === 'only') return items.filter(un);
+  return [...items.filter(un), ...items.filter(f => !un(f))];
+}
+function shown() { const ts = qTerms(ui.q); return orderFax(ts.length ? FILES.filter(f => matchQ(searchText(f), ts)) : FILES, faxSort(), ui.sel); }
 function draw(el) {
   el.innerHTML = `<div class="head"><h1>接收傳真</h1><span class="sub">伺服器電腦的傳真資料夾，收到的傳真（JPG、PDF）會出現在這裡</span><span class="sp"></span><button class="btn" id="fiReload">重新整理</button></div>
     <div class="panel" style="display:grid;grid-template-columns:minmax(260px,340px) 1fr;gap:14px;align-items:start">
       <div><input type="search" id="fiQ" placeholder="搜尋客戶、廠商、單號或日期，例如 元貝、2026/11/12" value="${esc(ui.q)}" style="width:100%;margin-bottom:8px"><div id="fiIdx" class="small" style="margin-bottom:6px"></div>
-        <div class="muted small" id="fiInfo" style="margin-bottom:6px"></div>
+        <div class="tools" style="margin-bottom:6px;align-items:center;gap:6px"><span class="muted small" id="fiInfo"></span><span class="sp"></span><select id="fiSort" class="sm" aria-label="排序">${FAX_SORTS.map(([k, n]) => `<option value="${k}" ${faxSort() === k ? 'selected' : ''}>${n}</option>`).join('')}</select></div>
         <div id="fiList" style="max-height:72vh;overflow:auto;border:1px solid var(--line);border-radius:8px"></div></div>
       <div id="fiView"></div>
     </div>`;
   el.querySelector('#fiReload').onclick = async () => { await load(); draw(el); };
   el.querySelector('#fiQ').addEventListener('input', ev => { ui.q = ev.target.value; drawList(el); });
+  el.querySelector('#fiSort').onchange = ev => { faxSort(ev.target.value); drawList(el); };
   el.onkeydown = ev => {
     if (ev.target.closest('input,textarea,select')) return;
     const L = shown(); const i = L.findIndex(f => f.name === ui.sel);
@@ -77,7 +87,7 @@ function draw(el) {
   };
   el.tabIndex = -1;
   drawList(el); drawIdx(el);
-  const f = FILES.find(x => x.name === ui.sel) || FILES[0];
+  const f = FILES.find(x => x.name === ui.sel) || shown()[0];
   if (f) pick(el, f, true); else el.querySelector('#fiView').innerHTML = `<div class="empty"><b>${LOADED ? (LAST_ERR ? esc(LAST_ERR) : '資料夾裡還沒有傳真') : '載入中…'}</b>${LOADED && !LAST_ERR ? '收到的傳真存進伺服器電腦的傳真資料夾後，按「重新整理」就會出現。' : ''}</div>`;
 }
 function drawList(el) {
@@ -85,18 +95,18 @@ function drawList(el) {
   const L = shown(); const unread = FILES.filter(f => !isRead(f)).length;
   el.querySelector('#fiInfo').textContent = LAST_ERR ? LAST_ERR : `共 ${FILES.length} 張${unread ? `，未讀 ${unread} 張` : ''}${ui.q ? `，符合 ${L.length} 張` : ''}`;
   box.innerHTML = L.map(f => `<a href="#" data-fi="${esc(f.name)}" style="display:block;padding:8px 10px;border-bottom:1px solid var(--line);text-decoration:none;color:inherit;${f.name === ui.sel ? 'background:var(--sel,rgba(0,122,255,.12));' : ''}">
-      <div style="display:flex;gap:6px;align-items:center">${isRead(f) ? '' : '<span title="未讀" style="width:8px;height:8px;border-radius:50%;background:#e53935;flex:none"></span>'}<b style="${isRead(f) ? 'font-weight:400' : ''}">${esc(when(f.mtime))}</b><span class="sp"></span><span class="pill">${esc(f.ext.toUpperCase())}</span></div>
+      <div style="display:flex;gap:6px;align-items:center">${isRead(f) ? '' : '<span title="未讀" style="width:8px;height:8px;border-radius:50%;background:#e53935;flex:none"></span>'}<b style="${isRead(f) ? 'font-weight:400' : ''}">${esc(when(f.at || f.mtime))}</b><span class="sp"></span><span class="pill">${esc(f.ext.toUpperCase())}</span></div>
       ${f.idx && !f.idx.err ? `<div style="margin-top:2px">${(c => c ? `<b>${esc(cdisp(c))}</b> <span class="muted small">${c.kind === 'S' ? '廠商' : '客戶'}</span>` : `<span>${esc(f.idx.sender || '（寄件公司看不出來）')}</span>`)(coOf(f))}${f.idx.doc_type ? ` <span class="pill">${esc(f.idx.doc_type)}</span>` : ''}</div>${f.idx.doc_no || f.idx.summary ? `<div class="muted small">${esc([f.idx.doc_no, f.idx.summary].filter(Boolean).join('・'))}</div>` : ''}` : ''}
       <div class="muted small" style="word-break:break-all">${esc(f.name)}・${size(f.size)}</div></a>`).join('') || '<div class="muted" style="padding:12px">沒有符合的傳真</div>';
   box.querySelectorAll('[data-fi]').forEach(a => a.addEventListener('click', ev => { ev.preventDefault(); const f = FILES.find(x => x.name === a.dataset.fi); if (f) pick(el, f); }));
 }
 async function pick(el, f, first) {
-  if (ui.sel !== f.name) { ui.rot = 0; ui.zoom = 1; ui.page = 0; ui.pages = 1; }
+  if (ui.sel !== f.name) { ui.noAuto = ''; ui.rot = 0; ui.zoom = 1; ui.page = 0; ui.pages = 1; }
   ui.sel = f.name; drawList(el);
   const v = el.querySelector('#fiView'); const pdf = f.ext === 'pdf'; const conv = ['tif', 'tiff', 'bmp'].includes(f.ext);
   if (conv) { try { ui.pages = (await api.get('/api/faxin/info?name=' + encodeURIComponent(f.name))).pages || 1; } catch (e) { v.innerHTML = `<div class="banner">${esc(e.message)}</div>`; return; } }
   const src = url(f, conv ? `&page=${ui.page}` : '');
-  v.innerHTML = `<div class="tools" style="margin-bottom:8px;align-items:center;flex-wrap:wrap;gap:6px"><b style="word-break:break-all">${esc(f.name)}</b><span class="muted small">${esc(when(f.mtime))}</span><span class="sp"></span>
+  v.innerHTML = `<div class="tools" style="margin-bottom:8px;align-items:center;flex-wrap:wrap;gap:6px"><b style="word-break:break-all">${esc(f.name)}</b><span class="muted small">${esc(when(f.at || f.mtime))}</span><span class="sp"></span>
       ${pdf ? '' : '<button class="btn sm" data-rot="-90" title="向左轉">⟲</button><button class="btn sm" data-rot="90" title="向右轉">⟳</button><button class="btn sm" data-zoom="-1">－</button><button class="btn sm" data-zoom="0">符合寬度</button><button class="btn sm" data-zoom="1">＋</button>'}
       ${ui.pages > 1 ? `<button class="btn sm" data-pg="-1" ${ui.page ? '' : 'disabled'}>上一頁</button><span class="small">${ui.page + 1}／${ui.pages}</span><button class="btn sm" data-pg="1" ${ui.page < ui.pages - 1 ? '' : 'disabled'}>下一頁</button>` : ''}
       <button class="btn sm" id="fiPrint">列印</button><a class="btn sm" href="${url(f, '&dl=1')}">下載</a><a class="btn sm" href="${src}" target="_blank" rel="noopener">新分頁開啟</a>
@@ -107,14 +117,14 @@ async function pick(el, f, first) {
   v.querySelectorAll('[data-rot]').forEach(b => b.onclick = () => { ui.rot = (ui.rot + +b.dataset.rot + 360) % 360; pick(el, f); });
   v.querySelectorAll('[data-zoom]').forEach(b => b.onclick = () => { const d = +b.dataset.zoom; ui.zoom = d ? Math.min(4, Math.max(0.25, ui.zoom + d * 0.25)) : 1; pick(el, f); });
   v.querySelectorAll('[data-pg]').forEach(b => b.onclick = () => { ui.page = Math.min(ui.pages - 1, Math.max(0, ui.page + +b.dataset.pg)); pick(el, f); });
-  v.querySelector('#fiRead').onclick = async () => { await markRead(f, !isRead(f)); pick(el, f); };
+  v.querySelector('#fiRead').onclick = async () => { const on = !isRead(f); ui.noAuto = on ? '' : f.name; await markRead(f, on); pick(el, f); };   // 手動標成未讀：還在看這張時不要又自動變已讀
   v.querySelector('#fiOrder').onclick = async () => { const { orderFromDoc } = await import('./order_in.js'); orderFromDoc({ fax: f.name }, f.idx?.sender || f.name, { name: f.idx?.sender || '' }); };
   v.querySelector('#fiPrint').onclick = () => {
     if (pdf) { window.open(src, '_blank'); return; }
     const imgs = Array.from({ length: ui.pages }, (_, i) => `<img src="${location.origin}${url(f, conv ? `&page=${i}` : '')}" style="width:100%;${ui.rot ? `transform:rotate(${ui.rot}deg);` : ''}page-break-after:always">`).join('');
     printHTML(`傳真 ${f.name}`, '@page{size:A4;margin:8mm}body{margin:0}img{display:block;max-height:281mm;object-fit:contain}', imgs, { tip: '按 Ctrl+P 列印，紙張 A4。' });
   };
-  if (!isRead(f) && !first) markRead(f, true);   // 點開就算看過（第一次進頁面自動帶出的不算）
+  if (ui.noAuto === f.name) { /* 剛手動標成未讀 */ } else if (!isRead(f) && !first) markRead(f, true);   // 點開就算看過（第一次進頁面自動帶出的不算）
   else if (!isRead(f) && first) setTimeout(() => { if (ui.sel === f.name && el.isConnected) markRead(f, true); }, 1500);
   el.focus({ preventScroll: true });
 }

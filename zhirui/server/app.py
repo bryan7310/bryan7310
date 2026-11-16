@@ -498,8 +498,10 @@ class Handler(BaseHTTPRequestHandler):
                         except OSError:
                             continue
                         rel = os.path.relpath(fp, FAXIN_DIR).replace(os.sep, '/')
-                        out.append({'name': rel, 'size': st.st_size, 'mtime': int(st.st_mtime * 1000), 'ext': ext[1:]})
-            out.sort(key=lambda x: -x['mtime'])
+                        # at＝放進資料夾的時間：複製進來的檔案會保留原本的修改時間，所以取「建立時間」和「修改時間」較晚的那個
+                        born = getattr(st, 'st_birthtime', st.st_ctime)
+                        out.append({'name': rel, 'size': st.st_size, 'mtime': int(st.st_mtime * 1000), 'at': int(max(st.st_mtime, born) * 1000), 'ext': ext[1:]})
+            out.sort(key=lambda x: -x['at'])
             idx, cfg = faxidx_load(self.state.data_dir)
             for x in out:
                 r = idx.get(x['name'])
