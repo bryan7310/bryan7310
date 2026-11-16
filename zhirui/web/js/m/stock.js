@@ -19,7 +19,7 @@ const p2 = n => (Math.round((+n || 0) * 100) / 100).toLocaleString('zh-TW', { ma
 let IDX = null, IDXgen = -1;
 function index() {
   if (IDX && IDXgen === store.gen) return IDX;
-  IDXgen = store.gen; IDX = store.list('goods').filter(g => !g.nostock || g.salePrice).map(g => ({ g, t: goodsLabel(g) + ' ' + (g.spec2 || '') + ' ' + (g.vcode || '') }));
+  IDXgen = store.gen; IDX = store.list('goods').filter(g => !g.nostock || g.salePrice).map(g => ({ g, t: goodsLabel(g) + ' ' + (g.spec2 || '') + ' ' + (g.vcode || '') + ' ' + (g.barcodes || []).join(' ') }));
   return IDX;
 }
 const total = (C, gid) => Object.values(C.stock[gid] || {}).reduce((a, b) => a + b, 0);
@@ -44,7 +44,7 @@ export function search(q, fin) {
 export function stockPage(view) {
   const cid = custId(); const c = cid ? store.get('contacts', cid) : null;
   view.innerHTML = `<div class="hd"><h1>查商品</h1><span class="sp"></span><a class="chip" href="#po">採購單${(n => n ? ` ${n}` : '')((ls.get('zr.m.po', null)?.lines || []).length)}</a><button class="chip" id="cust">${c ? '客戶：' + esc(cdisp(c)) : '選客戶'}</button></div>
-    <div class="search srow"><input type="search" id="q" placeholder="規格或品名，例如 M6*20" value="${esc(ui.q)}" autocomplete="off" autocorrect="off" autocapitalize="off" enterkeyhint="search"><button type="button" class="scanbtn" id="scan" aria-label="掃 QR 碼"><svg viewBox="0 0 24 24"><path d="M4 8V4h4M16 4h4v4M20 16v4h-4M8 20H4v-4"/><path d="M7 12h10"/></svg></button></div>
+    <div class="search srow"><input type="search" id="q" placeholder="規格或品名，例如 M6*20" value="${esc(ui.q)}" autocomplete="off" autocorrect="off" autocapitalize="off" enterkeyhint="search"><button type="button" class="scanbtn" id="scan" aria-label="掃條碼或 QR 碼"><svg viewBox="0 0 24 24"><path d="M4 8V4h4M16 4h4v4M20 16v4h-4M8 20H4v-4"/><path d="M7 12h10"/></svg></button></div>
     <div class="chips">${FINS.map(([k, n]) => `<button class="chip ${ui.fin === k ? 'on' : ''}" data-fin="${k}">${n}</button>`).join('')}</div>
     <div class="btn2"><button class="btn ghost" id="gnew">＋ 新增商品</button><button class="btn ${ui.count ? '' : 'ghost'}" id="cnt">${ui.count ? '結束盤點' : '盤點庫存'}</button></div>
     ${ui.count ? '<div class="note" style="text-align:left">盤點模式：搜尋後點商品，直接填實際數量，差異會自動開其他入庫／出庫補平。</div>' : ''}
@@ -74,7 +74,11 @@ export function stockPage(view) {
   view.querySelector('#cust').onclick = () => pickCustomer(() => stockPage(view));
   view.querySelector('#gnew').onclick = () => editGoods('new', null, id => { location.hash = '#g/' + encodeURIComponent(id); }, ui.q.trim() && !search(ui.q, ui.fin).length ? { name: ui.q.trim() } : {});
   view.querySelector('#cnt').onclick = () => { ui.count = !ui.count; stockPage(view); if (ui.count) view.querySelector('#q').focus(); };
-  view.querySelector('#scan').onclick = () => scanQR(text => { const g = findByCode(text); if (g) location.hash = '#g/' + encodeURIComponent(g.id); else { ui.q = text; stockPage(view); } }, { title: '掃商品 QR 碼' });
+  // 掃到：盤點模式直接開盤點；否則到商品明細。掃到的條碼還沒對應商品 → 問要綁定哪個商品
+  const open = g => { if (ui.count) adjustStock(g, () => stockPage(view)); else location.hash = '#g/' + encodeURIComponent(g.id); };
+  view.querySelector('#scan').onclick = () => scanQR((text, type) => { const g = findByCode(text); if (g) return open(g);
+    if (type === 'QR' && !/^\d{8,14}$/.test(text)) { ui.q = text; stockPage(view); return; }
+    bindBarcode(text, g2 => open(g2), () => { ui.q = text; stockPage(view); }); }, { title: ui.count ? '盤點：掃商品條碼' : '掃商品條碼／QR 碼' });
   draw();
   if (ui.scroll) { window.scrollTo(0, ui.scroll); ui.scroll = 0; }
 }
@@ -91,12 +95,42 @@ function purHtml() {
     || `<div class="row muted">${k ? '找不到符合的進貨單' : '還沒有進貨單'}</div>`;
 }
 
-/** QR 碼內容 → 商品：料號（不分大小寫）；也接受網址裡的 #g/商品 */
+/** QR 碼／條碼內容 → 商品：料號（不分大小寫）、商品綁定的條碼（barcodes）；也接受網址裡的 #g/商品 */
 export function findByCode(text) {
   let t = String(text || '').trim(); const m = t.match(/#g\/([^?#]+)/); if (m) t = decodeURIComponent(m[1]);
   const u = t.toUpperCase();
   return store.get('goods', t) || store.list('goods').find(g => String(g.code || '').toUpperCase() === u)
+    || store.list('goods').find(g => (g.barcodes || []).includes(t))
     || store.list('goods').find(g => (g.oldCodes || []).some(c => String(c).toUpperCase() === u) || (g.merged || []).some(m => m.id === t || String(m.code || '').toUpperCase() === u)) || null;   // 改過或合併掉的舊料號（舊標籤 QR）
+}
+
+const plain = g => { const { id, _by, ...r } = g; return r; };   // 存檔用：拿掉 store 加的 id、_by
+// ---------- 條碼綁定：廠商包裝上的條碼（EAN、Code128…）對應到我們的商品，存在商品的 barcodes ----------
+export function bindBarcode(code, onBound, onSearch) {
+  const el = document.createElement('div'); el.className = 'sheet';
+  el.innerHTML = `<div class="sheet-hd"><button class="link" data-x>取消</button><b>條碼還沒對應商品</b><span style="width:40px"></span></div>
+    <div class="card"><div class="muted small">掃到的條碼</div><div class="mono" style="font-size:20px;word-break:break-all">${esc(code)}</div></div>
+    <div class="note" style="text-align:left">選一個商品，以後掃這個條碼就會直接找到它。也可以${onSearch ? '<a href="#" data-s>只用這串字搜尋</a>' : '按取消'}。</div>
+    <div class="search"><input type="search" id="bq" placeholder="搜尋要對應的商品：規格、品名、料號" autocomplete="off" autocorrect="off" autocapitalize="off"></div><div id="bl"></div>`;
+  document.body.append(el); document.body.classList.add('noscroll');
+  const close = () => { el.remove(); document.body.classList.remove('noscroll'); };
+  el.querySelector('[data-x]').onclick = close;
+  el.querySelector('[data-s]')?.addEventListener('click', e => { e.preventDefault(); close(); onSearch(); });
+  const draw = v => { const L = search(v, ''); el.querySelector('#bl').innerHTML = qTerms(v).length ? (L.length ? `<div class="card list">${L.slice(0, 40).map(g => `<a href="#" class="gi" data-gid="${esc(g.id)}"><div class="gm"><b>${esc(g.name)}</b><small>${esc(g.code)}${g.spec ? '・' + esc(g.spec) : ''}${(g.barcodes || []).length ? '・已有 ' + g.barcodes.length + ' 個條碼' : ''}</small></div><span class="go">選</span></a>`).join('')}</div>` : '<div class="card ph"><b>找不到</b></div>') : ''; };
+  let tm = 0; el.querySelector('#bq').addEventListener('input', e => { clearTimeout(tm); tm = setTimeout(() => draw(e.target.value), 150); });
+  el.querySelector('#bl').addEventListener('click', async e => {
+    const a = e.target.closest('[data-gid]'); if (!a) return; e.preventDefault();
+    const g = store.get('goods', a.dataset.gid); if (!g) return;
+    const other = store.list('goods').find(x => x.id !== g.id && (x.barcodes || []).includes(code));
+    if (other && !window.confirm(`這個條碼已經對應「${other.name}」（${other.code}），要改成對應「${g.name}」嗎？`)) return;
+    const ops = [];
+    if (other) ops.push({ col: 'goods', id: other.id, data: { ...plain(other), barcodes: other.barcodes.filter(c => c !== code), updatedAt: Date.now() } });
+    ops.push({ col: 'goods', id: g.id, data: { ...plain(g), barcodes: [...new Set([...(g.barcodes || []), code])], updatedAt: Date.now() } });
+    try { await store.batch(ops); } catch (err) { window.alert('儲存失敗：' + err.message); return; }
+    store.log('修改', `${g.code} ${g.name}：綁定條碼 ${code}`);
+    close(); onBound(store.get('goods', g.id));
+  });
+  setTimeout(() => el.querySelector('#bq').focus(), 50);
 }
 
 // ---------- 選客戶（全螢幕清單） ----------
@@ -157,6 +191,8 @@ export function goodsPage(view, gid) {
     <div class="sec">最近成交（每個客戶最近一次）</div><div class="card list" id="hs"><div class="row muted">載入中…</div></div>
     <div class="sec">供應商（最近進貨）</div>
     <div class="card list">${purs.slice(0, 3).map(x => `<div class="row"><span>${esc(x.cid ? cdisp(C.ct[x.cid]) : '—')}<small class="muted">　${esc(slash(x.date))}</small></span><span class="go">${p2(x.per)}${cost && (x.per > cost.c * 3 || x.per < cost.c / 3) ? '<small class="muted">（單位可能不同）</small>' : ''}</span></div>`).join('') || '<div class="row muted">查不到進貨紀錄</div>'}</div>
+    <div class="sec">條碼（廠商包裝）</div>
+    <div class="card list">${(g.barcodes || []).map(b => `<div class="row"><span class="mono">${esc(b)}</span><button class="link" data-unbind="${esc(b)}">解除</button></div>`).join('') || '<div class="row muted">還沒有對應的條碼</div>'}<a href="#" id="bscan">＋ 掃條碼對應到這個商品 ›</a></div>
     <div class="sec">料號 QR 碼</div><div class="card qrbox" id="qr">…</div>
     `;
   view.querySelector('#tobill').onclick = () => { addToBill(g.id); location.hash = '#bill'; };
@@ -164,6 +200,15 @@ export function goodsPage(view, gid) {
   view.querySelector('#ged').onclick = () => editGoods('edit', g, () => goodsPage(view, g.id));
   view.querySelector('#gcp').onclick = () => editGoods('copy', g, id => { location.hash = '#g/' + encodeURIComponent(id); });
   view.querySelector('#pick')?.addEventListener('click', e => { e.preventDefault(); pickCustomer(() => goodsPage(view, gid)); });
+  const saveCodes = async (codes, what) => { const cur = store.get('goods', g.id); try { await store.batch([{ col: 'goods', id: g.id, data: { ...plain(cur), barcodes: codes, updatedAt: Date.now() } }]); store.log('修改', `${g.code} ${g.name}：${what}`); } catch (e) { window.alert('儲存失敗：' + e.message); } goodsPage(view, g.id); };
+  view.querySelectorAll('[data-unbind]').forEach(b => b.onclick = () => { const c = b.dataset.unbind; if (window.confirm(`解除條碼 ${c}？`)) saveCodes((store.get('goods', g.id).barcodes || []).filter(x => x !== c), '解除條碼 ' + c); });
+  view.querySelector('#bscan').onclick = e => { e.preventDefault(); scanQR(code => {
+    const other = findByCode(code);
+    if (other && other.id === g.id) return window.alert('這個條碼已經對應這個商品');
+    if (other && !(other.barcodes || []).includes(code)) return window.alert(`這是「${other.name}」的料號 QR 碼，不是廠商條碼`);
+    if (other && !window.confirm(`這個條碼已經對應「${other.name}」（${other.code}），要改成對應這個商品嗎？`)) return;
+    (other ? store.batch([{ col: 'goods', id: other.id, data: { ...plain(other), barcodes: other.barcodes.filter(c => c !== code), updatedAt: Date.now() } }]) : Promise.resolve())
+      .then(() => saveCodes([...new Set([...(store.get('goods', g.id).barcodes || []), code])], '綁定條碼 ' + code)); }, { title: '掃要對應的條碼' }); };
   qrSvg(g.code).then(svg => { const b = view.querySelector('#qr'); if (b) b.innerHTML = svg + `<div class="mono">${esc(g.code)}</div>`; }).catch(e => { const b = view.querySelector('#qr'); if (b) b.textContent = e.message; });
   recentSales(view.querySelector('#hs'), g, C).then(rows => {
     const mg = view.querySelector('#mg'); if (!mg) return;
