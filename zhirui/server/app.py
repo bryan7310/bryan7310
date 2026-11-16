@@ -773,6 +773,25 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send_json(po_extract(self.state.data_dir, body or {}))
             except OcrError as e:
                 return self.error(str(e), e.status)
+        if path == '/api/vision/status' and method == 'GET':
+            try:
+                import vision
+                return self.send_json(vision.status(self.state.data_dir))
+            except Exception as e:
+                return self.send_json({'available': False, 'reason': '辨識模組載入失敗：%s' % e})
+        if path == '/api/vision' and method == 'POST':
+            # 自有影像辨識：本地 OCR／條碼，不連網、不計費
+            try:
+                import vision
+            except Exception as e:
+                return self.error('辨識模組載入失敗：%s' % e, 503)
+            try:
+                r = vision.run(self.state.data_dir, body or {})
+            except vision.VisionError as e:
+                return self.error(str(e), e.status)
+            sys.stderr.write('vision %s %dx%d ms=%s items=%d codes=%d\n' % (
+                (body or {}).get('mode') or 'all', r['w'], r['h'], r.get('ms'), len(r.get('items') or []), len(r.get('codes') or [])))
+            return self.send_json(r)
         if path == '/api/ocr/check' and method == 'POST':
             img = str((body or {}).get('image') or '')
             try:

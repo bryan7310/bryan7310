@@ -8,7 +8,7 @@ import { PROC_DEFAULT, PROC_NAMES, procMap, isLot, qqMult } from '../core/procco
 import { calc } from '../core/calc.js';
 
 const ui = { tab: 'company' };
-const TABS = [['company', '公司資料'], ['users', '帳號'], ['backup', '備份'], ['print', '套印與顯示'], ['ai', 'AI 辨識'], ['aicost', 'AI 費用'], ['proc', '加工成本'], ['logs', '操作日誌']];
+const TABS = [['company', '公司資料'], ['users', '帳號'], ['backup', '備份'], ['print', '套印與顯示'], ['ai', 'AI 辨識'], ['vision', '自有辨識'], ['aicost', 'AI 費用'], ['proc', '加工成本'], ['logs', '操作日誌']];
 export default {
   id: 'settings', name: '設定備份', group: '管理', icon: 'settings',
   render(el, { sub }) { this.el = el; if (sub && TABS.some(t => t[0] === sub)) ui.tab = sub; draw(el); },
@@ -81,6 +81,8 @@ async function draw(el) {
     $('#prSave', box).onclick = async () => { await store.batch([{ col: 'settings', id: 'invoice_print', data: { ...ip, dx: +$('#ip-dx', box).value || 0, dy: +$('#ip-dy', box).value || 0 } }, { col: 'settings', id: 'pricing', data: { ...pr, decimals: +$('#pr-dec', box).value } }]); toast('已儲存'); };
     box.querySelectorAll('#thm button').forEach(b => b.onclick = () => { setTheme(b.dataset.v); box.querySelectorAll('#thm button').forEach(x => x.classList.toggle('on', x === b)); });
     box.querySelectorAll('#skn button').forEach(b => b.onclick = () => { setSkin(b.dataset.v); box.querySelectorAll('#skn button').forEach(x => x.classList.toggle('on', x === b)); });
+  } else if (ui.tab === 'vision') {
+    await visionTab(box);
   } else if (ui.tab === 'proc') {
     procCfg(box);
   } else if (ui.tab === 'aicost') {
@@ -116,6 +118,53 @@ async function draw(el) {
     const who = id => store.users.find(u => u.id === id)?.name || '';
     box.innerHTML = `<div class="tw"><table><thead><tr><th>時間</th><th>誰</th><th>動作</th><th>內容</th></tr></thead><tbody>${logs.map(l => `<tr><td class="nowrap muted">${l.at ? new Date(l.at).toLocaleString('zh-TW', { hour12: false }) : ''}</td><td>${esc(l.who || who(l.uid))}</td><td><span class="pill">${esc(l.action)}</span></td><td>${esc(l.what)}</td></tr>`).join('') || '<tr><td colspan="4" class="muted">還沒有紀錄</td></tr>'}</tbody></table></div>`;
   }
+}
+
+// ---------- 自有影像辨識：主機本地跑 OCR（PP-OCRv6）＋條碼／QR，不連網、不花 API 費用 ----------
+// 圖片在瀏覽器縮到長邊 2000px 再送，伺服器回傳每個字框（box 四點座標）與依行合併的文字
+export function shrinkImage(file, max = 2000) {
+  return new Promise((ok, bad) => {
+    const url = URL.createObjectURL(file), img = new Image();
+    img.onload = () => {
+      const r = Math.min(1, max / Math.max(img.width, img.height));
+      const c = document.createElement('canvas'); c.width = Math.round(img.width * r); c.height = Math.round(img.height * r);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height); URL.revokeObjectURL(url);
+      ok(c.toDataURL('image/jpeg', 0.9));
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); bad(new Error('讀不出圖片')); };
+    img.src = url;
+  });
+}
+
+async function visionTab(box) {
+  let st = { available: false, reason: '查不到狀態' }; try { st = await api.get('/api/vision/status'); } catch (e) { st.reason = e.message; }
+  box.innerHTML = `<p class="muted" style="margin:0">自有影像辨識在主機上直接跑，<b>照片不會送到外面、不花 API 費用、斷網也能用</b>。目前提供：文字辨識（印刷字，中英數）與條碼／QR Code。手寫字、印章的準度不如雲端 AI。</p>
+    <div class="banner ${st.available ? 'info' : ''}">${st.available ? `可以使用（OpenCV ${esc(st.opencv)}，模型 PP-OCRv6）${st.loaded ? '・模型已載入' : '・第一次辨識會先載入模型'}` : '無法使用：' + esc(st.reason)}</div>
+    <div class="tools"><label class="btn pri" style="cursor:pointer">📷 選照片測試<input id="vsFile" type="file" accept="image/*" hidden></label>
+      <div class="tabs" id="vsMode"><button type="button" data-v="all" class="on">文字＋條碼</button><button type="button" data-v="ocr">只辨識文字</button><button type="button" data-v="codes">只讀條碼</button></div>
+      <span class="sp"></span><span class="muted small" id="vsMsg"></span></div>
+    <div id="vsOut"></div>`;
+  let mode = 'all';
+  box.querySelectorAll('#vsMode button').forEach(b => b.onclick = () => { mode = b.dataset.v; box.querySelectorAll('#vsMode button').forEach(x => x.classList.toggle('on', x === b)); });
+  $('#vsFile', box).onchange = async ev => {
+    const f = ev.target.files[0]; ev.target.value = ''; if (!f) return;
+    const msg = $('#vsMsg', box), out = $('#vsOut', box);
+    msg.textContent = '辨識中…'; out.innerHTML = '';
+    try {
+      const image = await shrinkImage(f);
+      const t = Date.now();
+      const r = await api.post('/api/vision', { image, mode });
+      msg.textContent = `完成：${((Date.now() - t) / 1000).toFixed(1)} 秒（主機 ${((r.ms || r.codes_ms || 0) / 1000).toFixed(1)} 秒）・${(r.items || []).length} 個字框・${(r.codes || []).length} 個條碼`;
+      const poly = (b, cls) => `<polygon class="${cls}" points="${b.map(p => p.join(',')).join(' ')}"/>`;
+      out.innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:12px;align-items:start">
+        <div style="position:relative"><img src="${image}" style="width:100%;display:block;border-radius:6px">
+          <svg viewBox="0 0 ${r.w} ${r.h}" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%">
+            <style>.vb{fill:rgba(37,99,235,.12);stroke:#2563eb;stroke-width:${Math.max(1, r.w / 600)}}.vc{fill:rgba(22,163,74,.15);stroke:#16a34a;stroke-width:${Math.max(2, r.w / 300)}}</style>
+            ${(r.items || []).map(it => poly(it.box, 'vb')).join('')}${(r.codes || []).filter(c => c.box?.length).map(c => poly(c.box, 'vc')).join('')}</svg></div>
+        <div>${(r.codes || []).length ? `<h4 style="margin:0 0 6px">條碼／QR Code</h4><div class="tw"><table><thead><tr><th>種類</th><th>內容</th></tr></thead><tbody>${r.codes.map(c => `<tr><td class="nowrap">${esc(c.type)}</td><td class="mono" style="word-break:break-all">${esc(c.text)}</td></tr>`).join('')}</tbody></table></div>` : (mode !== 'ocr' ? '<p class="muted">沒有讀到條碼／QR Code</p>' : '')}
+          ${r.lines ? `<h4 style="margin:10px 0 6px">文字（依行）</h4><textarea readonly style="width:100%;min-height:360px;font-family:inherit">${esc(r.lines.map(l => l.text).join('\n'))}</textarea>` : ''}</div></div>`;
+    } catch (e) { msg.textContent = ''; toast(e.message); }
+  };
 }
 
 // ---------- AI 費用紀錄：伺服器每次呼叫 AI 記一筆（data/ai_usage.jsonl），這裡依月份彙總 ----------
