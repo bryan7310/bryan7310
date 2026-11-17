@@ -1,0 +1,1703 @@
+<!doctype html>
+<html lang="zh-Hant"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>標籤機</title>
+<style>
+:root{--bg:#f4f5f7;--panel:#fff;--ink:#1f2328;--mute:#6b7280;--line:#d8dce2;--pri:#1d5fbf;--pri-ink:#fff;--danger:#c0392b;--warn-bg:#fff4d6;--side:#22303f;--side-ink:#dce3ea;--sel:#e3edfb;--hover:#f2f6fc;--head:#eef1f5}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{font:14px/1.45 "Microsoft JhengHei","微軟正黑體","PingFang TC","Noto Sans TC",sans-serif;color:var(--ink);background:var(--bg)}
+#top{position:fixed;top:0;left:0;right:0;height:42px;display:flex;align-items:center;gap:10px;padding:0 12px;background:var(--panel);border-bottom:1px solid var(--line);z-index:40}
+#top .brand{color:var(--ink);text-decoration:none;font-size:16px;white-space:nowrap}
+#top .brand span{color:var(--mute);font-size:13px}
+.spacer{flex:1}
+.qwrap{position:relative}
+#menuQ{width:180px}
+.qwrap .dd{right:0;left:auto;min-width:260px}
+.qwrap.open .dd{display:block}
+.qwrap .dd small{color:var(--mute)}
+#menubar{position:fixed;top:42px;left:0;right:0;height:34px;display:flex;align-items:stretch;background:#f7f7f5;border-bottom:1px solid var(--line);padding:0 6px;z-index:30;overflow-x:auto;overflow-y:hidden;scrollbar-width:none}
+#menubar::-webkit-scrollbar{display:none}
+#menubar .mg{position:relative;display:flex}
+#menubar .mg-h{background:none;border:0;color:var(--ink);font:inherit;font-size:14px;padding:0 11px;cursor:pointer;white-space:nowrap;text-decoration:none;display:flex;align-items:center}
+#menubar .mg-h i{font-style:normal;font-size:10px;opacity:.6}
+#menubar .mg-h:hover,#menubar .mg.open .mg-h{background:#dfe8f6}
+#menubar .mg.cur .mg-h{box-shadow:inset 0 -3px 0 var(--pri);color:var(--pri)}
+.dd{display:none;position:fixed;background:var(--panel);border:1px solid var(--line);border-radius:0 0 6px 6px;box-shadow:0 8px 24px rgba(0,0,0,.18);padding:4px 0;min-width:190px;max-height:calc(100vh - 90px);overflow:auto;z-index:50}
+.qwrap .dd{position:absolute;margin-top:4px;top:100%}
+.dd.cols{column-count:2;column-gap:0;min-width:380px}
+#menubar .mg.open .dd{display:block}
+.dd .mi{display:block;padding:6px 16px;color:var(--ink);text-decoration:none;font-size:14px;white-space:nowrap;break-inside:avoid}
+.dd .mi:hover,.dd .mi:focus{background:var(--hover);outline:none}
+.dd .mi.on{background:var(--sel);color:var(--pri);font-weight:bold}
+#iconbar{position:fixed;top:76px;left:0;right:0;height:48px;display:flex;align-items:center;gap:0;background:#eef1f5;border-bottom:1px solid var(--line);padding:0 6px;z-index:20;overflow-x:auto;scrollbar-width:none}
+#iconbar::-webkit-scrollbar{display:none}
+.ib-g{display:flex;align-items:center;padding:0 6px;border-right:1px solid #cdd3db}
+.ib-g:last-child{border-right:0}
+.ib{display:flex;align-items:center;gap:5px;padding:5px 9px;border-radius:6px;color:var(--ink);text-decoration:none;white-space:nowrap;font-size:14px}
+.ib .ic{font-size:22px;line-height:1}
+.ib:hover{background:#dde5f0}
+.ib.on{background:var(--sel);color:var(--pri)}
+#wrap{padding-top:124px;height:100%}
+#main{height:100%;overflow:auto;padding:14px 18px 60px;min-width:0}
+.page-head h2{margin:0 0 10px;font-size:19px}
+h3{font-size:15px;margin:18px 0 8px}
+.btn{display:inline-block;border:1px solid var(--line);background:var(--panel);color:var(--ink);padding:5px 12px;border-radius:5px;cursor:pointer;font:inherit;text-decoration:none;white-space:nowrap}
+.btn:hover{background:var(--hover)}
+.btn.pri{background:var(--pri);border-color:var(--pri);color:var(--pri-ink)}
+.btn.pri:hover{filter:brightness(1.08)}
+.btn.danger{color:var(--danger);border-color:#e6b4ae}
+.btn.ghost{border-color:transparent;background:transparent;font-size:18px;padding:2px 8px}
+.btn.sm{padding:2px 8px;font-size:12.5px}
+.inp{border:1px solid var(--line);border-radius:4px;padding:4px 7px;font:inherit;background:#fff;color:var(--ink);min-width:0}
+.inp:focus,.cell:focus{outline:2px solid #9cc0f5;outline-offset:-1px}
+.inp:disabled{background:#f1f2f4;color:#555}
+.r{text-align:right}.c{text-align:center}
+.toolbar{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:0 0 10px}
+.fbar{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:0 0 10px;background:var(--panel);padding:8px;border:1px solid var(--line);border-radius:6px}
+.grid-wrap{background:var(--panel);border:1px solid var(--line);border-radius:6px;overflow:auto;max-height:calc(100vh - 210px)}
+table.grid{border-collapse:collapse;width:100%;font-size:13.5px}
+table.grid th{position:sticky;top:0;background:var(--head);text-align:left;font-weight:normal;color:#374151;padding:6px 8px;border-bottom:1px solid var(--line);cursor:pointer;white-space:nowrap;z-index:1}
+table.grid th.r{text-align:right}
+table.grid th.sorted{color:var(--pri)}
+table.grid td{padding:5px 8px;border-bottom:1px solid #eceef1;white-space:nowrap;max-width:360px;overflow:hidden;text-overflow:ellipsis}
+table.grid tbody tr:hover{background:var(--hover);cursor:pointer}
+table.grid tr.sel{background:var(--sel)}
+table.grid tfoot td{background:var(--head);font-weight:bold;position:sticky;bottom:0}
+table.grid.edit td{padding:1px 2px}
+table.grid.edit tbody tr:hover{cursor:default}
+table.grid.edit tfoot td{position:static;font-weight:normal;background:#fafbfc;padding:6px}
+.cell{width:100%;border:1px solid transparent;padding:4px 5px;font:inherit;background:transparent}
+.cell:hover{border-color:var(--line)}
+.del{color:#b5b9c0;cursor:pointer;padding:0 6px}.del:hover{color:var(--danger)}
+.more,.empty{padding:10px;color:var(--mute);text-align:center}
+.form{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:8px 14px;background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:12px;margin-bottom:10px}
+.form label.f{display:flex;align-items:center;gap:6px;min-width:0}
+.form label.f>span:first-child{width:78px;flex:none;color:#4b5563;font-size:13px;text-align:right}
+.form label.f .inp{flex:1}
+.form label.f input[type=checkbox]{width:18px;height:18px}
+.form label.w2{grid-column:span 2}.form label.w3{grid-column:1/-1}.form label.wide{grid-column:1/-1;align-items:flex-start}
+.form .f-sep{grid-column:1/-1;font-weight:bold;color:var(--pri);border-bottom:1px solid var(--line);padding-top:6px}
+.pick-name{color:var(--pri);font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:180px}
+.req{color:var(--danger);font-style:normal}
+.lines{margin-bottom:8px}
+.lines .grid{background:var(--panel);border:1px solid var(--line)}
+.totals{display:flex;flex-wrap:wrap;gap:22px;justify-content:flex-end;background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:10px 14px;margin-bottom:10px}
+.totals .big{font-size:17px}
+.cards{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:12px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px 16px;cursor:pointer;min-width:180px}
+.card:hover{border-color:var(--pri)}
+.card.big{width:300px}.card h3{margin:0 0 6px;color:var(--pri)}
+.card.stat .sl{color:var(--mute);font-size:13px}.card.stat .sv{font-size:22px;font-weight:bold;margin-top:4px}
+.quick{display:flex;flex-wrap:wrap;gap:8px}
+.box{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:12px 14px;margin-bottom:12px}
+.box h3{margin-top:0}
+.note{color:var(--mute);font-size:13px}
+.warn{background:var(--warn-bg);border:1px solid #f1d58a;padding:8px 12px;border-radius:6px;margin:0 0 12px}
+.opt{display:block;padding:8px 0;cursor:pointer}
+.log{background:var(--panel);border:1px solid var(--line);padding:10px;border-radius:6px;white-space:pre-wrap;min-height:40px}
+pre.err{color:var(--danger);white-space:pre-wrap}
+.pre{white-space:pre-wrap;margin-bottom:8px}
+.m-bg{position:fixed;inset:0;background:rgba(15,23,42,.35);display:flex;align-items:flex-start;justify-content:center;z-index:100;padding-top:6vh}
+.modal{background:var(--panel);border-radius:8px;box-shadow:0 10px 40px rgba(0,0,0,.25);width:460px;max-width:96vw;max-height:88vh;display:flex;flex-direction:column}
+.m-head{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-bottom:1px solid var(--line)}
+.m-head .x{cursor:pointer;font-size:20px;color:var(--mute)}
+.m-body{padding:14px;overflow:auto}
+.m-foot{display:flex;justify-content:flex-end;gap:8px;padding:10px 14px;border-top:1px solid var(--line)}
+.picker .inp{margin-bottom:8px}.picker .grid-wrap{max-height:55vh}
+.busy .m-body{display:flex;align-items:center;gap:12px}
+.spin{width:22px;height:22px;border:3px solid #cfd8e3;border-top-color:var(--pri);border-radius:50%;animation:sp 1s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+.toast{position:fixed;bottom:24px;left:50%;transform:translate(-50%,20px);opacity:0;background:#1f2937;color:#fff;padding:9px 18px;border-radius:6px;z-index:200;transition:.25s}
+.toast.show{opacity:1;transform:translate(-50%,0)}.toast.err{background:var(--danger)}
+.rep-sum{display:flex;gap:20px;flex-wrap:wrap;margin:6px 0 10px}
+.rep-sum b{font-size:16px}
+tr.neg td{color:var(--danger)}
+@media (max-width:820px){
+  #menuQ{width:110px}#top .brand span{display:none}
+  .ib span:not(.ic){font-size:12px}.ib{flex-direction:column;gap:0;padding:2px 7px}#iconbar{height:52px}#wrap{padding-top:132px}
+  #main{padding:10px 12px 60px}
+  .form{grid-template-columns:1fr}.form label.w2{grid-column:auto}
+  .card.big{width:100%}
+}
+.pv-modal{max-height:94vh}.pv-modal .m-body{padding:8px}
+.pv-frame{width:100%;height:72vh;border:1px solid var(--line);background:#888}
+.pdlg fieldset{border:1px solid var(--line);border-radius:6px;margin:0 0 12px;padding:8px 12px}
+.pdlg legend{color:var(--pri);padding:0 4px}
+.pdlg .inp{margin:2px 0}
+.toolbar .sep{color:var(--mute);margin-left:10px;font-size:13px}
+.fd .fd-main{display:flex;gap:10px;align-items:flex-start}
+.fd-wrap{flex:1;min-width:0;overflow:auto;max-height:calc(100vh - 230px);background:#9aa3ad;border-radius:6px;padding:14px}
+.fd-canvas{outline:none}
+.fd-page{background:#fff;margin:0 auto;box-shadow:0 2px 10px rgba(0,0,0,.3)}
+.fd-bh{background:#e8edf3;color:#4b5563;font-size:12px;padding:2px 6px;border-top:1px solid #c5ccd5;cursor:pointer;user-select:none}
+.fd-bh.on{background:#cfe0f7;color:var(--pri)}
+.fd-band{position:relative;background-image:linear-gradient(#eef1f4 1px,transparent 1px),linear-gradient(90deg,#eef1f4 1px,transparent 1px);background-size:16px 16px;overflow:hidden}
+.fd-grip{height:5px;background:#c5ccd5;cursor:ns-resize}.fd-grip:hover{background:var(--pri)}
+.fd-it{position:absolute;box-sizing:border-box;cursor:move;display:flex;align-items:center;white-space:nowrap;overflow:hidden;line-height:1.1;user-select:none}
+.fd-label,.fd-field,.fd-calc,.fd-sys{outline:1px dashed #c3c9d1}
+.fd-field,.fd-calc{background:rgba(29,95,191,.06)}
+.fd-it.sel{outline:2px solid var(--pri);z-index:5;overflow:visible}
+.fd-rs{position:absolute;right:-5px;bottom:-5px;width:9px;height:9px;background:var(--pri);cursor:nwse-resize}
+.fd-props{width:300px;flex:none;background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:10px;max-height:calc(100vh - 230px);overflow:auto}
+.fd-props .form{grid-template-columns:1fr;border:0;padding:0;margin-bottom:6px}
+.fd-props .form label.f>span:first-child{width:70px}
+.fd-props .form label.w2,.fd-props .form label.w3{grid-column:auto}
+.fd-props .note{white-space:pre-wrap}
+.fd-kinds{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;margin-top:6px}
+/* 單據編輯：右側歷史交易 */
+.bill-body{display:flex;gap:10px;align-items:flex-start;margin-bottom:8px}
+.bill-body .lines{flex:1;min-width:0;overflow-x:auto;margin-bottom:0}
+.hist{flex:none;width:400px;background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:6px 8px;font-size:13px}
+.hist.closed{width:auto}
+.hist.closed .hist-f,.hist.closed .hist-body{display:none}
+.hist-t{display:flex;align-items:center;gap:6px;margin-bottom:4px}
+.hist-t a{text-decoration:none;font-size:15px;padding:0 4px}
+.hist-f{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:4px}
+.hist-q{flex:1;min-width:100px;padding:3px 6px}
+.hist-body{max-height:420px;overflow:auto}
+table.hist-g{width:100%;font-size:12.5px}
+table.hist-g td,table.hist-g th{padding:2px 4px;white-space:nowrap}
+table.hist-g td.nm{max-width:150px;overflow:hidden;text-overflow:ellipsis}
+table.hist-g tbody tr{cursor:pointer}
+table.hist-g tbody tr:hover{background:#e8f0fe}
+table.hist-g tr.ret td{color:#c00}
+@media (max-width:1100px){.bill-body{flex-direction:column}.hist{width:auto;align-self:stretch}}
+.bill-nav{display:inline-flex;gap:4px;align-items:center;margin-right:10px}.bill-nav .note{margin-left:4px;white-space:nowrap}
+
+/* 標籤設計 */
+.lbd-canvas{outline:none;display:flex;flex-direction:column;align-items:safe center;gap:8px;padding:10px}
+.lbd-label{position:relative;background:#fff;box-shadow:0 2px 10px rgba(0,0,0,.35);border-radius:1.2mm;overflow:hidden;color:#000}
+.lbd-it{position:absolute;box-sizing:border-box;cursor:move;outline:.15mm dashed rgba(29,95,191,.35);user-select:none}
+.lbd-it.sel{outline:.3mm solid var(--pri);z-index:5}
+.lbd-it.sel .fd-rs{width:1.6mm;height:1.6mm;right:-.8mm;bottom:-.8mm}
+.lbd-info{background:rgba(255,255,255,.85);padding:2px 8px;border-radius:4px}
+table.lblp td{max-width:240px}
+
+html,body{height:auto;overflow:auto;background:#fff}
+</style>
+</head><body>
+<script>
+/* ---- util.js ---- */
+/* util.js — 共用小工具 */
+(function (G) {
+  'use strict';
+  const U = {};
+
+  U.pad = (n, w) => String(n).padStart(w, '0');
+  U.today = () => { const d = new Date(); return d.getFullYear() + '-' + U.pad(d.getMonth() + 1, 2) + '-' + U.pad(d.getDate(), 2); };
+  U.ymd = d => d.getFullYear() + '-' + U.pad(d.getMonth() + 1, 2) + '-' + U.pad(d.getDate(), 2);
+  U.addDays = (s, n) => { const d = new Date(s + 'T00:00:00'); d.setDate(d.getDate() + n); return U.ymd(d); };
+  U.monthStart = s => (s || U.today()).slice(0, 8) + '01';
+  U.monthEnd = s => { const d = new Date((s || U.today()).slice(0, 8) + '01T00:00:00'); d.setMonth(d.getMonth() + 1); d.setDate(0); return U.ymd(d); };
+  U.d10 = s => (s ? String(s).slice(0, 10) : '');
+
+  // 數字
+  U.num = v => { if (v == null || v === '') return 0; const n = typeof v === 'number' ? v : parseFloat(String(v).replace(/,/g, '')); return isFinite(n) ? n : 0; };
+  U.round = (v, d = 0) => { const p = Math.pow(10, d); return Math.round((U.num(v) + Number.EPSILON) * p) / p; };
+  U.fmt = (v, d = 0) => { const n = U.num(v); if (!n) return n === 0 && v !== '' && v != null ? '0' : ''; return n.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d }); };
+  U.fmtQ = v => { const n = U.num(v); if (!n) return ''; return n.toLocaleString('en-US', { maximumFractionDigits: 4 }); };
+  U.money = v => U.fmt(v, 0);
+
+  // 關鍵字搜尋：空白或逗號分隔，每個字都要有；不分大小寫、全形半形
+  U.norm = s => String(s == null ? '' : s).replace(/[！-～]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xfee0)).replace(/　/g, ' ').toLowerCase();
+  U.qTerms = q => U.norm(q).split(/[\s,，、]+/).filter(Boolean);
+  U.matchQ = (text, terms) => { if (!terms.length) return true; const t = U.norm(text); return terms.every(w => t.includes(w)); };
+
+  U.esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  U.trim = s => (s == null ? '' : String(s).trim());
+
+  // 金額轉中文大寫（支票用）
+  U.chineseMoney = n => {
+    n = Math.round(U.num(n)); if (!n) return '零元整';
+    const d = '零壹貳參肆伍陸柒捌玖', u = ['', '拾', '佰', '仟'], big = ['', '萬', '億', '兆'];
+    let s = '', i = 0, zero = false;
+    while (n > 0) {
+      const g = n % 10000; n = Math.floor(n / 10000);
+      if (g) {
+        let gs = '', z = false, x = g;
+        for (let k = 0; k < 4; k++) { const dd = x % 10; x = Math.floor(x / 10); if (dd) { gs = d[dd] + u[k] + (z ? '零' : '') + gs; z = false; } else if (gs) z = true; }
+        s = gs + big[i] + (zero ? '零' : '') + s; zero = g < 1000;
+      } else if (s) zero = true;
+      i++;
+    }
+    return s.replace(/^零+/, '') + '元整';
+  };
+
+  U.download = (name, data, type) => {
+    const blob = data instanceof Blob ? data : new Blob([data], { type: type || 'application/octet-stream' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
+    document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+  };
+
+  // CSV（Excel 可開，含 BOM）
+  U.csv = (rows, cols) => {
+    const q = v => { v = v == null ? '' : String(v); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
+    return '﻿' + [cols.map(c => q(c.label || c.key)).join(',')].concat(rows.map(r => cols.map(c => q(c.csv ? c.csv(r) : (c.get ? c.get(r) : r[c.key]))).join(','))).join('\r\n');
+  };
+
+  U.gzip = async (str) => new Uint8Array(await new Response(new Blob([str]).stream().pipeThrough(new CompressionStream('gzip'))).arrayBuffer());
+  U.gunzip = async (u8) => await new Response(new Blob([u8]).stream().pipeThrough(new DecompressionStream('gzip'))).text();
+
+  U.debounce = (fn, ms) => { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; };
+  U.sum = (arr, f) => arr.reduce((s, x) => s + U.num(f ? f(x) : x), 0);
+  U.groupBy = (arr, f) => { const m = new Map(); for (const x of arr) { const k = f(x); let a = m.get(k); if (!a) m.set(k, a = []); a.push(x); } return m; };
+  U.uniq = arr => [...new Set(arr)];
+
+  G.U = U;
+})(window);
+
+</script>
+<script>
+/* ---- ui.js ---- */
+/* ui.js — 畫面共用元件 */
+(function (G) {
+  'use strict';
+  const UI = {};
+
+  // DOM 建構
+  function h(tag, attrs, ...kids) {
+    const el = document.createElement(tag);
+    if (attrs) for (const k in attrs) {
+      const v = attrs[k];
+      if (v == null || v === false) continue;
+      if (k === 'class') el.className = v;
+      else if (k === 'style' && typeof v === 'object') Object.assign(el.style, v);
+      else if (k.startsWith('on') && typeof v === 'function') el.addEventListener(k.slice(2), v);
+      else if (k === 'html') el.innerHTML = v;
+      else if (k === 'value') el.value = v;
+      else if (k === 'checked') el.checked = !!v;
+      else el.setAttribute(k, v === true ? '' : v);
+    }
+    for (const c of kids.flat(Infinity)) if (c != null && c !== false) el.append(c instanceof Node ? c : document.createTextNode(c));
+    return el;
+  }
+  UI.h = h;
+  UI.clear = el => { while (el.firstChild) el.firstChild.remove(); return el; };
+
+  UI.toast = (msg, kind) => {
+    const t = h('div', { class: 'toast ' + (kind || '') }, msg);
+    document.body.append(t); setTimeout(() => t.classList.add('show'), 10);
+    setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 300); }, kind === 'err' ? 5000 : 2500);
+  };
+
+  // 對話框
+  UI.modal = function (title, body, buttons, opts) {
+    opts = opts || {};
+    return new Promise(res => {
+      const close = v => { bg.remove(); document.removeEventListener('keydown', onKey, true); res(v); };
+      const foot = h('div', { class: 'm-foot' }, (buttons || [{ label: '關閉', value: null }]).map(b =>
+        h('button', { class: 'btn ' + (b.cls || ''), onclick: async () => { if (b.click) { const r = await b.click(); if (r === false) return; close(r === undefined ? b.value : r); } else close(b.value); } }, b.label)));
+      const box = h('div', { class: 'modal ' + (opts.cls || ''), style: opts.width ? { width: opts.width } : null },
+        h('div', { class: 'm-head' }, h('b', null, title), h('span', { class: 'x', onclick: () => close(null) }, '×')),
+        h('div', { class: 'm-body' }, body), foot);
+      const bg = h('div', { class: 'm-bg' }, box);
+      const onKey = e => { if (e.key === 'Escape') { e.stopPropagation(); close(null); } };
+      document.addEventListener('keydown', onKey, true);
+      document.body.append(bg);
+      const f = box.querySelector('input,select,textarea'); if (f && !opts.noFocus) setTimeout(() => f.focus(), 30);
+      if (opts.onOpen) opts.onOpen(box, close);
+    });
+  };
+  UI.alert = (msg, title) => UI.modal(title || '訊息', h('div', { class: 'pre' }, msg), [{ label: '確定', value: true, cls: 'pri' }]);
+  UI.confirm = (msg, title, okLabel) => UI.modal(title || '確認', h('div', { class: 'pre' }, msg), [{ label: '取消', value: false }, { label: okLabel || '確定', value: true, cls: 'pri' }]).then(v => !!v);
+  UI.prompt = (msg, def, title) => {
+    const i = h('input', { class: 'inp', value: def || '', style: { width: '100%' } });
+    i.addEventListener('keydown', e => { if (e.key === 'Enter') e.target.closest('.modal').querySelector('.pri').click(); });
+    return UI.modal(title || '輸入', h('div', null, h('div', { class: 'pre' }, msg), i), [{ label: '取消', value: null }, { label: '確定', cls: 'pri', click: () => i.value }]);
+  };
+  UI.busy = (msg) => {
+    const b = h('div', { class: 'm-bg busy' }, h('div', { class: 'modal', style: { width: '360px' } }, h('div', { class: 'm-body' }, h('div', { class: 'spin' }), h('div', { class: 'busy-msg' }, msg))));
+    document.body.append(b);
+    return { set: m => (b.querySelector('.busy-msg').textContent = m), close: () => b.remove() };
+  };
+
+  // 表格：cols [{key,label,get,fmt,align,w,sum}]，可排序、搜尋結果分批顯示
+  UI.grid = function (opts) {
+    const { cols, onRow, page = 300, cls, onDbl, selectable } = opts;
+    let rows = opts.rows || [], sortK = opts.sortKey || null, sortDir = opts.sortDir || 1, shown = page;
+    const wrap = h('div', { class: 'grid-wrap ' + (cls || '') });
+    const val = (c, r) => c.get ? c.get(r) : r[c.key];
+    function render() {
+      UI.clear(wrap);
+      let data = rows;
+      if (sortK != null) {
+        const c = cols.find(c => (c.key || c.label) === sortK);
+        if (c) data = rows.slice().sort((a, b) => { const x = val(c, a), y = val(c, b); if (x == null || x === '') return 1; if (y == null || y === '') return -1; return (typeof x === 'number' && typeof y === 'number' ? x - y : String(x).localeCompare(String(y), 'zh-Hant')) * sortDir; });
+      }
+      const thead = h('thead', null, h('tr', null, cols.map(c => h('th', {
+        class: (c.align || '') + ((c.key || c.label) === sortK ? ' sorted' : ''), style: c.w ? { width: c.w } : null,
+        onclick: () => { const k = c.key || c.label; if (sortK === k) sortDir = -sortDir; else { sortK = k; sortDir = 1; } render(); }
+      }, c.label, (c.key || c.label) === sortK ? (sortDir > 0 ? ' ▲' : ' ▼') : ''))));
+      const tb = h('tbody');
+      for (const r of data.slice(0, shown)) {
+        const tr = h('tr', { class: opts.rowCls ? opts.rowCls(r) : null }, cols.map(c => {
+          const v = val(c, r);
+          const td = h('td', { class: c.align || (c.fmt === 'money' || c.fmt === 'qty' || c.fmt === 'num' ? 'r' : '') });
+          const out = c.fmt === 'money' ? U.money(v) : c.fmt === 'qty' ? U.fmtQ(v) : c.fmt === 'num' ? U.fmt(v, c.dec || 0) : c.fmt === 'date' ? U.d10(v) : c.fmt === 'bool' ? (v ? '✓' : '') : v;
+          if (out instanceof Node) td.append(out); else td.textContent = out == null ? '' : out;
+          return td;
+        }));
+        if (onRow) tr.addEventListener('click', e => onRow(r, e, tr));
+        if (onDbl) tr.addEventListener('dblclick', () => onDbl(r));
+        tb.append(tr);
+      }
+      const table = h('table', { class: 'grid' }, thead, tb);
+      if (cols.some(c => c.sum)) {
+        table.append(h('tfoot', null, h('tr', null, cols.map((c, i) => h('td', { class: 'r' }, c.sum ? (c.fmt === 'qty' ? U.fmtQ(U.sum(data, r => val(c, r))) : U.money(U.sum(data, r => val(c, r)))) : (i === 0 ? '合計 ' + data.length + ' 筆' : ''))))));
+      }
+      wrap.append(table);
+      if (data.length > shown) wrap.append(h('div', { class: 'more' }, `顯示 ${shown} / ${data.length} 筆 `, h('button', { class: 'btn sm', onclick: () => { shown += page * 3; render(); } }, '顯示更多'), ' ', h('button', { class: 'btn sm', onclick: () => { shown = data.length; render(); } }, '全部顯示')));
+      else if (!data.length) wrap.append(h('div', { class: 'empty' }, opts.empty || '沒有資料'));
+      wrap._data = data;
+    }
+    wrap.setRows = r => { rows = r; shown = page; render(); };
+    wrap.getRows = () => wrap._data || rows;
+    render();
+    return wrap;
+  };
+
+  // 表單欄位
+  // f: {k, label, type: text|num|date|select|check|area|combo, opts:[...]|()=>[...], w, ro, req, pick: 'cust'|'supp'|'goods'|'acct'}
+  UI.form = function (fields, obj, opts) {
+    opts = opts || {};
+    const box = h('div', { class: 'form ' + (opts.cls || '') });
+    const inputs = {};
+    for (const f of fields) {
+      if (f.sep) { box.append(h('div', { class: 'f-sep' }, f.sep)); continue; }
+      let inp;
+      const v = obj[f.k];
+      if (f.type === 'select') {
+        const o = typeof f.opts === 'function' ? f.opts() : f.opts;
+        inp = h('select', { class: 'inp' }, o.map(x => { const [val, lab] = Array.isArray(x) ? x : [x, x]; return h('option', { value: val }, lab); }));
+        inp.value = v == null ? '' : v;
+      } else if (f.type === 'check') {
+        inp = h('input', { type: 'checkbox', checked: !!v });
+      } else if (f.type === 'area') {
+        inp = h('textarea', { class: 'inp', rows: f.rows || 3 }); inp.value = v == null ? '' : v;
+      } else {
+        inp = h('input', { class: 'inp' + (f.type === 'num' ? ' r' : ''), type: f.type === 'date' ? 'date' : 'text', value: f.type === 'date' ? U.d10(v) : (v == null ? '' : v) });
+        if (f.type === 'num') inp.inputMode = 'decimal';
+        if (f.list) { const id = 'dl' + Math.random().toString(36).slice(2); const o = typeof f.list === 'function' ? f.list() : f.list; inp.setAttribute('list', id); box.append(h('datalist', { id }, o.map(x => h('option', { value: x })))); }
+      }
+      if (f.ro) inp.disabled = true;
+      inputs[f.k] = inp;
+      const lab = h('label', { class: 'f' + (f.type === 'area' ? ' wide' : '') + (f.w ? ' w' + f.w : '') }, h('span', null, f.label || f.k, f.req ? h('i', { class: 'req' }, '*') : ''), inp);
+      if (f.pick) {
+        const name = h('span', { class: 'pick-name' });
+        const upd = () => { name.textContent = UI.pickName(f.pick, inp.value); };
+        inp.addEventListener('change', upd); upd();
+        const btn = h('button', { class: 'btn sm', type: 'button', onclick: async () => { const r = await UI.pick(f.pick, inp.value); if (r) { inp.value = r.code; upd(); inp.dispatchEvent(new Event('change', { bubbles: true })); } } }, '…');
+        inp.addEventListener('keydown', async e => { if (e.key === 'F2' || (e.key === 'Enter' && !UI.pickName(f.pick, inp.value) && inp.value)) { e.preventDefault(); const r = await UI.pick(f.pick, inp.value); if (r) { inp.value = r.code; upd(); inp.dispatchEvent(new Event('change', { bubbles: true })); } } });
+        lab.append(btn, name);
+      }
+      box.append(lab);
+    }
+    box.inputs = inputs;
+    box.read = function (target) {
+      target = target || obj;
+      for (const f of fields) {
+        if (f.sep || f.ro) continue;
+        const inp = inputs[f.k];
+        if (f.type === 'check') target[f.k] = inp.checked;
+        else if (f.type === 'num') target[f.k] = inp.value === '' ? 0 : U.num(inp.value);
+        else target[f.k] = inp.value === '' ? null : inp.value;
+      }
+      return target;
+    };
+    box.check = function () {
+      for (const f of fields) if (f.req && !U.trim(inputs[f.k].value)) { UI.toast('請輸入「' + (f.label || f.k) + '」', 'err'); inputs[f.k].focus(); return false; }
+      return true;
+    };
+    return box;
+  };
+
+  // 挑選視窗
+  UI.PICK = {
+    cust: { title: '選擇客戶', rows: () => S.rows('客戶廠商').filter(r => r.客廠類別 !== '廠商'), code: r => U.trim(r.客廠編號), name: r => r.公司簡稱 || r.公司全名, cols: [{ key: '客廠編號', label: '編號', w: '80px' }, { key: '公司簡稱', label: '簡稱' }, { key: '公司全名', label: '全名' }, { key: '聯絡電話一', label: '電話' }], text: r => [r.客廠編號, r.公司簡稱, r.公司全名, r.聯絡電話一, r.統一編號].join(' ') },
+    supp: { title: '選擇廠商', rows: () => S.rows('客戶廠商').filter(r => r.客廠類別 === '廠商'), code: r => U.trim(r.客廠編號), name: r => r.公司簡稱 || r.公司全名, cols: [{ key: '客廠編號', label: '編號', w: '80px' }, { key: '公司簡稱', label: '簡稱' }, { key: '公司全名', label: '全名' }, { key: '聯絡電話一', label: '電話' }], text: r => [r.客廠編號, r.公司簡稱, r.公司全名, r.聯絡電話一, r.統一編號].join(' ') },
+    goods: { title: '選擇貨品', rows: () => S.rows('貨品主檔'), code: r => U.trim(r.貨品編號), name: r => r.品名, cols: [{ key: '貨品編號', label: '貨品編號', w: '160px' }, { key: '品名', label: '品名' }, { key: '規格', label: '規格' }, { key: '基本單位', label: '單位', w: '60px' }, { label: '庫存', get: r => C.stockOf(U.trim(r.貨品編號)), fmt: 'qty', w: '80px' }, { key: '標準售價', label: '售價', fmt: 'num', dec: 2, w: '80px' }], text: r => [r.貨品編號, r.品名, r.規格, r.原廠貨號, r.條碼編號].join(' ') },
+    acct: { title: '選擇會計科目', rows: () => S.rows('會計科目'), code: r => U.trim(r.科目編號), name: r => r.科目名稱, cols: [{ key: '科目編號', label: '科目編號', w: '100px' }, { key: '科目名稱', label: '科目名稱' }], text: r => [r.科目編號, r.科目名稱].join(' ') },
+    emp: { title: '選擇員工', rows: () => S.rows('員工資料'), code: r => U.trim(r.員工編號), name: r => r.員工姓名, cols: [{ key: '員工編號', label: '編號' }, { key: '員工姓名', label: '姓名' }], text: r => [r.員工編號, r.員工姓名].join(' ') },
+    wh: { title: '選擇倉庫', rows: () => S.rows('倉庫資料'), code: r => U.trim(r.倉庫編號), name: r => r.倉庫名稱, cols: [{ key: '倉庫編號', label: '編號' }, { key: '倉庫名稱', label: '名稱' }], text: r => [r.倉庫編號, r.倉庫名稱].join(' ') },
+    bank: { title: '選擇銀行帳戶', rows: () => S.rows('開戶銀行'), code: r => U.trim(r.帳戶編號), name: r => r.帳戶名稱 || r.銀行名稱, cols: [{ key: '帳戶編號', label: '編號' }, { key: '帳戶名稱', label: '帳戶名稱' }, { key: '開戶帳號', label: '帳號' }], text: r => [r.帳戶編號, r.帳戶名稱, r.銀行名稱, r.開戶帳號].join(' ') }
+  };
+  UI.pickName = function (kind, code) {
+    code = U.trim(code); if (!code) return '';
+    const I = S.idx, m = { cust: I.cust, supp: I.supp, goods: I.goods, acct: I.acct, emp: I.emp, wh: I.wh }[kind];
+    if (m) { const r = m.get(code); return r ? UI.PICK[kind].name(r) || '' : '（找不到）'; }
+    const r = UI.PICK[kind].rows().find(x => UI.PICK[kind].code(x) === code); return r ? UI.PICK[kind].name(r) : '（找不到）';
+  };
+  UI.pick = function (kind, q) {
+    const P = UI.PICK[kind];
+    const all = P.rows();
+    const inp = h('input', { class: 'inp', placeholder: '關鍵字（空白分隔多個字）', value: q || '', style: { width: '100%' } });
+    let chosen = null, close;
+    const grid = UI.grid({ cols: P.cols, rows: [], page: 200, onRow: r => { chosen = r; close(r); } });
+    let sel = 0;
+    const filter = () => {
+      const t = U.qTerms(inp.value);
+      grid.setRows(t.length ? all.filter(r => U.matchQ(P.text(r), t)) : all);
+      sel = 0; mark();
+    };
+    const mark = () => { const trs = grid.querySelectorAll('tbody tr'); trs.forEach((tr, i) => tr.classList.toggle('sel', i === sel)); if (trs[sel]) trs[sel].scrollIntoView({ block: 'nearest' }); };
+    inp.addEventListener('input', U.debounce(filter, 150));
+    inp.addEventListener('keydown', e => {
+      const n = grid.querySelectorAll('tbody tr').length;
+      if (e.key === 'ArrowDown') { sel = Math.min(n - 1, sel + 1); mark(); e.preventDefault(); }
+      else if (e.key === 'ArrowUp') { sel = Math.max(0, sel - 1); mark(); e.preventDefault(); }
+      else if (e.key === 'Enter') { const r = grid.getRows()[sel]; if (r) close(r); e.preventDefault(); }
+    });
+    filter();
+    return UI.modal(P.title, h('div', { class: 'picker' }, inp, grid), [{ label: '取消', value: null }], {
+      width: '820px', onOpen: (box, c) => { close = c; }
+    }).then(r => r ? { code: P.code(r), row: r } : null);
+  };
+
+  // 日期區間 + 關鍵字 篩選列
+  UI.filterBar = function (opts, onChange) {
+    const st = Object.assign({ d0: U.monthStart(), d1: U.today(), q: '' }, opts.init || {});
+    const d0 = h('input', { type: 'date', class: 'inp', value: st.d0 }), d1 = h('input', { type: 'date', class: 'inp', value: st.d1 });
+    const q = h('input', { class: 'inp', placeholder: opts.ph || '關鍵字（空白分隔）', value: st.q, style: { width: '220px' } });
+    const fire = () => onChange({ d0: d0.value, d1: d1.value, q: q.value });
+    const quick = (a, b) => { d0.value = a; d1.value = b; fire(); };
+    const t = U.today(), y = t.slice(0, 4);
+    const bar = h('div', { class: 'fbar' },
+      opts.noDate ? null : [h('span', null, '日期區間 自'), d0, h('span', null, '至'), d1,
+        h('button', { class: 'btn sm', onclick: () => quick(t, t) }, '今天'),
+        h('button', { class: 'btn sm', onclick: () => quick(U.monthStart(), U.monthEnd()) }, '本月'),
+        h('button', { class: 'btn sm', onclick: () => { const p = U.addDays(U.monthStart(), -1); quick(U.monthStart(p), p); } }, '上月'),
+        h('button', { class: 'btn sm', onclick: () => quick(y + '-01-01', y + '-12-31') }, '今年'),
+        h('button', { class: 'btn sm', onclick: () => quick('1900-01-01', '2999-12-31') }, '全部')],
+      q, opts.extra || null);
+    [d0, d1].forEach(i => i.addEventListener('change', fire));
+    q.addEventListener('input', U.debounce(fire, 250));
+    bar.state = () => ({ d0: d0.value, d1: d1.value, q: q.value });
+    return bar;
+  };
+
+  // 列印：開新視窗或 iframe
+  UI.print = function (title, html, css) {
+    const f = h('iframe', { style: { position: 'fixed', right: '0', bottom: '0', width: '0', height: '0', border: '0' } });
+    document.body.append(f);
+    const d = f.contentDocument;
+    d.open(); d.write('<!doctype html><html><head><meta charset="utf-8"><title>' + U.esc(title) + '</title><style>' + G.PRINT_CSS + (css || '') + '</style></head><body>' + html + '</body></html>'); d.close();
+    setTimeout(() => { f.contentWindow.focus(); f.contentWindow.print(); setTimeout(() => f.remove(), 2000); }, 300);
+  };
+
+  UI.page = function (title, ...kids) {
+    return h('div', { class: 'page' }, h('div', { class: 'page-head' }, h('h2', null, title)), ...kids);
+  };
+  UI.toolbar = (...kids) => h('div', { class: 'toolbar' }, ...kids);
+  UI.btn = (label, onclick, cls) => h('button', { class: 'btn ' + (cls || ''), onclick }, label);
+
+  G.UI = UI; G.h = h;
+})(window);
+
+</script>
+<script>
+/* ---- print.js ---- */
+/* print.js — 列印樣式 */
+window.PRINT_CSS = `
+@page{size:A4;margin:12mm}
+body{font:12px/1.4 "Microsoft JhengHei","微軟正黑體",sans-serif;color:#000;margin:0}
+.doc{page-break-after:always}
+.doc:last-child{page-break-after:auto}
+.co{text-align:center;font-size:20px;font-weight:bold;letter-spacing:2px}
+.co-sub{text-align:center;font-size:11px;margin:2px 0 4px}
+.title{text-align:center;font-size:17px;font-weight:bold;margin:4px 0 8px;letter-spacing:6px}
+table{border-collapse:collapse;width:100%}
+table.info td{padding:2px 4px;font-size:12px}
+table.lines{margin-top:6px}
+table.lines th,table.lines td{border:1px solid #000;padding:3px 4px}
+table.lines th{background:#eee;font-weight:normal}
+table.sum td{text-align:right;padding:6px 4px;font-size:13px}
+.memo{margin-top:6px;white-space:pre-wrap}
+table.sign{margin-top:22px}table.sign td{width:33%;padding:4px}
+.r{text-align:right}.c{text-align:center}
+.rep-title{text-align:center;font-size:16px;font-weight:bold}
+.rep-sub{text-align:center;font-size:11px;margin-bottom:6px}
+table.rep th,table.rep td{border:1px solid #444;padding:2px 4px;font-size:11px}
+table.rep th{background:#eee;font-weight:normal}
+table.rep tfoot td{font-weight:bold}
+.check{position:relative;width:180mm;height:80mm;font-size:14px}
+`;
+
+</script>
+<script>
+/* ---- barcode.js ---- */
+/* barcode.js — 條碼產生器（Code128、EAN-13、Code39、QR Code），輸出 SVG，不需要外掛或網路 */
+(function (G) {
+  'use strict';
+  const BC = {};
+
+  // ===== Code 128 =====
+  // 每個符號 6 個寬度（條空條空條空），停止碼 7 個
+  const C128 = ('212222 222122 222221 121223 121322 131222 122213 122312 132212 221213 221312 231212 112232 122132 122231 113222 123122 123221 223211 221132 ' +
+    '221231 213212 223112 312131 311222 321122 321221 312212 322112 322211 212123 212321 232121 111323 131123 131321 112313 132113 132311 211313 ' +
+    '231113 231311 112133 112331 132131 113123 113321 133121 313121 211331 231131 213113 213311 213131 311123 311321 331121 312113 312311 332111 ' +
+    '314111 221411 431111 111224 111422 121124 121421 141122 141221 112214 112412 122114 122411 142112 142211 241211 221114 413111 241112 134111 ' +
+    '111242 121142 121241 114212 124112 124211 411212 421112 421211 212141 214121 412121 111143 111341 131141 114113 114311 411113 411311 113141 ' +
+    '114131 311141 411131 211412 211214 211232 2331112').split(' ');
+  BC.C128 = C128;
+  // 回傳寬度陣列（第一個是條）
+  BC.code128 = function (text) {
+    text = String(text);
+    for (const ch of text) { const c = ch.charCodeAt(0); if (c > 127) throw new Error('Code128 只能放英數字與符號'); }
+    const codes = [];
+    let set = null, i = 0;
+    const digitRun = k => { let n = 0; while (k + n < text.length && /\d/.test(text[k + n])) n++; return n; };
+    const needA = c => c < 32;
+    while (i < text.length) {
+      const run = digitRun(i);
+      // 連續數字 ≥4（或整段都是數字且為偶數 ≥2）用 C 集
+      const useC = run >= 4 || (run >= 2 && run === text.length - i && run % 2 === 0 && set === 'C');
+      if (useC) {
+        const n = run - (run % 2);
+        if (set !== 'C') { codes.push(set == null ? 105 : 99); set = 'C'; }
+        for (let k = 0; k < n; k += 2) codes.push(+text.substr(i + k, 2));
+        i += n;
+        continue;
+      }
+      const c = text.charCodeAt(i);
+      const want = needA(c) ? 'A' : 'B';
+      if (set !== want && !(set === 'A' && c >= 32 && c < 96)) {
+        codes.push(set == null ? (want === 'A' ? 103 : 104) : (want === 'A' ? 101 : 100)); set = want;
+      }
+      codes.push(set === 'A' ? (c < 32 ? c + 64 : c - 32) : c - 32);
+      i++;
+    }
+    if (set == null) codes.push(104);
+    let sum = codes[0];
+    for (let k = 1; k < codes.length; k++) sum += codes[k] * k;
+    codes.push(sum % 103, 106);
+    const w = [];
+    for (const c of codes) for (const d of C128[c]) w.push(+d);
+    w.push(2); // 終止條
+    return w;
+  };
+
+  // ===== EAN-13（輸入 12 或 13 碼，自動算檢查碼）=====
+  const EAN_L = ['3211', '2221', '2122', '1411', '1132', '1231', '1114', '1312', '1213', '3112'];
+  const EAN_PAR = ['LLLLLL', 'LLGLGG', 'LLGGLG', 'LLGGGL', 'LGLLGG', 'LGGLLG', 'LGGGLL', 'LGLGLG', 'LGLGGL', 'LGGLGL'];
+  BC.eanCheck = s => { let t = 0; for (let i = 0; i < 12; i++) t += (+s[i]) * (i % 2 ? 3 : 1); return (10 - t % 10) % 10; };
+  BC.ean13 = function (text) {
+    let s = String(text).replace(/\s/g, '');
+    if (!/^\d{12,13}$/.test(s)) throw new Error('EAN-13 要 12 或 13 位數字');
+    const ck = BC.eanCheck(s);
+    if (s.length === 13 && +s[12] !== ck) throw new Error('EAN-13 檢查碼錯誤（應為 ' + ck + '）');
+    s = s.slice(0, 12) + ck;
+    // 寬度陣列：以「空」開頭的區塊需處理顏色，這裡直接輸出模組 0/1
+    const mods = [];
+    const put = (ws, startBar) => { let bar = startBar; for (const d of ws) { for (let k = 0; k < +d; k++) mods.push(bar ? 1 : 0); bar = !bar; } };
+    put('111', true);
+    const par = EAN_PAR[+s[0]];
+    for (let i = 1; i <= 6; i++) { const p = EAN_L[+s[i]]; put(par[i - 1] === 'L' ? p : p.split('').reverse().join(''), false); }
+    put('11111', false);
+    for (let i = 7; i <= 12; i++) put(EAN_L[+s[i]], true);
+    put('111', true);
+    return { mods, text: s };
+  };
+
+  // ===== Code 39 =====
+  const C39_CH = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ-. $/+%*';
+  const C39 = ['nnnwwnwnn', 'wnnwnnnnw', 'nnwwnnnnw', 'wnwwnnnnn', 'nnnwwnnnw', 'wnnwwnnnn', 'nnwwwnnnn', 'nnnwnnwnw', 'wnnwnnwnn', 'nnwwnnwnn',
+    'wnnnnwnnw', 'nnwnnwnnw', 'wnwnnwnnn', 'nnnnwwnnw', 'wnnnwwnnn', 'nnwnwwnnn', 'nnnnnwwnw', 'wnnnnwwnn', 'nnwnnwwnn', 'nnnnwwwnn',
+    'wnnnnnnww', 'nnwnnnnww', 'wnwnnnnwn', 'nnnnwnnww', 'wnnnwnnwn', 'nnwnwnnwn', 'nnnnnnwww', 'wnnnnnwwn', 'nnwnnnwwn', 'nnnnwnwwn',
+    'wwnnnnnnw', 'nwwnnnnnw', 'wwwnnnnnn', 'nwnnwnnnw', 'wwnnwnnnn', 'nwwnwnnnn', 'nwnnnnwnw', 'wwnnnnwnn', 'nwwnnnwnn', 'nwnwnwnnn',
+    'nwnwnnnwn', 'nwnnnwnwn', 'nnnwnwnwn', 'nwnnwnwnn'];
+  BC.code39 = function (text) {
+    const s = String(text).toUpperCase();
+    for (const ch of s) if (C39_CH.indexOf(ch) < 0 || ch === '*') throw new Error('Code39 不支援「' + ch + '」');
+    const w = [];
+    const all = '*' + s + '*';
+    for (let i = 0; i < all.length; i++) {
+      for (const c of C39[C39_CH.indexOf(all[i])]) w.push(c === 'w' ? 3 : 1);
+      if (i < all.length - 1) w.push(1);
+    }
+    return w;
+  };
+
+  // ===== QR Code（位元組模式 UTF-8，版本 1–40，自動選最小版本與最佳遮罩）=====
+  const ECC_CW = [
+    [-1, 7, 10, 15, 20, 26, 18, 20, 24, 30, 18, 20, 24, 26, 30, 22, 24, 28, 30, 28, 28, 28, 28, 30, 30, 26, 28, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30],
+    [-1, 10, 16, 26, 18, 24, 16, 18, 22, 22, 26, 30, 22, 22, 24, 24, 28, 28, 26, 26, 26, 26, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28],
+    [-1, 13, 22, 18, 26, 18, 24, 18, 22, 20, 24, 28, 26, 24, 20, 30, 24, 28, 28, 26, 30, 28, 30, 30, 30, 30, 28, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30],
+    [-1, 17, 28, 22, 16, 22, 28, 26, 26, 24, 28, 24, 28, 22, 24, 24, 30, 28, 28, 26, 28, 30, 24, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30]];
+  const ECC_BLK = [
+    [-1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 4, 4, 4, 4, 4, 6, 6, 6, 6, 7, 8, 8, 9, 9, 10, 12, 12, 12, 13, 14, 15, 16, 17, 18, 19, 19, 20, 21, 22, 24, 25],
+    [-1, 1, 1, 1, 2, 2, 4, 4, 4, 5, 5, 5, 8, 9, 9, 10, 10, 11, 13, 14, 16, 17, 17, 18, 20, 21, 23, 25, 26, 28, 29, 31, 33, 35, 37, 38, 40, 43, 45, 47, 49],
+    [-1, 1, 1, 2, 2, 4, 4, 6, 6, 8, 8, 8, 10, 12, 16, 12, 17, 16, 18, 21, 20, 23, 23, 25, 27, 29, 34, 34, 35, 38, 40, 43, 45, 48, 51, 53, 56, 59, 62, 65, 68],
+    [-1, 1, 1, 2, 4, 4, 4, 5, 6, 8, 8, 11, 11, 16, 16, 18, 16, 19, 21, 25, 25, 25, 34, 30, 32, 35, 37, 40, 42, 45, 48, 51, 54, 57, 60, 63, 66, 70, 74, 77, 81]];
+  const ECL = { L: [0, 1], M: [1, 0], Q: [2, 3], H: [3, 2] }; // [表格索引, 格式位元]
+
+  function rawModules(v) {
+    let r = (16 * v + 128) * v + 64;
+    if (v >= 2) { const n = Math.floor(v / 7) + 2; r -= (25 * n - 10) * n - 55; if (v >= 7) r -= 36; }
+    return r;
+  }
+  const dataCw = (v, e) => Math.floor(rawModules(v) / 8) - ECC_CW[e][v] * ECC_BLK[e][v];
+  function alignPos(v) {
+    if (v === 1) return [];
+    const n = Math.floor(v / 7) + 2, step = v === 32 ? 26 : Math.ceil((v * 4 + 4) / (n * 2 - 2)) * 2;
+    const out = [6];
+    for (let p = v * 4 + 10; out.length < n; p -= step) out.splice(1, 0, p);
+    return out;
+  }
+  // GF(256) Reed-Solomon
+  function gfMul(x, y) { let z = 0; for (let i = 7; i >= 0; i--) { z = (z << 1) ^ ((z >>> 7) * 0x11D); z ^= ((y >>> i) & 1) * x; } return z & 0xFF; }
+  function rsDivisor(deg) {
+    const r = new Array(deg).fill(0); r[deg - 1] = 1; let root = 1;
+    for (let i = 0; i < deg; i++) { for (let j = 0; j < r.length; j++) { r[j] = gfMul(r[j], root); if (j + 1 < r.length) r[j] ^= r[j + 1]; } root = gfMul(root, 2); }
+    return r;
+  }
+  function rsRemainder(data, div) {
+    const r = div.map(() => 0);
+    for (const b of data) { const f = b ^ r.shift(); r.push(0); div.forEach((c, i) => (r[i] ^= gfMul(c, f))); }
+    return r;
+  }
+
+  BC.qr = function (text, ecl) {
+    ecl = ECL[ecl] ? ecl : 'M';
+    const [e, fbits] = ECL[ecl];
+    const bytes = Array.from(new TextEncoder().encode(String(text)));
+    let v = 1;
+    for (; v <= 40; v++) { const cc = v < 10 ? 8 : 16; if (4 + cc + bytes.length * 8 <= dataCw(v, e) * 8) break; }
+    if (v > 40) throw new Error('QR 內容太長');
+    // 資料位元
+    const bits = [];
+    const app = (val, n) => { for (let i = n - 1; i >= 0; i--) bits.push((val >>> i) & 1); };
+    app(4, 4); app(bytes.length, v < 10 ? 8 : 16); for (const b of bytes) app(b, 8);
+    const cap = dataCw(v, e) * 8;
+    app(0, Math.min(4, cap - bits.length));
+    app(0, (8 - bits.length % 8) % 8);
+    for (let p = 0xEC; bits.length < cap; p ^= 0xEC ^ 0x11) app(p, 8);
+    const data = []; for (let i = 0; i < bits.length; i += 8) { let b = 0; for (let k = 0; k < 8; k++) b = (b << 1) | bits[i + k]; data.push(b); }
+    // 分組加錯誤更正碼並交錯
+    const nb = ECC_BLK[e][v], eb = ECC_CW[e][v], raw = Math.floor(rawModules(v) / 8), nShort = nb - raw % nb, shortLen = Math.floor(raw / nb);
+    const div = rsDivisor(eb), blocks = [];
+    for (let i = 0, k = 0; i < nb; i++) {
+      const dat = data.slice(k, k + shortLen - eb + (i < nShort ? 0 : 1)); k += dat.length;
+      const ecc = rsRemainder(dat, div);
+      if (i < nShort) dat.push(0);
+      blocks.push(dat.concat(ecc));
+    }
+    const cws = [];
+    for (let i = 0; i < blocks[0].length; i++) blocks.forEach((b, j) => { if (i !== shortLen - eb || j >= nShort) cws.push(b[i]); });
+    // 畫矩陣
+    const size = v * 4 + 17;
+    const M = [], F = [];
+    for (let i = 0; i < size; i++) { M.push(new Array(size).fill(0)); F.push(new Array(size).fill(false)); }
+    const set = (x, y, d) => { M[y][x] = d ? 1 : 0; F[y][x] = true; };
+    for (let i = 0; i < size; i++) { set(6, i, i % 2 === 0); set(i, 6, i % 2 === 0); }
+    const finder = (x, y) => { for (let dy = -4; dy <= 4; dy++) for (let dx = -4; dx <= 4; dx++) { const d = Math.max(Math.abs(dx), Math.abs(dy)), xx = x + dx, yy = y + dy; if (xx >= 0 && xx < size && yy >= 0 && yy < size) set(xx, yy, d !== 2 && d !== 4); } };
+    finder(3, 3); finder(size - 4, 3); finder(3, size - 4);
+    const ap = alignPos(v);
+    for (let i = 0; i < ap.length; i++) for (let j = 0; j < ap.length; j++) {
+      if ((i === 0 && j === 0) || (i === 0 && j === ap.length - 1) || (i === ap.length - 1 && j === 0)) continue;
+      for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) set(ap[i] + dx, ap[j] + dy, Math.max(Math.abs(dx), Math.abs(dy)) !== 1);
+    }
+    const drawFormat = mask => {
+      const d = fbits << 3 | mask; let r = d;
+      for (let i = 0; i < 10; i++) r = (r << 1) ^ ((r >>> 9) * 0x537);
+      const b = (d << 10 | r) ^ 0x5412, g = i => ((b >>> i) & 1) === 1;
+      for (let i = 0; i <= 5; i++) set(8, i, g(i));
+      set(8, 7, g(6)); set(8, 8, g(7)); set(7, 8, g(8));
+      for (let i = 9; i < 15; i++) set(14 - i, 8, g(i));
+      for (let i = 0; i < 8; i++) set(size - 1 - i, 8, g(i));
+      for (let i = 8; i < 15; i++) set(8, size - 15 + i, g(i));
+      set(8, size - 8, true);
+    };
+    drawFormat(0);
+    if (v >= 7) {
+      let r = v; for (let i = 0; i < 12; i++) r = (r << 1) ^ ((r >>> 11) * 0x1F25);
+      const b = v << 12 | r;
+      for (let i = 0; i < 18; i++) { const bit = ((b >>> i) & 1) === 1, a = size - 11 + i % 3, c = Math.floor(i / 3); set(a, c, bit); set(c, a, bit); }
+    }
+    // 放資料
+    let idx = 0;
+    for (let right = size - 1; right >= 1; right -= 2) {
+      if (right === 6) right = 5;
+      for (let vert = 0; vert < size; vert++) for (let j = 0; j < 2; j++) {
+        const x = right - j, up = ((right + 1) & 2) === 0, y = up ? size - 1 - vert : vert;
+        if (!F[y][x] && idx < cws.length * 8) { M[y][x] = (cws[idx >>> 3] >>> (7 - (idx & 7))) & 1; idx++; }
+      }
+    }
+    const maskFn = [(x, y) => (x + y) % 2 === 0, (x, y) => y % 2 === 0, x => x % 3 === 0, (x, y) => (x + y) % 3 === 0,
+      (x, y) => (Math.floor(x / 3) + Math.floor(y / 2)) % 2 === 0, (x, y) => x * y % 2 + x * y % 3 === 0,
+      (x, y) => (x * y % 2 + x * y % 3) % 2 === 0, (x, y) => ((x + y) % 2 + x * y % 3) % 2 === 0];
+    const applyMask = m => { for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) if (!F[y][x] && maskFn[m](x, y)) M[y][x] ^= 1; };
+    const penalty = () => {
+      let p = 0;
+      const line = get => {
+        let s = 0, runC = 0, run = 0; const hist = [0, 0, 0, 0, 0, 0, 0];
+        const addH = r => { if (hist[0] === 0) r += size; hist.pop(); hist.unshift(r); };
+        const cnt = () => { const n = hist[1], core = n > 0 && hist[2] === n && hist[3] === n * 3 && hist[4] === n && hist[5] === n; return (core && hist[0] >= n * 4 && hist[6] >= n ? 1 : 0) + (core && hist[6] >= n * 4 && hist[0] >= n ? 1 : 0); };
+        for (let i = 0; i < size; i++) {
+          const c = get(i);
+          if (c === runC) { run++; if (run === 5) s += 3; else if (run > 5) s++; }
+          else { addH(run); if (!runC) s += cnt() * 40; runC = c; run = 1; }
+        }
+        // 結尾
+        if (runC) { addH(run); run = 0; }
+        run += size; addH(run); s += cnt() * 40;
+        return s;
+      };
+      for (let y = 0; y < size; y++) p += line(i => M[y][i]);
+      for (let x = 0; x < size; x++) p += line(i => M[i][x]);
+      for (let y = 0; y < size - 1; y++) for (let x = 0; x < size - 1; x++) { const c = M[y][x]; if (c === M[y][x + 1] && c === M[y + 1][x] && c === M[y + 1][x + 1]) p += 3; }
+      let dark = 0; for (const r of M) for (const c of r) dark += c;
+      const total = size * size, k = Math.ceil(Math.abs(dark * 20 - total * 10) / total) - 1;
+      return p + k * 10;
+    };
+    let best = 0, bestP = Infinity;
+    for (let m = 0; m < 8; m++) { applyMask(m); drawFormat(m); const p = penalty(); if (p < bestP) { bestP = p; best = m; } applyMask(m); }
+    applyMask(best); drawFormat(best);
+    return M;
+  };
+
+  // ===== 輸出 SVG（尺寸單位 mm，條碼寬度自動依框寬縮放）=====
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  // widths → 模組陣列
+  const toMods = w => { const m = []; w.forEach((n, i) => { for (let k = 0; k < n; k++) m.push(i % 2 === 0 ? 1 : 0); }); return m; };
+  BC.modules = function (sym, text) {
+    if (sym === 'ean13') return BC.ean13(text);
+    if (sym === 'code39') return { mods: toMods(BC.code39(text)), text: String(text).toUpperCase() };
+    return { mods: toMods(BC.code128(text)), text: String(text) };
+  };
+  // 一維條碼：w,h mm；opt {showText, fontSize(pt), quiet}
+  BC.svg1d = function (sym, text, w, h, opt) {
+    opt = opt || {};
+    const { mods, text: hr } = BC.modules(sym, text);
+    const quiet = opt.quiet == null ? 0 : opt.quiet;
+    let unit = w / (mods.length + quiet * 2);
+    // 熱感標籤機（203dpi＝每點 0.125mm）：條寬取整數點，掃描才準；放不下 1 點才用小數
+    const dot = opt.dpi ? 25.4 / opt.dpi : 0;
+    if (dot && unit >= dot) unit = Math.floor(unit / dot + 1e-6) * dot;
+    const x0 = (w - unit * (mods.length + quiet * 2)) / 2;
+    const fs = (opt.fontSize || 8) * 0.3528; // pt → mm
+    const th = opt.showText ? fs * 1.15 : 0;
+    const bh = Math.max(1, h - th);
+    let d = '';
+    for (let i = 0; i < mods.length;) {
+      if (!mods[i]) { i++; continue; }
+      let j = i; while (j < mods.length && mods[j]) j++;
+      d += `M${(x0 + (i + quiet) * unit).toFixed(4)} 0h${((j - i) * unit).toFixed(4)}v${bh.toFixed(3)}h-${((j - i) * unit).toFixed(4)}z`;
+      i = j;
+    }
+    const t = opt.showText ? `<text x="${w / 2}" y="${(h - fs * 0.12).toFixed(3)}" font-size="${fs.toFixed(3)}" text-anchor="middle" font-family="Arial,sans-serif" textLength="${Math.min(w, fs * 0.62 * hr.length).toFixed(2)}" lengthAdjust="spacingAndGlyphs">${esc(hr)}</text>` : '';
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" width="${w}mm" height="${h}mm" preserveAspectRatio="none" shape-rendering="crispEdges"><path d="${d}"/>${t}</svg>`;
+  };
+  BC.svgQR = function (text, size, ecl, dpi) {
+    const M = BC.qr(text, ecl), n = M.length, q = 2, dot = dpi ? 25.4 / dpi : 0;
+    let u = size / (n + q * 2);
+    if (dot && u >= dot) u = Math.floor(u / dot + 1e-6) * dot;
+    let d = '';
+    for (let y = 0; y < n; y++) for (let x = 0; x < n;) {
+      if (!M[y][x]) { x++; continue; }
+      let j = x; while (j < n && M[y][j]) j++;
+      d += `M${((x + q) * u).toFixed(4)} ${((y + q) * u).toFixed(4)}h${((j - x) * u).toFixed(4)}v${u.toFixed(4)}h-${((j - x) * u).toFixed(4)}z`;
+      x = j;
+    }
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${size} ${size}" width="${size}mm" height="${size}mm" shape-rendering="crispEdges"><path d="${d}"/></svg>`;
+  };
+
+  G.BC = BC;
+})(typeof window !== 'undefined' ? window : globalThis);
+
+</script>
+<script>
+/* ---- lbl_import.js ---- */
+/* lbl_import.js — 讀 NiceLabel 的 .lbl 標籤檔（OLE 複合檔），轉成本系統的標籤樣板
+   讀得到：標籤尺寸、印表機、文字物件（位置、字型、大小、粗體）、提示變數（品名／規格／數量…）、日期變數
+   讀不到的（條碼、圖片、線條等）會略過，匯入後可在設計畫面補上 */
+(function (G) {
+  'use strict';
+
+  // ===== OLE 複合檔（CFB）=====
+  function cfb(buf) {
+    const u8 = new Uint8Array(buf), dv = new DataView(u8.buffer, u8.byteOffset, u8.byteLength);
+    const sig = [0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1];
+    if (sig.some((b, i) => u8[i] !== b)) throw new Error('不是 NiceLabel 標籤檔（.lbl）');
+    const ss = 1 << dv.getUint16(0x1e, true), mss = 1 << dv.getUint16(0x20, true);
+    const nFat = dv.getUint32(0x2c, true), dir0 = dv.getUint32(0x30, true), cutoff = dv.getUint32(0x38, true);
+    const mf0 = dv.getUint32(0x3c, true); let dif = dv.getUint32(0x44, true);
+    const sec = n => (n + 1) * ss;
+    const difat = [];
+    for (let i = 0; i < 109; i++) difat.push(dv.getUint32(0x4c + i * 4, true));
+    for (let guard = 0; dif < 0xfffffffa && guard < 1000; guard++) { // 超過 109 個 FAT 磁區時的延伸表
+      const o = sec(dif);
+      for (let i = 0; i < ss / 4 - 1; i++) difat.push(dv.getUint32(o + i * 4, true));
+      dif = dv.getUint32(o + ss - 4, true);
+    }
+    const fat = [];
+    for (const s of difat.slice(0, nFat)) { if (s >= 0xfffffffa) continue; const o = sec(s); for (let i = 0; i < ss / 4; i++) fat.push(dv.getUint32(o + i * 4, true)); }
+    const chain = (s, tbl) => { const out = []; while (s < 0xfffffffa && out.length < 1e6) { out.push(s); s = tbl[s]; } return out; };
+    const readBig = (s, size) => { const out = new Uint8Array(size); let p = 0; for (const n of chain(s, fat)) { if (p >= size) break; const k = Math.min(ss, size - p); if (sec(n) + k > u8.length) break; out.set(u8.subarray(sec(n), sec(n) + k), p); p += k; } out.got = p; return out; };
+    const dirBytes = (() => { const c = chain(dir0, fat), out = new Uint8Array(c.length * ss); c.forEach((n, i) => out.set(u8.subarray(sec(n), sec(n) + ss), i * ss)); return out; })();
+    const ddv = new DataView(dirBytes.buffer);
+    const ents = [];
+    for (let o = 0; o + 128 <= dirBytes.length; o += 128) {
+      const nl = ddv.getUint16(o + 0x40, true); let name = '';
+      for (let i = 0; i + 2 < nl; i += 2) name += String.fromCharCode(ddv.getUint16(o + i, true));
+      ents.push({ name, type: dirBytes[o + 0x42], start: ddv.getUint32(o + 0x74, true), size: ddv.getUint32(o + 0x78, true) });
+    }
+    const root = ents[0];
+    const mini = readBig(root.start, root.size);
+    const minifat = (() => { if (mf0 >= 0xfffffffa) return []; const b = readBig(mf0, chain(mf0, fat).length * ss), v = new DataView(b.buffer), a = []; for (let i = 0; i < b.length / 4; i++) a.push(v.getUint32(i * 4, true)); return a; })();
+    return {
+      names: ents.filter(e => e.type === 2).map(e => e.name),
+      stream(name) {
+        const e = ents.find(x => x.type === 2 && x.name === name);
+        if (!e) return null;
+        if (e.size >= cutoff) return readBig(e.start, e.size);
+        const out = new Uint8Array(e.size); let p = 0;
+        for (const n of chain(e.start, minifat)) { if (p >= e.size) break; const k = Math.min(mss, e.size - p); if (n * mss + k > mini.got) break; out.set(mini.subarray(n * mss, n * mss + k), p); p += k; }
+        out.got = p; return out;
+      }
+    };
+  }
+
+  // ===== 解析 =====
+  let big5;
+  const dec = b => { big5 = big5 || new TextDecoder('big5'); return big5.decode(b); };
+  const i16 = (d, p) => (d[p] | (d[p + 1] << 8)) << 16 >> 16;
+  const i32 = (d, p) => d[p] | (d[p + 1] << 8) | (d[p + 2] << 16) | (d[p + 3] << 24);
+  const cstr = (d, p, max) => { let e = p; while (e < d.length && e - p < max && d[e]) e++; return e - p < max ? dec(d.subarray(p, e)) : ''; };
+  const isAscii = (d, p, n) => { for (let i = 0; i < n; i++) if (d[p + i] < 0x20 || d[p + i] > 0x7e) return false; return true; };
+
+  // 標籤尺寸：開頭附近 [寬, ?, 寬, 高]（0.01mm）
+  function labelSize(c) {
+    for (let p = 8; p < Math.min(c.length - 16, 1200); p++) {
+      const w = i32(c, p), x = i32(c, p + 4), w2 = i32(c, p + 8), hh = i32(c, p + 12);
+      if (w >= 500 && w <= 30000 && w === w2 && hh >= 500 && hh <= 60000 && x > 0 && x <= hh) return { w: w / 100, h: hh / 100 };
+    }
+    return null;
+  }
+  function printerName(c) {
+    const s = [...c.subarray(0, Math.min(c.length, 4000))].map(b => (b >= 0x20 && b < 0x7f ? String.fromCharCode(b) : '\u0000')).join('');
+    const m = s.match(/[\x20-\x7e]{3,}(?=\u0000+winspool)/) || s.match(/(?:Gprinter|GP-|Godex|TSC|Zebra|Argox|Xprinter)[\x20-\x7e]*/i);
+    return m ? m[0].trim() : '';
+  }
+
+  // 變數：id, 1000+id, len, 'Prompt1' … 後面 80 bytes 是提示文字；日期變數帶格式
+  function variables(c) {
+    const vars = {};
+    for (let p = 6; p < c.length - 20; p++) {
+      const n = i16(c, p); if (n < 3 || n > 40 || c[p + 2 + n - 1] !== 0 || !isAscii(c, p + 2, n - 1)) continue;
+      const id = i16(c, p - 4); if (id <= 0 || i16(c, p - 2) !== 1000 + id) continue;
+      const name = String.fromCharCode(...c.subarray(p + 2, p + 1 + n));
+      if (!/^[A-Za-z]/.test(name)) continue;
+      const v = { id, name, prompt: '', date: '' };
+      const q = p + 80; const ln = i16(c, q);
+      if (/^Prompt/i.test(name) && ln > 0 && ln < 60) v.prompt = cstr(c, q + 2, ln + 1).replace(/\0/g, '').trim();
+      if (/^Date/i.test(name) || /^日期/.test(name)) { // 日期格式（取最後一個，像 YYYY/M/D）
+        const seg = c.subarray(p, Math.min(c.length, p + 160));
+        const fm = [...String.fromCharCode(...seg).matchAll(/[YMDymd][YMDymd.\/\- ]{2,}[YMDymd]/g)].map(m => m[0]);
+        v.date = fm.length ? fm[fm.length - 1] : 'YYYY/M/D';
+      }
+      vars[id] = v; p += n;
+    }
+    return vars;
+  }
+
+  // 文字物件：標記(2d 01 / 35 01)＋4 個 int32 框(0.01mm)＋…＋[變數id][序][長度]文字\0[字高(-0.1pt)]…[粗細]…字型名稱
+  function texts(d, src) {
+    const out = [];
+    for (let m = 0; m < d.length - 80; m++) {
+      if (!((d[m] === 0x2d || d[m] === 0x35) && d[m + 1] === 0x01)) continue;
+      const L = i32(d, m + 4), T = i32(d, m + 8), R = i32(d, m + 12), B = i32(d, m + 16);
+      if (!(L >= -2000 && T >= -2000 && R > L && B > T && R < 200000 && B < 200000)) continue;
+      for (const dq of [64, 65, 63, 66, 62, 67, 61, 68, 60, 69, 70, 71, 72, 58, 59, 73, 74, 75, 76]) {
+        const q = m + dq, len = i16(d, q); if (len < 1 || len > 4000) continue;
+        const e = q + 2 + len; if (e + 20 > d.length || d[e - 1] !== 0) continue;
+        const fh = i16(d, e); if (fh > -5 || fh < -3000) continue;
+        const wt = i16(d, e + 8);
+        let text; try { text = dec(d.subarray(q + 2, e - 1)); } catch (x) { continue; }
+        if (!text || /[\x00-\x08\x0b\x0c\x0e-\x1f\ufffd]/.test(text)) continue;
+        let font = cstr(d, e + 18, 64);
+        if (!font || /[\x00-\x1f]/.test(font)) font = '';
+        out.push({ src, box: [L / 100, T / 100, R / 100, B / 100], vid: i16(d, q - 4), text, pt: -fh / 10, bold: wt >= 600, font });
+        m = e; break;
+      }
+    }
+    return out;
+  }
+
+  // ===== 轉樣板 =====
+  const FIELD = [[/品名|名稱/, '品名'], [/規格/, '規格'], [/數量|qty/i, '數量'], [/料號|貨號|品號|貨品編號|編號/, '貨品編號'], [/單位/, '單位'], [/條碼/, '條碼編號'], [/售價|價格/, '標準售價']];
+  function placeholder(v, vid) {
+    if (!v) return '{輸入:變數' + vid + '}';
+    if (v.date) return '{今天:' + v.date.toLowerCase() + '}';
+    const p = v.prompt || v.name;
+    for (const [re, k] of FIELD) if (re.test(p) && !/單號/.test(p)) return '{' + k + '}';
+    return '{輸入:' + p + '}';
+  }
+  const FONT_MAP = { 'MingLiU': '細明體', 'PMingLiU': '新細明體', 'Microsoft JhengHei': '微軟正黑體', 'DFKai-SB': '標楷體' };
+  const LH = f => /正黑|JhengHei|Arial|雅黑/i.test(f) ? 1.45 : 1.1; // 字型行高（字高的倍數）
+  const MM = 0.3528; // 1pt = 0.3528mm
+
+  let ctx;
+  function textW(s, font, pt) {
+    try { ctx = ctx || document.createElement('canvas').getContext('2d'); ctx.font = pt * MM * 4 + 'px "' + font + '"'; return ctx.measureText(s).width / 4; }
+    catch (e) { let w = 0; for (const ch of s) w += ch.charCodeAt(0) > 0x2e80 ? 1 : ch === ' ' ? 0.3 : 0.55; return w * pt * MM; }
+  }
+
+  function toTemplate(f, fileName) {
+    const c = f.stream('Contents');
+    if (!c) throw new Error('檔案裡找不到標籤內容（Contents）');
+    const size = labelSize(c) || { w: 50, h: 40 };
+    const prn = printerName(c);
+    const vars = variables(c);
+    let objs = texts(c, 'c');
+    const v30 = f.stream('V30 Data'); if (v30) objs = objs.concat(texts(v30, 'v'));
+    const seen = new Set();
+    objs = objs.filter(o => { const k = o.box.join() + '|' + o.vid + '|' + o.text; if (seen.has(k)) return false; seen.add(k); return true; });
+
+    // NiceLabel 物件框會依實際字高自動長高：用單行物件的框高推算字型放大倍率
+    const ks = objs.filter(o => !o.text.includes('\n')).map(o => (o.box[3] - o.box[1]) / (o.pt * MM * LH(o.font))).filter(k => k > 0.7 && k < 2.5).sort((a, b) => a - b);
+    const k = ks.length ? Math.min(2, Math.max(0.9, ks[ks.length >> 1])) : 1;
+    const r1 = v => Math.round(v * 10) / 10, r2 = v => Math.round(v * 100) / 100;
+
+    const items = [];
+    const singles = objs.filter(o => !o.text.includes('\n'));
+    for (const o of objs) {
+      const fontName = FONT_MAP[o.font] || o.font || '微軟正黑體', pt = r1(o.pt * k), em = pt * MM;
+      const font = { name: fontName, size: pt, bold: o.bold };
+      const [L, T, R, B] = o.box, maxR = Math.min(R, size.w);
+      if (o.vid) {
+        items.push({ t: 'text', x: r2(L), y: r2(T), w: r2(Math.max(2, maxR - L)), h: r2(Math.min(B, size.h) - T), text: placeholder(vars[o.vid], o.vid), font, align: 'left', fit: true });
+        continue;
+      }
+      const lines = o.text.split(/\r?\n/);
+      // 多行說明文字：每行對齊旁邊的變數欄位那一列
+      let pitch = em * (LH(fontName) + 0.2), c0 = T + pitch / 2;
+      if (lines.length > 1) {
+        const cy = singles.filter(s => s.vid && s.box[1] >= T - 1 && s.box[3] <= B + 1 && s.box[0] < R).map(s => (s.box[1] + s.box[3]) / 2);
+        if (cy.length >= 2) {
+          let best = 1e9;
+          for (let p = em * 1.0; p <= em * 3.2; p += 0.05) for (let z = 0.2; z <= 0.8; z += 0.05) {
+            const c00 = T + p * z; let err = 0;
+            for (const y of cy) { const i = Math.min(lines.length - 1, Math.max(0, Math.round((y - c00) / p))); err += Math.abs(y - (c00 + i * p)); }
+            if (err < best - 1e-6) { best = err; pitch = p; c0 = c00; }
+          }
+        }
+      }
+      const lh = Math.min(pitch, em * LH(fontName) * 1.15);
+      lines.forEach((ln, i) => {
+        const y = c0 + i * pitch - lh / 2;
+        if (y > size.h) return;
+        // 用很多空白排版的一行拆成幾段，各自定位
+        const segs = []; let re = /\S+(?: ?\S+)*/g, mm;
+        while ((mm = re.exec(ln))) segs.push({ s: mm[0], x: L + textW(ln.slice(0, mm.index), fontName, pt) });
+        segs.forEach((g, j) => {
+          const nx = j + 1 < segs.length ? segs[j + 1].x - 0.3 : maxR;
+          const w = Math.max(textW(g.s, fontName, pt) + 1, nx - g.x);
+          items.push({ t: 'text', x: r2(g.x), y: r2(y), w: r2(Math.min(w, size.w - g.x)), h: r2(lh), text: g.s, font, align: 'left', fit: false });
+        });
+      });
+    }
+    // 文字放大後若超出標籤右邊就往內縮
+    for (const it of items) { if (it.x + it.w > size.w) it.w = r2(Math.max(2, size.w - it.x)); if (it.y + it.h > size.h) it.h = r2(Math.max(1, size.h - it.y)); }
+    return {
+      name: String(fileName || 'NiceLabel').replace(/\.lbl$/i, '') + ' ' + size.w + '×' + size.h,
+      w: size.w, h: size.h, cols: 1, gapX: 2, ox: 0, oy: 0,
+      printer: /3120/.test(prn) ? 'gp3120tu' : /1324|GP|Gprinter/i.test(prn) ? 'gp1324d' : 'gp1324d',
+      src: 'goods', items,
+      _info: { printer: prn, vars: Object.values(vars), scale: k, objects: objs.length, damaged: c.got < c.length || (v30 && v30.got < v30.length) }
+    };
+  }
+
+  G.LBL = { cfb, parse: (buf, fileName) => toTemplate(cfb(buf), fileName), _: { variables, texts, labelSize, printerName } };
+})(typeof window !== 'undefined' ? window : globalThis);
+
+</script>
+<script>
+/* ---- nl_shim.js ---- */
+/* nl_shim.js — 讓標籤模組（m_labels.js）獨立執行：給其他系統嵌入用（例如其他網頁 ERP 的「標籤機」分頁）
+   主系統可在 parent.NL_HOST 提供：
+     goods()   → [{ id, code, name, spec, unit, salePrice, note }]
+     company() → { name, short, tel, fax, addr, taxId }
+     take()    → 待印項目 [{ gid, name, pn, spec, po, qty, billNo }]（取走後主系統清掉） */
+(function (G) {
+  'use strict';
+  const host = () => { try { return (G.parent && G.parent !== G && G.parent.NL_HOST) || G.NL_HOST || null; } catch (e) { return G.NL_HOST || null; } };
+  const KEY = 'nl-label-meta';
+
+  // ===== 資料 =====
+  let meta = {};
+  try { meta = JSON.parse(localStorage.getItem(KEY) || '{}') || {}; } catch (e) { meta = {}; }
+  let gCache = null, gAt = 0;
+  const goods = () => {
+    if (gCache && Date.now() - gAt < 3000) return gCache;
+    const H = host(); let a = [];
+    try { a = H && H.goods ? H.goods() : []; } catch (e) { a = []; }
+    gCache = a.map(g => ({ _id: g.id, 貨品編號: String(g.code || g.id || '').trim(), 品名: g.name || '', 規格: g.spec || '', 基本單位: g.unit || '', 標準售價: +g.salePrice || 0, 備註: g.note || '' }));
+    gAt = Date.now(); return gCache;
+  };
+  const gIdx = () => new Map(goods().map(g => [g.貨品編號, g]));
+  G.S = {
+    get meta() { return meta; },
+    setMeta(k, v) { meta[k] = v; },
+    async save() { try { localStorage.setItem(KEY, JSON.stringify(meta)); } catch (e) { UI.alert('標籤樣板存檔失敗：' + e.message); } },
+    rows(t) { return t === '貨品主檔' ? goods() : []; },
+    get idx() { return { goods: gIdx(), supp: new Map(), cust: new Map() }; },
+    company() { const H = host(); let c = {}; try { c = H && H.company ? H.company() || {} : {}; } catch (e) { } return { 公司名稱: c.name || '', 公司簡稱: c.short || c.name || '', 電話: c.tel || '', 傳真: c.fax || '', 地址: c.addr || '', 統一編號: c.taxId || '' }; },
+    hasData: () => true
+  };
+  G.C = { TYPES: {}, HEAD: {}, type: () => ({ name: '', tbl: '' }), partyMap: () => new Map(), partyName: () => '', stockOf: () => '' };
+  G.G = G; G.billLines = () => [];
+  G.LBL_NO_BILL = true; // 主系統從自己的銷貨單「標籤」按鈕導入
+
+  // ===== 畫面切換（不用網址 #，避免影響外層） =====
+  const A = G.A = { routes: {}, cur: 'T00031' };
+  A.reg = (code, fn) => { A.routes[code] = fn; };
+  A.go = code => { A.cur = code; render(); };
+  async function render() {
+    const main = document.getElementById('main'); if (!main) return;
+    const [code, ...rest] = A.cur.split('/');
+    document.querySelectorAll('#nlnav button').forEach(b => b.classList.toggle('pri', b.dataset.r === code));
+    UI.clear(main);
+    try { const el = await A.routes[code](rest.map(decodeURIComponent)); if (el) main.append(el); }
+    catch (e) { console.error(e); main.append(h('pre', { class: 'err' }, e.stack || String(e))); }
+  }
+  G.addEventListener('hashchange', render); // m_labels 用 hashchange 要求重畫
+
+  // 預覽
+  G.previewHtml = (title, r) => {
+    const fr = h('iframe', { class: 'pv-frame', style: { width: '100%', height: '70vh', border: '1px solid #ccc', background: '#888' } });
+    fr.srcdoc = '<!doctype html><html><head><meta charset="utf-8"><style>' + G.PRINT_CSS + r.css + 'html,body{background:#888}body{margin:0;padding:10px}</style></head><body>' + r.html + '</body></html>';
+    return UI.modal('預覽　' + title, h('div', null, h('div', { class: 'toolbar' }, UI.btn('🖨 列印', () => { fr.contentWindow.focus(); fr.contentWindow.print(); }, 'pri')), fr), [{ label: '關閉', value: null }], { width: '92vw', noFocus: true });
+  };
+
+  // 主系統導入的待印項目 → 標籤列印畫面
+  G.NL_PULL = () => {
+    const H = host(); let a = [];
+    try { a = H && H.take ? H.take() || [] : []; } catch (e) { a = []; }
+    if (!a.length) return false;
+    gCache = null;
+    const byId = new Map(goods().map(g => [g._id, g]));
+    A.pendingLabel = {
+      rows: a.map(it => {
+        const g = byId.get(it.gid) || {};
+        return Object.assign({}, g, {
+          貨品編號: it.pn || g.貨品編號 || '', 品名: it.name || g.品名 || '', 規格: g.規格 || '', 料號: it.pn || '', 客料號: it.pn || '',
+          短文: it.spec || '', 採購單號: it.po || '', 單號: it.billNo || '', 數量: it.qty === '' || it.qty == null ? '' : +it.qty || 0
+        });
+      })
+    };
+    A.go('T00032'); return true;
+  };
+
+  G.NL_START = () => {
+    document.body.append(
+      h('div', { id: 'nlnav', class: 'toolbar', style: { padding: '8px 14px 0', margin: 0 } },
+        h('button', { class: 'btn', 'data-r': 'T00032', onclick: () => A.go('T00032') }, '🖨 標籤列印'),
+        h('button', { class: 'btn', 'data-r': 'T00031', onclick: () => A.go('T00031') }, '✏ 標籤設計／匯入 .lbl')),
+      h('div', { id: 'main', style: { height: 'auto', overflow: 'visible' } }));
+    G.LABEL_VARS.push(['主系統', ['料號', '客料號', '短文', '採購單號']]);
+    if (!G.NL_PULL()) render();
+  };
+})(window);
+
+</script>
+<script>
+/* ---- m_labels.js ---- */
+/* m_labels.js — 標籤設計與列印（取代 NiceLabel）：貨品標籤、包裝標籤、出貨箱標；
+   條碼 Code128／EAN-13／Code39、QR Code；變數 {欄位}、流水號、列印時輸入的值；一列多張；佳博 GP-1324D／GP-3120TU */
+(function (G) {
+  'use strict';
+
+  // ===== 印表機 =====
+  const PRINTERS = {
+    gp1324d: { name: '佳博 GP-1324D（4 吋，可印寬度 104mm）', maxW: 104, dpi: 203 },
+    gp3120tu: { name: '佳博 GP-3120TU（3 吋，可印寬度 80mm）', maxW: 80, dpi: 203 },
+    other: { name: '其他印表機（一般雷射／噴墨）', maxW: 0, dpi: 0 }
+  };
+  const SIZES = [[40, 30], [50, 30], [50, 40], [60, 40], [70, 50], [80, 50], [80, 60], [100, 50], [100, 70], [100, 100], [100, 150]];
+  const FONTS = ['微軟正黑體', '新細明體', '細明體', '標楷體', 'Arial', 'Arial Black'];
+  const FONT_CSS = { '新細明體': '"PMingLiU","新細明體",serif', '細明體': '"MingLiU","細明體","PMingLiU",serif', '標楷體': '"DFKai-SB","BiauKai","標楷體",serif', '微軟正黑體': '"Microsoft JhengHei","微軟正黑體",sans-serif' };
+  const fontCss = n => (FONT_CSS[n] || ('"' + n + '","Microsoft JhengHei",sans-serif')).replace(/"/g, "'"); // 放在 style="…" 裡，不能有雙引號
+  const SYMS = [['code128', 'Code 128（英數字，最常用）'], ['ean13', 'EAN-13（13 位商品條碼）'], ['code39', 'Code 39（大寫英數字）']];
+
+  // ===== 變數 =====
+  const VARS = [
+    ['貨品', ['貨品編號', '品名', '規格', '單位', '類別編號', '類別名稱', '原廠貨號', '條碼編號', '英文品名', '標準售價', '售價A', '售價B', '售價C', '儲放位置', '廠商名稱', '備註']],
+    ['單據', ['單號', '單據名稱', '交易日期', '交貨日期', '客戶編號', '客戶名稱', '客戶全名', '送貨地址', '聯絡人', '聯絡電話', '數量', '單價', '金額', '附註說明', '合計數量', '箱號']],
+    ['公司', ['公司名稱', '公司簡稱', '公司電話', '公司傳真', '公司地址', '公司統編']],
+    ['系統', ['今天', '民國日期', '列印時間', '流水號', '張次', '總張數']]
+  ];
+  G.LABEL_VARS = VARS;
+
+  const fmtDate = v => { const s = U.d10(v); return s ? s.replace(/-/g, '/') : ''; };
+  function valOf(rec, k) {
+    let fmt = '';
+    const c = k.indexOf(':');
+    if (c > 0 && !k.startsWith('輸入:')) { fmt = k.slice(c + 1); k = k.slice(0, c); }
+    const v = rec[k];
+    if (v == null || v === '') return '';
+    if (typeof v === 'number') {
+      if (/^0+$/.test(fmt)) return U.pad(Math.round(v), fmt.length); // {流水號:0000} → 0001
+      if (/^#,?0(\.0+)?$/.test(fmt)) { const d = (fmt.split('.')[1] || '').length; return v.toLocaleString('en-US', { useGrouping: fmt.includes(','), minimumFractionDigits: d, maximumFractionDigits: d }); }
+      return U.fmtQ(v) || '0';
+    }
+    if (/^\d{4}-\d\d-\d\d/.test(v)) {
+      if (!fmt) return fmtDate(v);
+      const [y, m, d] = v.slice(0, 10).split('-'); // {今天:yyyy/m/d}、{今天:ee/mm/dd}（民國）
+      return fmt.replace(/yyyy/i, y).replace(/ee/i, y - 1911).replace(/mm/i, m).replace(/m/i, +m).replace(/dd/i, d).replace(/d/i, +d);
+    }
+    return String(v);
+  }
+  // {欄位} → 值；{流水號:0000} 補零；{標準售價:#,0} 千分位
+  const fill = (s, rec) => String(s == null ? '' : s).replace(/\{([^{}]+)\}/g, (m, k) => valOf(rec, U.trim(k)));
+  const askVars = tpl => U.uniq(tpl.items.flatMap(it => [it.text, it.data].filter(Boolean).flatMap(s => [...String(s).matchAll(/\{輸入:([^{}]+)\}/g)].map(m => m[1].trim()))));
+
+  // ===== 資料 =====
+  function coRec() {
+    const c = S.company();
+    return { 公司名稱: c.公司名稱, 公司簡稱: c.公司簡稱 || c.公司名稱, 公司電話: c.電話, 公司傳真: c.傳真, 公司地址: c.地址, 公司統編: c.統一編號 };
+  }
+  function goodsRec(code) {
+    const g = S.idx.goods.get(U.trim(code)) || { 貨品編號: code };
+    const cat = S.rows('貨品類別').find(c => U.trim(c.類別編號) === U.trim(g.類別編號));
+    const sp = g.廠商編號 ? S.idx.supp.get(U.trim(g.廠商編號)) : null;
+    return Object.assign({}, g, { 貨品編號: U.trim(g.貨品編號), 單位: g.基本單位, 類別名稱: cat ? cat.類別名稱 : '', 廠商名稱: sp ? (sp.公司簡稱 || sp.公司全名) : '' });
+  }
+  function billHead(b) {
+    const t = C.type(b.單據類別), p = t.party ? C.partyMap(t.party).get(U.trim(b.交易對象)) || {} : {};
+    const ls = G.billLines(b);
+    return {
+      單號: b.交易單號, 單據名稱: t.name, 交易日期: b.交易日期, 交貨日期: b.交貨日期, 客戶編號: U.trim(b.交易對象),
+      客戶名稱: p.公司簡稱 || p.公司全名 || U.trim(b.交易對象), 客戶全名: p.公司全名 || p.公司簡稱 || '', 送貨地址: b.送貨地址 || p.送貨地址 || p.登記地址 || '',
+      聯絡人: p.聯絡人一 || '', 聯絡電話: p.聯絡電話一 || p.行動電話 || '', 合計數量: U.sum(ls, l => l.數量), 備註: b.備註 || ''
+    };
+  }
+  function lineRec(b, l) {
+    const g = goodsRec(l.貨品編號);
+    return Object.assign(g, billHead(b), { 品名: l.品名 || g.品名, 規格: l.規格 || g.規格, 數量: U.num(l.數量), 單位: l.單位 || g.單位, 單價: U.num(l.單價), 金額: U.num(l.金額), 附註說明: l.附註說明 || '' });
+  }
+
+  // ===== 樣板儲存 =====
+  const lsGet = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
+  const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (e) { } };
+  const newId = () => 'l' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+  G.LABELS = () => { if (!S.meta.labels) { S.setMeta('labels', defaultLabels()); S.save(); } return S.meta.labels; };
+  async function saveLabels(list) { S.setMeta('labels', list); await S.save(); }
+
+  function defaultLabels() {
+    const T = (x, y, w, h, text, size, o) => Object.assign({ t: 'text', x, y, w, h, text, font: { name: '微軟正黑體', size, bold: false }, align: 'left', fit: true }, o || {});
+    const B = (x, y, w, h, data, o) => Object.assign({ t: 'barcode', x, y, w, h, data, sym: 'code128', showText: true, fontSize: 7 }, o || {});
+    const bold = { font: { name: '微軟正黑體', size: 11, bold: true } };
+    return [
+      { id: newId(), name: '貨品標籤 50×40', w: 50, h: 40, cols: 1, gapX: 2, ox: 0, oy: 0, printer: 'gp3120tu', src: 'goods', items: [
+        T(2, 1.5, 46, 6.5, '{品名}', 13, { font: { name: '微軟正黑體', size: 13, bold: true } }),
+        T(2, 8.5, 46, 5, '{規格}', 10),
+        B(2, 14.5, 46, 15, '{貨品編號}', { fontSize: 8 }),
+        { t: 'line', x: 2, y: 31, w: 46, h: 0.3, weight: 0.3 },
+        T(2, 32.5, 20, 6, '{單位}', 10),
+        T(22, 32.5, 26, 6, '售價 {標準售價}', 11, { align: 'right', font: { name: '微軟正黑體', size: 11, bold: true } })] },
+      { id: newId(), name: '一般標籤 50×40', w: 50, h: 40, cols: 1, gapX: 2, ox: 0, oy: 0, printer: 'gp1324d', src: 'goods', items: [
+        // 照原本 NiceLabel「一般標籤.lbl」的位置（細明體粗體 12.4pt）
+        ...[['品名：', 4.7], ['規格：', 12.1], ['數量：', 18.8], ['日期：', 26.6]].map(([t, y]) => T(1, y, 15.3, 6.9, t, 12.4, { font: { name: '細明體', size: 12.4, bold: true }, fit: false })),
+        T(16.3, 4.7, 33.2, 6.9, '{品名}', 12.4, { font: { name: '細明體', size: 12.4, bold: true } }),
+        T(16.3, 12.1, 33.2, 6.9, '{規格}', 12.4, { font: { name: '細明體', size: 12.4, bold: true } }),
+        T(16.3, 18.8, 33.2, 6.9, '{數量} PCS', 12.4, { font: { name: '細明體', size: 12.4, bold: true } }),
+        T(16.3, 26.6, 33.2, 6.9, '{今天:yyyy/m/d}', 12.4, { font: { name: '細明體', size: 12.4, bold: true } })] },
+      (() => {
+        // 照原本 NiceLabel「FINAL2.lbl」（檢驗標籤）：微軟正黑體粗體 6.6pt，6 行
+        const F = { name: '微軟正黑體', size: 6.6, bold: true }, Y = [3.6, 9.1, 14.3, 19.9, 25.5, 30.9], H = 4.9;
+        const C = (x, r, w, t) => T(x, Y[r], w, H, t, 6.6, { font: F, fit: false });
+        const V = (x, r, w, t) => T(x, Y[r], w, H, t, 6.6, { font: F });
+        return { id: newId(), name: '檢驗標籤 50×40', w: 50, h: 40, cols: 1, gapX: 2, ox: 0, oy: 0, printer: 'gp1324d', src: 'goods', items: [
+          C(0.5, 0, 8, '廠商：'), V(8.5, 0, 21, '{輸入:廠商}'), C(30, 0, 7, '交貨：'), V(37, 0, 12.5, '{輸入:交貨日期}'),
+          C(0.5, 1, 8, '單號：'), V(8.5, 1, 22, '{輸入:採購單號}'), C(30.5, 1, 8, '數量：'), V(38.6, 1, 11, '{數量}'),
+          C(0.5, 2, 8, '料號：'), V(8.7, 2, 29.3, '{貨品編號}'),
+          C(0.5, 3, 8, '短文：'), V(8.9, 3, 22.8, '{品名}'),
+          C(0.5, 4, 12.8, '單重(g)：'), V(13.3, 4, 12, '{輸入:單重}'), C(26, 4, 13, '檢驗日期：'),
+          C(0.5, 5, 14, '總重(kg)：'), V(14.5, 5, 11, '{輸入:總重}'), C(26, 5, 13, '檢驗標章：')] };
+      })(),
+      { id: newId(), name: '螺絲包裝標籤 60×40', w: 60, h: 40, cols: 1, gapX: 2, ox: 0, oy: 0, printer: 'gp3120tu', src: 'goods', items: [
+        T(2, 1.5, 56, 5, '{公司簡稱}', 9),
+        { t: 'line', x: 2, y: 7, w: 56, h: 0.3, weight: 0.3 },
+        T(2, 8, 56, 7, '{品名}', 14, { font: { name: '微軟正黑體', size: 14, bold: true } }),
+        T(2, 15, 38, 5, '規格：{規格}', 10),
+        T(2, 20.5, 38, 5, '數量：{數量} {單位}', 10, bold),
+        T(2, 26, 38, 4.5, '批號：{輸入:批號}', 9),
+        T(2, 30.5, 38, 4.5, '日期：{今天}', 9),
+        { t: 'qr', x: 41, y: 15, w: 17, h: 17, data: '{貨品編號}', ecl: 'M' },
+        T(41, 32.5, 17, 4, '{貨品編號}', 7, { align: 'center' })] },
+      { id: newId(), name: '出貨箱標 100×70', w: 100, h: 70, cols: 1, gapX: 2, ox: 0, oy: 0, printer: 'gp1324d', src: 'bill', items: [
+        T(3, 2, 70, 6, '{公司名稱}', 12, { font: { name: '微軟正黑體', size: 12, bold: true } }),
+        T(3, 8, 70, 4.5, '{公司電話}　{公司地址}', 8),
+        { t: 'rect', x: 75, y: 2, w: 22, h: 10, weight: 0.6 },
+        T(75, 2, 22, 10, '{箱號}/{總張數}', 14, { align: 'center', font: { name: 'Arial Black', size: 14, bold: false } }),
+        { t: 'line', x: 3, y: 13.5, w: 94, h: 0.5, weight: 0.6 },
+        T(3, 15, 16, 7, '收件：', 12),
+        T(19, 15, 78, 7, '{客戶全名}', 16, { font: { name: '微軟正黑體', size: 16, bold: true } }),
+        T(19, 22.5, 78, 6, '{送貨地址}', 11),
+        T(19, 28.5, 78, 5, '{聯絡人}　{聯絡電話}', 10),
+        { t: 'line', x: 3, y: 35, w: 94, h: 0.3, weight: 0.3 },
+        T(3, 37, 60, 5.5, '單號：{單號}', 11),
+        T(3, 43, 60, 5.5, '日期：{交易日期}', 11),
+        T(3, 49, 60, 5.5, '數量：{合計數量}', 11),
+        B(3, 56, 62, 12, '{單號}', { showText: false }),
+        { t: 'qr', x: 72, y: 38, w: 25, h: 25, data: '{單號}', ecl: 'M' }] },
+      { id: newId(), name: '小標籤 30×20（一列 2 張）', w: 30, h: 20, cols: 2, gapX: 2, ox: 0, oy: 0, printer: 'gp3120tu', src: 'goods', items: [
+        T(1.5, 1, 27, 4.5, '{品名} {規格}', 8, { font: { name: '微軟正黑體', size: 8, bold: true } }),
+        B(1.5, 6, 27, 12.5, '{貨品編號}', { fontSize: 6 })] }
+    ];
+  }
+
+  // ===== 排版 =====
+  let mctx = null;
+  function textWidthMm(text, font, sizePt) {
+    if (!mctx) mctx = document.createElement('canvas').getContext('2d');
+    mctx.font = (font.bold ? 'bold ' : '') + sizePt + 'pt ' + fontCss(font.name);
+    return mctx.measureText(text).width * 25.4 / 96;
+  }
+  // 內容（不含外框定位），w/h 已依旋轉交換
+  function innerHtml(it, rec, w, h, dpi) {
+    try {
+      if (it.t === 'barcode') { const d = fill(it.data, rec); return d ? BC.svg1d(it.sym || 'code128', d, w, h, { showText: it.showText, fontSize: it.fontSize || 7, dpi }) : ''; }
+      if (it.t === 'qr') { const d = fill(it.data, rec); if (!d) return ''; const s = Math.min(w, h); return `<div style="display:flex;width:${w}mm;height:${h}mm;align-items:center;justify-content:center">${BC.svgQR(d, s, it.ecl || 'M', dpi)}</div>`; }
+      if (it.t === 'image') return it.src ? `<img src="${it.src}" style="width:${w}mm;height:${h}mm;object-fit:contain;display:block">` : '';
+    } catch (e) { return `<div style="color:#c00;font-size:7pt;line-height:1.1">${U.esc(e.message)}</div>`; }
+    const f = it.font || { name: '微軟正黑體', size: 10 };
+    const text = fill(it.text, rec);
+    let size = f.size || 10;
+    if (it.fit && !it.wrap && text) { const tw = textWidthMm(text, f, size); if (tw > w) size = Math.max(4, Math.floor(size * w / tw * 0.97 * 10) / 10); }
+    const jc = it.align === 'center' ? 'center' : it.align === 'right' ? 'flex-end' : 'flex-start';
+    const st = `width:${w}mm;height:${h}mm;display:flex;align-items:${it.valign === 'top' ? 'flex-start' : it.valign === 'bottom' ? 'flex-end' : 'center'};justify-content:${jc};text-align:${it.align || 'left'};` +
+      `font-family:${fontCss(f.name)};font-size:${size}pt;${f.bold ? 'font-weight:bold;' : ''}line-height:1.12;overflow:hidden;white-space:${it.wrap ? 'pre-wrap' : 'pre'};` +
+      (it.invert ? 'background:#000;color:#fff;' : 'color:#000;');
+    return `<div style="${st}"><span>${U.esc(text)}</span></div>`;
+  }
+  function itemHtml(it, rec, dpi) {
+    if (it.t === 'line') {
+      const wt = it.weight || 0.3, horiz = it.w >= it.h;
+      return `<div style="position:absolute;left:${it.x}mm;top:${it.y}mm;width:${horiz ? it.w : wt}mm;height:${horiz ? wt : it.h}mm;background:#000"></div>`;
+    }
+    if (it.t === 'rect') return `<div style="position:absolute;left:${it.x}mm;top:${it.y}mm;width:${it.w}mm;height:${it.h}mm;box-sizing:border-box;border:${it.weight || 0.3}mm solid #000;${it.fill ? 'background:#000;' : ''}${it.round ? 'border-radius:1.5mm;' : ''}"></div>`;
+    const rot = +it.rot || 0, side = rot === 90 || rot === 270;
+    const iw = side ? it.h : it.w, ih = side ? it.w : it.h;
+    const inner = innerHtml(it, rec, iw, ih, dpi);
+    const tr = rot ? `position:absolute;left:50%;top:50%;width:${iw}mm;height:${ih}mm;transform:translate(-50%,-50%) rotate(${rot}deg)` : 'position:absolute;left:0;top:0';
+    return `<div style="position:absolute;left:${it.x}mm;top:${it.y}mm;width:${it.w}mm;height:${it.h}mm;overflow:hidden"><div style="${tr}">${inner}</div></div>`;
+  }
+  const dpiOf = tpl => (PRINTERS[tpl.printer] || {}).dpi || 0;
+  G.labelHtml = (tpl, rec) => tpl.items.map(it => itemHtml(it, rec, dpiOf(tpl))).join('');
+
+  // labels: [rec...]（已展開張數）
+  G.renderLabels = function (tpl, labels) {
+    const cols = Math.max(1, +tpl.cols || 1), gap = +tpl.gapX || 0;
+    const pw = cols * tpl.w + (cols - 1) * gap;
+    let html = '';
+    for (let i = 0; i < labels.length; i += cols) {
+      let row = '';
+      for (let c = 0; c < cols && i + c < labels.length; c++) {
+        row += `<div class="lb" style="left:${(+tpl.ox || 0) + c * (tpl.w + gap)}mm;top:${+tpl.oy || 0}mm;width:${tpl.w}mm;height:${tpl.h}mm">${G.labelHtml(tpl, labels[i + c])}</div>`;
+      }
+      html += `<div class="fpage lrow" style="width:${pw}mm;height:${tpl.h}mm">${row}</div>`;
+    }
+    const css = `@page{size:${pw}mm ${tpl.h}mm;margin:0}
+      html,body{margin:0;padding:0}
+      .lrow{position:relative;overflow:hidden;page-break-after:always;break-after:page;background:#fff}
+      .lrow:last-child{page-break-after:auto;break-after:auto}
+      .lb{position:absolute;overflow:hidden;color:#000}
+      .lb svg{display:block}
+      @media screen{.lrow{margin:0 auto 10px;box-shadow:0 2px 8px rgba(0,0,0,.4)}}`;
+    return { html, css };
+  };
+
+  // 展開張數、流水號、張次
+  function expand(rows, seq0, ask) {
+    const out = [], co = coRec(), now = new Date(), today = U.today();
+    for (const r of rows) {
+      const n = Math.max(0, Math.round(U.num(r.copies)));
+      for (let k = 0; k < n; k++) out.push(Object.assign({}, co, r.rec, { 箱號: k + 1 }, r.boxOf ? { 總張數: n } : {}));
+    }
+    out.forEach((rec, i) => {
+      rec.今天 = today; rec.民國日期 = (now.getFullYear() - 1911) + '/' + U.pad(now.getMonth() + 1, 2) + '/' + U.pad(now.getDate(), 2);
+      rec.列印時間 = today.replace(/-/g, '/') + ' ' + now.toTimeString().slice(0, 5);
+      rec.流水號 = seq0 + i; rec.張次 = i + 1;
+      if (rec.總張數 == null) rec.總張數 = out.length;
+      for (const k in ask) rec['輸入:' + k] = rec[k] != null && rec[k] !== '' ? rec[k] : ask[k]; // 這列本身有同名欄位（例如採購單號）就用它
+    });
+    return out;
+  }
+
+  // ===== 清單 =====
+  A.reg('T00031', args => args[0] ? designer(args[0]) : list());
+  function list() {
+    const all = G.LABELS();
+    // 匯入：NiceLabel .lbl 或本系統匯出的 .erplabel（可一次選多個）
+    const jfile = h('input', { type: 'file', accept: '.lbl,.erplabel,.json', multiple: true, style: { display: 'none' } });
+    jfile.addEventListener('change', async () => {
+      const list = G.LABELS().slice(), ok = [], bad = [], warn = [];
+      const add = t => { t.id = newId(); let nm = t.name, i = 2; while (list.some(x => x.name === nm)) nm = t.name + '（' + i++ + '）'; t.name = nm; list.push(t); ok.push(t); };
+      for (const f of jfile.files) {
+        try {
+          if (/\.lbl$/i.test(f.name)) {
+            const t = G.LBL.parse(await f.arrayBuffer(), f.name);
+            if (!t.items.length) throw new Error('沒有讀到任何文字物件');
+            if (t._info.damaged) warn.push(f.name + '：檔案不完整（可能沒存好或複製時損壞），只讀到 ' + t._info.objects + ' 個物件，缺的請在設計畫面補上');
+            delete t._info; add(t);
+          } else {
+            const o = JSON.parse(await f.text()), arr = Array.isArray(o) ? o : [o];
+            for (const t of arr) { if (!t.items || !t.w) throw new Error('格式不對'); add(t); }
+          }
+        } catch (e) { bad.push(f.name + '：' + e.message); }
+      }
+      jfile.value = '';
+      if (ok.length) await saveLabels(list);
+      if (bad.length || warn.length) await UI.alert((ok.length ? '已匯入：' + ok.map(t => t.name).join('、') + '\n\n' : '') + warn.concat(bad.length ? ['無法匯入：'].concat(bad) : []).join('\n'));
+      if (ok.length === 1 && !bad.length) { UI.toast('已匯入「' + ok[0].name + '」，請檢查位置後存檔'); A.go('T00031/' + ok[0].id); }
+      else if (ok.length) { if (!bad.length && !warn.length) UI.toast('已匯入 ' + ok.length + ' 個標籤'); window.dispatchEvent(new HashChangeEvent('hashchange')); }
+    });
+    const grid = UI.grid({
+      cols: [{ key: 'name', label: '標籤名稱' }, { label: '尺寸', get: t => t.w + '×' + t.h + ' mm' + (t.cols > 1 ? '，一列 ' + t.cols + ' 張' : '') }, { label: '印表機', get: t => (PRINTERS[t.printer] || PRINTERS.other).name.replace(/（.*$/, '') }, { label: '資料', get: t => t.src === 'bill' ? '單據' : '貨品' }],
+      rows: all, onRow: t => A.go('T00031/' + t.id), empty: '還沒有標籤樣板'
+    });
+    return UI.page('標籤設計',
+      UI.toolbar(UI.btn('＋ 新增標籤', async () => { const t = await setupDlg({ id: newId(), name: '新標籤', w: 60, h: 40, cols: 1, gapX: 2, ox: 0, oy: 0, printer: 'gp3120tu', src: 'goods', items: [] }, true); if (!t) return; await saveLabels(G.LABELS().concat([t])); A.go('T00031/' + t.id); }, 'pri'),
+        UI.btn('🏷 標籤列印', () => A.go('T00032')), UI.btn('匯入標籤檔（.lbl／.erplabel）…', () => jfile.click()),
+        UI.btn('匯出全部', () => U.download('標籤樣板.erplabel', JSON.stringify(G.LABELS(), null, 1), 'application/json')),
+        UI.btn('加回內建樣板', async () => { const have = new Set(G.LABELS().map(t => t.name)), add = defaultLabels().filter(t => !have.has(t.name)); if (!add.length) return UI.toast('內建樣板都在了'); await saveLabels(G.LABELS().concat(add)); UI.toast('已加入：' + add.map(t => t.name).join('、')); window.dispatchEvent(new HashChangeEvent('hashchange')); }), jfile),
+      h('p', { class: 'note' }, '點標籤進入設計畫面。文字可以放 {品名}、{規格}、{貨品編號} 這類欄位，列印時自動換成每項貨品的資料；{輸入:批號} 會在列印時讓你輸入。NiceLabel 的 .lbl 檔可以直接匯入（文字、欄位位置、字型、提示變數；條碼和圖片要另外補）。'),
+      grid);
+  }
+
+  // 標籤設定（尺寸、印表機）
+  async function setupDlg(T, isNew) {
+    const P = { name: T.name, printer: T.printer || 'other', w: T.w, h: T.h, cols: T.cols || 1, gapX: T.gapX || 0, ox: T.ox || 0, oy: T.oy || 0, src: T.src || 'goods' };
+    const size = h('select', { class: 'inp' }, h('option', { value: '' }, '自訂'), SIZES.map(([w, hh]) => h('option', { value: w + 'x' + hh }, w + ' × ' + hh + ' mm')));
+    size.value = SIZES.some(([w, hh]) => w === P.w && hh === P.h) ? P.w + 'x' + P.h : '';
+    const f = UI.form([{ k: 'name', label: '標籤名稱', req: true, w: 2 },
+      { k: 'printer', label: '標籤機', type: 'select', opts: Object.entries(PRINTERS).map(([k, p]) => [k, p.name]), w: 2 },
+      { k: 'w', label: '標籤寬 mm', type: 'num' }, { k: 'h', label: '標籤高 mm', type: 'num' },
+      { k: 'cols', label: '一列幾張', type: 'num' }, { k: 'gapX', label: '左右間距 mm', type: 'num' },
+      { k: 'ox', label: '向右微調 mm', type: 'num' }, { k: 'oy', label: '向下微調 mm', type: 'num' },
+      { k: 'src', label: '主要資料', type: 'select', opts: [['goods', '貨品（貨品標籤、包裝標籤）'], ['bill', '單據（出貨箱標、進貨入庫標籤）']], w: 2 }], P);
+    const warn = h('div', { class: 'note' });
+    const scaleChk = h('input', { type: 'checkbox', checked: true });
+    const scaleRow = h('label', { style: { display: isNew || !T.items.length ? 'none' : '' } }, scaleChk, ' 改尺寸時，標籤上的元件跟著等比例放大縮小');
+    const chk = () => { const r = f.read({}); const p = PRINTERS[r.printer], tw = r.cols * r.w + (r.cols - 1) * r.gapX; warn.textContent = '整列寬 ' + U.round(tw, 1) + ' mm' + (p && p.maxW && tw > p.maxW ? '　⚠ 超過這台標籤機的可印寬度 ' + p.maxW + ' mm' : ''); };
+    size.addEventListener('change', () => { if (!size.value) return; const [w, hh] = size.value.split('x'); f.inputs.w.value = w; f.inputs.h.value = hh; chk(); });
+    f.addEventListener('input', chk); f.addEventListener('change', chk); chk();
+    const ok = await UI.modal(isNew ? '新增標籤' : '標籤設定', h('div', null, h('div', { class: 'toolbar' }, h('span', null, '常用尺寸 '), size), f, warn, scaleRow,
+      h('p', { class: 'note' }, '一列幾張：像 3 吋標籤紙一排 2 張小標籤就設 2。微調：印出來整體偏左／偏上時，填正數往右／往下移。')),
+    [{ label: '取消', value: false }, { label: '確定', cls: 'pri', click: () => f.check() ? true : false }], { width: '600px' });
+    if (!ok) return null;
+    f.read(P);
+    if (!(P.w > 0 && P.h > 0)) { UI.toast('寬高要大於 0', 'err'); return null; }
+    P.cols = Math.max(1, Math.round(P.cols));
+    if (scaleChk.checked && T.items.length && (P.w !== T.w || P.h !== T.h)) scaleItems(T.items, P.w / T.w, P.h / T.h);
+    return Object.assign(T, P);
+  }
+
+  // 元件等比例縮放（字、條碼文字依較小的比例；QR 保持正方形）
+  function scaleItems(items, sx, sy) {
+    const r1 = v => Math.round(v * 10) / 10, sf = Math.min(sx, sy);
+    for (const it of items) {
+      it.x = r1(it.x * sx); it.y = r1(it.y * sy); it.w = r1(it.w * sx);
+      it.h = it.t === 'line' && it.w >= it.h ? it.h : r1(it.h * sy);
+      if (it.t === 'qr') it.w = it.h = Math.min(it.w, it.h);
+      if (it.font) it.font.size = Math.max(4, Math.round(it.font.size * sf * 2) / 2);
+      if (it.fontSize) it.fontSize = Math.max(4, Math.round(it.fontSize * sf * 2) / 2);
+    }
+  }
+
+  // 設計畫面用的範例資料
+  function sampleRec(T) {
+    const g = S.rows('貨品主檔')[0];
+    const rec = Object.assign({}, coRec(), g ? goodsRec(g.貨品編號) : { 貨品編號: 'M6X20-SUS', 品名: '六角螺栓', 規格: 'M6×20 不鏽鋼', 單位: '支', 標準售價: 3.5 });
+    if (T.src === 'bill') {
+      const b = S.rows('交易主檔').filter(x => x.單據類別 === '出貨').sort((a, c) => (c.單據副碼 || 0) - (a.單據副碼 || 0))[0];
+      if (b) { const l = G.billLines(b)[0]; Object.assign(rec, l ? lineRec(b, l) : billHead(b)); }
+      else Object.assign(rec, { 單號: 'S20261117001', 單據名稱: '出貨單', 交易日期: U.today(), 客戶名稱: '範例客戶', 客戶全名: '範例客戶股份有限公司', 送貨地址: '台中市西屯區範例路 1 號', 聯絡人: '王先生', 聯絡電話: '04-1234-5678', 合計數量: 1200 });
+    }
+    if (rec.數量 == null) rec.數量 = 100;
+    return expand([{ rec, copies: 1 }], 1, Object.fromEntries(askVars(T).map(k => [k, '〔' + k + '〕'])))[0];
+  }
+
+  // ===== 設計畫面 =====
+  function designer(id) {
+    const orig = G.LABELS().find(t => t.id === id);
+    if (!orig) return UI.page('找不到標籤');
+    const T = JSON.parse(JSON.stringify(orig));
+    let zmode = lsGet('lbl_zoom') || 'fit', zoom = 4, sel = null, dirty = false, rec = sampleRec(T);
+    const MMPX = 96 / 25.4;
+    const canvas = h('div', { class: 'lbd-canvas', tabindex: 0 });
+    const props = h('div', { class: 'fd-props' });
+    const snap = v => Math.round(v * 2) / 2;
+    const mark = () => { dirty = true; };
+
+    function render() {
+      UI.clear(canvas);
+      if (zmode === 'fit') {
+        const wr = canvas.parentNode;
+        if (wr && wr.clientWidth) zoom = Math.max(1, Math.min(8, Math.min((wr.clientWidth - 60) / (T.w * MMPX), (window.innerHeight - wr.getBoundingClientRect().top - 90) / (T.h * MMPX))));
+        else setTimeout(() => { if (canvas.isConnected) render(); }, 0);
+      } else zoom = +zmode;
+      const lab = h('div', { class: 'lbd-label', style: { width: T.w + 'mm', height: T.h + 'mm', zoom } });
+      lab.addEventListener('mousedown', e => { if (e.target === lab) { sel = null; render(); } });
+      T.items.forEach((it, i) => {
+        const el = h('div', { class: 'lbd-it' + (sel === i ? ' sel' : ''), style: { left: it.x + 'mm', top: it.y + 'mm', width: it.w + 'mm', height: Math.max(it.h, 0.3) + 'mm' }, html: itemHtml(Object.assign({}, it, { x: 0, y: 0 }), rec, dpiOf(T)) });
+        el.addEventListener('mousedown', e => drag(e, it, i, el));
+        if (sel === i) el.append(h('div', { class: 'fd-rs', title: '拖拉調整大小' }));
+        lab.append(el);
+      });
+      canvas.append(lab);
+      const p = PRINTERS[T.printer], tw = T.cols * T.w + (T.cols - 1) * (T.gapX || 0);
+      canvas.append(h('div', { class: 'note lbd-info' }, T.w + ' × ' + T.h + ' mm' + (T.cols > 1 ? '，一列 ' + T.cols + ' 張' : '') + '　' + (p ? p.name : '') + (p && p.maxW && tw > p.maxW ? '　⚠ 超過可印寬度' : '')));
+      renderProps();
+    }
+    function drag(e, it, i, el) {
+      e.stopPropagation(); e.preventDefault();
+      const resize = e.target.classList.contains('fd-rs');
+      if (sel !== i) { sel = i; render(); canvas.focus(); if (!resize) { const nel = canvas.querySelectorAll('.lbd-it')[i]; return drag(e, it, i, nel); } }
+      canvas.focus();
+      const k = zoom * MMPX, x0 = e.clientX, y0 = e.clientY, ox = it.x, oy = it.y, ow = it.w, oh = it.h;
+      let moved = false;
+      const mv = ev => {
+        const dx = (ev.clientX - x0) / k, dy = (ev.clientY - y0) / k;
+        if (Math.abs(ev.clientX - x0) + Math.abs(ev.clientY - y0) > 2) moved = true;
+        if (resize) { it.w = Math.max(1, snap(ow + dx)); it.h = Math.max(it.t === 'line' ? 0.1 : 1, snap(oh + dy)); if (it.t === 'qr') it.h = it.w; el.style.width = it.w + 'mm'; el.style.height = it.h + 'mm'; }
+        else { it.x = snap(ox + dx); it.y = snap(oy + dy); el.style.left = it.x + 'mm'; el.style.top = it.y + 'mm'; }
+      };
+      const up = () => { document.removeEventListener('mousemove', mv); document.removeEventListener('mouseup', up); if (moved) { mark(); render(); } };
+      document.addEventListener('mousemove', mv); document.addEventListener('mouseup', up);
+    }
+    const cur = () => sel != null ? T.items[sel] : null;
+
+    // 插入欄位的下拉選單
+    function varPicker(onPick) {
+      const s = h('select', { class: 'inp' }, h('option', { value: '' }, '插入欄位…'),
+        VARS.map(([g, ks]) => h('optgroup', { label: g }, ks.map(k => h('option', { value: '{' + k + '}' }, k)))),
+        h('optgroup', { label: '列印時輸入' }, h('option', { value: '{輸入:批號}' }, '輸入:批號'), h('option', { value: '{輸入:?}' }, '自訂輸入…')),
+        h('optgroup', { label: '格式' }, h('option', { value: '{流水號:0000}' }, '流水號補零 0001'), h('option', { value: '{標準售價:#,0}' }, '售價千分位')));
+      s.addEventListener('change', async () => {
+        let v = s.value; s.value = ''; if (!v) return;
+        if (v === '{輸入:?}') { const n = await UI.prompt('列印時要輸入的項目名稱（例如：批號、材質、爐號）', '', '自訂輸入'); if (!n) return; v = '{輸入:' + U.trim(n) + '}'; }
+        onPick(v);
+      });
+      return s;
+    }
+    function renderProps() {
+      UI.clear(props);
+      const it = cur();
+      if (!it) {
+        props.append(h('h3', null, T.name), h('p', { class: 'note' }, '點選標籤上的元件可以修改。\n拖拉移動，拖右下角調整大小；方向鍵微調（Shift 一次 2mm），Delete 刪除，Ctrl+D 複製。\n\n畫面用' + (S.rows('貨品主檔').length ? '第一筆貨品' : '範例資料') + '顯示，列印時換成實際資料。'),
+          UI.btn('標籤設定…', setup));
+        return;
+      }
+      const name = { text: '文字', barcode: '條碼', qr: 'QR Code', line: '線', rect: '方框', image: '圖片' }[it.t];
+      const fields = [{ sep: name }, { k: 'x', label: '左 mm', type: 'num' }, { k: 'y', label: '上 mm', type: 'num' }, { k: 'w', label: '寬 mm', type: 'num' }, { k: 'h', label: '高 mm', type: 'num' }];
+      if (it.t === 'text') fields.push({ k: 'text', label: '內容', type: 'area', rows: 2 });
+      if (it.t === 'barcode' || it.t === 'qr') fields.push({ k: 'data', label: '條碼內容' });
+      if (it.t === 'barcode') fields.push({ k: 'sym', label: '條碼種類', type: 'select', opts: SYMS }, { k: 'showText', label: '下方顯示文字', type: 'check' }, { k: 'fontSize', label: '文字大小 pt', type: 'num' });
+      if (it.t === 'qr') fields.push({ k: 'ecl', label: '容錯', type: 'select', opts: [['L', 'L 低（可放較多字）'], ['M', 'M 標準'], ['Q', 'Q 高'], ['H', 'H 最高']] });
+      if (['text', 'barcode', 'qr', 'image'].includes(it.t)) fields.push({ k: 'rot', label: '旋轉', type: 'select', opts: [['0', '0°'], ['90', '90°'], ['180', '180°'], ['270', '270°']] });
+      if (it.t === 'text') fields.push({ k: 'align', label: '對齊', type: 'select', opts: [['left', '靠左'], ['center', '置中'], ['right', '靠右']] }, { k: 'valign', label: '垂直', type: 'select', opts: [['', '置中'], ['top', '靠上'], ['bottom', '靠下']] },
+        { k: 'fit', label: '太長自動縮小', type: 'check' }, { k: 'wrap', label: '自動換行', type: 'check' }, { k: 'invert', label: '反白（黑底白字）', type: 'check' });
+      if (it.t === 'line' || it.t === 'rect') fields.push({ k: 'weight', label: '粗細 mm', type: 'num' });
+      if (it.t === 'rect') fields.push({ k: 'round', label: '圓角', type: 'check' }, { k: 'fill', label: '塗黑', type: 'check' });
+      const tmp = Object.assign({}, it, { rot: String(it.rot || 0) });
+      const f = UI.form(fields, tmp);
+      const apply = () => { f.read(tmp); Object.assign(it, tmp); it.rot = +tmp.rot || 0; if (it.t === 'qr') it.h = it.w; mark(); render(); };
+      f.addEventListener('change', apply);
+      props.append(f);
+      const target = f.inputs.text || f.inputs.data;
+      if (target) props.append(h('div', { class: 'toolbar' }, varPicker(v => {
+        const s = target.selectionStart != null && document.activeElement === target ? target.selectionStart : target.value.length;
+        target.value = target.value.slice(0, s) + v + target.value.slice(s); apply();
+      })));
+      if (it.t === 'text') {
+        const fo = it.font = it.font || { name: '微軟正黑體', size: 10 };
+        const ff = UI.form([{ sep: '字型' }, { k: 'name', label: '字型', list: FONTS }, { k: 'size', label: '大小 pt', type: 'num' }, { k: 'bold', label: '粗體', type: 'check' }], fo);
+        ff.addEventListener('change', () => { ff.read(fo); mark(); render(); });
+        props.append(ff);
+      }
+      if (it.t === 'image') {
+        const fi = h('input', { type: 'file', accept: 'image/*' });
+        fi.addEventListener('change', () => { const file = fi.files[0]; if (!file) return; if (file.size > 300000) return UI.toast('圖片太大，請用 300KB 以下（黑白 Logo 最好）', 'err'); const rd = new FileReader(); rd.onload = () => { it.src = rd.result; mark(); render(); }; rd.readAsDataURL(file); });
+        props.append(h('div', { class: 'box' }, h('div', { class: 'note' }, '選圖片（Logo、認證標誌）：'), fi));
+      }
+      props.append(UI.toolbar(UI.btn('複製', dup), UI.btn('刪除', del, 'danger'), UI.btn('移到最上層', () => { T.items.push(T.items.splice(sel, 1)[0]); sel = T.items.length - 1; mark(); render(); }, 'sm')));
+    }
+    function add(t) {
+      const font = { name: '微軟正黑體', size: 10, bold: false };
+      const it = {
+        text: { t: 'text', w: Math.min(30, T.w - 4), h: 5, text: '{品名}', font, align: 'left', fit: true },
+        barcode: { t: 'barcode', w: Math.min(36, T.w - 4), h: 10, data: T.src === 'bill' ? '{單號}' : '{貨品編號}', sym: 'code128', showText: true, fontSize: 7 },
+        qr: { t: 'qr', w: Math.min(15, T.h - 4), h: Math.min(15, T.h - 4), data: T.src === 'bill' ? '{單號}' : '{貨品編號}', ecl: 'M' },
+        line: { t: 'line', w: T.w - 4, h: 0.3, weight: 0.3 },
+        rect: { t: 'rect', w: 20, h: 10, weight: 0.3 },
+        image: { t: 'image', w: 12, h: 12, src: '' }
+      }[t];
+      it.x = 2; it.y = 2;
+      T.items.push(it); sel = T.items.length - 1; mark(); render();
+    }
+    function del() { if (sel == null) return; T.items.splice(sel, 1); sel = null; mark(); render(); }
+    function dup() { const it = cur(); if (!it) return; const c = JSON.parse(JSON.stringify(it)); c.x += 2; c.y += 2; T.items.push(c); sel = T.items.length - 1; mark(); render(); }
+    canvas.addEventListener('keydown', e => {
+      const it = cur(); if (!it || e.target !== canvas) return;
+      const st = e.shiftKey ? 2 : 0.5, mv = { ArrowLeft: [-st, 0], ArrowRight: [st, 0], ArrowUp: [0, -st], ArrowDown: [0, st] }[e.key];
+      if (mv) { it.x = snap(it.x + mv[0]); it.y = snap(it.y + mv[1]); mark(); render(); e.preventDefault(); }
+      else if (e.key === 'Delete') { del(); e.preventDefault(); }
+      else if (e.ctrlKey && (e.key === 'd' || e.key === 'D')) { dup(); e.preventDefault(); }
+    });
+    async function setup() { if (await setupDlg(T)) { mark(); rec = sampleRec(T); title.textContent = '標籤設計：' + T.name; render(); } }
+    async function save() { await saveLabels(G.LABELS().map(t => t.id === T.id ? T : t)); dirty = false; UI.toast('已儲存'); }
+    const zsel = h('select', { class: 'inp' }, h('option', { value: 'fit' }, '符合視窗'), [2, 3, 4, 5, 6, 8].map(z => h('option', { value: z }, z * 100 + '%')));
+    zsel.value = String(zmode); zsel.addEventListener('change', () => { zmode = zsel.value; lsSet('lbl_zoom', zmode); render(); });
+    window.addEventListener('resize', U.debounce(() => { if (canvas.isConnected && zmode === 'fit') render(); }, 200));
+    const title = h('h2', null, '標籤設計：' + T.name);
+    const pg = h('div', { class: 'page fd' },
+      h('div', { class: 'page-head' }, title),
+      UI.toolbar(UI.btn('儲存', save, 'pri'), UI.btn('標籤設定…', setup),
+        UI.btn('🏷 列印', async () => { if (dirty) await save(); A.pendingLabel = { tpl: T.id }; A.go('T00032'); }),
+        h('span', { class: 'sep' }, '新增：'), UI.btn('文字', () => add('text')), UI.btn('條碼', () => add('barcode')), UI.btn('QR', () => add('qr')), UI.btn('線', () => add('line')), UI.btn('框', () => add('rect')), UI.btn('圖片', () => add('image')),
+        h('span', { class: 'sep' }, '縮放'), zsel,
+        UI.btn('複製成新標籤', async () => { const c = JSON.parse(JSON.stringify(T)); c.id = newId(); c.name = T.name + '（複製）'; await saveLabels(G.LABELS().concat([c])); A.go('T00031/' + c.id); }),
+        UI.btn('匯出', () => U.download(T.name + '.erplabel', JSON.stringify(T, null, 1), 'application/json')),
+        UI.btn('刪除', async () => { if (!(await UI.confirm('刪除標籤「' + T.name + '」？'))) return; await saveLabels(G.LABELS().filter(t => t.id !== T.id)); A.go('T00031'); }, 'danger'),
+        h('span', { class: 'spacer' }), UI.btn('回清單', async () => { if (dirty && !(await UI.confirm('還沒儲存，確定離開？'))) return; A.go('T00031'); })),
+      h('div', { class: 'fd-main' }, h('div', { class: 'fd-wrap' }, canvas), props));
+    pg.addEventListener('keydown', e => { if (e.key === 'F9' || (e.ctrlKey && e.key === 's')) { e.preventDefault(); save(); } });
+    render();
+    return pg;
+  }
+
+  // ===== 標籤列印 =====
+  // 其他畫面呼叫：G.labelPrint({ goods: ['貨品編號', ...] }) 或 G.labelPrint({ bill: 單據 })
+  G.labelPrint = o => { A.pendingLabel = o || {}; if (location.hash === '#/T00032') window.dispatchEvent(new HashChangeEvent('hashchange')); else A.go('T00032'); };
+
+  function pickBillDlg(kind) {
+    const t = C.type(kind), all = S.rows(C.HEAD[t.tbl]).filter(b => b.單據類別 === kind);
+    const inp = h('input', { class: 'inp', placeholder: '單號、對象、日期…', style: { width: '100%' } });
+    let close;
+    const grid = UI.grid({ cols: [{ key: '交易單號', label: '單號' }, { key: '交易日期', label: '日期', fmt: 'date' }, { label: '對象', get: b => C.partyName(b) }, { key: '總計金額', label: '總計', fmt: 'money' }], rows: [], sortKey: '交易單號', sortDir: -1, page: 200, onRow: b => close(b) });
+    const f = () => { const tt = U.qTerms(inp.value); grid.setRows(all.filter(b => U.matchQ([b.交易單號, U.d10(b.交易日期), b.交易對象, C.partyName(b)].join(' '), tt))); };
+    inp.addEventListener('input', U.debounce(f, 150)); f();
+    return UI.modal('選擇' + t.name, h('div', { class: 'picker' }, inp, grid), [{ label: '取消', value: null }], { width: '720px', onOpen: (box, c) => { close = c; } });
+  }
+
+  A.reg('T00032', () => {
+    const tpls = G.LABELS();
+    const pend = A.pendingLabel || {}; A.pendingLabel = null;
+    const tsel = h('select', { class: 'inp' }, tpls.map(t => h('option', { value: t.id }, t.name + '（' + t.w + '×' + t.h + '）')));
+    // 從單據來：用上次的單據標籤（或第一個單據標籤）；其他：用上次的標籤
+    const firstBill = (tpls.find(t => t.src === 'bill') || {}).id;
+    const lastT = pend.tpl || (pend.bill ? lsGet('lbl_tpl_bill') || firstBill : lsGet('lbl_tpl'));
+    if (lastT && tpls.some(t => t.id === lastT)) tsel.value = lastT;
+    const tpl = () => tpls.find(t => t.id === tsel.value) || tpls[0];
+    let rows = []; // {rec, copies, boxOf}
+    const askBox = h('div', { class: 'form' }), ask = {};
+    const seqInp = h('input', { class: 'inp r', style: { width: '90px' } });
+    const cnt = h('b');
+    const tb = h('tbody');
+    const grid = h('div', { class: 'grid-wrap', style: { maxHeight: 'calc(100vh - 380px)' } }, h('table', { class: 'grid lblp' }, h('thead', null, h('tr', null, ['貨品編號', '品名', '規格', '單號', '數量 {數量}', '張數', ''].map(x => h('th', null, x)))), tb));
+
+    function drawRows() {
+      UI.clear(tb);
+      rows.forEach((r, i) => {
+        const q = h('input', { class: 'inp r', value: r.rec.數量 == null ? '' : r.rec.數量, style: { width: '80px' } });
+        q.addEventListener('input', () => { r.rec.數量 = q.value === '' ? '' : U.num(q.value); });
+        const c = h('input', { class: 'inp r', value: r.copies, style: { width: '64px' } });
+        c.addEventListener('input', () => { r.copies = U.num(c.value); total(); });
+        const ed = k => { const i = h('input', { class: 'inp', value: r.rec[k] || '', style: { width: '100%', minWidth: '120px' } }); i.addEventListener('input', () => { r.rec[k] = i.value; }); return i; };
+        tb.append(h('tr', null, h('td', null, ed('貨品編號')), h('td', null, ed('品名')), h('td', null, ed('規格')), h('td', null, r.rec.單號 || ''),
+          h('td', null, q), h('td', null, c), h('td', null, h('span', { class: 'del', title: '移除', onclick: () => { rows.splice(i, 1); drawRows(); } }, '✕'))));
+      });
+      if (!rows.length) tb.append(h('tr', null, h('td', { colspan: 7, class: 'empty' }, G.LBL_NO_BILL ? '還沒有要印的項目。在銷貨單按「標籤」、標籤種類選「標籤機」導入，或按「＋ 加貨品」、「＋ 空白列」自己打。品名、規格、數量都可以直接改。' : '還沒有要印的項目。按「＋ 加貨品」、「從單據帶入」或「＋ 空白列」自己打。品名、規格、數量都可以直接改。')));
+      total();
+    }
+    const total = () => { const n = U.sum(rows, r => Math.max(0, Math.round(U.num(r.copies)))); cnt.textContent = '共 ' + n + ' 張'; return n; };
+
+    function drawAsk() {
+      UI.clear(askBox);
+      const ks = askVars(tpl());
+      askBox.style.display = ks.length ? '' : 'none';
+      if (ks.length) askBox.append(h('div', { class: 'f-sep' }, '列印時輸入'));
+      for (const k of ks) {
+        const i = h('input', { class: 'inp', value: ask[k] || lsGet('lbl_ask_' + k) || '' });
+        i.addEventListener('input', () => { ask[k] = i.value; });
+        ask[k] = i.value;
+        askBox.append(h('label', { class: 'f' }, h('span', null, k), i));
+      }
+      const seqs = S.meta.labelSeq || {};
+      seqInp.value = seqs[tpl().id] || 1;
+    }
+    tsel.addEventListener('change', () => { lsSet(tpl().src === 'bill' ? 'lbl_tpl_bill' : 'lbl_tpl', tsel.value); drawAsk(); });
+
+    function addGoods(codes) { for (const c of codes) { const g = goodsRec(c); rows.push({ rec: Object.assign(g, { 數量: U.num(g.包裝數量) || 1 }), copies: 1 }); } drawRows(); }
+    // 單據帶入：mode line1（每個明細 1 張）、lineQty（張數＝數量）、box（整張單 N 張，箱號 1/N）
+    function addBill(b, mode, boxes) {
+      const ls = G.billLines(b).filter(l => U.trim(l.貨品編號) || l.品名);
+      if (mode === 'box') rows.push({ rec: Object.assign(ls[0] ? lineRec(b, ls[0]) : {}, billHead(b)), copies: Math.max(1, boxes || 1), boxOf: true });
+      else for (const l of ls) { const r = lineRec(b, l); rows.push({ rec: r, copies: mode === 'lineQty' ? Math.max(1, Math.round(U.num(l.數量))) : 1 }); }
+      drawRows();
+    }
+    async function billDlg(preset) {
+      const kinds = Object.entries(C.TYPES).filter(([k, t]) => t.tbl === 'T' || t.tbl === 'P');
+      const ks = h('select', { class: 'inp' }, kinds.map(([k, t]) => h('option', { value: k }, t.name)));
+      ks.value = preset ? preset.單據類別 : (lsGet('lbl_bk') || '出貨');
+      const no = h('input', { class: 'inp', value: preset ? preset.交易單號 : '', style: { width: '150px' } });
+      const pk = h('button', { class: 'btn sm', type: 'button', onclick: async () => { const b = await pickBillDlg(ks.value); if (b) no.value = b.交易單號; } }, '🔍');
+      const md = h('select', { class: 'inp' }, h('option', { value: 'line1' }, '每項明細印 1 張'), h('option', { value: 'lineQty' }, '每項明細印「數量」張（一件一張）'), h('option', { value: 'box' }, '整張單印 N 張（箱標，箱號 1/N…）'));
+      md.value = tpl().src === 'bill' ? 'box' : (lsGet('lbl_bm') || 'line1');
+      const bx = h('input', { class: 'inp r', value: 1, style: { width: '70px' } });
+      const bxl = h('span', null, '　箱數 ', bx);
+      const sync = () => { bxl.style.display = md.value === 'box' ? '' : 'none'; }; md.addEventListener('change', sync); sync();
+      const ok = await UI.modal('從單據帶入', h('div', { class: 'pdlg' },
+        h('fieldset', null, h('legend', null, '單據'), ks, ' 單號 ', no, pk),
+        h('fieldset', null, h('legend', null, '張數'), md, bxl)), [{ label: '取消', value: null }, { label: '帶入', cls: 'pri', click: () => true }], { width: '560px' });
+      if (!ok) return;
+      const t = C.type(ks.value), b = S.rows(C.HEAD[t.tbl]).find(x => x.單據類別 === ks.value && x.交易單號 === U.trim(no.value));
+      if (!b) return UI.toast('找不到' + t.name + ' ' + no.value, 'err');
+      lsSet('lbl_bk', ks.value); if (md.value !== 'box') lsSet('lbl_bm', md.value);
+      addBill(b, md.value, Math.round(U.num(bx.value)));
+    }
+
+    function build() {
+      if (!rows.length) { UI.toast('還沒有要印的項目', 'err'); return null; }
+      const n = total(); if (!n) { UI.toast('張數都是 0', 'err'); return null; }
+      if (n > 2000 && !confirm('要印 ' + n + ' 張，確定？')) return null;
+      for (const k in ask) lsSet('lbl_ask_' + k, ask[k]);
+      const T = tpl(), labels = expand(rows, Math.max(0, Math.round(U.num(seqInp.value))), ask);
+      return { T, labels, r: G.renderLabels(T, labels) };
+    }
+    async function bumpSeq(T, n) {
+      const usesSeq = T.items.some(it => /\{流水號/.test((it.text || '') + (it.data || '')));
+      if (!usesSeq) return;
+      const m = Object.assign({}, S.meta.labelSeq || {}); m[T.id] = Math.round(U.num(seqInp.value)) + n; S.setMeta('labelSeq', m); await S.save(); seqInp.value = m[T.id];
+    }
+
+    const pg = UI.page('標籤列印',
+      h('div', { class: 'toolbar' }, h('span', null, '標籤樣板 '), tsel, UI.btn('設計…', () => A.go('T00031/' + tpl().id)), UI.btn('＋ 新樣板', () => A.go('T00031'))),
+      UI.toolbar(UI.btn('＋ 加貨品', async () => { const r = await UI.pick('goods'); if (r) addGoods([r.code]); }),
+        G.LBL_NO_BILL ? null : UI.btn('從單據帶入…', () => billDlg()),
+        UI.btn('＋ 空白列（手動輸入）', () => { rows.push({ rec: { 品名: '', 規格: '', 數量: '' }, copies: 1 }); drawRows(); const ins = tb.querySelectorAll('tr:last-child input'); if (ins[0]) ins[0].focus(); }),
+        UI.btn('清空', () => { rows = []; drawRows(); }),
+        h('span', { class: 'spacer' }), h('span', null, '流水號從 '), seqInp, ' ', cnt),
+      askBox, grid,
+      UI.toolbar(UI.btn('🔍 預覽', () => { const o = build(); if (o) G.previewHtml(o.T.name + '　' + o.labels.length + ' 張', o.r); }),
+        UI.btn('🖨 列印', async () => { const o = build(); if (!o) return; UI.print(o.T.name, o.r.html, o.r.css); await bumpSeq(o.T, o.labels.length); }, 'pri')),
+      h('div', { class: 'box note' },
+        h('b', null, '第一次用標籤機：'), '先裝佳博（Gprinter）驅動程式（標籤機隨附光碟或佳博官網下載），到 Windows「印表機內容 › 喜好設定」把紙張大小設成跟標籤一樣（例如 40×30mm），並做一次「標籤校正」。',
+        h('br'), '按「列印」後在列印視窗：印表機選佳博（Gprinter GP-1324D / GP-3120TU）、邊界選「無」、縮放選「實際大小／100%」、取消勾選「頁首及頁尾」。',
+        h('br'), '印歪了：到「標籤設計 › 標籤設定」調整「向右／向下微調」。條碼會自動對齊 203dpi 的點，掃描比較準。'));
+
+    drawAsk();
+    if (pend.goods) addGoods(pend.goods);
+    if (pend.rows) { for (const r of pend.rows) rows.push({ rec: r, copies: 1 }); }
+    if (pend.bill) setTimeout(() => billDlg(pend.bill), 30);
+    drawRows();
+    return pg;
+  });
+})(window);
+
+</script>
+<script>NL_START();</script>
+</body></html>
