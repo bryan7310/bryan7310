@@ -59,6 +59,7 @@ export const goodsWt = g => {
 };
 // 舊系統的進貨單（歷史單據載入後放進來），成本推算也會用到
 let HIST_PUR = [];
+const MKI = new WeakMap();   // purIdx → 線材＋製作費合算的成品成本（不放進 purIdx，免得開單時當成進貨單價）
 export function setHistPur(bills) { HIST_PUR = bills || []; C = null; QH = null; }
 export function uRate(u, g) {
   if (!g) return null;
@@ -116,6 +117,25 @@ export function calc() {
   const purIdx = {}, poIdx = {};
   for (const b of bills) { if (b.type !== 'PO') continue; for (const l of b.lines || []) { if (!l.gid || !(+l.price > 0)) continue; const [cls, f] = lineUnit(l, g[l.gid]); (poIdx[l.gid] ??= []).push({ d: dayN(b.date), date: b.date, no: b.no, cls, per: (+l.price) / f }); } }
   for (const b of [...bills, ...HIST_PUR]) { if (b.type !== 'PUR') continue; for (const l of b.lines || []) { if (!l.gid || !(+l.price > 0) || !g[l.gid]) continue; const [cls, f] = lineUnit(l, g[l.gid]); (purIdx[l.gid] ??= []).push({ d: dayN(b.date), date: b.date, no: b.no, cls, per: (+l.price) / f, q: +l.qty || 0, cid: b.cid, hist: !!b.hist }); } }
+  // 自己叫線、委外打頭（隆勝、星宇、幸利、澤發…）：「線材 某成品」(KG) 跟後面的「製作費用 每H」（還有熱處理、一批…）
+  // 是同一批貨：全部金額加起來 ÷ 支數（製作費的 H 數 × 100；沒有支數就用線材 KG ÷ 單重）＝那個成品每支的進貨成本
+  const mkIdx = {}; MKI.set(purIdx, mkIdx);
+  for (const b of [...bills, ...HIST_PUR]) {
+    if (b.type !== 'PUR') continue; const grp = {}; let cur = null;
+    for (const l of b.lines || []) {
+      const lg = g[l.gid]; const w = l.wire || lg?.wireOf;
+      const k = w || l.for || (cur && /^(製作費|熱處理)/.test(lg?.name || '') ? cur : null);
+      cur = k || null; if (!k || !g[k]) continue;
+      const o = grp[k] ??= { amt: 0, pcs: 0, kg: 0 }; o.amt += (+l.qty || 0) * (+l.price || 0);
+      const [cls, f] = lineUnit(l, lg);
+      if (w) { if (cls === 'kg') o.kg += +l.qty || 0; } else if (cls === 'p') o.pcs += (+l.qty || 0) * f;
+    }
+    for (const [k, o] of Object.entries(grp)) {
+      if (unitFactor(g[k].unit || '')[0] !== 'p') continue; const wt = goodsWt(g[k]);
+      const pcs = o.pcs || (o.kg && wt ? o.kg * 1000 / wt : 0); if (!(o.amt > 0 && pcs > 0)) continue;
+      (mkIdx[k] ??= []).push({ d: dayN(b.date), date: b.date, no: b.no, cls: 'p', per: o.amt / pcs, q: pcs, cid: b.cid, hist: !!b.hist, lab: '線材＋製作費 進貨單' });
+    }
+  }
   const costMiss = {}, costLn = {};
   const saleCost = (b, l, i) => { if (!l.gid) return 0; const r = costOf(l, b.date, purIdx, g, poIdx); (costLn[b.id] ??= [])[i] = r; if (!r) { costMiss[b.id] = (costMiss[b.id] || 0) + 1; return 0; } return r.c * (+l.qty || 0); };
   const add = (gid, wid, q) => { if (!gid || !wid) return; (stock[gid] ??= {}); stock[gid][wid] = (stock[gid][wid] || 0) + q; };
@@ -194,11 +214,11 @@ function costG(g, gid, cls, f, date, purIdx, poIdx, sane, gm) {
   const pick = (li, lab) => {
     if (!li || !li.length) return null;
     const cands = li.filter(x => x.cls === cls).map(x => ({ x, dd: Math.abs(x.d - d) })).sort((a, b) => a.dd - b.dd || (b.x.d <= d) - (a.x.d <= d));
-    for (const { x } of cands) { for (const [k, lb] of [[1, ''], [100, '，單價視為每百支'], [1000, '，單價視為每千支']]) { const c = x.per * f / k; if (sane(c, 0.03, 3)) return { c, src: `${lab} ${x.no}（${x.date}）${lb}` }; } }
+    for (const { x } of cands) { for (const [k, lb] of [[1, ''], [100, '，單價視為每百支'], [1000, '，單價視為每千支']]) { const c = x.per * f / k; if (sane(c, 0.03, 3)) return { c, src: `${x.lab || lab} ${x.no}（${x.date}）${lb}` }; } }
     return null;
   };
   let r;
-  if (gid && (r = pick(purIdx[gid], '進貨單'))) return r;
+  if (gid && (r = pick([...(purIdx[gid] || []), ...(MKI.get(purIdx)?.[gid] || [])], '進貨單'))) return r;
   if (gid && (r = pick(poIdx[gid], '採購單'))) return r;
   if (g?.bom?.length) {   // 螺絲包：用配方算
     const [bc, bf] = unitFactor(g.unit || '');
