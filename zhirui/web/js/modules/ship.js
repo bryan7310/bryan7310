@@ -63,7 +63,7 @@ export function shipDoc(b, opt = {}) {
     switch (k) {
       case 'pnname': { const nm = cutName(g ? g.name : String(l.n || ''), TP.nameMax); return g && PN ? [g.spec, nm].filter(Boolean).join('　') : nm; }
       case 'pn': return g?.spec || ''; case 'name': return cutName(g ? g.name : String(l.n || ''), TP.nameMax); case 'code': return g?.code || '';
-      case 'qty': return fq(l.qty); case 'unit': return unitOf(l); case 'price': return NA ? '' : fp(l.price); case 'amt': return NA ? '' : fmt(lineAmt(l));
+      case 'qty': return TP.qtyUnit ? `${fq(l.qty)} ${unitOf(l)}`.trim() : fq(l.qty); case 'unit': return unitOf(l); case 'price': return NA ? '' : fp(l.price); case 'amt': return NA ? '' : fmt(lineAmt(l));
       case 'memo': if (TP.blankMemo) return ''; return anyMemo ? (l.memo || '') : (TP.noteMode === 'memo' && i === 0 ? (b.note || '') : '');
       case 'seq': return String(seqs[i] || ''); case 'batch': return l.batch || ''; case 'cat': return g?.cat || ''; case 'blank': return '';
       case 'uwt': { if (!g) return ''; const w = goodsWt(g); return w ? String(w) : ''; }
@@ -114,7 +114,7 @@ export function shipDoc(b, opt = {}) {
 .r3{display:flex;gap:5mm;padding:0 1mm;margin-top:.8mm;white-space:nowrap;overflow:hidden}.r3 .ad{overflow:hidden;text-overflow:ellipsis}
 .cn{font-size:${+TP.custSize}pt;font-weight:bold;margin-left:2mm}
 .dbl{border-top:${TP.dot ? '1.2pt' : '1.8pt'} solid #000;border-bottom:${TP.dot ? '1.2pt' : '.8pt'} solid #000;height:${TP.dot ? '4pt' : '3.2pt'};margin:1mm 0}
-.th,.ln{display:grid;grid-template-columns:${grid};align-items:baseline;column-gap:1.5mm}
+.th,.ln{display:grid;grid-template-columns:${grid};align-items:baseline;column-gap:${TP.colGap || '1.5mm'}}
 .th{padding:.8mm 0;white-space:nowrap}.th>span{overflow:hidden}
 .body{flex:1;padding-top:2mm;overflow:hidden}.ln{line-height:${+TP.lineH}mm;white-space:nowrap;font-size:${+TP.bodySize}pt;color:#000}.ln>span{overflow:hidden;min-width:0}.ln>span>i{font-style:normal;display:inline-block;transform-origin:left center}
 .a-right{text-align:right;font-variant-numeric:tabular-nums}.a-right>i{transform-origin:right center!important}.a-center{text-align:center}.a-center>i{transform-origin:center!important}
@@ -124,9 +124,11 @@ export function shipDoc(b, opt = {}) {
 .foot{display:flex;align-items:baseline;gap:4mm;padding:1mm 1mm 0;white-space:nowrap;overflow:hidden;font-size:${+TP.footSize}pt}.co{color:${ink};font-size:${+TP.coSize}pt;font-weight:bold;letter-spacing:.1em}`;
   // 太長的字自動壓扁塞進欄寬
   // 列印前自動調整：明細放不下（表頭、合計佔掉高度）就縮小行距，必要時一起縮字，確保這頁的每一筆都印得出來；太寬的字壓窄
-  const fit = `<script>(()=>{const U=${TP.uniform ? 1 : 0};
+  const autoIx = cols.map((x, i) => x.auto ? i : -1).filter(i => i >= 0);
+  const fit = `<script>(()=>{const U=${TP.uniform ? 1 : 0},A=${JSON.stringify(autoIx)},G=${JSON.stringify(grid.split(' '))};
 function F(){const all=[...document.querySelectorAll('.ln')];all.forEach(x=>{x.style.lineHeight='';x.style.fontSize='';});const B=all.length?parseFloat(getComputedStyle(all[0]).fontSize):0;document.querySelectorAll('.ln>span>i').forEach(t=>t.style.transform='');
 document.querySelectorAll('.page .body').forEach(b=>{const ls=b.querySelectorAll('.ln');if(!ls.length)return;const cs=getComputedStyle(ls[0]);let lh=parseFloat(cs.lineHeight),fs=parseFloat(cs.fontSize),n=0;while(b.scrollHeight>b.clientHeight+0.5&&n++<60){lh*=0.97;if(lh<fs*1.15)fs*=0.97;ls.forEach(x=>{x.style.lineHeight=lh+'px';x.style.fontSize=fs+'px';});}});
+if(A.length){const rs=[...document.querySelectorAll('.page .th,.page .ln')].filter(r=>r.children.length===G.length);rs.forEach(r=>r.style.gridTemplateColumns='');const rg=document.createRange();const W=A.map(i=>Math.ceil(Math.max(0,...rs.map(r=>{rg.selectNodeContents(r.children[i]);return rg.getBoundingClientRect().width;})))+1);const t=G.map((g,i)=>A.indexOf(i)>=0?W[A.indexOf(i)]+'px':g).join(' ');rs.forEach(r=>r.style.gridTemplateColumns=t);}
 if(U&&all.length){let gv=Infinity,gw=Infinity;all.forEach(x=>{const f=parseFloat(getComputedStyle(x).fontSize);gv=Math.min(gv,f);x.querySelectorAll(':scope>span>i').forEach(t=>{const w=t.parentElement.clientWidth,s=t.offsetWidth;if(s>w+0.5)gw=Math.min(gw,f*w/s*0.985);});});const g=Math.min(gv,Math.max(gw,B*0.78));all.forEach(x=>x.style.fontSize=g+'px');}
 document.querySelectorAll('.ln>span>i').forEach(t=>{const w=t.parentElement.clientWidth,s=t.offsetWidth;if(s>w+0.5)t.style.transform='scaleX('+(w/s).toFixed(3)+')';});}
 const tl=document.getElementById('ryTail');if(tl){let v=8;try{const x=localStorage.getItem('zr.ryTail');if(x!==null&&x!==''&&!isNaN(+x))v=+x;}catch(e){}const set=k=>{v=Math.max(0,Math.min(60,Math.round(k*2)/2));tl.value=v;document.documentElement.style.setProperty('--tail',v+'mm');try{localStorage.setItem('zr.ryTail',v);}catch(e){}F();};
@@ -166,14 +168,14 @@ export function cutName(name, max) {
   while (t.length > 1 && t.join(' ').length > max && FINISH.test(t[t.length - 1]) && !/\d/.test(t[t.length - 1])) t.pop();
   return t.join(' ');
 }
-/** 豐民列印：客料號＋品名、數量、單價、金額；採購單號欄加寬、字放大，品名超過 20 字拿掉材質表面處理、字縮小（客戶看採購單號，不看品名） */
+/** 豐民列印：客料號（字大）、品名（字小，超過 20 字拿掉材質表面處理）、數量＋單位、單價、金額、採購單號；
+ *  各欄寬度依內容自動調整，欄與欄之間只空一個字（客戶看客料號、採購單號，不太看品名） */
 export function fengminTpl() {
-  const t = shipTpl(); t.nameMax = 20;
-  const pick = k => t.cols.find(x => x.k === k);
-  for (const c of t.cols) if (c.k === 'price' || c.k === 'amt') c.show = true;
-  const n = pick('pnname'); if (n) { n.show = true; n.fs = 0.88; }
-  const m = pick('memo'); if (m) { m.show = true; m.w = 55; m.fs = 1.1; m.label = '採購單號'; t.cols.splice(t.cols.indexOf(m), 0, { k: 'blank', label: '', w: 7, show: true, align: 'left' }); }   // 金額和採購單號中間空約 2 個字
-  const q = pick('qty'); if (q) q.show = true;
+  const t = shipTpl(); t.nameMax = 20; t.qtyUnit = true; t.colGap = '4mm';
+  const C = (k, label, align, fs, auto) => ({ k, label, w: auto ? 20 : 0, show: true, align, fs, auto });
+  t.cols = [C('pn', '客料號', 'left', 1, true), C('name', '品　　名', 'left', 0.8, false), C('qty', '數　量', 'right', 0.92, true),
+    C('price', '單價', 'right', 0.92, true), C('amt', '金　額', 'right', 0.92, true), C('memo', '採購單號', 'left', 0.92, true)];
+  t.blankMemo = false;
   return t;
 }
 export function printShip(b, opt = {}) {
