@@ -1,5 +1,5 @@
 // 總覽：今天該注意的事
-import { esc, fmt, money, today, thisMonth, daysLeft, slash, ymLabel, roc, uid, ym25, month25 } from '../core/util.js';
+import { esc, fmt, money, today, thisMonth, daysLeft, slash, ymLabel, roc, uid, ym25, month25, ls } from '../core/util.js';
 import { histAR, histTot } from './receivables.js';
 import { store } from '../core/store.js';
 import { calc, TYPES, cshort, nextNo, defWh, costOf } from '../core/calc.js';
@@ -70,14 +70,16 @@ function draw(el) {
   el.innerHTML = `
     <div class="head"><h1>總覽</h1><span class="sub">${esc(roc(t))}・${esc(store.user.name)}</span></div>
     ${memoBoard(MU)}
-    <div class="kpis">
+    ${ls.get('zr.homeKpi', false) ? '' : '<div style="margin:0 0 12px"><button class="btn" id="kpiTgl" title="展開本月銷貨、進貨、應收、應付、客票、發票數字">本月數字 ▾</button></div>'}
+    ${ls.get('zr.homeKpi', false) ? `<div class="kpis" style="position:relative">
+      <button class="btn xs" id="kpiTgl2" title="收起數字" style="position:absolute;top:-10px;right:-6px;z-index:1">收起 ▴</button>
       <a class="kpi" href="#sales"><span>本月銷貨（未稅・25 結）</span><b>${fmt(sales)}</b><small>${n} 張・毛利 ${fmt(profit)}</small></a>
       <a class="kpi" href="#purchase"><span>本月進貨（未稅・25 結）</span><b>${fmt(pur)}</b></a>
       <a class="kpi ${ar.late ? 'alert' : ''}" href="#receivables"><span>應收未收</span><b>${fmt(ar.open)}</b><small>${ar.openN} 筆${ar.late ? `・逾期 ${ar.late} 筆` : ''}</small></a>
       <a class="kpi" href="#payables"><span>應付待開票</span><b>${fmt(ap.open)}</b><small>${ap.openN} 筆</small></a>
       <a class="kpi ${late.length ? 'alert' : ''}" href="#checks-in"><span>待代收客票</span><b>${fmt(cin.reduce((s, c) => s + (+c.amt || 0), 0))}</b><small>${cin.length} 張${late.length ? `・已到期 ${late.length}` : ''}${soon.length ? `・7 天內 ${soon.length}` : ''}</small></a>
       <a class="kpi" href="#invoices"><span>本月發票</span><b>${fmt(invSum)}</b><small>${inv.length} 張${pendInv.length ? `・${pendInv.length} 張銷貨單未開` : ''}</small></a>
-    </div>
+    </div>` : ''}
     ${retailPanel(C, t)}
     <div class="grid2">
       <div class="panel"><div class="ptitle">待辦<small>需要處理的事</small></div>
@@ -103,6 +105,8 @@ function draw(el) {
   bindMemoBoard(el, MU, () => draw(el));
   el.querySelectorAll('tr[data-href]').forEach(tr => tr.addEventListener('click', () => location.hash = tr.dataset.href));
   // 門市銷售
+  el.querySelector('#kpiTgl')?.addEventListener('click', () => { ls.set('zr.homeKpi', true); draw(el); });
+  el.querySelector('#kpiTgl2')?.addEventListener('click', () => { ls.set('zr.homeKpi', false); draw(el); });
   const rt = el.querySelector('#retail');
   rt.querySelector('#rtAdd').addEventListener('click', () => addRetail(el));
   rt.querySelectorAll('#rtAmt, #rtNote').forEach(i => i.addEventListener('keydown', ev => { if (ev.key === 'Enter' && !ev.isComposing) { ev.preventDefault(); addRetail(el); } }));
