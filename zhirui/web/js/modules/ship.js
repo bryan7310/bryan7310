@@ -172,7 +172,7 @@ export function fengminTpl() {
   const pick = k => t.cols.find(x => x.k === k);
   for (const c of t.cols) if (c.k === 'price' || c.k === 'amt') c.show = true;
   const n = pick('pnname'); if (n) { n.show = true; n.fs = 0.88; }
-  const m = pick('memo'); if (m) { m.show = true; m.w = 55; m.fs = 1.1; m.label = '採購單號'; }
+  const m = pick('memo'); if (m) { m.show = true; m.w = 55; m.fs = 1.1; m.label = '採購單號'; t.cols.splice(t.cols.indexOf(m), 0, { k: 'blank', label: '', w: 7, show: true, align: 'left' }); }   // 金額和採購單號中間空約 2 個字
   const q = pick('qty'); if (q) q.show = true;
   return t;
 }

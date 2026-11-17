@@ -124,7 +124,7 @@ function printRy(items) {
 .lb .rohs{display:flex;align-items:center;justify-content:center;border:.5mm solid #e00;color:#e00;height:85%;margin:0 1mm;font-size:15pt;letter-spacing:.5pt;transform:none!important}`, '列印方式：按 Ctrl+P，紙張選 5 × 4 cm 標籤（寬 50 mm、高 40 mm），邊界「無」，縮放 100%；黑白印表機紅字會印成黑色。');
   printHTML(`如陽標籤 ${ui.date}`, css, html + FIT, { tip });
 }
-/** 崧泉標籤 8×8 cm（照崧泉 B2B 的格式）：料號／品名／批號／數量／箱號（右邊小字廠商代號）／箱別（內箱、外箱）／備註（交貨日期），右下 QR 碼 */
+/** 崧泉標籤：8×8 cm 標籤紙中間印 7×7 cm（跟崧泉 B2B 一樣大，四邊留 5mm 不會印出紙外）：料號／品名／批號／數量／箱號（右邊小字廠商代號）／箱別（內箱、外箱）／備註（交貨日期），右下 QR 碼 */
 const SQ_QR = '{料號}';   // 崧泉 B2B 標籤的 QR 碼只放料號（2026-11-17 對過 PDF）
 async function printSq(items) {
   const W = sqWhich();
@@ -142,14 +142,14 @@ async function printSq(items) {
     <div class="mid"><div class="l"><div class="r"><b>數量</b><i>${q2(c.q)} ${esc(c.it.unit || '')}</i></div><div class="r"><b>箱號</b><i>${c.no}/${c.tot}</i><s>${esc(ven)}</s></div><div class="r"><b>箱別</b><i>${c.kn}</i></div></div><div class="qr">${qrOf[c.qt]}</div></div>
     <div class="r"><b>備註</b><i>${esc(day)}</i></div></div>`).join('');
   const css = `@page{size:80mm 80mm;margin:0}*{box-sizing:border-box}body{margin:0;color:#000;font-family:"Times New Roman","PMingLiU","新細明體",serif}
-.lb{width:80mm;height:80mm;padding:2.5mm;display:grid;grid-template-rows:8.5mm 1fr 8.5mm 27mm 8.5mm;page-break-after:always;overflow:hidden}.lb:last-child,.lb:not(:has(~ .lb)){page-break-after:auto}
+.lb{width:80mm;height:80mm;padding:5mm;display:grid;grid-template-rows:8mm 1fr 8mm 25mm 8mm;page-break-after:always;overflow:hidden}.lb:last-child,.lb:not(:has(~ .lb)){page-break-after:auto}
 @media screen{.lb{border:1px dashed #999;margin:4mm;display:inline-grid;vertical-align:top}}
 .lb>*{border:.35mm solid #000;border-bottom:none;min-height:0}.lb>*:last-child{border-bottom:.35mm solid #000}
 .r{display:flex;align-items:center;gap:3mm;padding:0 1.5mm;font-size:11.5pt;white-space:nowrap;overflow:hidden}.r b{font-weight:normal;flex:none}.r i{font-style:normal;overflow:hidden}.r s{text-decoration:none;font-size:6.5pt;margin-left:auto}
 .nm{align-items:flex-start;padding-top:1.5mm}.nm i.w{white-space:normal;line-height:1.15;word-break:break-all}
 .mid{display:flex;padding:0}.mid .l{flex:1;display:grid;grid-template-rows:1fr 1fr 1fr;min-width:0;border-right:.35mm solid #000}.mid .l .r+.r{border-top:.35mm solid #000}
-.mid .qr{width:27mm;flex:none;padding:1.2mm;display:flex;align-items:center;justify-content:center}.mid .qr svg{width:100%;height:100%;display:block}`;
-  printHTML(`崧泉標籤 ${ui.date}`, css, html, { tip: '列印方式：按 Ctrl+P，紙張選 8 × 8 cm 標籤（寬 80 mm、高 80 mm），邊界「無」，縮放 100%。', win });
+.mid .qr{width:25mm;flex:none;padding:1.2mm;display:flex;align-items:center;justify-content:center}.mid .qr svg{width:100%;height:100%;display:block}`;
+  printHTML(`崧泉標籤 ${ui.date}`, css, html, { tip: '列印方式：按 Ctrl+P，紙張選 8 × 8 cm 標籤（寬 80 mm、高 80 mm），邊界「無」，縮放 100%。內容是 7 × 7 cm，印在標籤正中間。', win });
 }
 function printGen(items) {
   const dd = String(ui.date || today()).split('-'); const d = `${dd[0]}/${+dd[1]}/${+dd[2]}`; let html = '';
