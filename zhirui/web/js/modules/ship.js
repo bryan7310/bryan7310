@@ -67,7 +67,7 @@ export function shipDoc(b, opt = {}) {
       case 'memo': if (TP.blankMemo) return ''; return anyMemo ? (l.memo || '') : (TP.noteMode === 'memo' && i === 0 ? (b.note || '') : '');
       case 'seq': return String(seqs[i] || ''); case 'batch': return l.batch || ''; case 'cat': return g?.cat || ''; case 'blank': return '';
       case 'uwt': { if (!g) return ''; const w = goodsWt(g); return w ? String(w) : ''; }
-      case 'wtl': { const w = lineKg(l, g); return w ? String(w >= 100 ? Math.round(w * 10) / 10 : Math.round(w * 1000) / 1000) : ''; }
+      case 'wtl': { const w = opt.kg ? opt.kg(l, g) : lineKg(l, g); return w ? String(w >= 100 ? Math.round(w * 10) / 10 : Math.round(w * 1000) / 1000) : ''; }
     }
     return '';
   };
@@ -77,15 +77,18 @@ export function shipDoc(b, opt = {}) {
   const extraHtml = extra.length ? `<div class="ex">${extra.map(x => `<div>${e2(x)}</div>`).join('')}</div>` : '';
   const r3 = [H.phone && c.phone ? `<span><span class="lb">電話：</span>${e2(c.phone)}</span>` : '', H.taxId && c.taxId ? `<span><span class="lb">統一編號：</span>${e2(c.taxId)}</span>` : '', H.person && c.person ? `<span><span class="lb">聯絡人：</span>${e2(c.person)}</span>` : '', H.addr && c.addr ? `<span class="ad"><span class="lb">地址：</span>${e2(c.addr)}</span>` : ''].filter(Boolean).join('');
   const custName = c.name ? printName(c.name) : (b.cn || '');
+  const LB = { cust: '客戶名稱', date: '貨單日期', no: '貨單編號', sign: '簽收', ...(TP.lbl || {}) };
+  const topHtml = TP.top ? `<div class="tp">${String(TP.top).split(String.fromCharCode(10)).filter(x => x.trim()).map(x => `<div>${e2(x)}</div>`).join('')}</div>` : '';
   let html = '';
   for (let p = 0; p < pages; p++) {
     const rows = lines.slice(p * per, (p + 1) * per); const last = p === pages - 1;
     html += `<div class="page">
     <div class="title">${e2(b.type === 'SALE_RET' ? TP.retTitle : TP.title)}</div>
     ${H.page ? `<div class="r1"><span class="lb">頁　　次：</span><span class="pg">${p + 1} / ${pages}</span></div>` : ''}
-    <div class="r2"><div>${H.cust ? `<span class="lb">客戶名稱：</span><span class="cn">${e2(custName)}</span>` : ''}</div>
-      <div>${H.date ? `<span class="lb">貨單日期：</span><span class="v">${e2(dt)}</span>` : ''}${H.no ? `<span class="lb">貨單編號：</span><span class="v">${e2(b.no)}</span>` : ''}</div></div>
+    <div class="r2"><div>${H.cust ? `<span class="lb">${e2(LB.cust)}：</span><span class="cn">${e2(custName)}</span>` : ''}</div>
+      <div>${H.date ? `<span class="lb">${e2(LB.date)}：</span><span class="v">${e2(dt)}</span>` : ''}${H.no ? `<span class="lb">${e2(LB.no)}：</span><span class="v">${e2(b.no)}</span>` : ''}</div></div>
     ${r3 ? `<div class="r3">${r3}</div>` : ''}
+    ${topHtml}
     ${TP.extraPos === 'top' ? extraHtml : ''}
     <div class="dbl"></div>
     <div class="th">${cols.map(x => `<span class="lb" style="text-align:${x.align === 'right' && x.k !== 'pnname' ? 'right' : 'center'}">${e2(x.label)}</span>`).join('')}</div>
@@ -94,7 +97,7 @@ export function shipDoc(b, opt = {}) {
     ${!last ? '<div class="ln"><span>（續下頁）</span></div>' : ''}
     ${last && TP.noteMode === 'line' && b.note ? `<div class="bn"><span class="lb">備註：</span>${e2(b.note)}</div>` : ''}</div>
     ${TP.extraPos === 'body' ? extraHtml : ''}
-    ${TP.showTot ? `<div class="dbl"></div><div class="tot"><span><span class="lb">合　　計：</span><span class="v">${last && !NA ? fmt(t.net) : ''}</span></span><span><span class="lb">稅　　額：</span><span class="v">${last && !NA && t.tax ? fmt(t.tax) : ''}</span></span><span><span class="lb">總　　計：</span><span class="v">${last && !NA ? fmt(t.total) : ''}</span></span>${TP.showSign ? '<span class="sg"><span class="lb">簽收：</span></span>' : ''}</div>` : ''}
+    ${TP.showTot ? `<div class="dbl"></div><div class="tot"><span><span class="lb">合　　計：</span><span class="v">${last && !NA ? fmt(t.net) : ''}</span></span><span><span class="lb">稅　　額：</span><span class="v">${last && !NA && t.tax ? fmt(t.tax) : ''}</span></span><span><span class="lb">總　　計：</span><span class="v">${last && !NA ? fmt(t.total) : ''}</span></span>${TP.showSign ? `<span class="sg"><span class="lb">${e2(LB.sign)}：</span></span>` : ''}</div>` : ''}
     <div class="dbl"></div>
     ${TP.extraPos === 'foot' ? extraHtml : ''}
     <div class="foot">${F.name ? `<span class="co">${e2(co.name || '志瑞螺絲企業有限公司')}</span>` : ''}${F.addr && co.addr ? `<span>${e2(co.addr)}</span>` : ''}${F.tel && co.phone ? `<span><span class="lb">Tel：</span>${e2(co.phone)}</span>` : ''}${F.fax && co.fax ? `<span><span class="lb">Fax：</span>${e2(co.fax)}</span>` : ''}</div>
@@ -117,7 +120,7 @@ export function shipDoc(b, opt = {}) {
 .a-right{text-align:right;font-variant-numeric:tabular-nums}.a-right>i{transform-origin:right center!important}.a-center{text-align:center}.a-center>i{transform-origin:center!important}
 .bn{font-size:${+TP.bodySize - 1}pt;padding:1mm 1mm 0;white-space:nowrap;overflow:hidden}
 .tot{display:flex;gap:8mm;align-items:baseline;padding:1mm 2mm;white-space:nowrap}.tot .v{display:inline-block;min-width:22mm;margin-left:2mm}.tot .sg{margin-left:auto;min-width:40mm}
-.ex{font-size:${+TP.footSize}pt;padding:.5mm 1mm;line-height:1.35}
+.tp{font-size:${+TP.custSize}pt;font-weight:bold;padding:.8mm 1mm 0;white-space:nowrap;overflow:hidden}.ex{font-size:${+TP.footSize}pt;padding:.5mm 1mm;line-height:1.35}
 .foot{display:flex;align-items:baseline;gap:4mm;padding:1mm 1mm 0;white-space:nowrap;overflow:hidden;font-size:${+TP.footSize}pt}.co{color:${ink};font-size:${+TP.coSize}pt;font-weight:bold;letter-spacing:.1em}`;
   // 太長的字自動壓扁塞進欄寬
   // 列印前自動調整：明細放不下（表頭、合計佔掉高度）就縮小行距，必要時一起縮字，確保這頁的每一筆都印得出來；太寬的字壓窄
@@ -134,6 +137,27 @@ window.addEventListener('load',F);})();<\/script>`;
 }
 /** 如陽列印：照如陽舊系統出貨單的樣子（Times New Roman＋新細明體、明細不加粗、欄名「品名規格」）；其他設定沿用出貨單格式 */
 export function ruyangTpl() { const t = shipTpl(); t.font = 'times'; t.bold = false; t.blankMemo = true; t.uniform = true; t.tail = true; const c = t.cols.find(x => x.k === 'pnname'); if (c) c.label = '品　　名　　規　　格'; const m = t.cols.find(x => x.k === 'memo'); if (m) { m.show = true; m.label = ''; } return t; }
+/** 委託加工單：用出貨單的中一刀格式（同一台點陣印表機、同樣的列印位置），抬頭、欄位換成加工單的 */
+export function prcTpl(b) {
+  const t = shipTpl(); const lines = b.lines || [];
+  t.title = '委　託　加　工　單'; t.lbl = { cust: '加工廠商', date: '加工日期', no: '加工單號', sign: '廠商確認' };
+  t.hdr = { ...t.hdr, page: true, cust: true, date: true, no: true, phone: true };
+  const anyMemo = lines.some(l => String(l.memo || '').trim());
+  t.cols = [{ k: 'seq', label: '項次', w: 9, show: true, align: 'center' }, { k: 'pnname', label: '品　　名　　規　　格', w: 0, show: true, align: 'left' },
+    { k: 'qty', label: '數　量', w: 18, show: true, align: 'right' }, { k: 'unit', label: '', w: 11, show: true, align: 'left' }, { k: 'wtl', label: '約重kg', w: 17, show: true, align: 'right' },
+    { k: 'price', label: '單價', w: 15, show: true, align: 'right' }, { k: 'amt', label: '金　額', w: 18, show: true, align: 'right' }, { k: 'memo', label: '備　註', w: 26, show: anyMemo, align: 'left' }];
+  t.noteMode = 'line'; t.blankMemo = false; t.showTot = true; t.showSign = true;
+  t.top = [b.proc ? `加工內容：${b.proc}` : '', b.deliv ? `預計回廠日：${String(b.deliv).split('-').map((x, i) => i ? String(+x) : x).join('/')}` : ''].filter(Boolean).join('　　　');
+  const kg = billKg(b);
+  t.extra = `總重（約）：${kgText(kg)}${b.attn ? `　聯絡人：${b.attn}` : ''}　加工後請連同本單送回，並註明實際重量，謝謝。`; t.extraPos = 'foot';
+  return t;
+}
+const prcKgOf = (l, g) => { const u = l.u || (l.unit !== 'a' ? l.unit : '') || ''; if (/kg/i.test(u)) return +l.qty || 0; const k = g ? lineKg(l, g) : 0; return isFinite(k) ? k : 0; };
+export function printPrc(b) {
+  const d = shipDoc(b, { tpl: prcTpl(b), kg: prcKgOf });
+  printHTML(`委託加工單 ${b.no}`, d.css, d.html, { tip: d.tip, delay: 500 });
+  store.log('列印', `委託加工單 ${b.no}（中一刀）`);
+}
 export function printShip(b, opt = {}) {
   const T = TYPES[b.type] || TYPES.SALE; const d = shipDoc(b, opt);
   printHTML(`${T.name} ${b.no}`, d.css, d.html, { tip: d.tip, delay: 500 });

@@ -9,7 +9,7 @@ import { labelPicker } from './labels.js';
 import { faxDialog } from './faxes.js';
 import { openMaster } from './master.js';
 import { openAsm, asmContent } from './assembly.js';
-import { printShip, shipFormat, shipImportLines, shipTemplateXlsx, stockAdjust, specView, billKg, kgText, songquanParse, songquanLines, printSongquan, ruyangRead, ruyangLines, ruyangTpl, hostPrint } from './ship.js';
+import { printShip, shipFormat, shipImportLines, shipTemplateXlsx, stockAdjust, specView, billKg, kgText, songquanParse, songquanLines, printSongquan, ruyangRead, ruyangLines, ruyangTpl, hostPrint, printPrc } from './ship.js';
 
 export const billText = b => { const C = calc(); const c = C.ct[b.cid]; return [b.no, c?.code, c?.name, c?.short, b.cn, b.note, ...(b.lines || []).flatMap(l => { const g = C.g[l.gid]; return [g?.code, g?.name, g?.spec, l.n, l.memo]; })].filter(Boolean).join(' '); };
 export const partyLabel = b => { const C = calc(); const c = C.ct[b.cid]; return c ? cdisp(c) : (b.cn || '—'); };
@@ -670,7 +670,7 @@ async function convertBill(src, type, close) {
 }
 
 // ---------- 列印 ----------
-export function printBill(b) { const d = billDoc(b); printHTML(`${d.title} ${b.no}`, d.css, d.html, { tip: '按 Ctrl+P 列印，紙張 A4。' }); }
+export function printBill(b) { if (b.type === 'PRC') return printPrc(b); const d = billDoc(b); printHTML(`${d.title} ${b.no}`, d.css, d.html, { tip: '按 Ctrl+P 列印，紙張 A4。' }); }
 export function billDoc(b) {
   const C = calc(); const T = TYPES[b.type]; const co = store.setting('company'); const c = C.ct[b.cid] || {};
   const t = totals(b);
