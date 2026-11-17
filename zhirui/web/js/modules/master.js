@@ -92,6 +92,7 @@ export function openMaster(col, doc, kind, onSaved, tpl, opts = {}) {
   const body = `<div class="grid">${fs.map(([n, l, t]) => `<div class="f" ${n === 'addr' || n === 'note' || n === 'name' ? 'style="grid-column:1/-1"' : ''}><label for="f-${n}">${esc(l)}</label><input id="f-${n}" name="${n}" value="${esc(v[n] ?? '')}" ${t === 'num' ? 'class="num" inputmode="decimal"' : ''} ${t === 'req' ? 'required' : ''} ${n === 'unit' || n === 'aunit' ? 'list="unitList" autocomplete="off"' : ''}></div>`).join('')}${col === 'goods' ? `<datalist id="unitList">${['PCS', 'KG', '包', '組', '盒', '箱', '件', 'SET', 'H', 'K', '批', '袋'].map(u => `<option value="${u}">`).join('')}</datalist>` : ''}
     ${col === 'contacts' ? `<div class="f" style="grid-column:1/-1"><label for="f-aliases">別名（作業平台、支票、發票上用過的其他寫法，用逗號隔開）</label><input id="f-aliases" name="aliases" value="${esc((d.aliases || []).join('、'))}"></div>
       <label class="check" style="grid-column:1/-1"><input type="checkbox" name="inactive" ${d.inactive ? 'checked' : ''}> 停用（開單、挑選${k === 'C' ? '客戶' : '供應商'}時不顯示；歷史單據、報表照常查得到）</label>` : ''}
+    ${col === 'goods' ? `<label class="check" style="grid-column:1/-1"><input type="checkbox" name="mkPlate" ${d.mkPlate ? 'checked' : ''}> 代工廠（隆勝等）交黑身：線材＋製作費的成本另加電鍍費</label>` : ''}
     ${col === 'warehouses' && doc ? `<label class="check" style="grid-column:1/-1"><input type="checkbox" name="isDefault" ${store.setting('prefs').defaultWh === doc.id ? 'checked' : ''}> 設為預設倉庫</label>` : ''}</div>
     ${tpl ? `<div class="banner" style="margin-top:8px">從「${esc(tpl.code || tpl.name)}」複製，請把料號改成新的（料號相同無法建立）。</div>` : ''}
     ${col === 'goods' ? goodsExtraHTML(tpl && !doc ? { sp: tpl.sp } : d) : ''}
@@ -123,7 +124,7 @@ export function openMaster(col, doc, kind, onSaved, tpl, opts = {}) {
           if (!out.short) out.short = shortName(out.name, out.aliases);   // 簡稱空白就自動擷取（畫面顯示用）
           if (out.code && store.list('contacts').some(c => c.code === out.code && c.id !== d.id)) { el.querySelector('#mErr').textContent = `編號 ${out.code} 已經有人用了`; return; }
         }
-        if (col === 'goods') { const sp = spForm(el); if (Object.keys(sp).length) out.sp = sp; else delete out.sp; }
+        if (col === 'goods') { const sp = spForm(el); if (Object.keys(sp).length) out.sp = sp; else delete out.sp; if (f.mkPlate) out.mkPlate = true; else delete out.mkPlate; }
         if (bomRead) {   // 配方（螺絲包）
           const bm = bomRead(); if (bm.bad) { el.querySelector('#mErr').textContent = `配方有 ${bm.bad} 行沒填每包數量`; return; }
           if (bm.bom.length) { out.bom = bm.bom; if (bm.labor) out.labor = bm.labor; else delete out.labor; if (bm.cwid) out.cwid = bm.cwid; else delete out.cwid; }

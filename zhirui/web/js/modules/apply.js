@@ -16,9 +16,9 @@ export default {
   render(el, { sub, params }) { draw(el, String(params.f || sub || '')); },   // #apply?f=名稱 或 #apply/名稱（手機點連結時 ? 後面常被吃掉）
 };
 
-const FIELD = { bom: '配方', spec: '客料號', date: '日期', no: '單號', note: '備註', name: '品名', code: '料號', cat: '類別', oldCodes: '舊料號' };
+const FIELD = { mkPlate: '交黑身另加電鍍', bom: '配方', spec: '客料號', date: '日期', no: '單號', note: '備註', name: '品名', code: '料號', cat: '類別', oldCodes: '舊料號' };
 let NEWG = [];   // 這份資料要新建的商品（預覽時用 id 找料號）
-const show = (k, v) => k === 'bom' ? (v || []).map(x => `${store.get('goods', x.gid)?.code || NEWG.find(n => n.id === x.gid)?.code || x.gid}×${x.qty}${x.cust ? '(客供)' : ''}`).join('、') : k === 'date' ? slash(v) : Array.isArray(v) ? v.join('、') : String(v ?? '');
+const show = (k, v) => k === 'bom' ? (v || []).map(x => `${store.get('goods', x.gid)?.code || NEWG.find(n => n.id === x.gid)?.code || x.gid}×${x.qty}${x.cust ? '(客供)' : ''}`).join('、') : k === 'date' ? slash(v) : Array.isArray(v) ? v.join('、') : v === true ? '是' : v === false ? '否' : String(v ?? '');
 async function draw(el, f) {
   el.innerHTML = '<div class="head"><h1>待確認匯入</h1></div><div class="panel"><div class="muted">載入中…</div></div>';
   if (!/^[\w-]+$/.test(f)) { el.querySelector('.panel').innerHTML = '<div class="banner">網址少了資料名稱</div>'; return; }
@@ -43,7 +43,7 @@ async function draw(el, f) {
     if (!why) continue;
     if (P.skipChanged) upSkip.push({ u, why }); else errs.push(`${u.label} ${why}${why === '目前的內容和預期不同' ? '，請重新確認' : ''}`);
   }
-  const upTodo = (P.updates || []).filter(u => !upSkip.some(x => x.u === u));
+  let upTodo = (P.updates || []).filter(u => !upSkip.some(x => x.u === u)); const upAll = upTodo;
   if (P.updates?.length && P.skipChanged && !upTodo.length) errs.push('這些資料都已經改過了');
   // 掛圖面：商品已經有同名圖面＝先前寫過（略過）；有別的圖面就擋下，不覆蓋
   const dwDone = new Set();
@@ -89,7 +89,7 @@ async function draw(el, f) {
     ${P.hist?.length ? `<h3>${esc(P.histTitle || '更正舊系統歷史單據的客戶')}（${P.hist.length}）</h3>${P.note ? `<p class="muted small">${esc(P.note)}</p>` : ''}<ul>${P.hist.map(h => `<li>${esc(h.label)}</li>`).join('')}</ul>` : ''}
     ${P.skipped?.length ? `<h3>略過（${P.skipped.length}）</h3><ul class="small">${P.skipped.map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}
     ${P.wt ? `<h3>修改商品</h3><p>${esc(C.g[P.wt.gid]?.code + ' ' + C.g[P.wt.gid]?.name)}：單重填 ${P.wt.wt} g／支</p>` : ''}
-    ${P.updates?.length ? (() => { const li = u => `<li>${esc(u.label)}：${Object.keys(u.set).map(k => `${esc(FIELD[k] || k)} ${esc(show(k, u.from[k]))} → <b>${esc(show(k, u.set[k]))}</b>`).join('、')}${u.why ? `<br><span class="muted small">${esc(u.why)}</span>` : ''}</li>`;
+    ${P.updates?.length ? (() => { const li = u => `<li>${P.pick ? `<label class="check" style="display:inline-flex"><input type="checkbox" data-pk="${upAll.indexOf(u)}" ${u.on ? 'checked' : ''}> ` : ''}${esc(u.label)}${P.pick ? '</label>' : ''}：${Object.keys(u.set).map(k => `${esc(FIELD[k] || k)} ${esc(show(k, u.from[k]))} → <b>${esc(show(k, u.set[k]))}</b>`).join('、')}${u.why ? `<br><span class="muted small">${esc(u.why)}</span>` : ''}</li>`;
       return `<h3>修改既有資料（${upTodo.length}${upSkip.length ? `，另 ${upSkip.length} 筆略過` : ''}）</h3>${P.updatesNote ? `<p class="small muted">${esc(P.updatesNote)}</p>` : ''}<ul>${upTodo.slice(0, 40).map(li).join('')}</ul>${upTodo.length > 40 ? `<details><summary>其餘 ${upTodo.length - 40} 筆（點開看全部）</summary><ul>${upTodo.slice(40).map(li).join('')}</ul></details>` : ''}${upSkip.length ? `<details><summary class="muted">略過 ${upSkip.length} 筆</summary><ul>${upSkip.map(x => `<li>${esc(x.u.label)}：${esc(x.why)}</li>`).join('')}</ul></details>` : ''}`; })() : ''}
     ${P.dwgs?.length ? `<h3>掛客戶圖面（${dwTodo.length}${dwDone.size ? `，另 ${dwDone.size} 個已掛好` : ''}）</h3><div class="tw"><table><thead><tr><th>圖面</th><th>商品</th><th>圖檔</th><th>配對依據</th></tr></thead><tbody>${P.dwgs.map(d => `<tr${dwDone.has(d.gid) ? ' class="muted"' : ''}><td><a href="/pending/${esc(d.file)}" target="_blank" rel="noopener" title="開新分頁看大圖"><img src="/pending/${esc(d.file)}" alt="" loading="lazy" style="width:150px;height:110px;object-fit:contain;background:#fff;border:1px solid var(--line);border-radius:6px"></a></td><td><b>${esc(C.g[d.gid]?.code || '')}</b><br>${esc(C.g[d.gid]?.name || d.label)}${dwDone.has(d.gid) ? '<br><span class="pill ok">已掛好</span>' : ''}</td><td class="small">${esc(d.name)}</td><td class="small muted">${esc(d.why || '')}</td></tr>`).join('')}</tbody></table></div>` : ''}
     ${P.newwh?.length ? `<h3>新建倉庫</h3><ul>${P.newwh.map(w => `<li>${esc(w.name)}${whByName(w.name) ? ' <span class="pill ok">已經有了，沿用</span>' : ''}</li>`).join('')}</ul>` : ''}
@@ -106,6 +106,7 @@ async function draw(el, f) {
     <div class="tools" style="margin-top:12px"><span class="muted small">按下之前不會寫入任何資料。</span><span class="sp"></span><button class="btn pri" id="apGo" ${errs.length || rows.some(r => !r.ok) ? 'disabled' : ''}>確認寫入</button></div>
     <div id="apOut"></div>`;
   $('#apGo', el)?.addEventListener('click', async ev => {
+    if (P.pick) { upTodo = upAll.filter((u, i) => el.querySelector(`[data-pk="${i}"]`)?.checked); if (!upTodo.length) return toast('一筆都沒有勾'); }
     const docTodo = (P.docs || []).filter(x => !store.get(x.col, x.id));
     const what = [docTodo.length ? `新增 ${docTodo.length} 張單據` : '', P.newgoods?.length ? `新建 ${P.newgoods.length} 個商品` : '', P.wt ? '修改 1 個商品' : '', rows.length ? `建立 ${rows.length} 張進貨單` : '', upTodo.length ? `修改 ${upTodo.length} 筆資料` : '', dwTodo.length ? `掛 ${dwTodo.length} 張客戶圖面` : '', whTodo.length ? `新建 ${whTodo.length} 個倉庫` : '', P.kits?.length ? `設定 ${P.kits.length} 個螺絲包配方` : '', delTodo.length ? `刪除 ${delTodo.length} 個沒用過的商品` : '', P.hist?.length ? `更正 ${P.hist.length} 張舊系統單據` : '', mgTodo.length ? `合併 ${mgTodo.length} 組商品（${mgTodo.reduce((a, m) => a + m.merge.length, 0)} 個料號會刪除，無法一鍵復原；每天的自動備份仍可還原）` : ''].filter(Boolean).join('、');
     if (!await confirm(`確定寫入？\n${what}。`, { ok: '確認寫入' })) return;

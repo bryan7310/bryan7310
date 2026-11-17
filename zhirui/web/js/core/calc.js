@@ -2,7 +2,7 @@
 import { store } from './store.js';
 import { rnd0, dayN } from './util.js';
 import { platCost } from './pricing.js';
-import { procCost } from './proccost.js';
+import { procCost, plateFee } from './proccost.js';
 import { estWeight } from './spec.js';
 import { printName, shortName } from './names.js';
 
@@ -133,7 +133,10 @@ export function calc() {
     for (const [k, o] of Object.entries(grp)) {
       if (unitFactor(g[k].unit || '')[0] !== 'p') continue; const wt = goodsWt(g[k]);
       const pcs = o.pcs || (o.kg && wt ? o.kg * 1000 / wt : 0); if (!(o.amt > 0 && pcs > 0)) continue;
-      (mkIdx[k] ??= []).push({ d: dayN(b.date), date: b.date, no: b.no, cls: 'p', per: o.amt / pcs, q: pcs, cid: b.cid, hist: !!b.hist, lab: '線材＋製作費 進貨單' });
+      // 商品勾了「代工廠交黑身」：再加表面處理每 KG × 單重（沒單重用線材 KG ÷ 支數）
+      let per = o.amt / pcs, lab = '線材＋製作費 進貨單';
+      if (g[k].mkPlate) { const pf = plateFee(g[k], dayN(b.date), purIdx, g); const w = wt || (o.kg ? o.kg * 1000 / pcs : 0); if (pf && w > 0) { per += pf.kg * w / 1000; lab = `線材＋製作費＋${pf.name} ${pf.kg}/KG 進貨單`; } }
+      (mkIdx[k] ??= []).push({ d: dayN(b.date), date: b.date, no: b.no, cls: 'p', per, q: pcs, cid: b.cid, hist: !!b.hist, lab });
     }
   }
   const costMiss = {}, costLn = {};

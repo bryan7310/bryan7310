@@ -100,6 +100,14 @@ export function heatFor(g, gm) {
   return g.heat === 'y' ? { id: '', code: '', name: '熱處理（手動指定）' } : null;
 }
 
+/** 這個商品的表面處理加工費（每 KG），依料號第 3 碼對照加工料號（設定 › 加工成本）；黑身或對不到回 null */
+export function plateFee(g, d, purIdx, gm) {
+  const m = CODE.exec(g?.code || ''); if (!m || m[3] === 'D') return null;
+  const map = procMap(); const washer = WASHER.test(g.name || '') && !/螺絲|螺帽|釘/.test(g.name || ''); const t = m[3];   // 華司面螺絲不算華司
+  const key = washer && map[t + '-PW'] ? t + '-PW' : t;
+  const pg = map[key] ? idx(gm).code.get(map[key]) : null; if (!pg) return null;
+  const pk = kgPrice(purIdx[pg.id], d, 200); return pk ? { kg: pk.per, name: PROC_NAMES[key] || key, code: pg.code } : null;
+}
 /**
  * 加工成本（每 1 個 cls 單位 × f），對不到就回 null。
  * g：成品；wtOf(g)：單重 g／支；purIdx：進貨索引（per＝每基本單位）；gm：商品表
