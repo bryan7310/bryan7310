@@ -4,9 +4,10 @@ import { store } from '../core/store.js';
 import { toast, modal, confirm, tabs, combo, printHTML } from '../core/ui.js';
 import { calc, goodsLabel, bqty, customers, suppliers, cdisp } from '../core/calc.js';
 import { api } from '../core/api.js';
+import { qrSvg } from '../core/qr.js';
 
-export const LBL_TYPES = [['fy', '豐餘標籤'], ['ry', '如陽標籤'], ['fm', '豐民標籤'], ['cc', '朝程標籤'], ['yb', '元貝標籤'], ['gen', '一般標籤'], ['nl', '標籤機軟體']];
-const LBL_READY = { fy: 1, ry: 1, gen: 1, nl: 1 };
+export const LBL_TYPES = [['fy', '豐餘標籤'], ['ry', '如陽標籤'], ['sq', '崧泉標籤'], ['fm', '豐民標籤'], ['cc', '朝程標籤'], ['yb', '元貝標籤'], ['gen', '一般標籤'], ['nl', '標籤機軟體']];
+const LBL_READY = { fy: 1, ry: 1, sq: 1, gen: 1, nl: 1 };
 const CUST = LBL_TYPES.filter(x => x[0] !== 'gen' && x[0] !== 'nl');   // 有客戶名稱的標籤：用下拉選
 // 上方切換：一般標籤在最左邊，客戶標籤用下拉（括號是已導入幾項）
 const typeBar = t => `${tabs('lt', [['gen', '一般標籤'], ['cust', '客戶標籤'], ['nl', '標籤機軟體']], t === 'gen' || t === 'nl' ? t : 'cust')}${t === 'gen' || t === 'nl' ? '' : `<select id="lbl-cust" style="width:auto;margin-left:8px" aria-label="客戶標籤種類">${CUST.map(([k, v]) => { const n = store.list('labels').filter(x => x.type === k).length; return `<option value="${k}" ${k === t ? 'selected' : ''}>${v}${n ? `（${n}）` : ''}</option>`; }).join('')}</select>`}`;
@@ -34,7 +35,12 @@ function lblNum(name) {
 const kg = n => String(Math.round(n * 1000) / 1000);
 // 依每包數量拆成多張：28000 支、每包 3000 → 9 張 3000、1 張 1000
 function split(it) { const q = Math.round(+it.qty || 0), p = Math.round(+it.pack || 0); if (q <= 0) return []; if (p <= 0 || p >= q) return [{ n: 1, q }]; const full = Math.floor(q / p), r = q - full * p; const out = [{ n: full, q: p }]; if (r > 0) out.push({ n: 1, q: r }); return out; }
+// 崧泉：內箱、外箱各自依每箱數量拆箱（箱號 1/5、2/5…）
+const sqBoxes = (it, k) => { const out = []; for (const s of split({ qty: it.qty, pack: it[k] })) for (let i = 0; i < s.n; i++) out.push(s.q); return out; };
+const sqWhich = () => cfg().sqWhich || 'both';
+const sqCount = it => (sqWhich() !== 'out' ? sqBoxes(it, 'inn').length : 0) + (sqWhich() !== 'in' ? sqBoxes(it, 'out').length : 0);
 function plan(it) {
+  if (it.type === 'sq') { const a = sqBoxes(it, 'inn'), b = sqBoxes(it, 'out'); return a.length || b.length ? [sqWhich() !== 'out' ? `內箱 ${a.length} 張` : '', sqWhich() !== 'in' ? `外箱 ${b.length} 張` : ''].filter(Boolean).join('<br>') : '<span class="muted">—</span>'; }
   const sp = split(it), w = +it.wt || 0; let h = sp.length ? sp.map(s => `${s.n} 張 × ${fmtQ(s.q)}${w ? `（${kg(w * s.q / 1000)} kg）` : ''}`).join('<br>') : '<span class="muted">—</span>';
   const warn = []; if (w > 200) warn.push(`單重 ${w} g 偏大：請填「一支」幾公克，例如 1.12`); if (+it.pack > 0 && +it.qty > 0 && +it.pack >= +it.qty && sp.length) warn.push('每包數量 ≥ 總數量，只會印 1 張');
   return h + (warn.length ? `<div style="color:var(--bad);font-size:12px;white-space:normal">${warn.join('<br>')}</div>` : '');
@@ -65,13 +71,13 @@ function draw(el) {
     $('#genAdd', el).onclick = async () => { if (!F.name.trim() && !F.spec.trim() && !F.qty.trim()) return toast('請至少填一個欄位'); await store.save('labels', uid('L'), { type: 'gen', name: F.name.trim(), spec: F.spec.trim(), qty: F.qty.trim(), unit: (F.unit || '').trim(), copies: String(Math.max(1, Math.round(+F.copies || 1))), at: Date.now() }); Object.assign(F, { q: '', name: '', spec: '', qty: '', unit: 'PCS', copies: '1' }); draw(el); setTimeout(() => $(ui.genMode === 'goods' ? '#gen-q' : '#gen-name', el)?.focus(), 0); };
     $('#lblPrint', el).onclick = () => printGen(items);
   } else {
-    let total = 0; items.forEach(it => split(it).forEach(s => total += s.n));
-    const TF = t === 'ry' ? [['pn', '編號（客料號）', 150], ['nm', '品名', 110], ['spec', '規格', 100], ['unit', '單位', 60]] : [['po', '單號（採購單號）', 120], ['pn', '料號（客料號）', 120], ['spec', '短文（品名數字）', 110]];
-    const NF = t === 'ry' ? [['qty', '數量', '', ''], ['pack', '每包數量', '空白＝印一張', '']] : [['qty', '數量', '', ''], ['wt', '單重 (g)', '每支幾克', 'step="any"'], ['pack', '每包數量', '每包幾支', '']];
+    let total = 0; items.forEach(it => t === 'sq' ? total += sqCount(it) : split(it).forEach(s => total += s.n));
+    const TF = t === 'sq' ? [['po', '採購單號', 130], ['pn', '料號（客料號）', 100], ['nm', '品名（崧泉）', 200], ['unit', '單位', 50]] : t === 'ry' ? [['pn', '編號（客料號）', 150], ['nm', '品名', 110], ['spec', '規格', 100], ['unit', '單位', 60]] : [['po', '單號（採購單號）', 120], ['pn', '料號（客料號）', 120], ['spec', '短文（品名數字）', 110]];
+    const NF = t === 'sq' ? [['qty', '數量', '', ''], ['inn', '內箱每箱', '每箱幾支', ''], ['out', '外箱每箱', '每箱幾支', '']] : t === 'ry' ? [['qty', '數量', '', ''], ['pack', '每包數量', '空白＝印一張', '']] : [['qty', '數量', '', ''], ['wt', '單重 (g)', '每支幾克', 'step="any"'], ['pack', '每包數量', '每包幾支', '']];
     const C = calc();
     el.innerHTML = `<div class="head"><h1>標籤列印</h1><span class="sp"></span>${typeBar(t)}</div>${addrBar()}
       ${!LBL_READY[t] ? `<div class="banner">${esc(name)}的格式還沒定義。告訴我這種標籤要印哪些欄位和版面，就可以開始使用；已導入的商品會先保留在這裡。</div>` : ''}
-      <div class="panel" style="display:grid;gap:10px"><div class="tools"><div class="f" style="width:160px"><label for="lbl-date">交貨日期</label><input type="date" id="lbl-date" value="${ui.date}"></div>${t === 'fy' ? `<div class="f" style="width:130px"><label for="lbl-vendor">廠商代號</label><input id="lbl-vendor" value="${esc(cfg().vendor || '501823')}"></div>` : ''}${sizeSel}<span class="muted small" style="align-self:flex-end">在銷貨單按「標籤」勾選商品導入。${t === 'ry' ? '日期印在標籤上。' : ''}</span><span class="sp"></span>${items.length ? `<button class="btn" id="lblClear">清空${esc(name)}</button>` : ''}${LBL_READY[t] ? `<button class="btn pri" id="lblPrint" ${items.length ? '' : 'disabled'}>列印 <span id="lblTotal">${total}</span> 張</button>` : ''}</div>
+      <div class="panel" style="display:grid;gap:10px"><div class="tools"><div class="f" style="width:160px"><label for="lbl-date">交貨日期</label><input type="date" id="lbl-date" value="${ui.date}"></div>${t === 'fy' ? `<div class="f" style="width:130px"><label for="lbl-vendor">廠商代號</label><input id="lbl-vendor" value="${esc(cfg().vendor || '501823')}"></div>` : ''}${t === 'sq' ? `<div class="f" style="width:110px"><label for="sq-vendor">廠商代號</label><input id="sq-vendor" value="${esc(cfg().sqVendor || '5B0001')}"></div><div class="f" style="width:130px"><label for="sq-which">箱別</label><select id="sq-which">${[['both', '內箱＋外箱'], ['in', '只印內箱'], ['out', '只印外箱']].map(([k, v]) => `<option value="${k}" ${sqWhich() === k ? 'selected' : ''}>${v}</option>`).join('')}</select></div><div class="f" style="width:320px"><label for="sq-qr">QR 碼內容</label><input id="sq-qr" value="${esc(cfg().sqQr || SQ_QR)}" title="可用：{料號} {品名} {數量} {箱號} {總箱數} {箱別} {廠商} {日期} {採購單號}"></div>` : sizeSel}<span class="muted small" style="align-self:flex-end">在銷貨單按「標籤」勾選商品導入。${t === 'ry' ? '日期印在標籤上。' : ''}</span><span class="sp"></span>${items.length ? `<button class="btn" id="lblClear">清空${esc(name)}</button>` : ''}${LBL_READY[t] ? `<button class="btn pri" id="lblPrint" ${items.length ? '' : 'disabled'}>列印 <span id="lblTotal">${total}</span> 張</button>` : ''}</div>
         <div class="tw"><table><thead><tr><th>銷貨單／商品</th>${TF.map(f => `<th>${f[1]}</th>`).join('')}${NF.map(f => `<th class="n">${f[1]}</th>`).join('')}<th>會印出</th><th></th></tr></thead><tbody>
         ${items.map(it => `<tr><td class="muted small">${esc(it.billNo || '')}<br>${esc(it.name || '')}</td>${TF.map(([k, , w]) => `<td><input data-f="${k}" data-id="${it.id}" value="${esc(it[k] ?? '')}" style="width:${w}px;border:1px solid var(--line);border-radius:6px;padding:4px 6px"></td>`).join('')}${NF.map(([k, , ph, at]) => `<td class="n"><input data-f="${k}" data-id="${it.id}" type="number" ${at} value="${esc(it[k] ?? '')}" placeholder="${ph}" class="num" style="width:90px;border:1px solid var(--line);border-radius:6px;padding:4px 6px"></td>`).join('')}<td id="lp-${it.id}" class="small nowrap">${plan(it)}</td><td><button class="btn xs" data-del="${it.id}">✕</button></td></tr>`).join('') || `<tr><td colspan="${TF.length + NF.length + 3}"><div class="empty"><b>還沒有要印的標籤</b>打開一張銷貨單，按下方「標籤」，勾選要印的商品後導入。</div></td></tr>`}</tbody></table></div></div>`;
     el.addEventListener('tab', ev => { ui.tab = tabOf(ev.detail.val); draw(el); }, { once: true }); bindTypeBar(el);
@@ -79,13 +85,16 @@ function draw(el) {
     el.querySelectorAll('[data-f]').forEach(inp => inp.addEventListener('change', async () => {
       const it = store.get('labels', inp.dataset.id); if (!it) return; const k = inp.dataset.f; const d = { ...it, [k]: inp.value }; delete d.id;
       const ops = [{ col: 'labels', id: it.id, data: d }];
-      if (it.gid && (k === 'wt' || k === 'pack')) { const g = store.get('goods', it.gid); if (g) { const gd = { ...g, [k === 'wt' ? 'wt' : 'pack']: +inp.value || 0 }; delete gd.id; ops.push({ col: 'goods', id: g.id, data: gd }); } }
+      if (it.gid && (k === 'wt' || k === 'pack' || k === 'inn' || k === 'out')) { const g = store.get('goods', it.gid); if (g) { const gd = { ...g, [{ wt: 'wt', pack: 'pack', inn: 'sqIn', out: 'sqOut' }[k]]: +inp.value || 0 }; delete gd.id; ops.push({ col: 'goods', id: g.id, data: gd }); } }
       await store.batch(ops);
     }));
-    $('#lblPrint', el)?.addEventListener('click', () => t === 'ry' ? printRy(items) : printFy(items));
+    $('#lblPrint', el)?.addEventListener('click', () => t === 'sq' ? printSq(items) : t === 'ry' ? printRy(items) : printFy(items));
+    $('#sq-vendor', el)?.addEventListener('change', ev => store.saveSetting('labels', { ...cfg(), sqVendor: ev.target.value.trim() }));
+    $('#sq-qr', el)?.addEventListener('change', ev => store.saveSetting('labels', { ...cfg(), sqQr: ev.target.value.trim() }));
+    $('#sq-which', el)?.addEventListener('change', async ev => { await store.saveSetting('labels', { ...cfg(), sqWhich: ev.target.value }); draw(el); });
   }
   $('#lbl-date', el).addEventListener('change', ev => { ui.date = ev.target.value; });
-  $('#lbl-size', el).addEventListener('change', ev => store.saveSetting('labels', { ...cfg(), size: ev.target.value }));
+  $('#lbl-size', el)?.addEventListener('change', ev => store.saveSetting('labels', { ...cfg(), size: ev.target.value }));
   el.querySelectorAll('[data-gi]').forEach(inp => inp.addEventListener('change', async () => { const it = store.get('labels', inp.dataset.id); if (!it) return; const d = { ...it, [inp.dataset.gi]: inp.value }; delete d.id; await store.save('labels', it.id, d); }));
   el.querySelectorAll('[data-del]').forEach(b => b.addEventListener('click', () => store.remove('labels', b.dataset.del)));
   bindAddr(el);
@@ -114,6 +123,33 @@ function printRy(items) {
 .lb>div{white-space:nowrap;overflow:hidden;font-size:12pt;transform-origin:left center}.lb b{font-weight:normal;font-family:"PMingLiU","MingLiU","新細明體",serif;margin-right:.6mm}
 .lb .rohs{display:flex;align-items:center;justify-content:center;border:.5mm solid #e00;color:#e00;height:85%;margin:0 1mm;font-size:15pt;letter-spacing:.5pt;transform:none!important}`, '列印方式：按 Ctrl+P，紙張選 5 × 4 cm 標籤（寬 50 mm、高 40 mm），邊界「無」，縮放 100%；黑白印表機紅字會印成黑色。');
   printHTML(`如陽標籤 ${ui.date}`, css, html + FIT, { tip });
+}
+/** 崧泉標籤 8×8 cm（照崧泉 B2B 的格式）：料號／品名／批號／數量／箱號（右邊小字廠商代號）／箱別（內箱、外箱）／備註（交貨日期），右下 QR 碼 */
+const SQ_QR = '{採購單號},{料號},{數量},{箱號}/{總箱數},{廠商}';
+async function printSq(items) {
+  const W = sqWhich();
+  const bad = items.find(it => !(+it.qty > 0) || (W !== 'out' && !(+it.inn > 0)) || (W !== 'in' && !(+it.out > 0)));
+  if (bad) return toast(`「${bad.pn || bad.name}」的數量或每箱數量還沒填`);
+  const win = window.open('', '_blank');   // 先開視窗（產生 QR 碼要一點時間，晚開會被擋）
+  const day = String(ui.date || today()).replace(/-/g, ''); const ven = cfg().sqVendor || '5B0001'; const tpl = cfg().sqQr || SQ_QR;
+  const q2 = n => (+n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const kinds = W === 'in' ? [['inn', '內箱']] : W === 'out' ? [['out', '外箱']] : [['inn', '內箱'], ['out', '外箱']];
+  const cards = [];
+  for (const [k, kn] of kinds) for (const it of items) { const bx = sqBoxes(it, k); bx.forEach((q, i) => cards.push({ it, q, no: i + 1, tot: bx.length, kn })); }
+  const qrOf = {};
+  for (const c of cards) { const v = { 料號: c.it.pn, 品名: c.it.nm || c.it.name, 數量: c.q, 箱號: c.no, 總箱數: c.tot, 箱別: c.kn, 廠商: ven, 日期: day, 採購單號: c.it.po || '' }; c.qt = tpl.replace(/\{(\S+?)\}/g, (m, x) => v[x] ?? ''); if (!qrOf[c.qt]) qrOf[c.qt] = await qrSvg(c.qt, { margin: 0 }); }
+  const html = cards.map(c => `<div class="lb"><div class="r"><b>料號</b><i>${esc(c.it.pn)}</i></div><div class="r nm"><b>品名</b><i class="w">${esc(c.it.nm || c.it.name)}</i></div><div class="r"><b>批號</b><i></i></div>
+    <div class="mid"><div class="l"><div class="r"><b>數量</b><i>${q2(c.q)} ${esc(c.it.unit || '')}</i></div><div class="r"><b>箱號</b><i>${c.no}/${c.tot}</i><s>${esc(ven)}</s></div><div class="r"><b>箱別</b><i>${c.kn}</i></div></div><div class="qr">${qrOf[c.qt]}</div></div>
+    <div class="r"><b>備註</b><i>${esc(day)}</i></div></div>`).join('');
+  const css = `@page{size:80mm 80mm;margin:0}*{box-sizing:border-box}body{margin:0;color:#000;font-family:"Times New Roman","PMingLiU","新細明體",serif}
+.lb{width:80mm;height:80mm;padding:2.5mm;display:grid;grid-template-rows:8.5mm 1fr 8.5mm 27mm 8.5mm;page-break-after:always;overflow:hidden}.lb:last-child,.lb:not(:has(~ .lb)){page-break-after:auto}
+@media screen{.lb{border:1px dashed #999;margin:4mm;display:inline-grid;vertical-align:top}}
+.lb>*{border:.35mm solid #000;border-bottom:none;min-height:0}.lb>*:last-child{border-bottom:.35mm solid #000}
+.r{display:flex;align-items:center;gap:3mm;padding:0 1.5mm;font-size:11.5pt;white-space:nowrap;overflow:hidden}.r b{font-weight:normal;flex:none}.r i{font-style:normal;overflow:hidden}.r s{text-decoration:none;font-size:6.5pt;margin-left:auto}
+.nm{align-items:flex-start;padding-top:1.5mm}.nm i.w{white-space:normal;line-height:1.15;word-break:break-all}
+.mid{display:flex;padding:0}.mid .l{flex:1;display:grid;grid-template-rows:1fr 1fr 1fr;min-width:0;border-right:.35mm solid #000}.mid .l .r+.r{border-top:.35mm solid #000}
+.mid .qr{width:27mm;flex:none;padding:1.2mm;display:flex;align-items:center;justify-content:center}.mid .qr svg{width:100%;height:100%;display:block}`;
+  printHTML(`崧泉標籤 ${ui.date}`, css, html, { tip: '列印方式：按 Ctrl+P，紙張選 8 × 8 cm 標籤（寬 80 mm、高 80 mm），邊界「無」，縮放 100%。', win });
 }
 function printGen(items) {
   const dd = String(ui.date || today()).split('-'); const d = `${dd[0]}/${+dd[1]}/${+dd[2]}`; let html = '';
@@ -173,7 +209,7 @@ export function labelPicker(bill) {
       const go = async nav => {
         const type = el.querySelector('#lp-type').value; const sel = [...el.querySelectorAll('.lp-c')].filter(c => c.checked).map(c => +c.value);
         if (!sel.length) return toast('請至少勾選一項');
-        const ops = sel.map(i => { const l = bill.lines[i]; const g = C.g[l.gid]; return { col: 'labels', id: uid('L'), data: { type, gid: l.gid || '', billNo: bill.no || '', name: g ? g.name : String(l.n || ''), pn: g ? String(g.spec || '') : '', spec: type === 'ry' ? rySpec(g ? g.name : l.n) : lblNum(g ? g.name : l.n), ...(type === 'ry' ? { nm: g?.custName || ryName(g ? g.name : l.n), unit: (l.u || g?.unit || 'PCS').toUpperCase() === 'PCS' ? 'PCS' : (l.u || g?.unit) } : {}), po: String(l.memo || bill.note || ''), qty: String(Math.round(bqty(l, g))), wt: g?.wt || '', pack: g?.pack || '', at: Date.now() } }; });
+        const ops = sel.map(i => { const l = bill.lines[i]; const g = C.g[l.gid]; return { col: 'labels', id: uid('L'), data: { type, gid: l.gid || '', billNo: bill.no || '', name: g ? g.name : String(l.n || ''), pn: g ? String(g.spec || '') : '', spec: type === 'ry' ? rySpec(g ? g.name : l.n) : lblNum(g ? g.name : l.n), ...(type === 'sq' ? { pn: l.sq?.pn || (g ? String(g.spec || '') : ''), nm: l.sq?.name ? [l.sq.name, l.sq.spec].filter(Boolean).join(' ') : (g?.custName || (g ? g.name : String(l.n || ''))), unit: l.sq?.unit || (!(l.u || g?.unit) || String(l.u || g?.unit).toUpperCase() === 'PCS' ? '支' : (l.u || g?.unit)), inn: g?.sqIn || '', out: g?.sqOut || '' } : {}), ...(type === 'ry' ? { nm: g?.custName || ryName(g ? g.name : l.n), unit: (l.u || g?.unit || 'PCS').toUpperCase() === 'PCS' ? 'PCS' : (l.u || g?.unit) } : {}), po: String(l.memo || bill.note || ''), qty: String(Math.round(bqty(l, g))), wt: g?.wt || '', pack: g?.pack || '', at: Date.now() } }; });
         await store.batch(ops); ui.tab = type; close(); toast(`已導入 ${sel.length} 項到${LBL_TYPES.find(x => x[0] === type)[1]}`);
         if (nav) { document.querySelector('#modals .modal-bg [data-close]')?.click(); location.hash = '#labels/' + type; }
       };

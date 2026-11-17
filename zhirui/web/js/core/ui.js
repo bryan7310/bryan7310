@@ -184,7 +184,7 @@ let _pw = null;
 export function reserveWin() { try { _pw = window.open('', '_blank'); _pw?.document.write('<p style="font-family:sans-serif;padding:20px">儲存中，準備列印…</p>'); } catch { _pw = null; } return _pw; }
 export function dropWin() { try { _pw?.close(); } catch {} _pw = null; }
 export function printHTML(title, css, bodyHtml, opts = {}) {
-  const w = _pw && !_pw.closed ? _pw : window.open('', '_blank'); _pw = null;
+  const w = opts.win && !opts.win.closed ? opts.win : _pw && !_pw.closed ? _pw : window.open('', '_blank'); _pw = null;
   if (w) try { w.document.open(); } catch {}
   if (!w) { toast('瀏覽器擋住了新視窗，請允許彈出視窗'); return; }
   w.document.write(`<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><title>${esc(title)}</title><style>${css}</style></head><body>${opts.tip ? `<div class="tip" style="font-family:sans-serif;font-size:13px;background:#fff6dd;border:1px solid #e0c060;padding:8px 12px;margin:8px">${opts.tip}</div><style>@media print{.tip{display:none}}</style>` : ''}${bodyHtml}<script>window.addEventListener('load',()=>setTimeout(()=>window.print(),${opts.delay ?? 400}));<\/script></body></html>`);

@@ -166,13 +166,13 @@ export function cutName(name, max) {
   while (t.length > 1 && t.join(' ').length > max && FINISH.test(t[t.length - 1]) && !/\d/.test(t[t.length - 1])) t.pop();
   return t.join(' ');
 }
-/** 豐民列印：客料號＋品名、數量，不印單價金額；採購單號欄加寬、字放大，品名超過 20 字拿掉材質表面處理、字縮小（客戶看採購單號，不看品名） */
+/** 豐民列印：客料號＋品名、數量、單價、金額；採購單號欄加寬、字放大，品名超過 20 字拿掉材質表面處理、字縮小（客戶看採購單號，不看品名） */
 export function fengminTpl() {
   const t = shipTpl(); t.nameMax = 20;
   const pick = k => t.cols.find(x => x.k === k);
-  for (const c of t.cols) if (c.k === 'price' || c.k === 'amt') c.show = false;
+  for (const c of t.cols) if (c.k === 'price' || c.k === 'amt') c.show = true;
   const n = pick('pnname'); if (n) { n.show = true; n.fs = 0.88; }
-  const m = pick('memo'); if (m) { m.show = true; m.w = 60; m.fs = 1.15; m.label = '採購單號'; }
+  const m = pick('memo'); if (m) { m.show = true; m.w = 55; m.fs = 1.1; m.label = '採購單號'; }
   const q = pick('qty'); if (q) q.show = true;
   return t;
 }

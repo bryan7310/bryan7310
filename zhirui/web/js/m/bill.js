@@ -149,7 +149,7 @@ async function submit(view, print) {
 /** 出貨單交給主機的列印小幫手印中一刀（格式、位置用平台設定；印表機名稱在設定 mprint） */
 export async function queuePrint(b, f) {
   const set = store.setting('mprint') || {};
-  const opt = f === 'pn' ? { pn: true } : f === 'na' ? { noAmt: true } : f === 'fy' ? { pn: true, noAmt: true, label: '豐餘列印' } : f === 'ry' ? { pn: true, label: '如陽列印', tpl: ruyangTpl() } : f === 'fm' ? { pn: true, noAmt: true, label: '豐民列印', tpl: fengminTpl() } : {};
+  const opt = f === 'pn' ? { pn: true } : f === 'na' ? { noAmt: true } : f === 'fy' ? { pn: true, noAmt: true, label: '豐餘列印' } : f === 'ry' ? { pn: true, label: '如陽列印', tpl: ruyangTpl() } : f === 'fm' ? { pn: true, label: '豐民列印', tpl: fengminTpl() } : {};
   if (set.off) opt.off = set.off;
   const d = shipDoc(b, opt);
   const html = `<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><title>銷貨單 ${esc(b.no)}</title><style>${d.css}</style></head><body>${d.html}</body></html>`;
