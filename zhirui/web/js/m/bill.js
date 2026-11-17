@@ -4,7 +4,7 @@ import { esc, fmt, fmtQ, fp4, today, uid, ls, slash, matchQ } from '../core/util
 import { api } from '../core/api.js';
 import { store } from '../core/store.js';
 import { calc, totals, lineAmt, nextNo, defWh, cdisp, cname, gname, lastSale, unitPrice, costOf } from '../core/calc.js';
-import { shipDoc, ruyangTpl } from '../modules/ship.js';
+import { shipDoc, ruyangTpl, fengminTpl } from '../modules/ship.js';
 import { scanQR } from '../core/qr.js';
 import { search, findByCode, pickCustomer } from './stock.js';
 
@@ -57,7 +57,7 @@ export function billPage(view, sub, arg) {
     <div class="sec">備註</div>
     <div class="card"><textarea id="note" rows="2" placeholder="選填">${esc(e.note)}</textarea></div>
     <div class="sec">列印格式</div>
-    <div class="chips">${[['std', '一般'], ['pn', '料號列印'], ['na', '不含金額'], ['fy', '豐餘列印'], ...(ry ? [['ry', '如陽列印']] : [])].map(([k, n]) => `<button class="chip ${e.fmt === k ? 'on' : ''}" data-fmt="${k}">${n}</button>`).join('')}</div>
+    <div class="chips">${[['std', '一般'], ['pn', '料號列印'], ['na', '不含金額'], ['fy', '豐餘列印'], ...(ry ? [['ry', '如陽列印']] : []), ...(/豐民/.test(store.get('contacts', e.cid)?.name || '') ? [['fm', '豐民列印']] : [])].map(([k, n]) => `<button class="chip ${e.fmt === k ? 'on' : ''}" data-fmt="${k}">${n}</button>`).join('')}</div>
     <div id="err" class="err"></div>
     <div class="acts"><button class="btn ghost" id="draft">存草稿</button><button class="btn ghost" id="save">送出</button></div>
     <p><button class="btn" id="saveprint">送出並列印（中一刀）</button></p>
@@ -73,7 +73,7 @@ export function billPage(view, sub, arg) {
   const $ = s => view.querySelector(s);
   const redraw = () => billPage(view);
   drawTot(view);
-  $('#pc').onclick = ev => { ev.preventDefault(); pickCustomer(redraw, id => { e.cid = id; { const nm = store.get('contacts', id)?.name || ''; if (/豐餘/.test(nm)) e.fmt = 'fy'; else if (/如陽/.test(nm)) e.fmt = 'ry'; else if (e.fmt === 'fy' || e.fmt === 'ry') e.fmt = 'std'; } e.lines.forEach(l => { if (l.ap || l.price === '' || l.price == null) priceFor(l, e.cid, e.date); }); keep(); }); };
+  $('#pc').onclick = ev => { ev.preventDefault(); pickCustomer(redraw, id => { e.cid = id; { const nm = store.get('contacts', id)?.name || ''; if (/豐餘/.test(nm)) e.fmt = 'fy'; else if (/如陽/.test(nm)) e.fmt = 'ry'; else if (/豐民/.test(nm)) e.fmt = 'fm'; else if (e.fmt === 'fy' || e.fmt === 'ry' || e.fmt === 'fm') e.fmt = 'std'; } e.lines.forEach(l => { if (l.ap || l.price === '' || l.price == null) priceFor(l, e.cid, e.date); }); keep(); }); };
   $('#dt').onchange = ev => { e.date = ev.target.value || today(); keep(); };
   $('#note').oninput = ev => { e.note = ev.target.value; keep(); };
   $('#add').onclick = () => pickGoods(redraw);
@@ -149,7 +149,7 @@ async function submit(view, print) {
 /** 出貨單交給主機的列印小幫手印中一刀（格式、位置用平台設定；印表機名稱在設定 mprint） */
 export async function queuePrint(b, f) {
   const set = store.setting('mprint') || {};
-  const opt = f === 'pn' ? { pn: true } : f === 'na' ? { noAmt: true } : f === 'fy' ? { pn: true, noAmt: true, label: '豐餘列印' } : f === 'ry' ? { pn: true, label: '如陽列印', tpl: ruyangTpl() } : {};
+  const opt = f === 'pn' ? { pn: true } : f === 'na' ? { noAmt: true } : f === 'fy' ? { pn: true, noAmt: true, label: '豐餘列印' } : f === 'ry' ? { pn: true, label: '如陽列印', tpl: ruyangTpl() } : f === 'fm' ? { pn: true, noAmt: true, label: '豐民列印', tpl: fengminTpl() } : {};
   if (set.off) opt.off = set.off;
   const d = shipDoc(b, opt);
   const html = `<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><title>銷貨單 ${esc(b.no)}</title><style>${d.css}</style></head><body>${d.html}</body></html>`;
@@ -177,8 +177,8 @@ function billView(view, id) {
   const b = store.get('bills', id); const C = calc();
   if (!b) { view.innerHTML = '<div class="hd"><a class="back" href="#bill">‹ 出貨單</a></div><div class="card ph"><b>找不到這張出貨單</b></div>'; return; }
   const t = totals(b); const j = lastPrint(b.id); const nm = store.get('contacts', b.cid)?.name || '';
-  const fmts = [['std', '一般'], ['pn', '料號列印'], ['na', '不含金額'], ['fy', '豐餘列印'], ...(/如陽/.test(nm) ? [['ry', '如陽列印']] : [])];
-  let f = /豐餘/.test(nm) ? 'fy' : /如陽/.test(nm) ? 'ry' : 'std';
+  const fmts = [['std', '一般'], ['pn', '料號列印'], ['na', '不含金額'], ['fy', '豐餘列印'], ...(/如陽/.test(nm) ? [['ry', '如陽列印']] : []), ...(/豐民/.test(nm) ? [['fm', '豐民列印']] : [])];
+  let f = /豐餘/.test(nm) ? 'fy' : /如陽/.test(nm) ? 'ry' : /豐民/.test(nm) ? 'fm' : 'std';
   const unitOf = l => { const g = C.g[l.gid]; return l.unit === 'a' ? (g?.aunit || '') : l.u || g?.unit || l.unit || ''; };
   view.innerHTML = `<div class="hd"><a class="back" href="#bill">‹ 出貨單</a></div>
     <div class="card"><b style="font-size:17px">${esc(cdisp(store.get('contacts', b.cid)) || cname(b.cid))}</b>

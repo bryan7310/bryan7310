@@ -61,8 +61,8 @@ export function shipDoc(b, opt = {}) {
   const val = (k, l, i) => {
     const g = C.g[l.gid];
     switch (k) {
-      case 'pnname': return g ? (PN ? [g.spec, g.name].filter(Boolean).join('　') : g.name) : String(l.n || '');
-      case 'pn': return g?.spec || ''; case 'name': return g ? g.name : String(l.n || ''); case 'code': return g?.code || '';
+      case 'pnname': { const nm = cutName(g ? g.name : String(l.n || ''), TP.nameMax); return g && PN ? [g.spec, nm].filter(Boolean).join('　') : nm; }
+      case 'pn': return g?.spec || ''; case 'name': return cutName(g ? g.name : String(l.n || ''), TP.nameMax); case 'code': return g?.code || '';
       case 'qty': return fq(l.qty); case 'unit': return unitOf(l); case 'price': return NA ? '' : fp(l.price); case 'amt': return NA ? '' : fmt(lineAmt(l));
       case 'memo': if (TP.blankMemo) return ''; return anyMemo ? (l.memo || '') : (TP.noteMode === 'memo' && i === 0 ? (b.note || '') : '');
       case 'seq': return String(seqs[i] || ''); case 'batch': return l.batch || ''; case 'cat': return g?.cat || ''; case 'blank': return '';
@@ -93,7 +93,7 @@ export function shipDoc(b, opt = {}) {
     <div class="dbl"></div>
     <div class="th">${cols.map(x => `<span class="lb" style="text-align:${x.align === 'right' && x.k !== 'pnname' ? 'right' : 'center'}">${e2(x.label)}</span>`).join('')}</div>
     <div class="dbl"></div>
-    <div class="body">${rows.map((l, i) => l.txt !== undefined ? `<div class="ln"><span style="grid-column:1/-1"><i>${e2(l.txt)}</i></span></div>` : `<div class="ln">${cols.map(x => `<span class="a-${x.align}"><i>${e2(val(x.k, l, p * per + i))}</i></span>`).join('')}</div>`).join('')}
+    <div class="body">${rows.map((l, i) => l.txt !== undefined ? `<div class="ln"><span style="grid-column:1/-1"><i>${e2(l.txt)}</i></span></div>` : `<div class="ln">${cols.map(x => `<span class="a-${x.align}"${+x.fs ? ` style="font-size:${+x.fs}em"` : ''}><i>${e2(val(x.k, l, p * per + i))}</i></span>`).join('')}</div>`).join('')}
     ${!last ? '<div class="ln"><span>（續下頁）</span></div>' : ''}
     ${last && TP.noteMode === 'line' && b.note ? `<div class="bn"><span class="lb">備註：</span>${e2(b.note)}</div>` : ''}</div>
     ${TP.extraPos === 'body' ? extraHtml : ''}
@@ -157,6 +157,24 @@ export function printPrc(b) {
   const d = shipDoc(b, { tpl: prcTpl(b), kg: prcKgOf });
   printHTML(`委託加工單 ${b.no}`, d.css, d.html, { tip: d.tip, delay: 500 });
   store.log('列印', `委託加工單 ${b.no}（中一刀）`);
+}
+/** 品名太長（超過 max 字）時，從後面拿掉表面處理、材質這類字段（耐落、染黑合金、鍍鋅鐵…），包裝說明等其他字段保留 */
+const FINISH = /鍍|染|黑|白|鋅|鎳|鉻|鐵|鋼|碳|合金|銅|鋁|耐落|磷|原色|不鏽|SUS|達克|鈦|熱處理|電解|陽極|本色|硬化/i;
+export function cutName(name, max) {
+  name = String(name || ''); if (!max || name.length <= max) return name;
+  const t = name.trim().split(/[\s　]+/);
+  while (t.length > 1 && t.join(' ').length > max && FINISH.test(t[t.length - 1]) && !/\d/.test(t[t.length - 1])) t.pop();
+  return t.join(' ');
+}
+/** 豐民列印：客料號＋品名、數量，不印單價金額；採購單號欄加寬、字放大，品名超過 20 字拿掉材質表面處理、字縮小（客戶看採購單號，不看品名） */
+export function fengminTpl() {
+  const t = shipTpl(); t.nameMax = 20;
+  const pick = k => t.cols.find(x => x.k === k);
+  for (const c of t.cols) if (c.k === 'price' || c.k === 'amt') c.show = false;
+  const n = pick('pnname'); if (n) { n.show = true; n.fs = 0.88; }
+  const m = pick('memo'); if (m) { m.show = true; m.w = 60; m.fs = 1.15; m.label = '採購單號'; }
+  const q = pick('qty'); if (q) q.show = true;
+  return t;
 }
 export function printShip(b, opt = {}) {
   const T = TYPES[b.type] || TYPES.SALE; const d = shipDoc(b, opt);
