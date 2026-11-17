@@ -125,7 +125,7 @@ function printRy(items) {
   printHTML(`如陽標籤 ${ui.date}`, css, html + FIT, { tip });
 }
 /** 崧泉標籤 8×8 cm（照崧泉 B2B 的格式）：料號／品名／批號／數量／箱號（右邊小字廠商代號）／箱別（內箱、外箱）／備註（交貨日期），右下 QR 碼 */
-const SQ_QR = '{採購單號},{料號},{數量},{箱號}/{總箱數},{廠商}';
+const SQ_QR = '{料號}';   // 崧泉 B2B 標籤的 QR 碼只放料號（2026-11-17 對過 PDF）
 async function printSq(items) {
   const W = sqWhich();
   const bad = items.find(it => !(+it.qty > 0) || (W !== 'out' && !(+it.inn > 0)) || (W !== 'in' && !(+it.out > 0)));
