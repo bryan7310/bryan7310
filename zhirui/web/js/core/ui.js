@@ -179,8 +179,13 @@ export const field = (name, label, value = '', extra = '') => `<div class="f"><l
 export const selectField = (name, label, value, options, extra = '') => `<div class="f"><label for="f-${name}">${esc(label)}</label><select id="f-${name}" name="${name}" ${extra}>${options.map(([v, l]) => `<option value="${esc(v)}" ${String(v) === String(value) ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></div>`;
 
 /** 開新視窗列印一段 HTML（出貨單、支票、標籤等） */
+// 先在按下按鈕的當下開好列印視窗（等儲存完才開會被瀏覽器當成彈出視窗擋掉）
+let _pw = null;
+export function reserveWin() { try { _pw = window.open('', '_blank'); _pw?.document.write('<p style="font-family:sans-serif;padding:20px">儲存中，準備列印…</p>'); } catch { _pw = null; } return _pw; }
+export function dropWin() { try { _pw?.close(); } catch {} _pw = null; }
 export function printHTML(title, css, bodyHtml, opts = {}) {
-  const w = window.open('', '_blank');
+  const w = _pw && !_pw.closed ? _pw : window.open('', '_blank'); _pw = null;
+  if (w) try { w.document.open(); } catch {}
   if (!w) { toast('瀏覽器擋住了新視窗，請允許彈出視窗'); return; }
   w.document.write(`<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><title>${esc(title)}</title><style>${css}</style></head><body>${opts.tip ? `<div class="tip" style="font-family:sans-serif;font-size:13px;background:#fff6dd;border:1px solid #e0c060;padding:8px 12px;margin:8px">${opts.tip}</div><style>@media print{.tip{display:none}}</style>` : ''}${bodyHtml}<script>window.addEventListener('load',()=>setTimeout(()=>window.print(),${opts.delay ?? 400}));<\/script></body></html>`);
   w.document.close();

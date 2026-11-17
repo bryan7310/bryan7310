@@ -1,7 +1,7 @@
 // 單據共用：清單、編輯器、列印（銷貨、進貨、報價、採購、出入庫、調撥、收付款）
 import { $, $$, esc, fmt, fmtQ, fp4, today, uid, matchQ, qTerms, roc, slash, thisMonth, money, isoOf, downloadText, ls, dayN, lineSeq, shiftMonth, range25, month25 } from '../core/util.js';
 import { store } from '../core/store.js';
-import { toast, modal, confirm, combo, pager, tabs, printHTML, keepWhile } from '../core/ui.js';
+import { toast, modal, confirm, combo, pager, tabs, printHTML, keepWhile, reserveWin, dropWin } from '../core/ui.js';
 import { TYPES, totals, lineAmt, calc, nextNo, cname, cshort, cdisp, wname, gname, goodsLabel, customers, suppliers, defWh, qtyAt, bqty, uRate, lastSale, unitPrice, unitFactor, setHistPur, setHistSale, histSaleReady, costOf, lineUnit, lineKg, qtyHist, goodsWt } from '../core/calc.js';
 import { api } from '../core/api.js';
 import { printName } from '../core/names.js';
@@ -337,18 +337,27 @@ function bindBill(el, close) {
   el.querySelector('#saveBill').addEventListener('click', () => saveBill(close));
   el.querySelector('#saveBill2')?.addEventListener('click', () => saveBill(close));
   el.querySelector('#delBill')?.addEventListener('click', async () => { if (await confirm(`確定刪除 ${T.name} ${e.no}？`, { danger: true, ok: '刪除' })) { await store.remove('bills', e.id); store.log('刪除', `${T.name} ${e.no}`); close(); toast('已刪除'); onSavedCb && onSavedCb(); } });
-  el.querySelector('#printBill')?.addEventListener('click', () => printBill(e));
-  // 還沒儲存的單：列印直接用畫面上的內容；標籤、調整即時庫存要先儲存
+  // 標籤、調整即時庫存：還沒儲存的單要先儲存
   const hasLines = () => e.lines.some(l => l.txt === undefined && (l.gid || l.n) && +l.qty > 0) || (toast('請先輸入商品和數量'), false);
   const afterSave = fn => () => e.id ? fn(e) : saveBill(close, fn);
-  el.querySelector('#printHost')?.addEventListener('click', () => hasLines() && afterSave(b => hostPrint(b))());
-  el.querySelector('#printHostNa')?.addEventListener('click', () => hasLines() && afterSave(b => hostPrint(b, { noAmt: true }))());
-  el.querySelector('#printShip')?.addEventListener('click', () => hasLines() && printShip(e));
-  el.querySelector('#printShipPn')?.addEventListener('click', () => hasLines() && printShip(e, { pn: true }));
-  el.querySelector('#printShipNa')?.addEventListener('click', () => hasLines() && printShip(e, { noAmt: true }));
-  el.querySelector('#printShipPnNa')?.addEventListener('click', () => hasLines() && printShip(e, { pn: true, noAmt: true }));
-  el.querySelector('#printRy')?.addEventListener('click', () => hasLines() && printShip(e, { pn: true, label: '如陽列印', tpl: ruyangTpl() }));
-  el.querySelector('#printSq')?.addEventListener('click', () => hasLines() && printSongquan(e));
+  // 列印：一律先儲存（新單、改過的單都存），存好再印；win＝要開瀏覽器列印視窗（主機直接列印不用）
+  const savePrint = (fn, win = true) => async () => {
+    if (!hasLines()) return;
+    if (e.hist) return fn(e);
+    if (win) reserveWin();
+    let done = false;
+    await saveBill(close, b => { done = true; fn(b); });
+    setTimeout(() => { if (!done && win) dropWin(); }, 1500);
+  };
+  el.querySelector('#printBill')?.addEventListener('click', savePrint(b => printBill(b)));
+  el.querySelector('#printHost')?.addEventListener('click', savePrint(b => hostPrint(b), false));
+  el.querySelector('#printHostNa')?.addEventListener('click', savePrint(b => hostPrint(b, { noAmt: true }), false));
+  el.querySelector('#printShip')?.addEventListener('click', savePrint(b => printShip(b)));
+  el.querySelector('#printShipPn')?.addEventListener('click', savePrint(b => printShip(b, { pn: true })));
+  el.querySelector('#printShipNa')?.addEventListener('click', savePrint(b => printShip(b, { noAmt: true })));
+  el.querySelector('#printShipPnNa')?.addEventListener('click', savePrint(b => printShip(b, { pn: true, noAmt: true })));
+  el.querySelector('#printRy')?.addEventListener('click', savePrint(b => printShip(b, { pn: true, label: '如陽列印', tpl: ruyangTpl() })));
+  el.querySelector('#printSq')?.addEventListener('click', savePrint(b => printSongquan(b)));
   // 列印下拉選單
   const prDD = el.querySelector('#prDD');
   if (prDD) {
