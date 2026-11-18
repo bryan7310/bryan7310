@@ -145,11 +145,25 @@ function bindRows(el, list) {
   el.querySelectorAll('[data-edit]').forEach(b => b.addEventListener('click', ev => { ev.preventDefault(); editRow(list[+b.dataset.edit]); }));
   el.querySelectorAll('[data-bills]').forEach(b => b.addEventListener('click', () => { const r = list[+b.dataset.bills]; modal({ title: `${r.name} ${ymLabel(r.ym)} 銷貨單`, width: 640, body: `<div class="tw"><table><thead><tr><th>日期</th><th>單號</th><th class="n">未稅</th><th class="n">稅</th><th>發票</th></tr></thead><tbody>${r.auto.bills.map((x, k) => `<tr class="row" data-k="${k}"><td>${esc(slash(x.date))}</td><td class="mono">${esc(x.no)}${x.type === 'SALE_RET' ? ' <span class="pill bad">退回</span>' : ''}${x.hist ? ' <span class="pill">舊系統</span>' : ''}</td><td class="n">${money(bt(x).net)}</td><td class="n">${money(bt(x).tax)}</td><td>${esc(x.invNo || '')}</td></tr>`).join('')}</tbody></table></div>`, onOpen(m, close) { m.querySelectorAll('tr.row').forEach(tr => tr.addEventListener('click', () => { const x = r.auto.bills[+tr.dataset.k]; close(); if (x.hist) histView(x, () => ensureHistAR(true)); else openBill(null, x.id); })); } }); }));
 }
-function editRow(r) {
+/** 收到客票（人工核對、登記後）：找這家客戶未收的應收月份，打開那個月的應收視窗，帶入已收款、實收金額、收款日、付款方式，讓使用者確認儲存。
+ *  對月份：總額跟支票金額一樣的優先（同額有好幾個月取最早），沒有就取最早未收的月份；沒有未收就提示。 */
+export function arFromCheck(ck) {
+  if (!ck?.cid) return toast('這張支票沒有對應客戶，請到應收帳款自行沖帳');
+  const open = allOpen().filter(r => r.cid === ck.cid);
+  if (!open.length) return toast(`${cshort(ck.cid)} 目前沒有未收的應收帳款`);
+  const same = open.filter(r => Math.round(r.total) === Math.round(+ck.amt));
+  const r = same[0] || open[0];
+  const why = same.length ? `支票金額 ${money(ck.amt)} 跟 ${ymLabel(r.ym)} 總額相同。` : `支票金額 ${money(ck.amt)} 跟未收月份的總額都對不上，先帶入最早未收的 ${ymLabel(r.ym)}（總額 ${money(r.total)}），請確認月份與金額。`;
+  const others = open.filter(x => x !== r).map(x => `${ymLabel(x.ym)} ${money(x.total)}`).join('、');
+  const info = ['支票', ck.bank, ck.no, ck.due ? '到期 ' + slash(ck.due) : ''].filter(Boolean).join(' ');
+  editRow(r, { rec: true, recAmt: +ck.amt, recDate: ck.recv || today(), method: '支票', note: [r.note, info].filter(Boolean).join('；'), chk: ck.id, msg: why + (others ? `<br>其他未收：${others}` : '') });
+}
+function editRow(r, pre) {
+  if (pre) r = { ...r, rec: pre.rec, recAmt: pre.recAmt, recDate: pre.recDate, method: pre.method, note: pre.note };
   const isNew = r.isNew || (!r.cid && !r.id);
   modal({
     title: isNew ? (r.cid ? `新增應收帳款｜${cshort(r.cid)}` : '新增應收帳款') : `${r.name} ${ymLabel(r.ym)}`, width: 560,
-    body: `<div class="grid">
+    body: `${pre?.msg ? `<div class="banner info" style="margin-bottom:10px">由收到的支票帶入，請確認後按「儲存」。${pre.msg}</div>` : ''}<div class="grid">
       ${isNew ? `<div class="f" style="grid-column:1/-1"><label for="ar-c">客戶</label><div class="combo"><input id="ar-c" placeholder="搜尋客戶" value="${r.cid ? esc(cshort(r.cid)) : ''}"></div></div><div class="f"><label for="ar-ym">月份</label><input type="month" id="ar-ym" value="${r.ym}"></div>` : ''}
       <div class="f"><label for="ar-amt">貨款</label><input id="ar-amt" class="num" value="${r.amt != null ? money(r.amt) : ''}"></div>
       <div class="f"><label for="ar-tax">稅額</label><input id="ar-tax" class="num" value="${r.tax ? money(r.tax) : ''}"></div>
@@ -173,7 +187,7 @@ function editRow(r) {
         const rec = $('#ar-rec', el).checked;
         const patch = { ym, cid, cust: cshort(cid), amt, tax, manual, method: $('#ar-method', el).value.trim(), due: $('#ar-due', el).value, note: $('#ar-note', el).value.trim() };
         if (rec) { patch.rec = true; patch.recAmt = parseNum($('#ar-recAmt', el).value) ?? Math.round(amt + tax); patch.recDate = $('#ar-recDate', el).value || today(); }
-        const base = (r.id ? store.get('receivables', r.id) : null) || {}; const out = { ...base, ...patch }; if (!rec) { delete out.rec; delete out.recAmt; delete out.recDate; }
+        const base = (r.id ? store.get('receivables', r.id) : null) || {}; const out = { ...base, ...patch }; if (rec && pre?.chk) out.chks = [...new Set([...(base.chks || []), pre.chk])];   // 記下用哪張支票沖的 if (!rec) { delete out.rec; delete out.recAmt; delete out.recDate; }
         await store.save('receivables', isNew ? uid('ar') : rowId({ ...r, cid }), out); close(); toast('已儲存');
       };
       $('#ar-auto', el)?.addEventListener('click', async () => { const d = store.get('receivables', rowId(r)); if (d) { delete d.manual; delete d.amt; delete d.tax; delete d.tot; await store.save('receivables', d.id, d); } close(); toast('已恢復為銷貨單自動加總'); });

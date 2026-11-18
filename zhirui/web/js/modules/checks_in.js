@@ -5,6 +5,7 @@ import { toast, modal, confirm, tabs, combo, pager, printHTML, onSearch, askOcrD
 import { customers, cshort, cdisp } from '../core/calc.js';
 import { api, aiOcr } from '../core/api.js';
 import { printName } from '../core/names.js';
+import { arFromCheck } from './receivables.js';
 
 const DEFAULT_ACCOUNTS = [{ id: 'chao', code: '超', bank: '上海銀行', holder: '陳彥超', alias: '陳彥超,超' }, { id: 'sh', code: '上海', bank: '上海銀行', holder: '志瑞螺絲', alias: '上海,海' }, { id: 'land', code: '土', bank: '土地銀行', holder: '志瑞螺絲', alias: '土銀,土' }];
 const accounts = () => store.setting('bank_accounts').list || DEFAULT_ACCOUNTS;
@@ -213,9 +214,10 @@ function editCheck(c, pre, onSaved) {
         const dup = findDupCheck(out, d.id);
         if (dup && !await confirm(`這張支票已經登記過（${dupText(dup)}），確定還要再登記一次嗎？`, { danger: true, ok: '仍要登記' })) return;
         if (c?.col) { const a = $('#ck-col-a', el).value; out.col = { d: $('#ck-col-d', el).value || '', a, raw: a ? '' : (d.col.raw || '') }; }
-        await store.save('checks_in', d.id || uid('ci'), out); toast(`已登記 ${name} ${money(amt)}`);
+        const ckId = d.id || uid('ci'); await store.save('checks_in', ckId, out); toast(`已登記 ${name} ${money(amt)}`);
         if (c || pre) close(); else { ['ck-no', 'ck-amt', 'ck-note', 'ck-due'].forEach(id => $('#' + id, el).value = ''); $('#ck-name', el).focus(); }
         onSaved && onSaved(out);
+        if (!c) arFromCheck({ ...out, id: ckId });   // 新登記的客票：接著打開對應月份的應收帳款，帶入收款資料
       };
       $('#ck-del', el)?.addEventListener('click', async () => { if (await confirm('刪除這張客票？', { danger: true, ok: '刪除' })) { await store.remove('checks_in', c.id); close(); } });
       $('#ck-undo', el)?.addEventListener('click', async () => { const { col, id, ...rest } = c; await store.save('checks_in', c.id, rest); toast('已退回待代收'); close(); });
