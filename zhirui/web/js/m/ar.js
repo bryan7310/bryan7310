@@ -3,7 +3,7 @@ import { esc, fmt, money, today, thisMonth, shiftMonth, ymLabel, slash, daysLeft
 import { api, aiOcr } from '../core/api.js';
 import { store } from '../core/store.js';
 import { cdisp } from '../core/calc.js';
-import { arSummary, allOpen, isLate, saveRow } from '../modules/receivables.js';
+import { arSummary, allOpen, isLate, saveRow, arMatchCheck } from '../modules/receivables.js';
 import { preOf, findDupCheck, dupText } from '../modules/checks_in.js';
 import { pickCustomer } from './stock.js';
 
@@ -73,12 +73,12 @@ function sheet(title, body) {
   el.querySelector('[data-x]').onclick = close;
   return { el, close };
 }
-function payForm(r, c, done) {
-  const { el, close } = sheet('收款沖帳', `<div class="card"><b>${esc(r.name)}</b>　${esc(ymLabel(r.ym))}<div class="muted">應收 ${money(r.total)}</div></div>
+function payForm(r, c, done, pre) {   // pre：由支票帶入 { amt, date, msg, note, chk }
+  const { el, close } = sheet('收款沖帳', `${pre ? `<div class="note" style="text-align:left;margin:0 0 8px">由剛登記的支票帶入，請確認後按「確認收款」。${pre.msg}</div>` : ''}<div class="card"><b>${esc(r.name)}</b>　${esc(ymLabel(r.ym))}<div class="muted">應收 ${money(r.total)}</div></div>
     <div class="card" style="margin-top:10px">
-      <div class="f"><label for="pa">實收金額</label><input id="pa" inputmode="numeric" value="${Math.round(r.total)}"></div>
-      <div class="f"><label for="pd">收款日</label><input id="pd" type="date" value="${today()}"></div>
-      <div class="f"><label>付款方式</label><div class="chips" id="pm">${METHODS.map(m => `<button type="button" class="chip ${m === (r.method || c?.payMethod || '匯款') ? 'on' : ''}" data-m="${m}">${m}</button>`).join('')}</div></div>
+      <div class="f"><label for="pa">實收金額</label><input id="pa" inputmode="numeric" value="${Math.round(pre ? pre.amt : r.total)}"></div>
+      <div class="f"><label for="pd">收款日</label><input id="pd" type="date" value="${pre?.date || today()}"></div>
+      <div class="f"><label>付款方式</label><div class="chips" id="pm">${METHODS.map(m => `<button type="button" class="chip ${m === (pre ? '支票' : r.method || c?.payMethod || '匯款') ? 'on' : ''}" data-m="${m}">${m}</button>`).join('')}</div></div>
       <div class="note" style="text-align:left">實收和應收不同（例如扣匯費）也可以照實填，電腦版會顯示實收金額。</div></div>
     <p><button class="btn" id="ok">確認收款</button></p>`);
   let method = el.querySelector('#pm .on')?.dataset.m || '匯款';
@@ -86,7 +86,8 @@ function payForm(r, c, done) {
   el.querySelector('#ok').onclick = async () => {
     const amt = Math.round(+toHalf(el.querySelector('#pa').value).replace(/[,\s]/g, ''));
     if (!(amt > 0)) { toast('請填實收金額'); return; }
-    try { await saveRow(r, { rec: true, recAmt: amt, recDate: el.querySelector('#pd').value || today(), amt: r.amt, tax: r.tax, manual: !!r.manual, method }); }
+    const extra = pre ? { note: pre.note, chks: [...new Set([...((r.id && store.get('receivables', r.id)?.chks) || []), pre.chk])] } : {};   // 記下用哪張支票沖的
+    try { await saveRow(r, { rec: true, recAmt: amt, recDate: el.querySelector('#pd').value || today(), amt: r.amt, tax: r.tax, manual: !!r.manual, method, ...extra }); }
     catch (e) { toast('儲存失敗：' + e.message); return; }
     store.log('收款', `${r.name} ${ymLabel(r.ym)} 實收 ${money(amt)}（${method}，手機）`);
     close(); toast(`${r.name} ${ymLabel(r.ym)} 已收款 ${money(amt)}`); done();
@@ -151,8 +152,13 @@ export function checkForm(p, i, n, onSaved, onCancel) {
     if (cid) doc.cid = cid;
     const dup = findDupCheck(doc);
     if (dup && !window.confirm(`這張支票已經登記過（${dupText(dup)}），確定還要再登記一次嗎？`)) return;
-    try { await store.save('checks_in', uid('ci'), doc); } catch (e) { toast('登記失敗：' + e.message); return; }
+    const ckId = uid('ci');
+    try { await store.save('checks_in', ckId, doc); } catch (e) { toast('登記失敗：' + e.message); return; }
     store.log('新增', `客票 ${name} ${money(amt)}（到期 ${doc.due}，手機拍照）`);
     close(); toast(`已登記 ${name} ${money(amt)}`); onSaved();
+    // 接著打開對應月份的收款沖帳，帶入支票金額、收到日（沒有客戶或沒有未收就只提示）
+    const m = arMatchCheck({ ...doc, id: ckId });
+    if (m.err) { if (cid) setTimeout(() => toast(m.err), 1500); return; }
+    payForm(m.r, c, () => {}, { amt, date: doc.recv, chk: ckId, note: m.note, msg: esc(m.why) + (m.others ? `　其他未收：${esc(m.others)}` : '') });
   };
 }

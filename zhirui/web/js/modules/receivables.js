@@ -147,16 +147,21 @@ function bindRows(el, list) {
 }
 /** 收到客票（人工核對、登記後）：找這家客戶未收的應收月份，打開那個月的應收視窗，帶入已收款、實收金額、收款日、付款方式，讓使用者確認儲存。
  *  對月份：總額跟支票金額一樣的優先（同額有好幾個月取最早），沒有就取最早未收的月份；沒有未收就提示。 */
-export function arFromCheck(ck) {
-  if (!ck?.cid) return toast('這張支票沒有對應客戶，請到應收帳款自行沖帳');
+/** 支票 → 要沖的應收月份（電腦版、App 共用）；沒有客戶或沒有未收回 { err } */
+export function arMatchCheck(ck) {
+  if (!ck?.cid) return { err: '這張支票沒有對應客戶，請到應收帳款自行沖帳' };
   const open = allOpen().filter(r => r.cid === ck.cid);
-  if (!open.length) return toast(`${cshort(ck.cid)} 目前沒有未收的應收帳款`);
+  if (!open.length) return { err: `${cshort(ck.cid)} 目前沒有未收的應收帳款` };
   const same = open.filter(r => Math.round(r.total) === Math.round(+ck.amt));
   const r = same[0] || open[0];
   const why = same.length ? `支票金額 ${money(ck.amt)} 跟 ${ymLabel(r.ym)} 總額相同。` : `支票金額 ${money(ck.amt)} 跟未收月份的總額都對不上，先帶入最早未收的 ${ymLabel(r.ym)}（總額 ${money(r.total)}），請確認月份與金額。`;
   const others = open.filter(x => x !== r).map(x => `${ymLabel(x.ym)} ${money(x.total)}`).join('、');
   const info = ['支票', ck.bank, ck.no, ck.due ? '到期 ' + slash(ck.due) : ''].filter(Boolean).join(' ');
-  editRow(r, { rec: true, recAmt: +ck.amt, recDate: ck.recv || today(), method: '支票', note: [r.note, info].filter(Boolean).join('；'), chk: ck.id, msg: why + (others ? `<br>其他未收：${others}` : '') });
+  return { r, why, others, note: [r.note, info].filter(Boolean).join('；') };
+}
+export function arFromCheck(ck) {
+  const m = arMatchCheck(ck); if (m.err) return toast(m.err);
+  editRow(m.r, { rec: true, recAmt: +ck.amt, recDate: ck.recv || today(), method: '支票', note: m.note, chk: ck.id, msg: m.why + (m.others ? `<br>其他未收：${m.others}` : '') });
 }
 function editRow(r, pre) {
   if (pre) r = { ...r, rec: pre.rec, recAmt: pre.recAmt, recDate: pre.recDate, method: pre.method, note: pre.note };
