@@ -119,7 +119,7 @@ async function savePO(view, fax) {
   if (fax) await sendFax({ ...doc, id }).catch(x => toast('排入傳真失敗：' + x.message));
   toast(`採購單 ${no} 已存${fax ? '，已排入傳真' : ''}`); poPage(view); window.scrollTo(0, 0);
 }
-async function sendFax(b) {
+export async function sendFax(b) {
   const c = store.get('contacts', b.cid); const to = faxDial(c, c.fax);
   await queueFax(faxCopy(b), c, { to, attn: b.attn || c.person || '', subj: `採購單 ${b.no}`, msg: '敬請依採購單內容安排交貨，收到後請簽回確認，謝謝。', cover: false, big: true });
 }

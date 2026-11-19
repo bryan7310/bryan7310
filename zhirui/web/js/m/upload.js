@@ -9,6 +9,8 @@ import { piMatch } from '../modules/purchase_import.js';
 import { preOf, findDupCheck } from '../modules/checks_in.js';
 import { checkForm, shrink } from './ar.js';
 import { search } from './stock.js';
+import { sendFax } from './po.js';
+import { faxDial, isTaichung } from '../modules/faxes.js';
 
 const KINDS = [['pur', '進貨單', 'S'], ['po', '採購單', 'S'], ['quote', '廠商報價', 'S'], ['order', '手寫訂單', 'C'], ['check', '支票', 'C']];
 const KN = Object.fromEntries(KINDS.map(k => [k[0], k[1]]));
@@ -132,7 +134,7 @@ function reviewPage(view, id) {
   let body = '';
   if (u.status === 'reading') body = `<div class="card ph"><b>辨識中…</b><span class="muted">約 10～40 秒；超過 3 分鐘還沒好可以按重試</span></div>${Date.now() - (u.at || 0) > 180000 ? '<p><button class="btn ghost" id="rt">重新辨識</button></p>' : ''}`;
   else if (u.status === 'failed') body = `<div class="card"><div class="err">${esc(u.msg || '辨識失敗')}</div></div><p><button class="btn" id="rt">重新辨識</button></p>`;
-  else if (u.status === 'done') body = `<div class="card list">${u.billId ? `<div class="row"><span>已建立</span><span class="go">${esc(u.doneText || '')}</span></div>` : `<div class="row">${esc(u.doneText || '已入帳')}</div>`}</div>`;
+  else if (u.status === 'done') body = `<div class="card list">${u.billId ? `<div class="row"><span>已建立</span><span class="go">${esc(u.doneText || '')}</span></div>` : `<div class="row">${esc(u.doneText || '已入帳')}</div>`}${u.kind === 'po' && u.billId && store.get('bills', u.billId) ? `<a href="#po/v/${encodeURIComponent(u.billId)}"><span>打開採購單（傳真狀態、傳真這張）</span><span class="go">›</span></a>` : ''}</div>`;
   else body = u.kind === 'check' ? checkReview(u) : docReview(u);
   view.innerHTML = `<div class="hd"><a class="back" href="#up">‹ 拍照上傳</a><span class="sp"></span><small class="${c}">${t}</small></div>
     <div class="hd" style="margin-top:0" data-rv="${esc(u.id)}" data-st="${esc(u.status)}"><h1>${esc(KN[u.kind])}</h1><span class="sub">${esc(hm(u.at))}</span></div>
@@ -160,7 +162,8 @@ function docReview(u) {
       <div class="lnr"><label>數量<input data-f="qty" inputmode="decimal" value="${esc(l.qty)}"></label><span class="u">${esc(l.u || g?.unit || l.unit || '')}</span><label>單價<input data-f="price" inputmode="decimal" value="${esc(l.price)}"></label><button class="chip" data-pick="${i}">${g ? '換商品' : '選商品'}</button></div></div>`; }).join('') || '<div class="card"><div class="row muted">沒有讀到明細</div></div>'}</div>
     <div class="card list">${u.kind === 'order' ? '' : `<label class="row"><span>加 5% 營業稅</span><span class="go"><input type="checkbox" id="rtx" ${rv[u.id].tax ? 'checked' : ''}> ${rv[u.id].tax ? fmt(t.tax) : ''}</span></label>`}<div class="row"><b>總計</b><span class="go"><b id="rtot">${fmt(t.total)}</b></span></div></div>
     <div id="rerr" class="err"></div>
-    <p><button class="btn" id="ok">${ACT[u.kind]}</button></p>`;
+    ${u.kind === 'po' ? `<div class="card list"><div class="row"><span>傳真號碼</span><span class="go">${c ? (c.fax ? `${esc(c.fax)}<small class="muted">　撥 ${esc(faxDial(c, c.fax))}${isTaichung(c) ? '（台中去掉 04）' : ''}</small>` : '<span class="bad">廠商資料沒有傳真</span>') : '—'}</span></div></div>
+    <div class="acts"><button class="btn ghost" id="ok">只存採購單</button><button class="btn" id="okfax">存並傳真</button></div>` : `<p><button class="btn" id="ok">${ACT[u.kind]}</button></p>`}`;
 }
 function bindDoc(view, u) {
   const $ = q => view.querySelector(q); const st = rv[u.id]; const redraw = () => reviewPage(view, u.id);
@@ -171,9 +174,11 @@ function bindDoc(view, u) {
   rl.addEventListener('input', ev => { const i = +ev.target.closest('[data-i]')?.dataset.i; const l = st.lines[i]; if (!l) return; if (ev.target.dataset.f) l[ev.target.dataset.f] = ev.target.value; const doc = { tax: !!st.tax, disc: 0, lines: st.lines.filter(x => x.on && x.gid).map(x => ({ qty: +x.qty || 0, price: +x.price || 0 })) }; $('#rtot').textContent = fmt(totals(doc).total); });
   rl.addEventListener('change', ev => { if (!ev.target.matches('[data-on]')) return; const i = +ev.target.closest('[data-i]').dataset.i; st.lines[i].on = ev.target.checked; redraw(); });
   rl.addEventListener('click', ev => { const y = ev.target.closest('[data-yes]'); if (y) { st.lines[+y.dataset.yes].sure = true; redraw(); return; } const b = ev.target.closest('[data-pick]'); if (!b) return; const l = st.lines[+b.dataset.pick]; pickGoods(l.src, gid => { l.gid = gid; l.sure = true; delete l.u; l.on = true; redraw(); }); });
-  $('#ok').onclick = () => commit(view, u).catch(e => { $('#rerr').textContent = e.message; toast(e.message); });
+  const fail = e => { $('#rerr').textContent = e.message; toast(e.message); view.querySelectorAll('#ok, #okfax').forEach(b => b.disabled = false); };
+  $('#ok').onclick = () => commit(view, u).catch(fail);
+  $('#okfax')?.addEventListener('click', () => commit(view, u, true).catch(fail));
 }
-async function commit(view, u) {
+async function commit(view, u, fax) {
   const st = rv[u.id]; const c = u.cid ? store.get('contacts', u.cid) : null; const R = u.result || {};
   if (!c) throw new Error(u.kind === 'order' ? '請選客戶' : '請選廠商');
   const ls2 = st.lines.filter(l => l.on);
@@ -182,10 +187,12 @@ async function commit(view, u) {
   if (ls2.some(l => !l.sure)) throw new Error('有 AI 配對不確定的明細（黃框）：按「對，是這個」或「換商品」');
   if (ls2.some(l => !(+l.qty > 0)) && u.kind !== 'quote') throw new Error('數量要大於 0');
   if (u.kind === 'po' && poDup(R.doc_no)) throw new Error(`平台已經有採購單 ${R.doc_no}，不用再建`);
+  if (fax && !c.fax) throw new Error('這家廠商的資料沒有傳真號碼，請先到電腦版廠商資料補上');
+  if (fax && !window.confirm(`確定要傳真給 ${cname(c.id)}？\n傳真號碼：${faxDial(c, c.fax)}\n傳出去就收不回來。`)) return;
   const date = st.date || R.date || today();
   const lines = ls2.map(l => { const o = { gid: l.gid, qty: +l.qty || 0, price: +l.price || 0 }; if (l.u) o.u = l.u; return o; });
   const note = `手機拍照上傳${R.doc_no ? `：${c.short || c.name}單號 ${R.doc_no}` : ''}`;
-  const btn = view.querySelector('#ok'); btn.disabled = true;
+  view.querySelectorAll('#ok, #okfax').forEach(b => b.disabled = true);
   if (u.kind === 'order') {
     const did = uid('d');
     await store.save('drafts', did, { cid: c.id, date: today(), tax: false, note, fmt: 'std', lines: lines.map(l => ({ ...l, ap: false })), by: store.user.name, uid: store.user.id, at: Date.now() });
@@ -198,7 +205,8 @@ async function commit(view, u) {
   await store.save('bills', id, doc);
   store.log('新增', `${TN} ${no}｜${cname(c.id)}｜${fmt(totals(doc).total)} 元（手機拍照）`);
   await upd(u.id, { status: 'done', billId: id, doneText: `${TN} ${no}・${fmt(totals(doc).total)} 元` });
-  delete rv[u.id]; toast(`已建立${type === 'PUR' ? '進貨單（庫存已增加）' : TN} ${no}`);
+  if (fax) await sendFax({ ...doc, id }).catch(x => toast('排入傳真失敗：' + x.message));
+  delete rv[u.id]; toast(`已建立${type === 'PUR' ? '進貨單（庫存已增加）' : TN} ${no}${fax ? '，已排入傳真' : ''}`);
 }
 function checkReview(u) {
   const list = (u.result?.checks || []).map(preOf); const done = new Set(u.doneChecks || []);
