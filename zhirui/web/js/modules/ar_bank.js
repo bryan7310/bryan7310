@@ -6,6 +6,7 @@ import { toast, modal, askOcrDup } from '../core/ui.js';
 import { aiOcr } from '../core/api.js';
 import { customers, cshort } from '../core/calc.js';
 import { allOpen, saveRow } from './receivables.js';
+import { apYm } from './payables.js';
 
 const FEE = 30;   // 對方扣的匯費（存入比總額少 0～30 元也算對得上）
 const norm = x => String(x || '').replace(/[\s　()（）\-－.,，、*＊]/g, '').replace(/(股份)?有限公司|企業社|實業|企業|工業|商行|公司/g, '').toLowerCase();
@@ -22,6 +23,9 @@ function payerCust(payer) {
 }
 const near = (total, amt) => { const df = Math.round(total) - Math.round(amt); return df >= 0 && df <= FEE; };
 const key = r => r.ym + '|' + (r.cid || r.name);
+const mdiff = (a, b) => (+b.slice(0, 4) - +a.slice(0, 4)) * 12 + (+b.slice(5, 7) - +a.slice(5, 7));   // a 月到 b 月差幾個月
+/** 這筆存入離應收月份幾個月（25 結；6 月應收通常 7 月底以後才入帳）；沒有日期回 null */
+const lagOf = (r, dep) => dep.date ? mdiff(r.ym, apYm(dep.date)) : null;
 const optLabel = rows => rows.map(r => `${r.name} ${ymLabel(r.ym)} ${money(r.total)}`).join(' ＋ ');
 
 /** 每一筆存入找要沖的應收：回傳 [{ dep, opts:[{rows, why, lvl}], pick, on }] */
@@ -35,7 +39,8 @@ export function bankMatch(deps, open) {
   for (const it of items) {
     const A = it.dep.amt; const list = it.pc ? (byCid.get(it.pc.cid) || []) : [];
     if (!list.length) continue;
-    const one = list.find(r => !used.has(key(r)) && Math.round(r.total) === Math.round(A)) || list.find(r => !used.has(key(r)) && near(r.total, A));
+    const pre = list.filter(r => (lagOf(r, it.dep) ?? 1) >= 1), any = [...pre, ...list.filter(r => !pre.includes(r))];   // 存入之前月份的應收優先
+    const one = any.find(r => !used.has(key(r)) && Math.round(r.total) === Math.round(A)) || any.find(r => !used.has(key(r)) && near(r.total, A));
     if (one) { take(it, [one], `${it.pc.how}、金額${Math.round(one.total) === Math.round(A) ? '相同' : `差 ${money(one.total - A)}（匯費？）`}`, 'ok'); continue; }
     const free = list.filter(r => !used.has(key(r))); let s = 0;
     for (let i = 0; i < free.length; i++) { s += free[i].total; if (i && (Math.round(s) === Math.round(A) || near(s, A))) { take(it, free.slice(0, i + 1), `${it.pc.how}、${i + 1} 個月加總${Math.round(s) === Math.round(A) ? '相同' : `差 ${money(s - A)}（匯費？）`}`, 'ok'); break; } if (s > A + FEE) break; }
@@ -45,10 +50,13 @@ export function bankMatch(deps, open) {
   for (const it of items) {
     if (it.opts.length) continue;
     const A = it.dep.amt;
-    let same = open.filter(r => !used.has(key(r)) && Math.round(r.total) === Math.round(A));
-    if (!same.length) same = open.filter(r => !used.has(key(r)) && near(r.total, A));
-    same.slice(0, 8).forEach(r => take(it, [r], `只對到金額${Math.round(r.total) === Math.round(A) ? '' : `（差 ${money(r.total - A)}）`}，匯款人${it.pc ? '是 ' + cshort(it.pc.cid) : '對不到客戶'}，請確認`, 'warn'));
-    if (same.length === 1) { it.pick = 0; used.add(key(same[0])); }   // 只對到金額：先選好，但不預設勾，讓使用者確認
+    const okLag = r => { const g = lagOf(r, it.dep); return g == null || g >= 1; };   // 應收月份要在存入月份之前
+    const rank = r => { const g = lagOf(r, it.dep); return g == null ? 9 : g === 1 || g === 2 ? 0 : g === 3 ? 1 : 2 + g; };   // 晚 1～2 個月入帳最常見
+    let same = open.filter(r => !used.has(key(r)) && okLag(r) && Math.round(r.total) === Math.round(A));
+    if (!same.length) same = open.filter(r => !used.has(key(r)) && okLag(r) && near(r.total, A));
+    same.sort((x, y) => rank(x) - rank(y));
+    same.slice(0, 8).forEach(r => { const g = lagOf(r, it.dep); take(it, [r], `只對到金額${Math.round(r.total) === Math.round(A) ? '' : `（差 ${money(r.total - A)}）`}${g != null ? `，應收月份比入帳早 ${g} 個月` : ''}，匯款人${it.pc ? '是 ' + cshort(it.pc.cid) : '對不到客戶'}，請確認`, 'warn'); });
+    if (same.length && (same.length === 1 || rank(same[0]) < rank(same[1]))) { it.pick = 0; used.add(key(same[0])); }   // 只對到金額：先選好最可能的，但不預設勾，讓使用者確認
   }
   // 第 3 輪：名稱對到、金額對不上 → 列出這家的未收月份讓使用者選（不預設勾）
   for (const it of items) {
@@ -71,7 +79,7 @@ export function bankImport(onDone) {
       const sum = () => { const n = items.filter(it => it.on && it.pick >= 0).length; el.querySelector('#bkSum').textContent = items.length ? `存入 ${items.length} 筆，勾選 ${n} 筆` : ''; ok.disabled = !n; ok.textContent = n ? `沖帳勾選的 ${n} 筆` : '沖帳勾選的項目'; };
       const draw = () => {
         if (!items.length) { out.innerHTML = `<div class="empty"><b>沒有讀到存入的明細</b>${meta?.doubts ? esc(meta.doubts) : ''}</div>`; sum(); return; }
-        out.innerHTML = `${meta?.doubts ? `<div class="banner" style="margin-bottom:8px">AI 提醒：${esc(meta.doubts)}</div>` : ''}${meta?.dupe ? `<div class="banner info" style="margin-bottom:8px">${esc(meta.dupe)}</div>` : ''}
+        out.innerHTML = `${meta?.doubts ? `<div class="banner" style="margin-bottom:8px">AI 提醒：${esc(meta.doubts)}</div>` : ''}${meta?.dupe ? `<div class="banner info" style="margin-bottom:8px">${meta.dupe.split('<br>').map(esc).join('<br>')}</div>` : ''}
           <div class="tw"><table><thead><tr><th>沖帳</th><th>存摺日期</th><th>匯款人／摘要</th><th class="n">存入</th><th>對到的應收</th><th class="n">實收金額</th><th>判斷</th></tr></thead><tbody>
           ${items.map((it, i) => { const o = it.opts[it.pick]; const tot = o ? o.rows.reduce((s, r) => s + r.total, 0) : 0; return `<tr data-i="${i}" class="${it.on ? '' : 'muted'}">
             <td><input type="checkbox" data-on ${it.on ? 'checked' : ''} ${it.opts.length ? '' : 'disabled'}></td>
@@ -106,12 +114,16 @@ export function bankImport(onDone) {
           const seen = new Set(); const rec = store.list('receivables').filter(r => r.rec);
           let deps = rows.filter(r => +r.deposit > 0).map(r => ({ date: /^\d{4}-\d{2}-\d{2}$/.test(r.date || '') ? r.date : '', payer: String(r.payer || '').trim(), memo: String(r.memo || '').trim(), amt: +r.deposit }))
             .filter(d => { const k = d.date + '|' + d.amt + '|' + norm(d.payer); if (seen.has(k)) return false; seen.add(k); return true; });
-          const done = deps.filter(d => rec.some(r => r.recDate === d.date && Math.round(+r.recAmt) === Math.round(d.amt)));
+          const dn = s => s ? Date.parse(s + 'T00:00:00') / 864e5 : NaN;
+          // 已經沖過：有同金額的已收款，收款日在存入日前 7 天～後 60 天（常常隔幾天才登記；匯款人跟客戶可能是關係企業，所以不限同客戶）
+          const done = deps.filter(d => { const r = rec.find(r => Math.round(+r.recAmt) === Math.round(d.amt) && (!d.date || (dn(r.recDate) - dn(d.date) >= -7 && dn(r.recDate) - dn(d.date) <= 60))); if (r) d.doneAs = `${r.cid ? cshort(r.cid) : r.cust} ${ymLabel(r.ym)}（${slash(r.recDate)} 收）`; return !!r; });
           deps = deps.filter(d => !done.includes(d));
+          // 票據交換（次日交換）＝存進去的客票，通常好幾張加總，已經在「收到的支票」登記沖帳；利息也不是貨款 → 不比對，只列出來
+          const skip = deps.filter(d => /交換|票據|託收|利息/.test(d.memo + d.payer)); deps = deps.filter(d => !skip.includes(d));
           const since = shiftMonth(thisMonth(), -12);
           const open = allOpen().filter(r => r.ym >= since);
           items = bankMatch(deps, open);
-          meta = { doubts: doubts.join('；'), dupe: done.length ? `另有 ${done.length} 筆存入已經沖過帳（同一天、同金額的已收款），沒有列出：${done.map(d => `${slash(d.date)} ${d.payer} ${money(d.amt)}`).join('、')}` : '' };
+          meta = { doubts: doubts.join('；'), dupe: [done.length ? `另有 ${done.length} 筆存入已經沖過帳（有同金額的已收款，收款日在存入日前後），沒有列出：${done.map(d => `${slash(d.date)} ${d.payer} ${money(d.amt)} → ${d.doneAs}`).join('、')}` : '', skip.length ? `支票存入（票據交換）、利息 ${skip.length} 筆不比對（支票請在「收到的支票」沖帳）：${skip.map(d => `${slash(d.date)} ${d.memo || d.payer} ${money(d.amt)}`).join('、')}` : ''].filter(Boolean).join('<br>') };
           draw();
         } catch (e) { out.innerHTML = `<div class="banner">${esc(e.message || String(e))}</div>`; }
         btn.disabled = false;
