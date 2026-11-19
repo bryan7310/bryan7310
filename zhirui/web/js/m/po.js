@@ -4,7 +4,7 @@ import { esc, fmt, fmtQ, today, uid, ls, qTerms, matchQ, slash, addDays } from '
 import { api } from '../core/api.js';
 import { store } from '../core/store.js';
 import { calc, totals, lineAmt, nextNo, cdisp, cname, suppliers, gname, unitFactor } from '../core/calc.js';
-import { queueFax, faxDial, isTaichung } from '../modules/faxes.js';
+import { queueFax, faxDial, isTaichung, faxHistory } from '../modules/faxes.js';
 import { scanQR } from '../core/qr.js';
 import { search, findByCode } from './stock.js';
 import { billHit } from './bill.js';
@@ -148,12 +148,12 @@ export async function sendFax(b) {
   await queueFax(faxCopy(b), c, { to, attn: b.attn || c.person || '', subj: `採購單 ${b.no}`, msg: '敬請依採購單內容安排交貨，收到後請簽回確認，謝謝。', cover: false, big: true });
 }
 // 傳真狀態：最新一筆傳真工作
-const lastJob = b => { const f = (b?.faxLog || []).filter(x => x.job).slice(-1)[0]; return f ? store.get('faxjobs', f.job) : null; };
+const lastJob = b => { const f = faxHistory(b).filter(x => x.job && store.get('faxjobs', x.job)).slice(-1)[0]; return f ? store.get('faxjobs', f.job) : null; };
 const hm = iso => { const d = new Date(iso); return isNaN(d) ? '' : `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
 let prq = '';   // 最近採購單的關鍵字
 const recentHtml = () => store.list('bills').filter(b => b.type === 'PO' && billHit(b, prq)).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)).slice(0, prq.trim() ? 50 : 8).map(b => `<a href="#po/v/${encodeURIComponent(b.id)}"><div class="gm"><b>${esc(cname(b.cid))}</b><small>${esc(b.no)}・${esc(slash(b.date))}・${fmt(totals(b).total)} 元</small></div><span class="go">${faxTag(b)} ›</span></a>`).join('') || `<div class="row muted">${prq.trim() ? '找不到符合的採購單' : '還沒有採購單'}</div>`;
 function faxTag(b) {
-  const j = lastJob(b); if (!j) return (b.faxLog || []).length ? '<small class="muted">已手動傳真</small>' : '<small class="muted">未傳真</small>';
+  const j = lastJob(b); if (!j) return faxHistory(b).length ? '<small class="muted">已手動傳真</small>' : '<small class="muted">未傳真</small>';
   return j.status === 'sent' ? `<small class="good">已傳真 ${hm(j.doneAt || j.at)}</small>` : j.status === 'failed' ? '<small class="bad">傳真失敗</small>' : '<small class="warn">傳真中…</small>';
 }
 function poCard(b) {
@@ -185,7 +185,7 @@ function poView(view, id) {
     <div class="sec">品項</div><div class="card list">${(b.lines || []).filter(l => l.gid || l.n).map(l => `<div class="row"><div class="gm"><b>${esc(l.gid ? gname(l.gid, 'PO') : l.n)}</b><small>${fmtQ(l.qty)} ${esc(l.u || store.get('goods', l.gid)?.unit || '')} × ${p4(l.price)}</small></div><span class="go">${fmt(lineAmt(l))}</span></div>`).join('')}
       <div class="row"><span>小計</span><span class="go">${fmt(t.net)}</span></div>${b.tax ? `<div class="row"><span>稅</span><span class="go">${fmt(t.tax)}</span></div>` : ''}<div class="row"><b>總計</b><span class="go"><b>${fmt(t.total)}</b></span></div></div>
     ${b.note ? `<div class="sec">備註</div><div class="card"><div class="row">${esc(b.note)}</div></div>` : ''}
-    <div class="sec">傳真紀錄</div><div class="card list">${(b.faxLog || []).slice().reverse().map(f => { const j = f.job ? store.get('faxjobs', f.job) : null; return `<div class="row"><span>${esc(hm(f.at))}　${esc(f.to)}</span><span class="go">${j ? (j.status === 'sent' ? '<small class="good">已傳真</small>' : j.status === 'failed' ? `<small class="bad">失敗：${esc(j.msg || '')}</small>` : '<small class="warn">傳送中</small>') : '<small class="muted">手動</small>'}</span></div>`; }).join('') || '<div class="row muted">還沒傳真</div>'}</div>
+    <div class="sec">傳真紀錄</div><div class="card list">${faxHistory(b).reverse().map(f => { const j = f.job ? store.get('faxjobs', f.job) : null; return `<div class="row"><span>${esc(hm(f.at))}　${esc(f.to)}</span><span class="go">${j ? (j.status === 'sent' ? '<small class="good">已傳真</small>' : j.status === 'failed' ? `<small class="bad">失敗：${esc(j.msg || '')}</small>` : '<small class="warn">傳送中</small>') : '<small class="muted">手動</small>'}</span></div>`; }).join('') || '<div class="row muted">還沒傳真</div>'}</div>
     <p><button class="btn ghost" id="pedit2">修改這張採購單</button></p>`;
   bindCard(view);
   view.querySelectorAll('#pedit, #pedit2').forEach(x => x.onclick = () => editPO(b));

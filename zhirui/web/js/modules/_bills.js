@@ -608,6 +608,7 @@ async function saveBill(close, then, force) {
   if ((e.type === 'SALE' || e.type === 'SALE_RET') && (e.arYm || e.hist)) doc.arYm = e.arYm || '';
   if (e.hist) { doc.hist = true; if (e.cn) doc.cn = e.cn; if (e.oamt != null) doc.oamt = e.oamt; }
   doc.createdBy = e.createdBy || store.user.id; if (e.id) doc.updatedBy = store.user.id;
+  { const prev = e.id ? store.get('bills', e.id) : null; if (prev) for (const k of ['faxLog', 'faxTo', 'src', 'mdbSub']) if (prev[k] != null && doc[k] == null) doc[k] = prev[k]; }   // 傳真紀錄、匯入來源：用存檔當下最新的（編輯中傳真過也不會被蓋掉）
   if (e.hist) return saveHist(e, T, { ...e._orig, ...doc, id }, close);
   try { await store.save('bills', id, doc); } catch (err2) { toast('儲存失敗：' + err2.message); return; }
   store.log(e.id ? '修改' : '新增', `${T.name} ${doc.no}${T.party ? '｜' + cname(doc.cid) : ''}｜${fmt(T.lines ? totals(doc).total : doc.amount)} 元`);

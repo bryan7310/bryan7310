@@ -42,6 +42,13 @@ export async function queueFax(b, c, opts) {
   await store.batch(ops); store.log('傳真', `${T.name} ${b.no} → ${c.name} ${opts.to}（自動傳真排入）`);
   return id;
 }
+/** 這張單據的傳真紀錄（舊到新）：單據上的 faxLog，加上傳真工作裡有、但 faxLog 沒記到的（例如被覆蓋掉） */
+export function faxHistory(b) {
+  if (!b) return [];
+  const log = (b.faxLog || []).slice(); const seen = new Set(log.map(f => f.job).filter(Boolean));
+  for (const j of store.list('faxjobs')) if (j.billId === b.id && !seen.has(j.id)) log.push({ at: j.at, to: j.to, attn: j.attn || '', by: j.by || '', auto: true, job: j.id });
+  return log.sort((x, y) => String(x.at || '').localeCompare(String(y.at || '')));
+}
 export const FAX_ST = { queued: ['等待中', ''], sending: ['傳送中', 'blue'], sent: ['已送出', 'ok'], failed: ['失敗', 'bad'] };
 export const faxPill = j => { const [t, c] = FAX_ST[j?.status] || ['', '']; return t ? `<span class="pill ${c}" title="${esc(j.msg || '')}">${t}</span>` : ''; };
 export function faxDialog(b, after) {
@@ -54,7 +61,7 @@ export function faxDialog(b, after) {
       <div class="f"><label for="fx-attn">收件人</label><input id="fx-attn" value="${esc(b.attn || c.person || '')}"></div>
       <div class="f" style="grid-column:1/-1"><label for="fx-subj">主旨</label><input id="fx-subj" value="${esc(T.name + ' ' + b.no)}"></div>
       <div class="f" style="grid-column:1/-1"><label for="fx-msg">附言</label><textarea id="fx-msg">${b.type === 'PRC' ? '送上加工品，敬請依加工單內容加工，完成後請連同本單送回並註明實際重量，謝謝。' : b.type === 'PO' ? '敬請依採購單內容安排交貨，收到後請簽回確認，謝謝。' : b.type === 'RFQ' ? '敬請報價並回傳，謝謝。' : '報價如上，敬請參考，謝謝。'}</textarea></div></div>
-      ${(b.faxLog || []).length ? `<div class="muted small">傳真紀錄：${b.faxLog.slice(-3).map(x => esc(x.at.slice(0, 16).replace('T', ' ')) + ' → ' + esc(x.to)).join('；')}</div>` : ''}
+      ${faxHistory(b).length ? `<div class="muted small">傳真紀錄：${faxHistory(b).slice(-3).map(x => esc(x.at.slice(0, 16).replace('T', ' ')) + ' → ' + esc(x.to)).join('；')}</div>` : ''}
       <label class="check"><input type="checkbox" id="fx-cover"> 加一張傳真封面頁</label>
       <label class="check" ${c.fax ? 'hidden' : ''}><input type="checkbox" id="fx-save" ${c.fax ? '' : 'checked'}> 把傳真號碼存到這家${T.party === 'C' ? '客戶' : '廠商'}的資料</label>
       <div class="f"><label for="fx-prn">傳真印表機名稱（這台電腦，列印畫面要選這台）</label><input id="fx-prn" value="${esc(ls.get('zr.faxprn', 'Brother PC-FAX'))}" placeholder="例如：Brother MFC-L2770DW Printer PC-FAX"></div>
@@ -89,7 +96,7 @@ export function faxDialog(b, after) {
     },
   });
 }
-function rows() { const out = []; for (const b of store.list('bills')) for (const f of b.faxLog || []) { const at = String(f.at || ''); const d = new Date(at); const loc = isNaN(d) ? at.slice(0, 16).replace('T', ' ') : `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; out.push({ b, f, loc, m: loc.slice(0, 7) }); } return out.sort((x, y) => y.loc.localeCompare(x.loc)); }
+function rows() { const out = []; for (const b of store.list('bills')) for (const f of faxHistory(b)) { const at = String(f.at || ''); const d = new Date(at); const loc = isNaN(d) ? at.slice(0, 16).replace('T', ' ') : `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; out.push({ b, f, loc, m: loc.slice(0, 7) }); } return out.sort((x, y) => y.loc.localeCompare(x.loc)); }
 function draw(el) {
   const C = calc(); const all = rows(); const q = qTerms(ui.q);
   const list = all.filter(r => (ui.month === 'all' || r.m === ui.month) && (!q.length || matchQ([r.b.no, cname(r.b.cid), C.ct[r.b.cid]?.short, r.f.to, r.f.attn, TYPES[r.b.type]?.name].join(' '), q)));
