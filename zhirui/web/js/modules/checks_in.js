@@ -125,15 +125,26 @@ function scanCheck() {
   inp.click();
 }
 /** AI 辨識的一張支票 → 登記客票的預填值 */
-/** 防呆：同一張支票是否已經登記過。票號相同就算（兩邊都有帳號時帳號也要相同）；
- *  沒有票號時，看發票人＋金額＋到期日都一樣。selfId＝修改中的那張，不跟自己比 */
+/** 防呆：同一張支票是否已經登記過（拍照辨識常把票號、帳號讀錯一兩個字，所以放寬比對）：
+ *  1. 票號相同，且帳號相同／沒帳號／金額相同（帳號讀錯也抓得到）
+ *  2. 票號只差一個字（含少一個字），且金額、到期日都相同（同客戶每月連號同額的票不算）
+ *  3. 票號不同或沒填，但發票人（或客戶）、金額、到期日都一樣
+ *  selfId＝修改中的那張，不跟自己比 */
 const normNo = s => toHalf(String(s || '')).replace(/[\s\-－_.]/g, '').toUpperCase();
 const normAcct = s => toHalf(String(s || '')).replace(/\D/g, '').replace(/^0+/, '');
+const near1 = (a, b) => {   // 兩個字串只差一個字（換一個字、多一個或少一個字）
+  if (a === b) return true; if (!a || !b || Math.abs(a.length - b.length) > 1) return false;
+  let i = 0, j = 0, diff = 0;
+  while (i < a.length && j < b.length) { if (a[i] === b[j]) { i++; j++; continue; } if (++diff > 1) return false; if (a.length > b.length) i++; else if (b.length > a.length) j++; else { i++; j++; } }
+  return diff + (a.length - i) + (b.length - j) <= 1;
+};
 export function findDupCheck(x, selfId) {
-  const no = normNo(x.no), acct = normAcct(x.acct);
-  return store.list('checks_in').find(c => c.id !== selfId && (no
-    ? normNo(c.no) === no && (!acct || !normAcct(c.acct) || normAcct(c.acct) === acct)
-    : !normNo(c.no) && String(c.name || '').trim() === String(x.name || '').trim() && +c.amt === +x.amt && c.due === x.due)) || null;
+  const no = normNo(x.no), acct = normAcct(x.acct), amt = +x.amt || 0, nm = String(x.name || '').trim();
+  const others = store.list('checks_in').filter(c => c.id !== selfId);
+  return others.find(c => no && normNo(c.no) === no && (!acct || !normAcct(c.acct) || normAcct(c.acct) === acct || (amt && +c.amt === amt)))
+    || others.find(c => no && amt && +c.amt === amt && (!x.due || !c.due || c.due === x.due) && normNo(c.no).length >= 5 && near1(normNo(c.no), no))
+    || others.find(c => amt && +c.amt === amt && x.due && c.due === x.due && ((nm && String(c.name || '').trim() === nm) || (x.cid && c.cid === x.cid)))
+    || null;
 }
 export const dupText = c => `${c.name || ''}・票號 ${c.no || '—'}・${money(c.amt)} 元・${roc(c.due)} 到期・${roc(c.recv)} 收到${c.col ? '・已送代收' : ''}`;
 export function preOf(f) {
