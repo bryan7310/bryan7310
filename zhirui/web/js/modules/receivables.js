@@ -7,6 +7,7 @@ import { openBill, histView } from './_bills.js';
 import { api } from '../core/api.js';
 import { mailImport } from './mail.js';
 import { apYm, apRange } from './payables.js';
+import { bankImport } from './ar_bank.js';
 
 const ui = { ym: thisMonth(), tab: 'month', filter: 'all', year: thisMonth().slice(0, 4), yc: '' };
 const picked = new Set();
@@ -105,7 +106,7 @@ function draw(el) {
   const tot = f => rows.reduce((s, r) => s + f(r), 0);
   const done = rows.filter(r => r.rec), open = rows.filter(r => !r.rec);
   const list = ui.tab === 'open' ? allOpen() : rows.filter(r => ui.filter === 'all' || (ui.filter === 'open' ? !r.rec : r.rec));
-  el.innerHTML = `<div class="head"><h1>應收帳款</h1><span class="sp"></span>${tabs('ar', [['month', '本月'], ['open', '未收款'], ['year', '年度彙總']], ui.tab)}${ui.tab === 'year' ? '' : `<button class="btn" id="arMail" ${picked.size ? '' : 'disabled'}>導入郵寄掛號${picked.size ? `（${picked.size}）` : ''}</button><button class="btn pri" id="arAdd">＋ 手動新增</button>`}</div>
+  el.innerHTML = `<div class="head"><h1>應收帳款</h1><span class="sp"></span>${tabs('ar', [['month', '本月'], ['open', '未收款'], ['year', '年度彙總']], ui.tab)}${ui.tab === 'year' ? '' : `<button class="btn" id="arBank" title="匯入存摺或網銀明細，自動比對未收的應收帳款">匯入對帳</button><button class="btn" id="arMail" ${picked.size ? '' : 'disabled'}>導入郵寄掛號${picked.size ? `（${picked.size}）` : ''}</button><button class="btn pri" id="arAdd">＋ 手動新增</button>`}</div>
     ${ui.tab === 'month' ? `<div class="panel" style="display:grid;gap:12px">
       <div class="tools"><button class="btn sm" id="prevM">‹</button><input type="month" id="ym" value="${ym}" style="font-weight:600"><button class="btn sm" id="nextM">›</button><span class="muted">${ymLabel(ym)}（${roc(apRange(ym)[0])}～${roc(apRange(ym)[1])}）</span><span class="sp"></span>${tabs('f', [['all', '全部'], ['open', '未收'], ['done', '已收']], ui.filter)}</div>
       <div class="kpis"><div class="kpi"><span>貨款</span><b>${money(tot(r => r.amt))}</b></div><div class="kpi"><span>稅額</span><b>${money(tot(r => r.tax))}</b></div><div class="kpi"><span>總額</span><b>${money(tot(r => r.total))}</b></div><div class="kpi"><span>門市收入</span><b>${money(st.amt || 0)}</b><small>${esc(st.note || '')}</small></div><div class="kpi ok"><span>已收 ${done.length} 筆</span><b>${money(done.reduce((s, r) => s + (r.recAmt ?? r.total), 0))}</b></div><div class="kpi ${open.length ? 'alert' : ''}"><span>未收 ${open.length} 筆</span><b>${money(open.reduce((s, r) => s + r.total, 0))}</b></div></div>
@@ -120,6 +121,7 @@ function draw(el) {
   const saveStore = async () => { const a = parseNum($('#stAmt', el).value), n = $('#stNote', el).value.trim(); if (a != null && isNaN(a)) return toast('金額不正確'); const s = store.setting('ar_store'); const months = { ...(s.months || {}) }; if (a == null && !n) delete months[ym]; else months[ym] = { amt: a || 0, note: n }; await store.saveSetting('ar_store', { months }); };
   $('#stAmt', el)?.addEventListener('change', saveStore); $('#stNote', el)?.addEventListener('change', saveStore);
   $('#arAdd', el)?.addEventListener('click', () => editRow({ ym, manual: true }));
+  $('#arBank', el)?.addEventListener('click', () => bankImport(() => { if (el.isConnected) draw(el); }));
   if (ui.tab === 'year') bindYear(el); else bindRows(el, list);
   el.querySelectorAll('[data-pk]').forEach(cb => cb.addEventListener('change', () => { cb.checked ? picked.add(cb.dataset.pk) : picked.delete(cb.dataset.pk); draw(el); }));
   $('#arPkAll', el)?.addEventListener('change', ev => { list.forEach(r => { if (r.cid) ev.target.checked ? picked.add(r.cid) : picked.delete(r.cid); }); draw(el); });

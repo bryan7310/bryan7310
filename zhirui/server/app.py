@@ -770,6 +770,17 @@ class Handler(BaseHTTPRequestHandler):
             if r.get('_engine') != 'local':
                 ocr_remember(self.state.data_dir, key, r, me)
             return self.send_json(r)
+        if path == '/api/ocr/bank' and method == 'POST':   # 存摺／銀行對帳單 → 存入明細（應收帳款「匯入對帳」）
+            b = body or {}
+            key, hit = ocr_seen(self.state.data_dir, 'bank', b.get('data'), b)
+            if hit:
+                return self.send_json(hit)
+            try:
+                r = bank_extract(self.state.data_dir, b)
+            except OcrError as e:
+                return self.error(str(e), e.status)
+            ocr_remember(self.state.data_dir, key, r, me)
+            return self.send_json(r)
         if path == '/api/ocr/order' and method == 'POST':
             try:
                 return self.send_json(order_extract(self.state.data_dir, body or {}, self.faxin_path))
@@ -1928,6 +1939,40 @@ def doc_extract(data_dir, body):
         r = po_extract(data_dir, body, system=DOC_PROMPTS[kind], schema=DOC_SCHEMA, ask='請讀這張單據，依指定的 JSON 格式回傳。', tag=kind)
     if loc:
         r['_local_why'] = loc.get('why') or []
+    r['_engine'] = 'claude'
+    return r
+
+
+# ---------- 存摺／銀行對帳單：讀存入（入帳）明細，給應收帳款「匯入對帳」 ----------
+BANK_PROMPT = """你在讀「志瑞螺絲企業有限公司」的銀行存摺內頁、網路銀行交易明細或對帳單（照片、截圖或 PDF）。
+把每一筆交易列在 rows，照表上順序：
+- date：交易日期，一律轉成 YYYY-MM-DD（民國年要轉西元，例如 115/11/18 → 2026-11-18；只有月日就用表上的年份）。
+- payer：匯款人、存款人、對方戶名或摘要裡的公司／人名（例如「跨行轉入 麥帥企業」填「麥帥企業」）；沒有就填空字串。
+- memo：摘要、備註欄原文照抄（例如 跨行轉入、ATM存款、票據交換、利息）。
+- deposit：存入（收入、貸方）金額，只填數字、去掉千分位；這筆不是存入填 0。
+- withdraw：支出（提款、借方）金額，不是支出填 0。
+- balance：餘額，看不到填 0。
+- account：對方帳號（有的話），沒有填空字串。
+bank 填銀行名稱，account 填這本存摺的帳號，doubts 寫看不清楚、不確定的地方。看不清楚的數字不要猜，填 0 並寫在 doubts。"""
+BANK_SCHEMA = {
+    'type': 'object', 'additionalProperties': False, 'required': ['bank', 'account', 'doubts', 'rows'],
+    'properties': {
+        'bank': {'type': 'string'}, 'account': {'type': 'string'}, 'doubts': {'type': 'string'},
+        'rows': {'type': 'array', 'items': {
+            'type': 'object', 'additionalProperties': False,
+            'required': ['date', 'payer', 'memo', 'deposit', 'withdraw', 'balance', 'account'],
+            'properties': {
+                'date': {'type': 'string'}, 'payer': {'type': 'string'}, 'memo': {'type': 'string'}, 'deposit': {'type': 'number'},
+                'withdraw': {'type': 'number'}, 'balance': {'type': 'number'}, 'account': {'type': 'string'}}}}}}
+
+
+def bank_extract(data_dir, body):
+    """body：data（base64）、media（application/pdf、image/jpeg…）"""
+    if os.environ.get('ZR_DOC_MOCK'):   # 測試用：mock json 的 bank
+        with open(os.environ['ZR_DOC_MOCK'], encoding='utf-8') as f:
+            r = json.load(f).get('bank') or {'bank': '', 'account': '', 'doubts': '', 'rows': []}
+    else:
+        r = po_extract(data_dir, body, system=BANK_PROMPT, schema=BANK_SCHEMA, ask='請讀這張存摺／交易明細，依指定的 JSON 格式回傳。', tag='bank')
     r['_engine'] = 'claude'
     return r
 
