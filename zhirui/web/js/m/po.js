@@ -186,9 +186,21 @@ function poView(view, id) {
       <div class="row"><span>小計</span><span class="go">${fmt(t.net)}</span></div>${b.tax ? `<div class="row"><span>稅</span><span class="go">${fmt(t.tax)}</span></div>` : ''}<div class="row"><b>總計</b><span class="go"><b>${fmt(t.total)}</b></span></div></div>
     ${b.note ? `<div class="sec">備註</div><div class="card"><div class="row">${esc(b.note)}</div></div>` : ''}
     <div class="sec">傳真紀錄</div><div class="card list">${faxHistory(b).reverse().map(f => { const j = f.job ? store.get('faxjobs', f.job) : null; return `<div class="row"><span>${esc(hm(f.at))}　${esc(f.to)}</span><span class="go">${j ? (j.status === 'sent' ? '<small class="good">已傳真</small>' : j.status === 'failed' ? `<small class="bad">失敗：${esc(j.msg || '')}</small>` : '<small class="warn">傳送中</small>') : '<small class="muted">手動</small>'}</span></div>`; }).join('') || '<div class="row muted">還沒傳真</div>'}</div>
-    <p><button class="btn ghost" id="pedit2">修改這張採購單</button></p>`;
+    <p><button class="btn ghost" id="pedit2">修改這張採購單</button></p>
+    <p><button class="btn ghost danger" id="pdel">刪除這張採購單</button></p>`;
   bindCard(view);
   view.querySelectorAll('#pedit, #pedit2').forEach(x => x.onclick = () => editPO(b));
+  view.querySelector('#pdel').onclick = async () => {
+    const used = store.list('bills').filter(x => x.fromPO === b.id).map(x => x.no);
+    const faxed = faxHistory(b).length;
+    const warn = [used.length ? `已經轉成進貨單 ${used.join('、')}（進貨單不會跟著刪）` : '', faxed ? '已經傳真給廠商，刪掉不會通知廠商' : ''].filter(Boolean);
+    if (!window.confirm(`確定刪除採購單 ${b.no}（${cname(b.cid)}・${fmt(totals(b).total)} 元）？${warn.length ? '\n\n注意：\n・' + warn.join('\n・') : ''}`)) return;
+    try { await store.remove('bills', b.id); } catch (x) { toast('刪除失敗：' + x.message); return; }
+    store.log('刪除', `採購單 ${b.no}｜${cname(b.cid)}｜${fmt(totals(b).total)} 元（手機）`);
+    const e = load(); if (e.editId === b.id) { cur = blank(); keep(); }
+    if (lastPO === b.id) lastPO = '';
+    toast(`已刪除採購單 ${b.no}`); location.hash = '#po';
+  };
 }
 
 // ---------- 選廠商、加品項 ----------
