@@ -121,7 +121,7 @@ function check(e) {
   const ls2 = e.lines.filter(l => l.gid);
   if (!ls2.length) return '請至少加一項商品';
   if (ls2.some(l => !(+l.qty > 0))) return '每一項的數量都要大於 0';
-  if (ls2.some(l => l.price === '' || l.price == null || isNaN(+l.price))) return '有品項還沒填單價';
+  if (ls2.some(l => l.price !== '' && l.price != null && isNaN(+l.price))) return '單價要填數字';
   return '';
 }
 async function saveDraft(view) {
@@ -134,6 +134,8 @@ async function saveDraft(view) {
 async function submit(view, print) {
   const e = load(); const err = check(e); const box = view.querySelector('#err');
   if (err) { box.textContent = err; toast(err); return; }
+  const zero = e.lines.filter(l => l.gid && !(+l.price)).length;   // 單價空白或 0：提醒一下，確定就照 0 元送出
+  if (zero && !window.confirm(`有 ${zero} 項單價是 0（或沒填），會照 0 元送出。確定送出？`)) return;
   box.textContent = '';
   view.querySelectorAll('.acts button, #saveprint').forEach(b => b.disabled = true);
   const d = docOf(e); const no = nextNo('SALE', e.date); const id = uid('b');
