@@ -12,7 +12,7 @@ export default {
   onChange(ch) { if (this.el?.isConnected && (ch.has('checks_out') || ch.has('settings') || ch.has('contacts'))) draw(this.el); },
   badge() { return { cnt: store.list('checks_out').filter(c => !c.printedAt).length }; },
 };
-const DEFAULT_LAYOUT = { pageW: 190.5, pageH: 98.4, offX: 0, offY: 0, mT: 13, mB: 0, mL: 26, mR: 0, rot: 0 };   // rot：0 橫印、90 順時針轉、-90 逆時針轉（印表機直式進紙）
+const DEFAULT_LAYOUT = { pageW: 190.5, pageH: 98.4, offX: 0, offY: 0, mT: 13, mB: 0, mL: 26, mR: 0, rot: 0, a4: 0, a4Al: 'c', a4X: 0, a4Y: 0 };   // a4：印表機只有 A4 紙張時，支票放在 A4 上（手動進紙槽置中）   // rot：0 橫印、90 順時針轉、-90 逆時針轉（印表機直式進紙）
 const FIELDS = { year: { x: 135.3, y: 18.0, w: 13.5, h: 8.2, v: 'vb', pt: 12 }, month: { x: 148.8, y: 18.0, w: 11.1, h: 8.2, v: 'vb', pt: 12 }, day: { x: 159.9, y: 18.0, w: 20.4, h: 8.2, v: 'vb', pt: 12 }, payee: { x: 67.3, y: 26.2, w: 113.0, h: 9.8, v: 'vc', pt: 14 }, words: { x: 62.8, y: 36.0, w: 117.5, h: 7.9, v: 'vc', pt: 14 }, num: { x: 67.3, y: 46.3, w: 68.0, h: 6.9, v: 'vt', pt: 14 } };
 // 支票紙張預設：臺灣土地銀行單張支票 17.5×8.5 cm（位置量自實際支票：年月日、憑票支付、新臺幣、NT$）
 const F0 = { font: '', bold: true, al: 'l', ls: 0, pre: '', suf: '' };
@@ -220,20 +220,23 @@ function checkHTML(list, L, fl, test) {
     const r = +L.rot || 0; const tf = r === 90 ? `transform:translate(${L.pageH}mm,0) rotate(90deg);` : r === -90 ? `transform:translate(0,${L.pageW}mm) rotate(-90deg);` : '';
     let h = `${r ? `<div class="sheet" style="width:${L.pageH}mm;height:${L.pageW}mm">` : ''}<div class="check${test ? ' test' : ''}" style="width:${L.pageW}mm;height:${L.pageH}mm;${tf}">`;
     for (const f of fl) { if (!f.on) continue; let v = f.custom ? (f.txt || '') : (vals[f.k] ?? ''); if (v !== '' && v != null) v = (f.pre || '') + v + (f.suf || ''); h += `<div class="f ${f.v || 'vc'}${f.al === 'c' ? ' ha-c' : f.al === 'r' ? ' ha-r' : ''}" style="left:${+L.mL + f.x + +L.offX}mm;top:${+L.mT + f.y + +L.offY}mm;width:${f.w}mm;height:${f.h}mm;font-size:${f.pt}pt;${f.font ? `font-family:${esc(f.font)};` : ''}font-weight:${f.bold ? 700 : 400};${f.bold ? '-webkit-text-stroke:.45px #000;' : ''}${+f.ls ? `letter-spacing:${+f.ls}mm;` : ''}">${test ? `<i>${esc(FNAME[f.k] || f.k)}</i>` : ''}<span>${esc(v)}</span></div>`; }
-    return h + '</div>' + (+L.rot ? '</div>' : '');
+    h += '</div>' + (+L.rot ? '</div>' : '');
+    if (+L.a4) { const w = +L.rot ? +L.pageH : +L.pageW; h = `<div class="a4p"><div class="pos" style="left:${(L.a4Al === 'l' ? 0 : (210 - w) / 2) + (+L.a4X || 0)}mm;top:${+L.a4Y || 0}mm">${h}</div></div>`; }
+    return h;
   }).join('');
   const rot = +L.rot || 0;
-  const css = `@page{size:${rot ? `${L.pageH}mm ${L.pageW}mm` : `${L.pageW}mm ${L.pageH}mm`};margin:0}body{margin:0}.sheet{position:relative;overflow:hidden;break-after:page;page-break-after:always}.sheet .check{position:absolute;left:0;top:0;transform-origin:0 0;break-after:auto;page-break-after:auto}.check{position:relative;color:#000;font-family:"PMingLiU","新細明體","MingLiU","Noto Serif TC",serif;font-weight:700;overflow:hidden;break-after:page;page-break-after:always}.f{position:absolute;display:flex;white-space:nowrap;padding-left:.6mm;line-height:1}.f.vb{align-items:flex-end;padding-bottom:.4mm}.f.vc{align-items:center}.f.vt{align-items:flex-start;padding-top:.4mm}.f.ha-c{justify-content:center}.f.ha-r{justify-content:flex-end}`
+  const css = `@page{size:${+L.a4 ? 'A4 portrait' : rot ? `${L.pageH}mm ${L.pageW}mm` : `${L.pageW}mm ${L.pageH}mm`};margin:0}body{margin:0}.a4p{position:relative;width:210mm;height:296.5mm;overflow:hidden;break-after:page;page-break-after:always}.a4p .pos{position:absolute}.a4p .sheet,.a4p .check{break-after:auto;page-break-after:auto}${test && +L.a4 ? '.a4p{outline:.2mm dotted #bbb;outline-offset:-.1mm}' : ''}.sheet{position:relative;overflow:hidden;break-after:page;page-break-after:always}.sheet .check{position:absolute;left:0;top:0;transform-origin:0 0;break-after:auto;page-break-after:auto}.check{position:relative;color:#000;font-family:"PMingLiU","新細明體","MingLiU","Noto Serif TC",serif;font-weight:700;overflow:hidden;break-after:page;page-break-after:always}.f{position:absolute;display:flex;white-space:nowrap;padding-left:.6mm;line-height:1}.f.vb{align-items:flex-end;padding-bottom:.4mm}.f.vc{align-items:center}.f.vt{align-items:flex-start;padding-top:.4mm}.f.ha-c{justify-content:center}.f.ha-r{justify-content:flex-end}`
     + `.check.test{outline:.3mm solid #000;outline-offset:-.15mm}.check.test .f{outline:.2mm dashed #888}.check.test .f i{position:absolute;left:0;top:-2.6mm;font:normal 6pt sans-serif;color:#666}`;
   return { css, html };
 }
-const paperTxt = L => +L.rot ? `${L.pageH}×${L.pageW} mm（直式，內容轉 90 度）` : `${L.pageW}×${L.pageH} mm`;
+const paperTxt = L => +L.a4 ? `A4（支票在 A4 上方${L.a4Al === 'l' ? '靠左' : '置中'}${+L.rot ? '，內容轉 90 度' : ''}）` : +L.rot ? `${L.pageH}×${L.pageW} mm（直式，內容轉 90 度）` : `${L.pageW}×${L.pageH} mm`;
 /** 對位測試頁：用 A4 白紙印，跟支票疊在一起對著光看，或用尺量 */
 function testPrint(over = {}) {
   const L = { ...layout(), ...over }; const sample = [{ date: new Date().toISOString().slice(0, 10), payee: '測試抬頭有限公司', amount: 123456, no: 'SCAB4508247' }];
   const { css, html } = checkHTML(sample.map(c => ({ ...c, id: 'test' })), L, fmtList(), true);
   printHTML('支票對位測試頁', css, html, { tip: `先用白紙印：紙張 ${paperTxt(L)}、邊界「無」、縮放 100%。外框是支票邊緣，虛線框是各欄位；跟真的支票疊起來對，偏右就把「水平位移」改負數、偏下就把「垂直位移」改負數。` });
 }
+const a4Of = el => ({ a4: el.querySelector('#lyA4')?.checked ? 1 : 0, a4Al: el.querySelector('#ly-a4Al')?.value || 'c', a4X: parseFloat(el.querySelector('#ly-a4X')?.value) || 0, a4Y: parseFloat(el.querySelector('#ly-a4Y')?.value) || 0 });
 function layoutDialog() {
   const L = layout(); const s = store.setting('check_print');
   modal({
@@ -241,17 +244,20 @@ function layoutDialog() {
     body: `<p class="muted" style="margin:0">支票紙張大小與列印位移（mm）。印出來整體偏右就把「水平位移」改負數；偏下就把「垂直位移」改負數。各欄位的細部位置沿用舊作業平台的設定。</p>
       <div class="grid">${[['pageW', '紙寬'], ['pageH', '紙高'], ['mL', '左邊界'], ['mT', '上邊界'], ['offX', '水平位移'], ['offY', '垂直位移']].map(([k, l]) => `<div class="f"><label for="ly-${k}">${l}</label><input id="ly-${k}" class="num" value="${L[k]}"></div>`).join('')}</div>
       <div class="f" style="margin-top:10px"><label>列印方向（印表機怎麼進紙）</label><div class="tools">${[[0, '橫印（不轉）'], [90, '轉 90 度（順時針）'], [-90, '轉 90 度（逆時針）']].map(([v, t]) => `<label class="check"><input type="radio" name="lyRot" value="${v}" ${(+L.rot || 0) === v ? 'checked' : ''}> ${t}</label>`).join('')}</div><div class="muted small">支票直著放進印表機（窄邊先進）就選轉 90 度；先印對位測試頁看外框和字的方向對不對，反了就換另一個方向。</div></div>
+      <div class="f" style="margin-top:10px"><label class="check"><input type="checkbox" id="lyA4" ${+L.a4 ? 'checked' : ''}> 用 A4 紙張印（印表機沒有支票尺寸的紙張；支票放進手動進紙槽，導板夾在中間）</label>
+        <div class="grid" style="margin-top:6px"><div class="f"><label for="ly-a4Al">支票在 A4 上</label><select id="ly-a4Al"><option value="c" ${L.a4Al !== 'l' ? 'selected' : ''}>上方置中</option><option value="l" ${L.a4Al === 'l' ? 'selected' : ''}>上方靠左</option></select></div><div class="f"><label for="ly-a4X">A4 水平位移</label><input id="ly-a4X" class="num" value="${+L.a4X || 0}"></div><div class="f"><label for="ly-a4Y">A4 垂直位移</label><input id="ly-a4Y" class="num" value="${+L.a4Y || 0}"></div></div>
+        <div class="muted small">A4 位移照「印出來的紙」方向：整張偏右填負數、偏下填負數（mm）。</div></div>
       <div class="tools" style="margin-top:10px">${Object.entries(PRESETS).map(([k, p]) => `<button class="btn" data-preset="${k}">套用：${esc(p.name)}</button>`).join('')}<button class="btn" id="lyTest">印對位測試頁</button></div>
       <p class="muted small" style="margin:6px 0 0">目前：${s.preset && PRESETS[s.preset] ? esc(PRESETS[s.preset].name) : `${L.pageW}×${L.pageH} mm（舊作業平台的版面）`}。套用會換掉紙張大小和各欄位位置（位移歸零）。</p>`,
     footer: '<button class="btn" id="lyReset">恢復預設</button><span class="sp"></span><button class="btn" data-close>取消</button><button class="btn pri" id="lyOk">儲存</button>',
     onOpen(el, close) {
-      $('#lyOk', el).onclick = async () => { const o = { ...L }; for (const k of Object.keys(DEFAULT_LAYOUT)) { const v = parseFloat($('#ly-' + k, el)?.value); if (isFinite(v)) o[k] = v; } o.rot = +(el.querySelector('[name="lyRot"]:checked')?.value || 0); await store.saveSetting('check_print', { ...s, layout: o }); close(); toast('已儲存'); };
+      $('#lyOk', el).onclick = async () => { const o = { ...L }; for (const k of Object.keys(DEFAULT_LAYOUT)) { const v = parseFloat($('#ly-' + k, el)?.value); if (isFinite(v)) o[k] = v; } o.rot = +(el.querySelector('[name="lyRot"]:checked')?.value || 0); Object.assign(o, a4Of(el)); await store.saveSetting('check_print', { ...s, layout: o }); close(); toast('已儲存'); };
       $('#lyReset', el).onclick = async () => { await store.saveSetting('check_print', { ...s, layout: DEFAULT_LAYOUT }); close(); };
-      $('#lyTest', el).onclick = () => testPrint({ rot: +(el.querySelector('[name="lyRot"]:checked')?.value || 0) });
+      $('#lyTest', el).onclick = () => testPrint({ rot: +(el.querySelector('[name="lyRot"]:checked')?.value || 0), ...a4Of(el) });
       el.querySelectorAll('[data-preset]').forEach(b => b.onclick = async () => {
         const p = PRESETS[b.dataset.preset]; if (!await confirm(`套用「${p.name}」？\n紙張會改成 ${p.layout.pageW}×${p.layout.pageH} mm，年月日、抬頭、金額的位置一起換掉。`, { ok: '套用' })) return;
         const old = s.preset ? null : { layout: s.layout, fmt: s.fmt };   // 第一次套用：留一份舊版面
-        await store.saveSetting('check_print', { ...s, preset: b.dataset.preset, layout: { ...p.layout, rot: +(el.querySelector('[name="lyRot"]:checked')?.value || 0) }, fmt: { list: p.list.map(f => ({ ...f })) }, ...(old ? { oldLayout: old } : {}) });
+        await store.saveSetting('check_print', { ...s, preset: b.dataset.preset, layout: { ...p.layout, rot: +(el.querySelector('[name="lyRot"]:checked')?.value || 0), ...a4Of(el) }, fmt: { list: p.list.map(f => ({ ...f })) }, ...(old ? { oldLayout: old } : {}) });
         close(); toast(`已套用 ${p.name}；建議先印對位測試頁`); layoutDialog();
       });
     },
