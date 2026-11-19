@@ -1,5 +1,5 @@
 // 支票開立：付款支票、國字金額、套印；從應付帳款帶入
-import { $, esc, money, today, roc, rocLong, parseNum, uid, cnMoney, slash, qTerms, matchQ } from '../core/util.js';
+import { $, esc, money, today, roc, rocLong, parseNum, uid, cnMoney, slash, qTerms, matchQ, ls } from '../core/util.js';
 import { store } from '../core/store.js';
 import { toast, modal, confirm, tabs, combo, printHTML, pager, onSearch } from '../core/ui.js';
 import { suppliers, cshort } from '../core/calc.js';
@@ -76,7 +76,7 @@ function draw(el) {
   const hist = ui.tab === 'hist';
   el.innerHTML = `<div class="head"><h1>支票開立</h1><span class="sp"></span>${tabs('co', [['pending', `待列印 ${cnt('pending') || ''}`], ['done', `已列印 ${cnt('done') || ''}`], ['hist', '票據明細']], ui.tab)}<button class="btn" id="coLayout">套印位置</button><button class="btn pri" id="coNew">＋ 開立支票</button></div>
     ${hist ? '' : summaryHTML(dueSummary(all))}
-    <div class="panel"><div class="tools">${hist ? `<div class="f" style="width:220px"><label for="coCust">客戶名稱</label><input type="search" id="coCust" placeholder="輸入抬頭／客戶名稱篩選" value="${esc(ui.cust)}"></div>` : ''}<input type="search" id="coQ" placeholder="搜尋抬頭、票號、金額、備註" value="${esc(ui.q)}"><span class="muted small">${list.length} 張・合計 ${money(list.reduce((a, c) => a + (+c.amount || 0), 0))}${!hist && ui.day ? `（兌現日 ${esc(roc(ui.day))}）` : ''}</span><span class="sp"></span>${ui.tab !== 'hist' ? `<button class="btn sm" id="coPrintSel" ${sel.length ? '' : 'disabled title="先勾選要印的支票"'}>列印勾選${sel.length ? `（${sel.length} 張）` : ''}</button>` : ''}${ui.tab === 'pending' && list.length ? `<button class="btn sm pri" id="coPrintAll">列印全部待列印（${list.length} 張）</button>` : ''}</div>
+    <div class="panel"><div class="tools">${hist ? `<div class="f" style="width:220px"><label for="coCust">客戶名稱</label><input type="search" id="coCust" placeholder="輸入抬頭／客戶名稱篩選" value="${esc(ui.cust)}"></div>` : ''}<input type="search" id="coQ" placeholder="搜尋抬頭、票號、金額、備註" value="${esc(ui.q)}"><span class="muted small">${list.length} 張・合計 ${money(list.reduce((a, c) => a + (+c.amount || 0), 0))}${!hist && ui.day ? `（兌現日 ${esc(roc(ui.day))}）` : ''}</span><span class="sp"></span>${ui.tab !== 'hist' ? `<label class="check" style="display:inline-flex;gap:5px;align-items:center;white-space:nowrap" title="一次只送一張給印表機，放好下一張支票再按「印這張」（手動進紙比較不會偏）"><input type="checkbox" id="coSeq" style="width:auto" ${ls.get('zr.co.seq', false) ? 'checked' : ''}> 逐張列印</label><button class="btn sm" id="coPrintSel" ${sel.length ? '' : 'disabled title="先勾選要印的支票"'}>列印勾選${sel.length ? `（${sel.length} 張）` : ''}</button>` : ''}${ui.tab === 'pending' && list.length ? `<button class="btn sm pri" id="coPrintAll">列印全部待列印（${list.length} 張）</button>` : ''}</div>
     ${hist ? '<p class="muted small" style="margin:6px 0 0">已列印、兌現日期已過的支票會自動移到這裡。</p>' : ''}
     <div class="tools co-selbar"${sel.length ? '' : ' hidden'}><b>已勾選 ${sel.length} 張</b><span class="muted small">合計 ${money(selSum)}</span><span class="sp"></span>${sel.some(c => c.printedAt) ? `<button class="btn sm" id="coBackSel">退回待列印${sel.length > 1 ? `（${sel.filter(c => c.printedAt).length}）` : ''}</button>` : ''}<button class="btn sm" id="coEditSel">修改</button><button class="btn sm danger" id="coDelSel">刪除</button><button class="btn sm ghost" id="coClrSel">取消勾選</button></div>
     <div class="tw" style="margin-top:10px"><table><thead><tr><th><input type="checkbox" id="coSelAll" aria-label="全選這一頁" ${page.length && page.every(c => ui.sel.has(c.id)) ? 'checked' : ''}></th><th>兌現日期</th><th>抬頭</th><th class="n">金額</th><th>國字</th><th>支票號碼</th><th>備註</th>${ui.tab === 'pending' ? '' : '<th>列印日</th>'}<th></th></tr></thead><tbody>${page.map(c => `<tr class="row${ui.sel.has(c.id) ? ' on' : ''}" data-id="${c.id}"><td><input type="checkbox" data-sel="${c.id}" ${ui.sel.has(c.id) ? 'checked' : ''} aria-label="勾選 ${esc(nameOf(c))}"></td><td class="nowrap">${esc(roc(c.date))}</td><td>${payeeOut(c) ? `<b>${esc(payeeOut(c))}</b>` : `<span class="muted">（空白）</span><span class="sub">${esc(c.cid ? cshort(c.cid) : '')}</span>`}</td><td class="n">${money(c.amount)}</td><td class="muted small">${esc(cnMoney(c.amount))}</td><td class="mono">${esc(c.no || '')}</td><td class="muted">${esc(c.note || '')}</td>${ui.tab === 'pending' ? '' : `<td class="nowrap muted small">${c.printedAt ? esc(roc(new Date(c.printedAt - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10))) : ''}</td>`}<td class="nowrap"><button class="btn xs" data-print="${c.id}">${c.printedAt ? '重印' : '列印'}</button></td></tr>`).join('') || `<tr><td colspan="9"><div class="empty"><b>${ui.tab === 'pending' ? '沒有待列印的支票' : ui.tab === 'done' ? '沒有還沒兌現的已列印支票' : '沒有兌現日已過的支票'}</b></div></td></tr>`}</tbody></table></div>${pg}</div>`;
@@ -95,6 +95,7 @@ function draw(el) {
   $('#coDelSel', el)?.addEventListener('click', () => deleteChecks(sel));
   $('#coBackSel', el)?.addEventListener('click', () => backToPending(sel.filter(c => c.printedAt)));
   el.querySelectorAll('[data-print]').forEach(b => b.addEventListener('click', () => printChecks([store.get('checks_out', b.dataset.print)])));
+  $('#coSeq', el)?.addEventListener('change', ev => ls.set('zr.co.seq', ev.target.checked));
   $('#coPrintAll', el)?.addEventListener('click', () => printChecks(list));
   $('#coPrintSel', el)?.addEventListener('click', async () => { if (!sel.length) return; if (sel.some(c => c.printedAt) && !await confirm(`勾選的 ${sel.length} 張裡有 ${sel.filter(c => c.printedAt).length} 張已經印過，確定再印一次？`, { ok: '列印' })) return; await printChecks(sel); ui.sel.clear(); draw(el); });
 }
@@ -206,13 +207,48 @@ async function printChecks(list) {
     if (!first) return;
     let no = first; for (const c of need) { c.no = no; no = incNo(no); }
   }
-  const L = layout(); const { css, html } = checkHTML(list, L, fmtList());
+  const L = layout();
+  if (list.length > 1 && ls.get('zr.co.seq', false)) return printSeq(list, L, need);
+  const { css, html } = checkHTML(list, L, fmtList());
   printHTML('支票套印', css, html, { tip: `把支票放進印表機，紙張 ${paperTxt(L)}、邊界「無」、縮放 100%。共 ${list.length} 張。` });
+  await markPrinted(list, need);
+}
+/** 記成已列印、記下最後一張的支票號碼 */
+async function markPrinted(list, need) {
   const ops = list.map(c => ({ col: 'checks_out', id: c.id, data: { ...store.get('checks_out', c.id), no: c.no, printedAt: Date.now(), seq: Date.now() } }));
   const last = (need.length ? need : list)[(need.length ? need : list).length - 1].no; const s = store.setting('check_print');
   ops.push({ col: 'settings', id: 'check_print', data: { ...s, lastNo: last } });
   for (const o of ops) delete o.data.id;
   await store.batch(ops);
+}
+/** 逐張列印：一次只送一張，放好下一張支票再按「印這張」（每張各自一個列印工作，手動進紙不會因為連續送紙跑掉） */
+function printSeq(list, L, need) {
+  let i = 0, win = null; const done = new Set();
+  modal({
+    title: `逐張列印（共 ${list.length} 張）`, width: 520, closeOnBg: false,
+    body: '<div id="sqBody"></div>',
+    footer: '<button class="btn" id="sqSkip">跳過這張</button><span class="sp"></span><button class="btn" data-close>結束</button><button class="btn pri" id="sqGo">印這張</button>',
+    onOpen(el, close) {
+      const draw = () => {
+        const c = list[i];
+        el.querySelector('#sqBody').innerHTML = c ? `<p style="margin:0 0 8px">第 <b>${i + 1}</b>／${list.length} 張：<b>${esc(payeeOut(c) || '（空白抬頭）')}</b>　${money(c.amount)} 元　<span class="mono">${esc(c.no || '')}</span>　${esc(roc(c.date))} 兌現</p>
+          <p class="muted small" style="margin:0">把這張支票放進手動進紙槽（直放、日期那端先進、正面朝上），再按「印這張」，列印視窗選紙張「支票」、縮放 100 後按列印。印好再放下一張。</p>
+          <ol class="small" style="margin:10px 0 0;padding-left:20px;max-height:180px;overflow:auto">${list.map((x, k) => `<li style="${k === i ? 'font-weight:700' : 'color:var(--muted)'}">${esc(payeeOut(x) || '（空白）')} ${money(x.amount)} ${esc(x.no || '')}${done.has(x.id) ? ' ✓ 已印' : k < i ? ' 略過' : ''}</li>`).join('')}</ol>`
+          : `<p style="margin:0">全部送完了：已印 ${done.size} 張${done.size < list.length ? `、略過 ${list.length - done.size} 張（還在待列印）` : ''}。</p>`;
+        el.querySelector('#sqGo').textContent = c ? `印這張（${i + 1}／${list.length}）` : '完成';
+        el.querySelector('#sqSkip').disabled = !c;
+      };
+      el.querySelector('#sqGo').onclick = async () => {
+        const c = list[i]; if (!c) { close(); return; }
+        try { win?.close(); } catch {}
+        const { css, html } = checkHTML([c], L, fmtList());
+        win = printHTML(`支票套印 ${c.no || ''}`, css, html, { tip: `第 ${i + 1}／${list.length} 張：${esc(payeeOut(c))} ${money(c.amount)}。紙張 ${paperTxt(L)}、邊界「無」、縮放 100%。印好回到平台按下一張。` });
+        await markPrinted([c], need.includes(c) ? [c] : []); done.add(c.id); i++; draw();
+      };
+      el.querySelector('#sqSkip').onclick = () => { i++; draw(); };
+      draw();
+    },
+  });
 }
 /** 套印版面：test＝對位測試頁（白紙印，欄位畫框、紙張外框） */
 function checkHTML(list, L, fl, test) {

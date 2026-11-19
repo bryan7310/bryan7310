@@ -189,6 +189,7 @@ export function printHTML(title, css, bodyHtml, opts = {}) {
   if (!w) { toast('瀏覽器擋住了新視窗，請允許彈出視窗'); return; }
   w.document.write(`<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><title>${esc(title)}</title><style>${css}</style></head><body>${opts.tip ? `<div class="tip" style="font-family:sans-serif;font-size:13px;background:#fff6dd;border:1px solid #e0c060;padding:8px 12px;margin:8px">${opts.tip}</div><style>@media print{.tip{display:none}}</style>` : ''}${bodyHtml}<script>window.addEventListener('load',()=>setTimeout(()=>window.print(),${opts.delay ?? 400}));<\/script></body></html>`);
   w.document.close();
+  return w;
 }
 export const icon = p => `<svg viewBox="0 0 24 24" aria-hidden="true">${p}</svg>`;
 export const ICONS = {
