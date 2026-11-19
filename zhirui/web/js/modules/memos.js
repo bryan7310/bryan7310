@@ -1,6 +1,7 @@
 // 留言板／交辦事項：總覽和手機首頁最上面。存在設定 memos（大家共用、即時同步）。
+// 刪除的、完成後隔天消失的，都移到「歷史」（memos.hist，最多留 500 則），可以查、可以加回。
 // 等級顏色：緊急＝偏白粉紅、普急＝馬卡龍綠、一般＝鵝黃（像便利貼，深色模式也用淺底深字）。
-import { esc, uid } from '../core/util.js';
+import { esc, uid, qTerms, matchQ } from '../core/util.js';
 import { store } from '../core/store.js';
 import { toast, confirm, modal } from '../core/ui.js';
 
@@ -14,9 +15,15 @@ const ORDER = { u: 0, m: 1, n: 2 };
 const today0 = () => new Date(new Date().toDateString()).getTime();
 const gone = x => x.done && (x.doneAt || 0) < today0();
 const all = () => (store.setting('memos').list || []).filter(x => !gone(x));
-async function put(fn) {   // 讀最新的再改，減少兩個人同時改互蓋
-  const s = store.setting('memos'); const list = fn((s.list || []).filter(x => !gone(x)).map(x => ({ ...x })));
-  await store.saveSetting('memos', { ...s, list });
+const HMAX = 500;
+/** 歷史：存檔時已經移過去的 hist，加上清單裡完成超過一天、還沒移過去的（新的在前） */
+const histAll = () => { const s = store.setting('memos'); const seen = new Set((s.hist || []).map(x => x.id)); return [...(s.list || []).filter(x => gone(x) && !seen.has(x.id)), ...(s.hist || [])].sort((a, b) => (b.delAt || b.doneAt || 0) - (a.delAt || a.doneAt || 0)); };
+async function put(fn, toHist = []) {   // 讀最新的再改，減少兩個人同時改互蓋；完成超過一天的、toHist（刪除的）移到歷史
+  const s = store.setting('memos'); const cur = s.list || [];
+  const list = fn(cur.filter(x => !gone(x)).map(x => ({ ...x })));
+  const moved = [...toHist, ...cur.filter(gone)]; const ids = new Set(moved.map(x => x.id));
+  const hist = moved.length ? [...moved, ...(s.hist || []).filter(x => !ids.has(x.id))].slice(0, HMAX) : (s.hist || []);
+  await store.saveSetting('memos', { ...s, list, hist });
 }
 const when = t => { const d = new Date(t); const p = n => String(n).padStart(2, '0'); return `${d.getMonth() + 1}/${d.getDate()} ${p(d.getHours())}:${p(d.getMinutes())}`; };
 const dueTxt = d => { if (!d) return ''; const dd = Math.round((new Date(d + 'T00:00:00') - new Date(new Date().toDateString())) / 86400000); return dd < 0 ? `逾期 ${-dd} 天` : dd === 0 ? '今天到期' : dd === 1 ? '明天到期' : `${d.slice(5).replace('-', '/')} 到期`; };
@@ -38,7 +45,23 @@ export function memoBoard(ui, mobile) {
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap"><b style="font-size:${mobile ? 17 : 15}px">留言板・交辦事項</b><span style="font-size:12.5px;color:var(--muted)">${open.length} 件待辦${mine ? `・交辦給我 ${mine} 件` : ''}</span><span style="flex:1"></span>
       ${done.length ? `<span style="font-size:12.5px;color:var(--muted)">今天完成 ${done.length} 件（明天自動消失）</span>` : ''}<button class="${mobile ? 'chip' : 'btn sm pri'}" data-madd>＋ 新增</button></div>
     ${open.length || done.length ? `<div style="display:grid;gap:8px;grid-template-columns:${mobile ? '1fr' : 'repeat(auto-fill,minmax(260px,1fr))'}">${open.map(card).join('')}${done.map(card).join('')}</div>` : `<div style="color:var(--muted);font-size:13px;padding:4px 0">目前沒有留言。按「＋ 新增」寫交辦事項，緊急的會用粉紅色排在最前面。</div>`}
+    ${histHtml(ui, mobile)}
   </div>`;
+}
+/** 歷史（刪除的、完成的）：預設收起來 */
+function histHtml(ui, mobile) {
+  const H = histAll(); if (!H.length && !ui.showHist) return '';
+  const head = `<div style="margin-top:10px"><a href="#" data-mhist style="font-size:13px;color:var(--muted)">${ui.showHist ? '▾' : '▸'} 歷史（${H.length} 則：刪除的、完成的）</a></div>`;
+  if (!ui.showHist) return head;
+  const q = qTerms(ui.histQ || ''); const list = q.length ? H.filter(x => matchQ([x.text, x.to, x.by, x.delBy, x.doneBy, LV[x.lv]?.name].join(' '), q)) : H;
+  const n = ui.histN || 30;
+  const row = x => { const c = LV[x.lv] || LV.n; const st = x.del ? `<span style="color:#B71C1C">${esc(x.delBy || '')} ${esc(when(x.delAt))} 刪除</span>` : `<span style="color:#1E7A46">${esc(x.doneBy || '')} ${esc(when(x.doneAt))} 完成</span>`;
+    return `<div style="display:flex;gap:8px;align-items:flex-start;padding:7px 0;border-top:1px solid var(--line, #e4e4e7)"><span style="background:${c.tag};color:#fff;border-radius:5px;padding:0 6px;font-size:11.5px;font-weight:700;line-height:18px;flex:none;margin-top:1px">${c.name}</span>
+      <div style="flex:1;min-width:0"><div style="white-space:pre-wrap;word-break:break-word;font-size:${mobile ? 14.5 : 13.5}px">${esc(x.text)}</div><div style="font-size:11.5px;color:var(--muted)">${x.to ? `→ ${esc(x.to)}・` : ''}${esc(x.by || '')} ${esc(when(x.at))} 寫・${st}</div></div>
+      <a href="#" data-mback="${esc(x.id)}" style="font-size:12.5px;flex:none">加回</a></div>`; };
+  return `${head}<div style="margin-top:6px"><input type="search" data-mhq placeholder="搜尋歷史：內容、交辦給、誰寫的" value="${esc(ui.histQ || '')}" style="width:100%;max-width:360px" autocomplete="off">
+    ${list.slice(0, n).map(row).join('') || '<div style="color:var(--muted);font-size:13px;padding:6px 0">找不到</div>'}
+    ${list.length > n ? `<div style="padding-top:6px"><a href="#" data-mmore style="font-size:13px">再顯示 ${Math.min(30, list.length - n)} 則（共 ${list.length} 則）</a></div>` : ''}</div>`;
 }
 /** 綁定留言板按鈕；redraw＝重畫外層 */
 export function bindMemoBoard(root, ui, redraw, mobile) {
@@ -47,7 +70,20 @@ export function bindMemoBoard(root, ui, redraw, mobile) {
   box.querySelector('[data-mshow]')?.addEventListener('click', ev => { ev.preventDefault(); ui.showDone = !ui.showDone; redraw(); });
   box.querySelectorAll('[data-mdone]').forEach(cb => cb.onchange = async () => { const on = cb.checked; await put(L => L.map(x => x.id === cb.dataset.mdone ? (on ? { ...x, done: true, doneBy: store.user?.name || '', doneAt: Date.now() } : (({ done, doneBy, doneAt, ...r }) => r)(x)) : x)); toast(on ? '已標成完成' : '已改回待辦'); });
   box.querySelectorAll('[data-medit]').forEach(a => a.onclick = ev => { ev.preventDefault(); const x = all().find(y => y.id === a.dataset.medit); if (x) memoDialog(x, redraw, mobile); });
-  box.querySelectorAll('[data-mdel]').forEach(a => a.onclick = async ev => { ev.preventDefault(); const x = all().find(y => y.id === a.dataset.mdel); if (!x) return; if (!window.confirm(`刪除這則留言？\n${x.text.slice(0, 40)}`)) return; await put(L => L.filter(y => y.id !== x.id)); toast('已刪除'); });
+  box.querySelectorAll('[data-mdel]').forEach(a => a.onclick = async ev => { ev.preventDefault(); const x = all().find(y => y.id === a.dataset.mdel); if (!x) return; if (!window.confirm(`刪除這則留言？（會移到下面的「歷史」，需要可以加回）\n${x.text.slice(0, 40)}`)) return; await put(L => L.filter(y => y.id !== x.id), [{ ...x, del: true, delBy: store.user?.name || '', delAt: Date.now() }]); store.log('刪除', `留言板｜${LV[x.lv]?.name || ''}｜${x.text.slice(0, 30)}`); toast('已刪除（在歷史裡）'); });
+  box.querySelector('[data-mhist]')?.addEventListener('click', ev => { ev.preventDefault(); ui.showHist = !ui.showHist; ui.histN = 30; redraw(); });
+  box.querySelector('[data-mmore]')?.addEventListener('click', ev => { ev.preventDefault(); ui.histN = (ui.histN || 30) + 30; redraw(); });
+  const hq = box.querySelector('[data-mhq]');
+  if (hq) { let tm = 0; hq.addEventListener('input', () => { clearTimeout(tm); tm = setTimeout(() => { ui.histQ = hq.value; ui.histN = 30; redraw(); const n = root.querySelector('#memoBoard [data-mhq]'); if (n) { n.focus(); n.setSelectionRange(n.value.length, n.value.length); } }, 250); }); }
+  box.querySelectorAll('[data-mback]').forEach(a => a.onclick = async ev => {
+    ev.preventDefault(); const x = histAll().find(y => y.id === a.dataset.mback); if (!x) return;
+    if (!window.confirm(`把這則加回留言板（變成待辦）？\n${x.text.slice(0, 40)}`)) return;
+    const { done: _1, doneBy: _2, doneAt: _3, del: _4, delBy: _5, delAt: _6, ...back } = x;
+    const s = store.setting('memos'); const list = [back, ...(s.list || []).filter(y => y.id !== x.id && !gone(y))];
+    const moved = (s.list || []).filter(y => gone(y) && y.id !== x.id); const ids = new Set(moved.map(y => y.id));
+    await store.saveSetting('memos', { ...s, list, hist: [...moved, ...(s.hist || []).filter(y => y.id !== x.id && !ids.has(y.id))].slice(0, HMAX) });
+    store.log('修改', `留言板｜加回｜${x.text.slice(0, 30)}`); toast('已加回留言板');
+  });
 }
 /** 新增／修改留言 */
 // 手機版沒有對話框樣式，改用全螢幕 sheet
