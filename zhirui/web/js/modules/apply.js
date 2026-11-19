@@ -16,9 +16,9 @@ export default {
   render(el, { sub, params }) { draw(el, String(params.f || sub || '')); },   // #apply?f=名稱 或 #apply/名稱（手機點連結時 ? 後面常被吃掉）
 };
 
-const FIELD = { lines: '明細', mkPlate: '交黑身另加電鍍', bom: '配方', spec: '客料號', date: '日期', no: '單號', note: '備註', name: '品名', code: '料號', cat: '類別', oldCodes: '舊料號' };
+const FIELD = { hist: '歷史', lines: '明細', mkPlate: '交黑身另加電鍍', bom: '配方', spec: '客料號', date: '日期', no: '單號', note: '備註', name: '品名', code: '料號', cat: '類別', oldCodes: '舊料號' };
 let NEWG = [];   // 這份資料要新建的商品（預覽時用 id 找料號）
-const show = (k, v) => k === 'lines' ? (v || []).filter(l => l.txt === undefined).map(l => `${store.get('goods', l.gid)?.code || l.n || ''}×${l.qty}@${l.price}`).join('、') : k === 'bom' ? (v || []).map(x => `${store.get('goods', x.gid)?.code || NEWG.find(n => n.id === x.gid)?.code || x.gid}×${x.qty}${x.cust ? '(客供)' : ''}`).join('、') : k === 'date' ? slash(v) : Array.isArray(v) ? v.join('、') : v === true ? '是' : v === false ? '否' : String(v ?? '');
+const show = (k, v) => k === 'hist' ? `${(v || []).length} 則${(v || []).length ? '：' + v.map(x => String(x.text || '').replace(/\s+/g, ' ').slice(0, 14)).join('、') : ''}` : k === 'lines' ? (v || []).filter(l => l.txt === undefined).map(l => `${store.get('goods', l.gid)?.code || l.n || ''}×${l.qty}@${l.price}`).join('、') : k === 'bom' ? (v || []).map(x => `${store.get('goods', x.gid)?.code || NEWG.find(n => n.id === x.gid)?.code || x.gid}×${x.qty}${x.cust ? '(客供)' : ''}`).join('、') : k === 'date' ? slash(v) : Array.isArray(v) ? v.join('、') : v === true ? '是' : v === false ? '否' : String(v ?? '');
 async function draw(el, f) {
   el.innerHTML = '<div class="head"><h1>待確認匯入</h1></div><div class="panel"><div class="muted">載入中…</div></div>';
   if (!/^[\w-]+$/.test(f)) { el.querySelector('.panel').innerHTML = '<div class="banner">網址少了資料名稱</div>'; return; }
