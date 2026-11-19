@@ -41,7 +41,15 @@ export function addToPO(gid, qty) {
   const e = load(); if (!e.cid) { const s = suggestSup(gid); if (s) { e.cid = s.id; e.attn = s.person || ''; } }
   const l = { gid, qty: qty || '', price: '' }; priceFor(l, e.cid); e.lines.push(l); keep();
 }
-const docOf = e => ({ type: 'PO', date: e.date, cid: e.cid, tax: !!e.tax, disc: 0, lines: e.lines.filter(l => l.gid).map(l => ({ gid: l.gid, qty: +l.qty || 0, price: +l.price || 0 })) });
+const docOf = e => ({ type: 'PO', date: e.date, cid: e.cid, tax: !!e.tax, disc: 0, lines: e.lines.filter(l => l.gid || l.n).map(l => ({ ...(l.gid ? { gid: l.gid } : { n: l.n }), qty: +l.qty || 0, price: +l.price || 0, ...(l.u ? { u: l.u } : {}) })) });
+/** 修改既有的採購單：把它載入編輯區（單號不變），存的時候改原本那張 */
+function editPO(b) {
+  const e = load();
+  if (!e.editId && (e.lines.length || e.cid) && !window.confirm('編輯區有還沒存的採購單，要先放掉它、改這張嗎？')) return;
+  cur = { ...blank(), cid: b.cid || '', date: b.date || today(), deliv: b.deliv || '', tax: !!b.tax, note: b.note || '', attn: b.attn || '', editId: b.id, editNo: b.no,
+    lines: (b.lines || []).filter(l => l.gid || l.n).map(l => ({ ...(l.gid ? { gid: l.gid } : { n: l.n }), qty: l.qty ?? '', price: l.price ?? '', ...(l.u ? { u: l.u } : {}) })) };
+  keep(); location.hash = '#po';
+}
 /** 傳真稿用：虹瑩的品名前面要加「內六角」（品名已經有「內六角」就不加） */
 export function faxCopy(b) {
   const c = store.get('contacts', b.cid); if (!c || !/虹瑩/.test(c.name)) return b;
@@ -53,8 +61,8 @@ export function poPage(view, sub, arg) {
   if (sub === 'v' && arg) return poView(view, decodeURIComponent(arg));
   if (sub === 'g' && arg) { const g = store.get('goods', decodeURIComponent(arg)); if (g) { const C = calc(); const q = Object.values(C.stock[g.id] || {}).reduce((a, b) => a + b, 0); addToPO(g.id, +g.safety > q ? Math.ceil(+g.safety - q) : ''); toast('已加入採購單：' + g.name); } history.replaceState(null, '', '#po'); }
   const e = load(); const c = e.cid ? store.get('contacts', e.cid) : null;
-  view.innerHTML = `<div class="hd"><h1>採購單</h1></div>
-    ${lastPO ? poCard(store.get('bills', lastPO)) : ''}
+  view.innerHTML = `<div class="hd"><h1>${e.editId ? '修改採購單' : '採購單'}</h1></div>
+    ${e.editId ? `<div class="note" style="text-align:left">正在修改 <b>${esc(e.editNo || '')}</b>，單號不變；改完按「儲存修改」。<button class="chip" id="pcancel">取消修改</button></div>` : lastPO ? poCard(store.get('bills', lastPO)) : ''}
     <div class="card list">
       <a href="#" id="ps"><span>廠商</span><span class="go">${c ? `<b>${esc(cdisp(c))}</b>` : '<span class="muted">請選擇</span>'} ›</span></a>
       <div class="row"><span>日期</span><input type="date" id="pdt" class="inl" value="${esc(e.date)}"></div>
@@ -68,8 +76,8 @@ export function poPage(view, sub, arg) {
     <div class="card list" id="ptot"></div>
     <div class="sec">備註</div><div class="card"><textarea id="pnote" rows="2" placeholder="選填，會印在採購單上">${esc(e.note)}</textarea></div>
     <div id="perr" class="err"></div>
-    <div class="acts"><button class="btn ghost" id="psave">只存採購單</button><button class="btn" id="pfax">存並傳真</button></div>
-    ${e.lines.length || e.cid ? '<p><button class="btn ghost danger" id="pclr">清除這張</button></p>' : ''}
+    <div class="acts"><button class="btn ghost" id="psave">${e.editId ? '儲存修改' : '只存採購單'}</button><button class="btn" id="pfax">${e.editId ? '儲存並重新傳真' : '存並傳真'}</button></div>
+    ${!e.editId && (e.lines.length || e.cid) ? '<p><button class="btn ghost danger" id="pclr">清除這張</button></p>' : ''}
     <div class="sec">最近的採購單</div>
     <div class="search"><input type="search" id="prq" placeholder="關鍵字：廠商、單號、日期、品名" value="${esc(prq)}" autocomplete="off" autocorrect="off" autocapitalize="off" enterkeyhint="search"></div>
     <div class="card list" id="prec">${recentHtml()}</div>`;
@@ -88,13 +96,14 @@ export function poPage(view, sub, arg) {
   pl.addEventListener('click', ev => { const b = ev.target.closest('[data-del]'); if (!b) return; e.lines.splice(+b.dataset.del, 1); keep(); redraw(); });
   $('#psave').onclick = () => savePO(view, false);
   $('#pfax').onclick = () => savePO(view, true);
+  $('#pcancel')?.addEventListener('click', () => { const id = e.editId; cur = blank(); keep(); location.hash = '#po/v/' + encodeURIComponent(id); });
   $('#pclr')?.addEventListener('click', () => { if (!window.confirm('清除這張採購單（還沒存的內容）？')) return; cur = blank(); keep(); redraw(); });
   bindCard(view);
 }
 function lineCard(l, i) {
   const g = store.get('goods', l.gid) || {};
-  return `<div class="card ln" data-i="${i}"><div class="lnh"><div class="gm"><b>${esc(g.name || '（商品已刪除）')}</b><small>${esc(g.code || '')}${g.vcode ? '・廠商料號 ' + esc(g.vcode) : ''}${l.hint ? '・' + esc(l.hint) : ''}</small></div><button class="x" data-del="${i}" aria-label="刪除">×</button></div>
-    <div class="lnr"><label>數量<input data-f="qty" inputmode="decimal" value="${esc(l.qty)}" placeholder="0"></label><span class="u">${esc(g.unit || '')}</span><label>單價<input data-f="price" inputmode="decimal" value="${esc(l.price)}" placeholder="0"></label><span class="amt">${fmt(lineAmt(l))}</span></div></div>`;
+  return `<div class="card ln" data-i="${i}"><div class="lnh"><div class="gm"><b>${esc(g.name || l.n || '（商品已刪除）')}</b><small>${esc(g.code || '')}${g.vcode ? '・廠商料號 ' + esc(g.vcode) : ''}${l.hint ? '・' + esc(l.hint) : ''}</small></div><button class="x" data-del="${i}" aria-label="刪除">×</button></div>
+    <div class="lnr"><label>數量<input data-f="qty" inputmode="decimal" value="${esc(l.qty)}" placeholder="0"></label><span class="u">${esc(l.u || g.unit || '')}</span><label>單價<input data-f="price" inputmode="decimal" value="${esc(l.price)}" placeholder="0"></label><span class="amt">${fmt(lineAmt(l))}</span></div></div>`;
 }
 function drawTot(view) {
   const e = load(); const box = view.querySelector('#ptot'); if (!box) return; const t = totals(docOf(e));
@@ -105,9 +114,10 @@ function drawTot(view) {
 }
 async function savePO(view, fax) {
   const e = load(); const err = view.querySelector('#perr'); const c = e.cid ? store.get('contacts', e.cid) : null;
-  const ls2 = e.lines.filter(l => l.gid);
+  const ls2 = e.lines.filter(l => l.gid || l.n);
   const msg = !c ? '請選擇廠商' : !ls2.length ? '請至少加一項商品' : ls2.some(l => !(+l.qty > 0)) ? '每一項的數量都要大於 0' : fax && !c.fax ? '這家廠商的資料沒有傳真號碼，請先到電腦版廠商資料補上' : '';
   if (msg) { err.textContent = msg; toast(msg); return; }
+  if (e.editId) return saveEdit(view, e, c, fax);
   if (fax && !window.confirm(`確定要傳真給 ${cname(c.id)}？\n傳真號碼：${faxDial(c, c.fax)}\n傳出去就收不回來。`)) return;
   err.textContent = ''; view.querySelectorAll('.acts button').forEach(b => b.disabled = true);
   const d = docOf(e); const no = nextNo('PO', e.date); const id = uid('b');
@@ -118,6 +128,20 @@ async function savePO(view, fax) {
   lastPO = id; cur = blank(); keep();
   if (fax) await sendFax({ ...doc, id }).catch(x => toast('排入傳真失敗：' + x.message));
   toast(`採購單 ${no} 已存${fax ? '，已排入傳真' : ''}`); poPage(view); window.scrollTo(0, 0);
+}
+async function saveEdit(view, e, c, fax) {
+  const err = view.querySelector('#perr'); const old = store.get('bills', e.editId);
+  if (!old) { err.textContent = '找不到原本的採購單（可能被刪除了）'; return; }
+  if (fax && !window.confirm(`確定要把修改後的採購單 ${old.no} 重新傳真給 ${cname(c.id)}？\n傳真號碼：${faxDial(c, c.fax)}\n傳出去就收不回來。`)) return;
+  err.textContent = ''; view.querySelectorAll('.acts button').forEach(b => b.disabled = true);
+  const { id: _, ...rest } = old; const d = docOf(e);
+  const doc = { ...rest, date: e.date, cid: e.cid, lines: d.lines, tax: !!e.tax, note: e.note || '', updatedAt: Date.now(), updatedBy: store.user.id };
+  if (e.attn) doc.attn = e.attn; else delete doc.attn; if (e.deliv) doc.deliv = e.deliv; else delete doc.deliv;
+  try { await store.save('bills', e.editId, doc); } catch (x) { toast('存檔失敗：' + x.message); view.querySelectorAll('.acts button').forEach(b => b.disabled = false); return; }
+  store.log('修改', `採購單 ${old.no}｜${cname(doc.cid)}｜${fmt(totals(old).total)} → ${fmt(totals(doc).total)} 元（手機）`);
+  const id = e.editId; cur = blank(); keep();
+  if (fax) await sendFax({ ...doc, id }).catch(x => toast('排入傳真失敗：' + x.message));
+  toast(`採購單 ${old.no} 已修改${fax ? '，已排入傳真' : ''}`); location.hash = '#po/v/' + encodeURIComponent(id);
 }
 export async function sendFax(b) {
   const c = store.get('contacts', b.cid); const to = faxDial(c, c.fax);
@@ -156,12 +180,15 @@ export function onPOChange(view, ch) {
 function poView(view, id) {
   const b = store.get('bills', id); if (!b) { view.innerHTML = '<div class="hd"><a class="back" href="#po">‹ 採購單</a></div><div class="card ph"><b>找不到這張採購單</b></div>'; return; }
   const t = totals(b);
-  view.innerHTML = `<div class="hd"><a class="back" href="#po">‹ 採購單</a></div>${poCard(b)}
+  view.innerHTML = `<div class="hd"><a class="back" href="#po">‹ 採購單</a><span class="sp"></span><button class="chip" id="pedit">修改</button></div>${poCard(b)}
     <div class="card list"><div class="row"><span>日期</span><span class="go">${esc(slash(b.date))}</span></div>${b.deliv ? `<div class="row"><span>交期</span><span class="go">${esc(slash(b.deliv))}</span></div>` : ''}${b.attn ? `<div class="row"><span>聯絡人</span><span class="go">${esc(b.attn)}</span></div>` : ''}</div>
     <div class="sec">品項</div><div class="card list">${(b.lines || []).filter(l => l.gid || l.n).map(l => `<div class="row"><div class="gm"><b>${esc(l.gid ? gname(l.gid, 'PO') : l.n)}</b><small>${fmtQ(l.qty)} ${esc(l.u || store.get('goods', l.gid)?.unit || '')} × ${p4(l.price)}</small></div><span class="go">${fmt(lineAmt(l))}</span></div>`).join('')}
       <div class="row"><span>小計</span><span class="go">${fmt(t.net)}</span></div>${b.tax ? `<div class="row"><span>稅</span><span class="go">${fmt(t.tax)}</span></div>` : ''}<div class="row"><b>總計</b><span class="go"><b>${fmt(t.total)}</b></span></div></div>
-    <div class="sec">傳真紀錄</div><div class="card list">${(b.faxLog || []).slice().reverse().map(f => { const j = f.job ? store.get('faxjobs', f.job) : null; return `<div class="row"><span>${esc(hm(f.at))}　${esc(f.to)}</span><span class="go">${j ? (j.status === 'sent' ? '<small class="good">已傳真</small>' : j.status === 'failed' ? `<small class="bad">失敗：${esc(j.msg || '')}</small>` : '<small class="warn">傳送中</small>') : '<small class="muted">手動</small>'}</span></div>`; }).join('') || '<div class="row muted">還沒傳真</div>'}</div>`;
+    ${b.note ? `<div class="sec">備註</div><div class="card"><div class="row">${esc(b.note)}</div></div>` : ''}
+    <div class="sec">傳真紀錄</div><div class="card list">${(b.faxLog || []).slice().reverse().map(f => { const j = f.job ? store.get('faxjobs', f.job) : null; return `<div class="row"><span>${esc(hm(f.at))}　${esc(f.to)}</span><span class="go">${j ? (j.status === 'sent' ? '<small class="good">已傳真</small>' : j.status === 'failed' ? `<small class="bad">失敗：${esc(j.msg || '')}</small>` : '<small class="warn">傳送中</small>') : '<small class="muted">手動</small>'}</span></div>`; }).join('') || '<div class="row muted">還沒傳真</div>'}</div>
+    <p><button class="btn ghost" id="pedit2">修改這張採購單</button></p>`;
   bindCard(view);
+  view.querySelectorAll('#pedit, #pedit2').forEach(x => x.onclick = () => editPO(b));
 }
 
 // ---------- 選廠商、加品項 ----------
