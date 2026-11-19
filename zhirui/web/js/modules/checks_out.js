@@ -14,6 +14,20 @@ export default {
 };
 const DEFAULT_LAYOUT = { pageW: 190.5, pageH: 98.4, offX: 0, offY: 0, mT: 13, mB: 0, mL: 26, mR: 0 };
 const FIELDS = { year: { x: 135.3, y: 18.0, w: 13.5, h: 8.2, v: 'vb', pt: 12 }, month: { x: 148.8, y: 18.0, w: 11.1, h: 8.2, v: 'vb', pt: 12 }, day: { x: 159.9, y: 18.0, w: 20.4, h: 8.2, v: 'vb', pt: 12 }, payee: { x: 67.3, y: 26.2, w: 113.0, h: 9.8, v: 'vc', pt: 14 }, words: { x: 62.8, y: 36.0, w: 117.5, h: 7.9, v: 'vc', pt: 14 }, num: { x: 67.3, y: 46.3, w: 68.0, h: 6.9, v: 'vt', pt: 14 } };
+// 支票紙張預設：臺灣土地銀行單張支票 17.5×8.5 cm（位置量自實際支票：年月日、憑票支付、新臺幣、NT$）
+const F0 = { font: '', bold: true, al: 'l', ls: 0, pre: '', suf: '' };
+const PRESETS = {
+  land175: { name: '臺灣土地銀行 17.5×8.5 cm', layout: { pageW: 175, pageH: 85, offX: 0, offY: 0, mT: 0, mB: 0, mL: 0, mR: 0 }, list: [
+    { k: 'year', on: true, x: 109.2, y: 13.3, w: 6.6, h: 8, v: 'vb', pt: 12, ...F0, al: 'c' },
+    { k: 'month', on: true, x: 118.2, y: 13.3, w: 6.4, h: 8, v: 'vb', pt: 12, ...F0, al: 'c' },
+    { k: 'day', on: true, x: 127, y: 13.3, w: 6.5, h: 8, v: 'vb', pt: 12, ...F0, al: 'c' },
+    { k: 'payee', on: true, x: 50, y: 20.3, w: 97, h: 8, v: 'vb', pt: 14, ...F0 },
+    { k: 'words', on: true, x: 45.5, y: 28.6, w: 101, h: 8, v: 'vb', pt: 14, ...F0 },
+    { k: 'num', on: true, x: 44, y: 36.6, w: 34, h: 7, v: 'vb', pt: 14, ...F0 },
+    { k: 'no', on: false, x: 110, y: 6, w: 40, h: 6, v: 'vc', pt: 11, ...F0 },
+    { k: 'note', on: false, x: 44, y: 45, w: 60, h: 6, v: 'vc', pt: 11, ...F0, bold: false }] },
+};
+const FNAME = { year: '年', month: '月', day: '日', payee: '抬頭（憑票支付）', words: '金額大寫（新臺幣）', num: '金額（NT$）', no: '支票號碼', note: '備註' };
 function layout() { const s = store.setting('check_print'); return { ...DEFAULT_LAYOUT, ...(s.layout || {}) }; }
 function fmtList() {
   const s = store.setting('check_print'); if (s.fmt && Array.isArray(s.fmt.list)) return s.fmt.list;
@@ -191,14 +205,7 @@ async function printChecks(list) {
     if (!first) return;
     let no = first; for (const c of need) { c.no = no; no = incNo(no); }
   }
-  const L = layout(); const fl = fmtList(); const W = L.pageW - L.mL - L.mR, H = L.pageH - L.mT - L.mB;
-  const html = list.map(c => {
-    const dt = rocDate(c.date); const vals = { year: dt.y, month: dt.m, day: dt.d, payee: payeeOut(c), words: cnMoney(c.amount), num: money(c.amount), no: c.no || '', note: c.note || '' };
-    let h = `<div class="check" style="width:${L.pageW}mm;height:${L.pageH}mm">`;
-    for (const f of fl) { if (!f.on) continue; let v = f.custom ? (f.txt || '') : (vals[f.k] ?? ''); if (v !== '' && v != null) v = (f.pre || '') + v + (f.suf || ''); h += `<div class="f ${f.v || 'vc'}${f.al === 'c' ? ' ha-c' : f.al === 'r' ? ' ha-r' : ''}" style="left:${+L.mL + f.x + +L.offX}mm;top:${+L.mT + f.y + +L.offY}mm;width:${f.w}mm;height:${f.h}mm;font-size:${f.pt}pt;${f.font ? `font-family:${esc(f.font)};` : ''}font-weight:${f.bold ? 700 : 400};${+f.ls ? `letter-spacing:${+f.ls}mm;` : ''}"><span>${esc(v)}</span></div>`; }
-    return h + '</div>';
-  }).join('');
-  const css = `@page{size:${L.pageW}mm ${L.pageH}mm;margin:0}body{margin:0}.check{position:relative;color:#000;font-family:"PMingLiU","新細明體","MingLiU","Noto Serif TC",serif;font-weight:700;overflow:hidden;break-after:page;page-break-after:always}.f{position:absolute;display:flex;white-space:nowrap;padding-left:.6mm;line-height:1}.f.vb{align-items:flex-end;padding-bottom:.4mm}.f.vc{align-items:center}.f.vt{align-items:flex-start;padding-top:.4mm}.f.ha-c{justify-content:center}.f.ha-r{justify-content:flex-end}`;
+  const L = layout(); const { css, html } = checkHTML(list, L, fmtList());
   printHTML('支票套印', css, html, { tip: `把支票放進印表機，紙張 ${L.pageW}×${L.pageH} mm、邊界「無」、縮放 100%。共 ${list.length} 張。` });
   const ops = list.map(c => ({ col: 'checks_out', id: c.id, data: { ...store.get('checks_out', c.id), no: c.no, printedAt: Date.now(), seq: Date.now() } }));
   const last = (need.length ? need : list)[(need.length ? need : list).length - 1].no; const s = store.setting('check_print');
@@ -206,16 +213,43 @@ async function printChecks(list) {
   for (const o of ops) delete o.data.id;
   await store.batch(ops);
 }
+/** 套印版面：test＝對位測試頁（白紙印，欄位畫框、紙張外框） */
+function checkHTML(list, L, fl, test) {
+  const html = list.map(c => {
+    const dt = rocDate(c.date); const vals = { year: dt.y, month: dt.m, day: dt.d, payee: payeeOut(c), words: cnMoney(c.amount), num: money(c.amount), no: c.no || '', note: c.note || '' };
+    let h = `<div class="check${test ? ' test' : ''}" style="width:${L.pageW}mm;height:${L.pageH}mm">`;
+    for (const f of fl) { if (!f.on) continue; let v = f.custom ? (f.txt || '') : (vals[f.k] ?? ''); if (v !== '' && v != null) v = (f.pre || '') + v + (f.suf || ''); h += `<div class="f ${f.v || 'vc'}${f.al === 'c' ? ' ha-c' : f.al === 'r' ? ' ha-r' : ''}" style="left:${+L.mL + f.x + +L.offX}mm;top:${+L.mT + f.y + +L.offY}mm;width:${f.w}mm;height:${f.h}mm;font-size:${f.pt}pt;${f.font ? `font-family:${esc(f.font)};` : ''}font-weight:${f.bold ? 700 : 400};${+f.ls ? `letter-spacing:${+f.ls}mm;` : ''}">${test ? `<i>${esc(FNAME[f.k] || f.k)}</i>` : ''}<span>${esc(v)}</span></div>`; }
+    return h + '</div>';
+  }).join('');
+  const css = `@page{size:${L.pageW}mm ${L.pageH}mm;margin:0}body{margin:0}.check{position:relative;color:#000;font-family:"PMingLiU","新細明體","MingLiU","Noto Serif TC",serif;font-weight:700;overflow:hidden;break-after:page;page-break-after:always}.f{position:absolute;display:flex;white-space:nowrap;padding-left:.6mm;line-height:1}.f.vb{align-items:flex-end;padding-bottom:.4mm}.f.vc{align-items:center}.f.vt{align-items:flex-start;padding-top:.4mm}.f.ha-c{justify-content:center}.f.ha-r{justify-content:flex-end}`
+    + `.check.test{outline:.3mm solid #000;outline-offset:-.15mm}.check.test .f{outline:.2mm dashed #888}.check.test .f i{position:absolute;left:0;top:-2.6mm;font:normal 6pt sans-serif;color:#666}`;
+  return { css, html };
+}
+/** 對位測試頁：用 A4 白紙印，跟支票疊在一起對著光看，或用尺量 */
+function testPrint() {
+  const L = layout(); const sample = [{ date: new Date().toISOString().slice(0, 10), payee: '測試抬頭有限公司', amount: 123456, no: 'SCAB4508247' }];
+  const { css, html } = checkHTML(sample.map(c => ({ ...c, id: 'test' })), L, fmtList(), true);
+  printHTML('支票對位測試頁', css, html, { tip: `先用白紙印：紙張 ${L.pageW}×${L.pageH} mm、邊界「無」、縮放 100%。外框是支票邊緣，虛線框是各欄位；跟真的支票疊起來對，偏右就把「水平位移」改負數、偏下就把「垂直位移」改負數。` });
+}
 function layoutDialog() {
   const L = layout(); const s = store.setting('check_print');
   modal({
     title: '支票套印位置', width: 520,
     body: `<p class="muted" style="margin:0">支票紙張大小與列印位移（mm）。印出來整體偏右就把「水平位移」改負數；偏下就把「垂直位移」改負數。各欄位的細部位置沿用舊作業平台的設定。</p>
-      <div class="grid">${[['pageW', '紙寬'], ['pageH', '紙高'], ['mL', '左邊界'], ['mT', '上邊界'], ['offX', '水平位移'], ['offY', '垂直位移']].map(([k, l]) => `<div class="f"><label for="ly-${k}">${l}</label><input id="ly-${k}" class="num" value="${L[k]}"></div>`).join('')}</div>`,
+      <div class="grid">${[['pageW', '紙寬'], ['pageH', '紙高'], ['mL', '左邊界'], ['mT', '上邊界'], ['offX', '水平位移'], ['offY', '垂直位移']].map(([k, l]) => `<div class="f"><label for="ly-${k}">${l}</label><input id="ly-${k}" class="num" value="${L[k]}"></div>`).join('')}</div>
+      <div class="tools" style="margin-top:10px">${Object.entries(PRESETS).map(([k, p]) => `<button class="btn" data-preset="${k}">套用：${esc(p.name)}</button>`).join('')}<button class="btn" id="lyTest">印對位測試頁</button></div>
+      <p class="muted small" style="margin:6px 0 0">目前：${s.preset && PRESETS[s.preset] ? esc(PRESETS[s.preset].name) : `${L.pageW}×${L.pageH} mm（舊作業平台的版面）`}。套用會換掉紙張大小和各欄位位置（位移歸零）。</p>`,
     footer: '<button class="btn" id="lyReset">恢復預設</button><span class="sp"></span><button class="btn" data-close>取消</button><button class="btn pri" id="lyOk">儲存</button>',
     onOpen(el, close) {
       $('#lyOk', el).onclick = async () => { const o = { ...L }; for (const k of Object.keys(DEFAULT_LAYOUT)) { const v = parseFloat($('#ly-' + k, el)?.value); if (isFinite(v)) o[k] = v; } await store.saveSetting('check_print', { ...s, layout: o }); close(); toast('已儲存'); };
       $('#lyReset', el).onclick = async () => { await store.saveSetting('check_print', { ...s, layout: DEFAULT_LAYOUT }); close(); };
+      $('#lyTest', el).onclick = () => testPrint();
+      el.querySelectorAll('[data-preset]').forEach(b => b.onclick = async () => {
+        const p = PRESETS[b.dataset.preset]; if (!await confirm(`套用「${p.name}」？\n紙張會改成 ${p.layout.pageW}×${p.layout.pageH} mm，年月日、抬頭、金額的位置一起換掉。`, { ok: '套用' })) return;
+        const old = s.preset ? null : { layout: s.layout, fmt: s.fmt };   // 第一次套用：留一份舊版面
+        await store.saveSetting('check_print', { ...s, preset: b.dataset.preset, layout: { ...p.layout }, fmt: { list: p.list.map(f => ({ ...f })) }, ...(old ? { oldLayout: old } : {}) });
+        close(); toast(`已套用 ${p.name}；建議先印對位測試頁`); layoutDialog();
+      });
     },
   });
 }
