@@ -18,9 +18,9 @@ const FIELDS = { year: { x: 135.3, y: 18.0, w: 13.5, h: 8.2, v: 'vb', pt: 12 }, 
 const F0 = { font: '', bold: true, al: 'l', ls: 0, pre: '', suf: '' };
 const PRESETS = {
   land175: { name: '臺灣土地銀行 17.5×8.5 cm', layout: { pageW: 175, pageH: 85, offX: 0, offY: 0, mT: 0, mB: 0, mL: 0, mR: 0 }, list: [
-    { k: 'year', on: true, x: 109.2, y: 10.8, w: 6.6, h: 8, v: 'vb', pt: 12, ...F0, al: 'c' },
-    { k: 'month', on: true, x: 118.2, y: 10.8, w: 6.4, h: 8, v: 'vb', pt: 12, ...F0, al: 'c' },
-    { k: 'day', on: true, x: 127, y: 10.8, w: 6.5, h: 8, v: 'vb', pt: 12, ...F0, al: 'c' },
+    { k: 'year', on: true, x: 111.2, y: 10.8, w: 6.6, h: 8, v: 'vb', pt: 12, ...F0, al: 'c' },
+    { k: 'month', on: true, x: 120.2, y: 10.8, w: 6.4, h: 8, v: 'vb', pt: 12, ...F0, al: 'c' },
+    { k: 'day', on: true, x: 129, y: 10.8, w: 6.5, h: 8, v: 'vb', pt: 12, ...F0, al: 'c' },
     { k: 'payee', on: true, x: 50, y: 20.3, w: 97, h: 8, v: 'vb', pt: 14, ...F0 },
     { k: 'words', on: true, x: 45.5, y: 28.6, w: 101, h: 8, v: 'vb', pt: 14, ...F0 },
     { k: 'num', on: true, x: 44, y: 36.6, w: 34, h: 7, v: 'vb', pt: 14, ...F0 },
