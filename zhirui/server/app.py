@@ -1890,6 +1890,7 @@ DOC_COMMON = """
 - 被劃線刪除的明細不要列。看不清楚的欄位填空字串或 0，不要猜；doubts 寫下哪裡看不清楚。"""
 DOC_PROMPTS = {
     'pur': '你在讀台灣螺絲業廠商開給「志瑞螺絲企業有限公司」的出貨單／送貨單（志瑞是買方、收貨方）。party 填出貨的廠商公司名稱（不是志瑞），doc_no 填廠商的出貨單號。' + DOC_COMMON,
+    'po': '你在讀「志瑞螺絲企業有限公司」開給廠商的採購單（志瑞是買方、下單的一方）。party 填接單的廠商公司名稱（不是志瑞），doc_no 填採購單號；沒寫單價填 0。' + DOC_COMMON,
     'quote': '你在讀台灣螺絲業廠商給「志瑞螺絲企業有限公司」的報價單。party 填報價的廠商公司名稱（不是志瑞），doc_no 填報價單號，price 填報價單價；沒寫數量填 0。' + DOC_COMMON,
     'order': '你在讀客戶給「志瑞螺絲企業有限公司」的訂單，可能是手寫、傳真或照片。party 填下訂單的客戶名稱（不是志瑞），doc_no 填客戶的訂單號或採購單號；手寫的字盡量辨識，不確定的寫在 doubts。' + DOC_COMMON,
 }
@@ -1907,7 +1908,7 @@ DOC_SCHEMA = {
 
 
 def doc_extract(data_dir, body):
-    """body：kind（pur 進貨單、quote 廠商報價、order 客戶訂單）、data（base64）、media"""
+    """body：kind（pur 進貨單、po 志瑞開的採購單、quote 廠商報價、order 客戶訂單）、data（base64）、media"""
     kind = str(body.get('kind') or '')
     if kind not in DOC_PROMPTS:
         raise OcrError('不認識的單據類型')

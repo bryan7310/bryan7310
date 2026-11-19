@@ -277,7 +277,7 @@ def parse(ocr, kind):
             miss.append('正確品名（混到表單上的字）')
         if not r['qty'] and kind != 'quote':
             miss.append('數量')
-        if not r['price'] and kind != 'order':
+        if not r['price'] and kind not in ('order', 'po'):
             miss.append('單價')
         if has_amt and not read_amt[n - 1]:
             miss.append('金額')

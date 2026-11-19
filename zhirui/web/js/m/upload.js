@@ -1,5 +1,5 @@
-// 手機版：拍照上傳。拍進貨單、廠商報價、手寫訂單、支票 → AI 辨識 → 待確認 → 人工核對後入帳：
-// 進貨單＝建立進貨單（庫存增加）、廠商報價＝存成詢價單、手寫訂單＝轉成出貨單草稿、支票＝登記客票。
+// 手機版：拍照上傳。拍進貨單、採購單、廠商報價、手寫訂單、支票 → AI 辨識 → 待確認 → 人工核對後入帳：
+// 進貨單＝建立進貨單（庫存增加）、採購單（志瑞開給廠商的）＝存成採購單、廠商報價＝存成詢價單、手寫訂單＝轉成出貨單草稿、支票＝登記客票。
 // 每次上傳記在 uploads 集合（照片存伺服器 data/files），狀態：辨識中 → 待確認 → 已入帳（或失敗可重試）。
 import { esc, fmt, fmtQ, today, uid, ls, slash } from '../core/util.js';
 import { api, aiOcr } from '../core/api.js';
@@ -10,7 +10,7 @@ import { preOf, findDupCheck } from '../modules/checks_in.js';
 import { checkForm, shrink } from './ar.js';
 import { search } from './stock.js';
 
-const KINDS = [['pur', '進貨單', 'S'], ['quote', '廠商報價', 'S'], ['order', '手寫訂單', 'C'], ['check', '支票', 'C']];
+const KINDS = [['pur', '進貨單', 'S'], ['po', '採購單', 'S'], ['quote', '廠商報價', 'S'], ['order', '手寫訂單', 'C'], ['check', '支票', 'C']];
 const KN = Object.fromEntries(KINDS.map(k => [k[0], k[1]]));
 const ST = { reading: ['辨識中', 'warn'], review: ['待確認', 'warn'], done: ['已入帳', 'good'], failed: ['失敗', 'bad'] };
 const toast = msg => { const t = document.getElementById('toast'); t.textContent = msg; t.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(() => t.hidden = true, 2800); };
@@ -74,7 +74,11 @@ async function runOcr(id, url, pdf) {
   try {
     let result;
     if (u.kind === 'check') { const r = await aiOcr('/api/ocr/check', { image: url }); result = { checks: Array.isArray(r.checks) && r.checks.length ? r.checks : [r.fields || {}] }; }
-    else result = await aiOcr('/api/ocr/doc', { kind: u.kind, data: url.split(',')[1], media: pdf ? 'application/pdf' : 'image/jpeg' });
+    else {
+      const body = { kind: u.kind, data: url.split(',')[1], media: pdf ? 'application/pdf' : 'image/jpeg' };
+      try { result = await aiOcr('/api/ocr/doc', body); }
+      catch (e) { if (u.kind !== 'po' || !/不認識的單據類型/.test(e.message || '')) throw e; result = await aiOcr('/api/ocr/doc', { ...body, kind: 'pur' }); }   // 伺服器還沒重新啟動
+    }
     const kindParty = (KINDS.find(k => k[0] === u.kind) || [])[2];
     const p = u.kind === 'check' ? null : matchParty(result.party, kindParty);
     await upd(id, { status: 'review', result, cid: p?.id || '', msg: '' });
@@ -104,6 +108,8 @@ function netPrice(r) {
   return { price: p, note: '' };
 }
 const rv = {};   // 每個上傳的編輯中明細（記在記憶體）
+/** 平台上已經有同單號的採購單（拍的是平台自己印出來的採購單） */
+const poDup = no => { const n = String(no || '').replace(/\s/g, ''); return n ? store.list('bills').find(b => b.type === 'PO' && String(b.no || '') === n) : null; };
 function linesOf(u) {
   if (rv[u.id] && rv[u.id].cid === u.cid) return rv[u.id].lines;
   const date = u.result?.date || today();
@@ -137,7 +143,7 @@ function reviewPage(view, id) {
   $('#del')?.addEventListener('click', async () => { if (!window.confirm('刪除這筆上傳？（不會影響已經建立的單據）')) return; await store.remove('uploads', u.id); location.hash = '#up'; });
   if (u.status === 'review') u.kind === 'check' ? bindCheck(view, u) : bindDoc(view, u);
 }
-const ACT = { pur: '確認入庫（建立進貨單）', quote: '存成詢價單（廠商報價）', order: '轉成出貨單草稿' };
+const ACT = { pur: '確認入庫（建立進貨單）', po: '存成採購單', quote: '存成詢價單（廠商報價）', order: '轉成出貨單草稿' };
 function docReview(u) {
   const R = u.result || {}; const partyKind = u.kind === 'order' ? 'C' : 'S'; const c = u.cid ? store.get('contacts', u.cid) : null;
   const lines = linesOf(u); const C = calc();
@@ -145,7 +151,7 @@ function docReview(u) {
   return `<div class="card list">
       <a href="#" id="pp"><span>${partyKind === 'C' ? '客戶' : '廠商'}</span><span class="go">${c ? `<b>${esc(cdisp(c))}</b>` : `<span class="bad">請選擇</span>`} ›</span></a>
       ${R.party ? `<div class="row src">單據上寫：${esc(R.party)}</div>` : ''}
-      <div class="row"><span>單號</span><span class="go">${esc(R.doc_no || '—')}</span></div>
+      <div class="row"><span>單號</span><span class="go">${esc(R.doc_no || '—')}</span></div>${u.kind === 'po' && poDup(R.doc_no) ? `<div class="row bad">平台已經有採購單 ${esc(R.doc_no)}（${esc(cname(poDup(R.doc_no).cid))}），不用再建</div>` : ''}
       <div class="row"><span>日期</span><input type="date" id="rd" class="inl" value="${esc(rv[u.id].date || R.date || today())}"></div></div>
     ${R.doubts ? `<div class="note" style="text-align:left">${R._engine === 'local' ? '' : 'AI 提醒：'}${esc(R.doubts)}</div>` : ''}${R._engine === 'local' ? '' : R._local_why?.length ? `<div class="muted small" style="margin:4px 0">本機先讀過但不完整（${esc(R._local_why.slice(0, 2).join('；'))}），改用 AI 辨識</div>` : ''}
     <div class="sec">明細 <span class="muted">${lines.filter(l => l.on).length}／${lines.length} 項・對不到商品的請點「選商品」</span></div>
@@ -175,6 +181,7 @@ async function commit(view, u) {
   if (ls2.some(l => !l.gid)) throw new Error('有明細還沒對到商品：選商品，或取消勾選「要」');
   if (ls2.some(l => !l.sure)) throw new Error('有 AI 配對不確定的明細（黃框）：按「對，是這個」或「換商品」');
   if (ls2.some(l => !(+l.qty > 0)) && u.kind !== 'quote') throw new Error('數量要大於 0');
+  if (u.kind === 'po' && poDup(R.doc_no)) throw new Error(`平台已經有採購單 ${R.doc_no}，不用再建`);
   const date = st.date || R.date || today();
   const lines = ls2.map(l => { const o = { gid: l.gid, qty: +l.qty || 0, price: +l.price || 0 }; if (l.u) o.u = l.u; return o; });
   const note = `手機拍照上傳${R.doc_no ? `：${c.short || c.name}單號 ${R.doc_no}` : ''}`;
@@ -185,13 +192,13 @@ async function commit(view, u) {
     await upd(u.id, { status: 'done', draftId: did, doneText: `出貨單草稿（${lines.length} 項）` });
     toast('已轉成出貨單草稿，到「開單」確認送出'); location.hash = '#bill/drafts'; return;
   }
-  const type = u.kind === 'pur' ? 'PUR' : 'RFQ'; const no = nextNo(type, date); const id = uid('b');
+  const type = { pur: 'PUR', po: 'PO' }[u.kind] || 'RFQ'; const TN = { PUR: '進貨單', PO: '採購單', RFQ: '詢價單' }[type]; const no = nextNo(type, date); const id = uid('b');
   const doc = { type, no, date, note, createdAt: Date.now(), updatedAt: Date.now(), cid: c.id, lines, disc: 0, tax: !!st.tax, createdBy: store.user.id };
   if (type === 'PUR') { doc.wid = defWh()?.id || ''; doc.paid = 0; doc.aid = store.list('accounts')[0]?.id || ''; }
   await store.save('bills', id, doc);
-  store.log('新增', `${type === 'PUR' ? '進貨單' : '詢價單'} ${no}｜${cname(c.id)}｜${fmt(totals(doc).total)} 元（手機拍照）`);
-  await upd(u.id, { status: 'done', billId: id, doneText: `${type === 'PUR' ? '進貨單' : '詢價單'} ${no}・${fmt(totals(doc).total)} 元` });
-  delete rv[u.id]; toast(`已建立${type === 'PUR' ? '進貨單（庫存已增加）' : '詢價單'} ${no}`);
+  store.log('新增', `${TN} ${no}｜${cname(c.id)}｜${fmt(totals(doc).total)} 元（手機拍照）`);
+  await upd(u.id, { status: 'done', billId: id, doneText: `${TN} ${no}・${fmt(totals(doc).total)} 元` });
+  delete rv[u.id]; toast(`已建立${type === 'PUR' ? '進貨單（庫存已增加）' : TN} ${no}`);
 }
 function checkReview(u) {
   const list = (u.result?.checks || []).map(preOf); const done = new Set(u.doneChecks || []);
