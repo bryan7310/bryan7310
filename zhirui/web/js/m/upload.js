@@ -10,6 +10,8 @@ import { preOf, findDupCheck } from '../modules/checks_in.js';
 import { checkForm, shrink } from './ar.js';
 import { search } from './stock.js';
 import { sendFax } from './po.js';
+import { editGoods } from './goodsedit.js';
+import { stdGoods } from '../core/codegen.js';
 import { faxDial, isTaichung } from '../modules/faxes.js';
 
 const KINDS = [['pur', '進貨單', 'S'], ['po', '採購單', 'S'], ['quote', '廠商報價', 'S'], ['order', '手寫訂單', 'C'], ['check', '支票', 'C']];
@@ -119,7 +121,7 @@ function linesOf(u) {
     const m = piMatch({ code: r.code, name: [r.name, r.spec].filter(Boolean).join(' '), price: +r.price || 0, unit: r.unit, date }, u.cid);
     const best = m.cands[0]; const g = best && best.s >= 60 ? best.o.g : null;
     const np = netPrice(r);
-    const l = { src: [r.code, r.name, r.spec].filter(Boolean).join(' '), gid: g?.id || '', qty: +r.qty || '', price: np.price, pnote: np.note, unit: r.unit || '', on: true, sure: !!g && best.s >= 90 };
+    const l = { src: [r.code, r.name, r.spec].filter(Boolean).join(' '), code: r.code || '', nm: [r.name, r.spec].filter(Boolean).join(' '), gid: g?.id || '', qty: +r.qty || '', price: np.price, pnote: np.note, unit: r.unit || '', on: true, sure: !!g && best.s >= 90 };
     if (g && r.unit) { const [c1, k1] = unitFactor(r.unit), [c2, k2] = unitFactor(g.unit || ''); if (c1 === c2 && k1 !== k2) l.u = r.unit; }
     if (u.kind === 'order' && g && !(+l.price) && u.cid) { const x = lastSale(u.cid, g.id, today()); if (x) { l.price = x.price; if (x.u) l.u = x.u; } }
     return l;
@@ -158,7 +160,7 @@ function docReview(u) {
     ${R.doubts ? `<div class="note" style="text-align:left">${R._engine === 'local' ? '' : 'AI 提醒：'}${esc(R.doubts)}</div>` : ''}${R._engine === 'local' ? '' : R._local_why?.length ? `<div class="muted small" style="margin:4px 0">本機先讀過但不完整（${esc(R._local_why.slice(0, 2).join('；'))}），改用 AI 辨識</div>` : ''}
     <div class="sec">明細 <span class="muted">${lines.filter(l => l.on).length}／${lines.length} 項・對不到商品的請點「選商品」</span></div>
     <div id="rl">${lines.map((l, i) => { const g = l.gid ? C.g[l.gid] : null; return `<div class="card ln ${l.on ? '' : 'off'} ${l.on && (!g || !l.sure) ? 'warnbox' : ''}" data-i="${i}">
-      <div class="lnh"><div class="gm"><small>單據：${esc(l.src)}</small><b>${g ? esc(g.name) : '<span class="bad">對不到商品</span>'}</b><small>${g ? esc(g.code) : ''}${l.pnote ? '・單價：' + esc(l.pnote) : ''}</small>${g && !l.sure ? `<div class="err" style="margin:4px 0 0">AI 配對不確定：是這個商品嗎？ <button class="chip" data-yes="${i}">對，是這個</button></div>` : ''}</div><label class="check" style="margin:0"><input type="checkbox" data-on ${l.on ? 'checked' : ''}>要</label></div>
+      <div class="lnh"><div class="gm"><small>單據：${esc(l.src)}</small><b>${g ? esc(g.name) : '<span class="bad">對不到商品</span>'}</b>${g ? '' : `<div style="margin:4px 0 0"><button class="chip" data-new="${i}">＋ 新建這個商品</button></div>`}<small>${g ? esc(g.code) : ''}${l.pnote ? '・單價：' + esc(l.pnote) : ''}</small>${g && !l.sure ? `<div class="err" style="margin:4px 0 0">AI 配對不確定：是這個商品嗎？ <button class="chip" data-yes="${i}">對，是這個</button></div>` : ''}</div><label class="check" style="margin:0"><input type="checkbox" data-on ${l.on ? 'checked' : ''}>要</label></div>
       <div class="lnr"><label>數量<input data-f="qty" inputmode="decimal" value="${esc(l.qty)}"></label><span class="u">${esc(l.u || g?.unit || l.unit || '')}</span><label>單價<input data-f="price" inputmode="decimal" value="${esc(l.price)}"></label><button class="chip" data-pick="${i}">${g ? '換商品' : '選商品'}</button></div></div>`; }).join('') || '<div class="card"><div class="row muted">沒有讀到明細</div></div>'}</div>
     <div class="card list">${u.kind === 'order' ? '' : `<label class="row"><span>加 5% 營業稅</span><span class="go"><input type="checkbox" id="rtx" ${rv[u.id].tax ? 'checked' : ''}> ${rv[u.id].tax ? fmt(t.tax) : ''}</span></label>`}<div class="row"><b>總計</b><span class="go"><b id="rtot">${fmt(t.total)}</b></span></div></div>
     <div id="rerr" class="err"></div>
@@ -173,10 +175,20 @@ function bindDoc(view, u) {
   const rl = $('#rl');
   rl.addEventListener('input', ev => { const i = +ev.target.closest('[data-i]')?.dataset.i; const l = st.lines[i]; if (!l) return; if (ev.target.dataset.f) l[ev.target.dataset.f] = ev.target.value; const doc = { tax: !!st.tax, disc: 0, lines: st.lines.filter(x => x.on && x.gid).map(x => ({ qty: +x.qty || 0, price: +x.price || 0 })) }; $('#rtot').textContent = fmt(totals(doc).total); });
   rl.addEventListener('change', ev => { if (!ev.target.matches('[data-on]')) return; const i = +ev.target.closest('[data-i]').dataset.i; st.lines[i].on = ev.target.checked; redraw(); });
-  rl.addEventListener('click', ev => { const y = ev.target.closest('[data-yes]'); if (y) { st.lines[+y.dataset.yes].sure = true; redraw(); return; } const b = ev.target.closest('[data-pick]'); if (!b) return; const l = st.lines[+b.dataset.pick]; pickGoods(l.src, gid => { l.gid = gid; l.sure = true; delete l.u; l.on = true; redraw(); }); });
+  rl.addEventListener('click', ev => { const y = ev.target.closest('[data-yes]'); if (y) { st.lines[+y.dataset.yes].sure = true; redraw(); return; } const nb = ev.target.closest('[data-new]'); if (nb) { newGoods(u, st.lines[+nb.dataset.new], redraw); return; } const b = ev.target.closest('[data-pick]'); if (!b) return; const l = st.lines[+b.dataset.pick]; pickGoods(l.src, gid => { l.gid = gid; l.sure = true; delete l.u; l.on = true; redraw(); }); });
   const fail = e => { $('#rerr').textContent = e.message; toast(e.message); view.querySelectorAll('#ok, #okfax').forEach(b => b.disabled = false); };
   $('#ok').onclick = () => commit(view, u).catch(fail);
   $('#okfax')?.addEventListener('click', () => commit(view, u, true).catch(fail));
+}
+/** 對不到商品：用單據上的品名新建（標準品名＋自動料號；認不出就照抄品名，料號在畫面上補），存好直接帶進這一行 */
+function newGoods(u, l, redraw) {
+  const s = stdGoods(l.nm || l.src) || stdGoods(l.src);
+  const sup = u.kind !== 'order' && u.kind !== 'po';   // 廠商的單據：單據上的料號記成廠商料號
+  const unit = /^(PCS|KG|包|組|H|批|箱)$/i.test(l.unit || '') ? l.unit.toUpperCase().replace(/^PCS$/, 'PCS') : 'PCS';
+  const tpl = { name: s?.name || l.nm || l.src, code: s?.code || '', cat: s?.cat || '', unit, note: `手機拍照上傳新建（單據寫：${l.src}）` };
+  if (sup && l.code) tpl.vcode = l.code;
+  if (u.kind === 'po' || u.kind === 'pur') { const pr = +l.price; if (pr > 0) tpl.purPrice = pr; }
+  editGoods('new', null, id => { l.gid = id; l.sure = true; l.on = true; delete l.u; redraw(); }, tpl);
 }
 async function commit(view, u, fax) {
   const st = rv[u.id]; const c = u.cid ? store.get('contacts', u.cid) : null; const R = u.result || {};
