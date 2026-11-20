@@ -863,3 +863,10 @@ tr.row.on td { background: color-mix(in srgb, var(--blue-soft) 60%, transparent)
 .od-v:hover { filter: brightness(.96); }
 .od-v.on { background: var(--blue); color: #fff; }
 .od-v i { font-style: normal; font-weight: 500; font-size: 11.5px; opacity: .75; }
+/* 訂貨排程在手機上：搜尋框佔滿一列，廠商鈕換到下一列橫著排；三個數字並排一列 */
+@media (max-width: 720px) {
+  #odQ { width: auto !important; flex: 1 1 0 !important; min-width: 0; }
+  .od-vs { flex: 1 1 100%; }
+  .kpis.k3 { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+  .kpis.k3 .kpi { padding: 10px 12px; }
+}
