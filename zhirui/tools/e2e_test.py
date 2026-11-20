@@ -1,3 +1,4 @@
+import json
 """志瑞 ERP 全站自動測試（Playwright ＋ 電腦上的 Edge）
 
 做什麼：
@@ -38,6 +39,13 @@ def make_data(src_db: Path) -> Path:
     dst.execute('DELETE FROM users WHERE login=?', (TEST_LOGIN,))
     dst.execute('INSERT INTO users(id,name,login,salt,hash,role,created) VALUES(?,?,?,?,?,?,?)',
                 ('u_e2e', '自動測試', TEST_LOGIN, salt, hsh, 'admin', int(time.time() * 1000)))
+    # 測試主機絕對不能往正式的備份資料夾寫：複本裡的備份設定改成關閉、資料夾指到暫存資料夾裡
+    ver = (dst.execute('SELECT max(ver) FROM docs').fetchone()[0] or 0) + 1
+    now = int(time.time() * 1000)
+    dst.execute("INSERT OR REPLACE INTO docs(col,id,data,ver,ts,deleted) VALUES('settings','backup',?,?,?,0)",
+                (json.dumps({'dir': str(tmp / 'backup'), 'time': '23:59', 'keep': 30, 'on': False}), ver, now))
+    dst.execute("INSERT OR REPLACE INTO docs(col,id,data,ver,ts,deleted) VALUES('settings','backup_state',?,?,?,0)",
+                (json.dumps({'last': now, 'file': '', 'err': None}), ver + 1, now))
     dst.commit(); dst.close()
     (tmp / 'mailbox').mkdir(); (tmp / 'files').mkdir()
     return tmp
