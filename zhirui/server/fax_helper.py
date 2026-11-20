@@ -141,17 +141,71 @@ Write-Output ('PRINTED ' + $files.Count)
 '''
 
 
-def html_to_pngs(html, work):
-    hp = os.path.join(work, 'fax.html')
-    pdf = os.path.join(work, 'fax.pdf')
-    with open(hp, 'w', encoding='utf-8') as f:
-        f.write(html)
+# ---------- 安全：稿件 HTML 是平台使用者送來的，不能讓它讀到這台電腦的檔案或連到別的地方 ----------
+# 做法（三層）：
+# 1. 不用 file:// 開：稿件放在只聽 127.0.0.1 的臨時網頁伺服器，Edge 從 http 載入 → 網頁來源不是本機檔案，iframe／轉址／圖片都讀不到 C:\ 的檔案
+# 2. 回應帶 Content-Security-Policy：只准行內樣式、data: 圖片與字型；傳真稿不准跑腳本、不准自動轉址（sandbox），列印稿（中一刀要用腳本排欄寬）只准行內腳本
+# 3. Edge 加 --host-rules：除了 127.0.0.1 以外的主機一律解析不到（連不到內網、外網）
+def _csp(allow_script):
+    base = "default-src 'none'; style-src 'unsafe-inline'; img-src data:; font-src data:; base-uri 'none'; form-action 'none'; frame-src 'none'; object-src 'none'"
+    return base + ("; script-src 'unsafe-inline'; sandbox allow-scripts" if allow_script else '; sandbox')
+
+
+def safe_html(html, allow_script):
+    """多一層：把明顯不該有的標籤先拿掉（就算 CSP 沒生效也不會載入）"""
+    import re
+    html = str(html or '')
+    html = re.sub(r'(?is)<\s*(iframe|frame|frameset|object|embed|applet|base|link)\b[^>]*>', '', html)
+    html = re.sub(r'(?is)<\s*/\s*(iframe|frame|frameset|object|embed|applet)\s*>', '', html)
+    html = re.sub(r'(?is)<\s*meta\b[^>]*http-equiv\s*=\s*["\']?\s*refresh[^>]*>', '', html)
+    if not allow_script:
+        html = re.sub(r'(?is)<\s*script\b.*?<\s*/\s*script\s*>', '', html)
+        html = re.sub(r'(?is)<\s*script\b[^>]*>', '', html)
+        html = re.sub(r'(?i)\son[a-z]+\s*=\s*("[^"]*"|\'[^\']*\'|[^\s>]+)', '', html)
+    return html
+
+
+def edge_pdf(html, work, pdf, allow_script=False, extra=()):
+    """稿件 HTML → PDF。回傳時 PDF 可能還沒寫完，呼叫端照舊等檔案出現"""
+    import http.server
+    import threading
     edge = next((e for e in EDGE if os.path.exists(e)), None)
     if not edge:
-        raise RuntimeError('找不到 Edge 瀏覽器，無法產生傳真稿')
-    uri = 'file:///' + hp.replace('\\', '/')
-    subprocess.run([edge, '--headless=new', '--disable-gpu', '--no-pdf-header-footer', '--user-data-dir=' + os.path.join(work, 'edge'),
-                    '--print-to-pdf=' + pdf, uri], timeout=90, creationflags=0x08000000)
+        raise RuntimeError('找不到 Edge 瀏覽器，無法產生列印稿')
+    body = safe_html(html, allow_script).encode('utf-8')
+    csp = _csp(allow_script)
+
+    class H(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):
+            if self.path.split('?')[0] != '/doc.html':
+                self.send_response(404); self.send_header('Content-Length', '0'); self.end_headers(); return
+            self.send_response(200)
+            self.send_header('Content-Type', 'text/html; charset=utf-8')
+            self.send_header('Content-Length', str(len(body)))
+            self.send_header('Content-Security-Policy', csp)
+            self.send_header('X-Content-Type-Options', 'nosniff')
+            self.send_header('Cache-Control', 'no-store')
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, *a):
+            pass
+
+    srv = http.server.ThreadingHTTPServer(('127.0.0.1', 0), H)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    try:
+        url = 'http://127.0.0.1:%d/doc.html' % srv.server_address[1]
+        subprocess.run([edge, '--headless=new', '--disable-gpu', '--no-pdf-header-footer', *extra,
+                        '--host-rules=MAP * ~NOTFOUND, EXCLUDE 127.0.0.1', '--no-first-run', '--disable-extensions',
+                        '--user-data-dir=' + os.path.join(work, 'edge'), '--print-to-pdf=' + pdf, url],
+                       timeout=90, creationflags=0x08000000)
+    finally:
+        srv.shutdown(); srv.server_close()
+
+
+def html_to_pngs(html, work):
+    pdf = os.path.join(work, 'fax.pdf')
+    edge_pdf(html, work, pdf, allow_script=False)   # 傳真稿：不准腳本、不准讀本機檔案、不准連外
     t0 = time.time()   # Edge 可能先結束、PDF 晚一點才寫好
     while time.time() - t0 < 60 and not (os.path.exists(pdf) and os.path.getsize(pdf) > 0):
         time.sleep(0.5)

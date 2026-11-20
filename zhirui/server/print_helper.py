@@ -17,7 +17,7 @@ import traceback
 from ctypes import wintypes
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import fax_helper as fh   # noqa: E402  只用 call()（連伺服器）和 EDGE 路徑
+import fax_helper as fh   # noqa: E402  用 call()（連伺服器）、EDGE 路徑、edge_pdf（安全地把稿件轉成 PDF）
 
 LOG = os.path.join(fh.LOGDIR, 'print_helper.log')
 TOFILE = fh._arg('--tofile')
@@ -39,17 +39,9 @@ def log(*a):
 
 def html_to_pngs(html, work, dpi=180):
     """HTML → PDF（Edge，依 @page 的紙張大小）→ 每頁一張黑白 PNG；回傳 [(檔名, 寬mm, 高mm)]"""
-    hp = os.path.join(work, 'doc.html')
     pdf = os.path.join(work, 'doc.pdf')
-    with open(hp, 'w', encoding='utf-8') as f:
-        f.write(html)
-    edge = next((e for e in fh.EDGE if os.path.exists(e)), None)
-    if not edge:
-        raise RuntimeError('找不到 Edge 瀏覽器，無法產生列印稿')
-    uri = 'file:///' + hp.replace('\\', '/')
-    subprocess.run([edge, '--headless=new', '--disable-gpu', '--no-pdf-header-footer', '--virtual-time-budget=3000',
-                    '--user-data-dir=' + os.path.join(work, 'edge'), '--print-to-pdf=' + pdf, uri],
-                   timeout=90, creationflags=0x08000000)
+    # 列印稿（中一刀）要用行內腳本排欄寬，所以准行內腳本；讀本機檔案、連外、內嵌其他頁面一樣擋掉（見 fax_helper.edge_pdf）
+    fh.edge_pdf(html, work, pdf, allow_script=True, extra=('--virtual-time-budget=3000',))
     t0 = time.time()   # Edge 可能先結束、PDF 晚一點才寫好
     while time.time() - t0 < 60 and not (os.path.exists(pdf) and os.path.getsize(pdf) > 0):
         time.sleep(0.5)
