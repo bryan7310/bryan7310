@@ -769,7 +769,12 @@ class Handler(BaseHTTPRequestHandler):
                 return self.error('伺服器不是由啟動器執行，無法從網頁重啟：請在伺服器電腦執行「重啟伺服器.bat」', 409)
             self.send_json({'ok': True, 'msg': '伺服器重新啟動中，約 3～5 秒'})
             sys.stderr.write('restart requested by %s\n' % me.get('login'))
-            threading.Timer(0.6, lambda: os._exit(3)).start()
+
+            def bye():
+                BACKUP_LOCK.acquire(timeout=120)   # 備份做到一半先等它做完（最多 2 分鐘）
+                time.sleep(0.5)                    # 讓備份的回應送出去
+                os._exit(3)
+            threading.Timer(0.6, bye).start()
             return
         if path == '/api/print/helper' and method == 'GET':
             seen = PRINT_HELPER.get('seen') or 0
@@ -1064,7 +1069,9 @@ class Handler(BaseHTTPRequestHandler):
         return self.send_json({'ok': True, 'id': fid, 'name': name, 'type': FILE_TYPES[ext], 'size': len(data)})
 
     def set_cookie(self, token):
-        return f'{COOKIE}={token}; Path=/; Max-Age={86400 * 365}; HttpOnly; SameSite=Lax'
+        # 外網（Tailscale serve 用 HTTPS 轉進來）登入的憑證加 Secure：瀏覽器只會在 HTTPS 送出，不會走明文
+        https = self.client_address[0] in ('127.0.0.1', '::1') and (self.headers.get('X-Forwarded-Proto') or '').lower() == 'https'
+        return f'{COOKIE}={token}; Path=/; Max-Age={86400 * 365}; HttpOnly; SameSite=Lax' + ('; Secure' if https else '')
 
     def status(self):
         db = self.state.db
@@ -2108,7 +2115,15 @@ def backup_settings(db):
             'time': s.get('time') or '12:00', 'keep': int(s.get('keep') or 30), 'on': s.get('on', True)}
 
 
+BACKUP_LOCK = threading.Lock()   # 備份進行中；重新啟動會等它做完，才不會留下半個 zip
+
+
 def run_backup(state, manual=False):
+    with BACKUP_LOCK:
+        return _run_backup(state, manual)
+
+
+def _run_backup(state, manual=False):
     db = state.db
     cfg = backup_settings(db)
     try:
@@ -2116,12 +2131,26 @@ def run_backup(state, manual=False):
         if str(cfg['dir']).startswith(('\\\\', '//')) or bdir == WEB or bdir.startswith(WEB + os.sep):
             raise ValueError('備份資料夾不能是網路路徑，也不能放在 web 資料夾底下')
         os.makedirs(cfg['dir'], exist_ok=True)
+        # 上次備份到一半被中斷（斷電、關機）留下的暫存檔：只清這兩種檔名、而且超過 10 分鐘的
+        for f in os.listdir(cfg['dir']):
+            fp = os.path.join(cfg['dir'], f)
+            if ((f.startswith('zhirui_') and f.endswith('.db')) or (f.startswith('志瑞平台備份_') and f.endswith('.zip.part'))) \
+                    and os.path.isfile(fp) and time.time() - os.path.getmtime(fp) > 600:
+                try:
+                    os.remove(fp)
+                except OSError:
+                    pass
         stamp = datetime.datetime.now().strftime('%Y-%m-%d_%H%M')
         tmp = os.path.join(cfg['dir'], f'zhirui_{stamp}.db')
         db.backup_to(tmp)
         zpath = os.path.join(cfg['dir'], f'志瑞平台備份_{stamp}.zip')
-        with zipfile.ZipFile(zpath, 'w', zipfile.ZIP_DEFLATED) as z:
+        part = zpath + '.part'   # 先寫暫存檔，寫完、檢查過才改成正式檔名：資料夾裡的 zip 一定是完整的
+        with zipfile.ZipFile(part, 'w', zipfile.ZIP_DEFLATED) as z:
             z.write(tmp, 'zhirui.db')
+        with zipfile.ZipFile(part) as z:
+            if z.testzip() is not None or z.getinfo('zhirui.db').file_size != os.path.getsize(tmp):
+                raise ValueError('備份檔寫入後檢查不符')
+        os.replace(part, zpath)
         os.remove(tmp)
         # 客戶圖面等附檔：同步到備份資料夾的 files 子資料夾（只複製新的，不刪舊的，避免每份 zip 都重複一大包）
         fdir = os.path.join(state.data_dir, 'files')
