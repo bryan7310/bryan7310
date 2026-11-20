@@ -61,7 +61,7 @@ export function poPage(view, sub, arg) {
   if (sub === 'v' && arg) return poView(view, decodeURIComponent(arg));
   if (sub === 'g' && arg) { const g = store.get('goods', decodeURIComponent(arg)); if (g) { const C = calc(); const q = Object.values(C.stock[g.id] || {}).reduce((a, b) => a + b, 0); addToPO(g.id, +g.safety > q ? Math.ceil(+g.safety - q) : ''); toast('已加入採購單：' + g.name); } history.replaceState(null, '', '#po'); }
   const e = load(); const c = e.cid ? store.get('contacts', e.cid) : null;
-  view.innerHTML = `<div class="hd"><h1>${e.editId ? '修改採購單' : '採購單'}</h1></div>
+  view.innerHTML = `<div class="hd"><h1>${e.editId ? '修改採購單' : '採購單'}</h1><span class="sp"></span>${e.editId ? '' : '<button class="chip" id="jrec">最近的單 ↓</button>'}</div>
     ${e.editId ? `<div class="note" style="text-align:left">正在修改 <b>${esc(e.editNo || '')}</b>，單號不變；改完按「儲存修改」。<button class="chip" id="pcancel">取消修改</button></div>` : lastPO ? poCard(store.get('bills', lastPO)) : ''}
     <div class="card list">
       <a href="#" id="ps"><span>廠商</span><span class="go">${c ? `<b>${esc(cdisp(c))}</b>` : '<span class="muted">請選擇</span>'} ›</span></a>
@@ -78,11 +78,12 @@ export function poPage(view, sub, arg) {
     <div id="perr" class="err"></div>
     <div class="acts"><button class="btn ghost" id="psave">${e.editId ? '儲存修改' : '只存採購單'}</button><button class="btn" id="pfax">${e.editId ? '儲存並重新傳真' : '存並傳真'}</button></div>
     ${!e.editId && (e.lines.length || e.cid) ? '<p><button class="btn ghost danger" id="pclr">清除這張</button></p>' : ''}
-    <div class="sec">最近的採購單</div>
+    <div class="sec" id="recSec">最近的採購單</div>
     <div class="search"><input type="search" id="prq" placeholder="關鍵字：廠商、單號、日期、品名" value="${esc(prq)}" autocomplete="off" autocorrect="off" autocapitalize="off" enterkeyhint="search"></div>
     <div class="card list" id="prec">${recentHtml()}</div>`;
   const $ = q => view.querySelector(q); const redraw = () => poPage(view);
   drawTot(view);
+  $('#jrec')?.addEventListener('click', () => view.querySelector('#recSec')?.scrollIntoView({ behavior: 'smooth', block: 'start' }));   // 跳到下面的最近清單
   $('#ps').onclick = ev => { ev.preventDefault(); pickSupplier(id => { e.cid = id; const s = store.get('contacts', id); e.attn = s?.person || ''; e.lines.forEach(l => { if (l.ap || l.price === '') priceFor(l, e.cid); }); keep(); redraw(); }); };
   $('#pdt').onchange = ev => { e.date = ev.target.value || today(); keep(); };
   $('#pdv').onchange = ev => { e.deliv = ev.target.value; keep(); };

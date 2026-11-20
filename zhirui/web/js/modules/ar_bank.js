@@ -81,7 +81,7 @@ export function bankImport(onDone) {
         if (!items.length) { out.innerHTML = `<div class="empty"><b>沒有讀到存入的明細</b>${meta?.doubts ? esc(meta.doubts) : ''}</div>`; sum(); return; }
         out.innerHTML = `${meta?.doubts ? `<div class="banner" style="margin-bottom:8px">AI 提醒：${esc(meta.doubts)}</div>` : ''}${meta?.dupe ? `<div class="banner info" style="margin-bottom:8px">${meta.dupe.split('<br>').map(esc).join('<br>')}</div>` : ''}
           <div class="tw"><table><thead><tr><th>沖帳</th><th>存摺日期</th><th>匯款人／摘要</th><th class="n">存入</th><th>對到的應收</th><th class="n">實收金額</th><th>判斷</th></tr></thead><tbody>
-          ${items.map((it, i) => { const o = it.opts[it.pick]; const tot = o ? o.rows.reduce((s, r) => s + r.total, 0) : 0; return `<tr data-i="${i}" class="${it.on ? '' : 'muted'}">
+          ${items.map((it, i) => { const o = it.opts[it.pick]; const tot = o ? o.rows.reduce((s, r) => s + r.total, 0) : 0; const sep = !it.opts.length && (i === 0 || items[i - 1].opts.length) ? `<tr><td colspan="7" class="muted small" style="background:var(--sunken);padding:6px 10px">以下 ${items.length - i} 筆在近 1 年未收的應收裡找不到對應（例如利息、其他收入），不會沖帳</td></tr>` : ''; return `${sep}<tr data-i="${i}" class="${it.on ? '' : 'muted'}">
             <td><input type="checkbox" data-on ${it.on ? 'checked' : ''} ${it.opts.length ? '' : 'disabled'}></td>
             <td class="nowrap">${esc(slash(it.dep.date))}</td>
             <td>${esc(it.dep.payer || '')}<div class="muted small">${esc(it.dep.memo || '')}</div></td>
@@ -123,6 +123,9 @@ export function bankImport(onDone) {
           const since = shiftMonth(thisMonth(), -12);
           const open = allOpen().filter(r => r.ym >= since);
           items = bankMatch(deps, open);
+          // 排序：已勾選（名稱＋金額對上）→ 選好等確認（只對到金額）→ 要自己選月份 → 找不到；同一類照存摺順序
+          const rank = it => it.on ? 0 : it.pick >= 0 ? 1 : it.opts.length ? 2 : 3;
+          items = items.map((it, k) => ({ it, k })).sort((a, b) => rank(a.it) - rank(b.it) || a.k - b.k).map(x => x.it);
           meta = { doubts: doubts.join('；'), dupe: [done.length ? `另有 ${done.length} 筆存入已經沖過帳（有同金額的已收款，收款日在存入日前後），沒有列出：${done.map(d => `${slash(d.date)} ${d.payer} ${money(d.amt)} → ${d.doneAs}`).join('、')}` : '', skip.length ? `支票存入（票據交換）、利息 ${skip.length} 筆不比對（支票請在「收到的支票」沖帳）：${skip.map(d => `${slash(d.date)} ${d.memo || d.payer} ${money(d.amt)}`).join('、')}` : ''].filter(Boolean).join('<br>') };
           draw();
         } catch (e) { out.innerHTML = `<div class="banner">${esc(e.message || String(e))}</div>`; }

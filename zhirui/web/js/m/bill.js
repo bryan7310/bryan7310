@@ -43,7 +43,7 @@ export function billPage(view, sub, arg) {
   const drafts = store.list('drafts');
   const ry = c && /如陽/.test(c.name);
   if (e.fmt === 'ry' && !ry) e.fmt = 'std';
-  view.innerHTML = `<div class="hd"><h1>出貨單</h1><span class="sp"></span>${drafts.length ? `<button class="chip" id="dl">草稿 ${drafts.length}</button>` : ''}</div>
+  view.innerHTML = `<div class="hd"><h1>出貨單</h1><span class="sp"></span>${drafts.length ? `<button class="chip" id="dl">草稿 ${drafts.length}</button>` : ''}<button class="chip" id="jrec">最近的單 ↓</button></div>
     ${lastSent ? sentCard() : ''}
     ${e.draftId ? `<div class="note" style="margin:0 0 8px">正在編輯草稿${(s => s ? `（${esc(s.by || '')} ${new Date(s.at).toLocaleString('zh-TW', { hour12: false })}）` : '')(store.get('drafts', e.draftId))}</div>` : ''}
     <div class="card list">
@@ -63,7 +63,7 @@ export function billPage(view, sub, arg) {
     <p><button class="btn" id="saveprint">送出並列印（中一刀）</button></p>
     <p><button class="btn ghost danger" id="clr">清除這張</button></p>
     <div class="note" id="ph"></div>
-    <div class="sec">最近的出貨單</div>
+    <div class="sec" id="recSec">最近的出貨單</div>
     <div class="search"><input type="search" id="rq" placeholder="關鍵字：客戶、單號、日期、品名" value="${esc(rq)}" autocomplete="off" autocorrect="off" autocapitalize="off" enterkeyhint="search"></div>
     <div class="card list" id="rlist">${recentHtml()}</div>
     ${(m => `<details class="card set"><summary>主機列印設定</summary>
@@ -79,6 +79,7 @@ export function billPage(view, sub, arg) {
   $('#add').onclick = () => pickGoods(redraw);
   $('#scan').onclick = () => scanQR(text => { const g = findByCode(text); if (!g) { toast('找不到料號：' + text); return; } addToBill(g.id); toast('已加入：' + g.name); redraw(); }, { title: '掃商品 QR 碼' });
   $('#dl')?.addEventListener('click', () => draftList(redraw));
+  $('#jrec')?.addEventListener('click', () => view.querySelector('#recSec')?.scrollIntoView({ behavior: 'smooth', block: 'start' }));   // 跳到下面的最近清單
   $('#rq').oninput = ev => { rq = ev.target.value; $('#rlist').innerHTML = recentHtml(); };
   view.querySelectorAll('[data-fmt]').forEach(b => b.onclick = () => { e.fmt = b.dataset.fmt; keep(); view.querySelectorAll('[data-fmt]').forEach(x => x.classList.toggle('on', x === b)); });
   const lines = $('#lines');

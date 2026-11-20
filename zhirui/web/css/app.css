@@ -600,6 +600,11 @@ table.ary th a:hover { color: var(--blue); }
 .co-due-c .d { font-size: 13px; color: var(--muted); }
 .co-due-c b { font-size: 17px; font-variant-numeric: tabular-nums; }
 .co-selbar { margin-top: 10px; padding: 8px 10px; border-radius: 8px; background: var(--blue-soft); }
+.co-more { position: relative; }
+.co-more > summary { list-style: none; cursor: pointer; }
+.co-more > summary::-webkit-details-marker { display: none; }
+.co-menu { position: absolute; right: 0; top: calc(100% + 4px); z-index: 20; display: grid; gap: 6px; padding: 8px; min-width: 150px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.18); }
+.co-menu .btn { justify-content: flex-start; white-space: nowrap; }
 tr.row.on td { background: color-mix(in srgb, var(--blue-soft) 60%, transparent); }
 /* 選單排序視窗 */
 .no-list { display: grid; gap: 4px; max-height: 60vh; overflow: auto; }
@@ -838,3 +843,17 @@ tr.row.on td { background: color-mix(in srgb, var(--blue-soft) 60%, transparent)
 /* 沒有特別樣式的輸入框（各頁自己放的搜尋欄等）：權重 0，不蓋掉其他規則 */
 :where(:root[data-skin="desk"]) :where(input[type=search], input[type=text], input[type=number], input[type=email], input:not([type]), textarea) { border: 1px solid var(--line-strong); background-color: var(--surface); color: var(--ink); border-radius: 7px; padding: 6px 10px; }
 :where(:root[data-skin="desk"]) :where(input[type=search], input[type=text], input[type=number], input[type=email], input:not([type]), textarea):focus { border-color: var(--blue); box-shadow: 0 0 0 3px var(--blue-soft); outline: none; }
+/* 應收帳款：6 張數字卡片排一列（窄螢幕 3＋3） */
+.kpis.k6 { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+.kpis.k6 .kpi { padding: 10px 12px; }
+.kpis.k6 .kpi b { font-size: 20px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 1180px) { .kpis.k6 { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 640px) { .kpis.k6 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+/* 左邊選單：分類可以收合 */
+.nav .grp { display: flex; align-items: center; gap: 6px; cursor: pointer; user-select: none; }
+.nav .grp .gt { flex: 1; }
+.nav .grp .ga { font-size: 10px; opacity: .7; letter-spacing: 0; }
+.nav .grp .gc { font-size: 11px; letter-spacing: 0; background: rgba(255,255,255,.14); border-radius: 999px; padding: 0 6px; }
+.nav .grp .gc:empty { display: none; }
+.nav .grp:hover .gt { text-decoration: underline; }
+.nav a[hidden] { display: none !important; }

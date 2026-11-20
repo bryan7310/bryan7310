@@ -76,10 +76,12 @@ let navSig = '';
 function renderNav() {
   let g = null, h = ''; const list = orderedModules(); navSig = list.map(m => m.id).join(',');
   for (const m of list) {
-    if (m.group && m.group !== g) { g = m.group; h += `<div class="grp">${esc(g)}</div>`; }
-    h += `<a href="#${m.id}" data-m="${m.id}">${icon(ICONS[m.icon] || ICONS.plus)}<span>${esc(m.name)}</span></a>`;
+    if (m.group && m.group !== g) { g = m.group; h += `<div class="grp" data-g="${esc(g)}" role="button" tabindex="0" title="點一下收合／展開這一類"><span class="gt">${esc(g)}</span><span class="gc"></span><span class="ga"></span></div>`; }
+    h += `<a href="#${m.id}" data-m="${m.id}" data-g="${esc(m.group || '')}">${icon(ICONS[m.icon] || ICONS.plus)}<span>${esc(m.name)}</span></a>`;
   }
   $('#nav').innerHTML = h;
+  // 分類可以收合（記在這台電腦）；收合時目前所在的頁面還是會顯示
+  $$('#nav .grp').forEach(el => { const tg = () => { const f = new Set(ls.get('zr.nav.fold', [])); if (f.has(el.dataset.g)) f.delete(el.dataset.g); else f.add(el.dataset.g); ls.set('zr.nav.fold', [...f]); refreshNav(); }; el.onclick = tg; el.onkeydown = ev => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); tg(); } }; });
   refreshNav();
 }
 window.addEventListener('zr-nav', () => refreshNav());   // 模組（例如接收傳真）未讀數變了
@@ -92,6 +94,13 @@ function refreshNav() {
     let el = a.querySelector('.cnt');
     if (s && s.cnt) { if (!el) { el = document.createElement('span'); el.className = 'cnt'; a.append(el); } el.textContent = s.cnt; el.classList.toggle('alert', !!s.alert); }
     else if (el) el.remove();
+  }
+  const fold = new Set(ls.get('zr.nav.fold', []));
+  for (const a of $$('#nav a[data-m]')) a.hidden = fold.has(a.dataset.g) && a.getAttribute('aria-current') !== 'page';
+  for (const gEl of $$('#nav .grp')) {   // 收合的分類：標題右邊顯示裡面的待辦數量加總
+    const f = fold.has(gEl.dataset.g); gEl.classList.toggle('fold', f);
+    const n = f ? $$('#nav a[data-m] .cnt').filter(c => c.closest('a').dataset.g === gEl.dataset.g).reduce((t, c) => t + (+c.textContent || 0), 0) : 0;
+    gEl.querySelector('.gc').textContent = n ? n : ''; gEl.querySelector('.ga').textContent = f ? '▸' : '▾';
   }
 }
 function navOrderDialog() {

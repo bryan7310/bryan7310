@@ -36,7 +36,7 @@ export function uploadPage(view, sub) {
   const kind = ls.get('zr.m.upk', 'pur');
   const list = store.list('uploads').sort((a, b) => (b.at || 0) - (a.at || 0)).slice(0, 30);
   view.innerHTML = `<div class="hd"><h1>拍照上傳</h1></div>
-    <div class="chips">${KINDS.map(([k, n]) => `<button class="chip ${kind === k ? 'on' : ''}" data-k="${k}">${n}</button>`).join('')}</div>
+    <div class="chips seg">${KINDS.map(([k, n]) => `<button class="chip ${kind === k ? 'on' : ''}" data-k="${k}">${n}</button>`).join('')}</div>
     <div class="card shot"><button class="btn" id="cam">📷 拍${esc(KN[kind])}</button><button class="btn ghost" id="lib">從相簿或檔案選</button>
       <div class="note" style="margin:6px 0 0">拍好後 AI 會自動辨識（約 10～40 秒），辨識完到下面「待確認」核對，確認後才會入帳。</div></div>
     <input type="file" id="fc" accept="image/*" capture="environment" hidden><input type="file" id="fl" accept="image/*${kind === 'check' ? '' : ',application/pdf'}" hidden>
