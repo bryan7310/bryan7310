@@ -58,7 +58,7 @@ def tests(quick):
     else:
         s.add('全站測試（電腦版每一頁、App、開單流程）', 'bad', '沒有跑完：' + (out.strip().splitlines() or ['沒有輸出'])[-1])
     code, out = run([PY, str(ROOT / 'tools' / 'restore_drill.py')], 600)
-    bad = [l.split('|')[0].replace('!!', '').strip() for l in out.splitlines() if l.strip().startswith('!!')]
+    bad = [l.replace('!!', '', 1).strip().replace(' | ', '：', 1) for l in out.splitlines() if l.strip().startswith('!!')]
     s.add('備份還原演練（最新備份還原到測試主機）', 'ok' if code == 0 else 'bad', '還原得回來' if code == 0 else ('沒通過：' + '、'.join(bad) if bad else (out.strip().splitlines() or ['沒有輸出'])[-1]))
 
 
@@ -150,7 +150,8 @@ $ev = @(Get-WinEvent -FilterHashtable @{ LogName = 'System'; Level = 1, 2, 3; St
 $o.diskEv = @($ev | Where-Object { $_.ProviderName -in 'disk', 'Ntfs', 'volmgr', 'storahci', 'stornvme', 'Microsoft-Windows-Ntfs' -and $_.Level -le 2 }).Count
 $o.diskWarn = @($ev | Where-Object { $_.ProviderName -eq 'disk' -and $_.Level -eq 3 }).Count
 $o.badShut = @($ev | Where-Object { ($_.ProviderName -eq 'Microsoft-Windows-Kernel-Power' -and $_.Id -eq 41) -or ($_.ProviderName -eq 'EventLog' -and $_.Id -eq 6008) }).Count
-$o.whea = @($ev | Where-Object { $_.ProviderName -eq 'Microsoft-Windows-WHEA-Logger' }).Count
+$o.whea = @($ev | Where-Object { $_.ProviderName -eq 'Microsoft-Windows-WHEA-Logger' -and $_.Level -le 2 }).Count
+$o.wheaFix = @($ev | Where-Object { $_.ProviderName -eq 'Microsoft-Windows-WHEA-Logger' -and $_.Level -eq 3 }).Count
 $o.procs = @(Get-CimInstance Win32_Process -Filter "Name like 'python%'" | ForEach-Object { [string]$_.CommandLine })
 $o | ConvertTo-Json -Depth 5 -Compress
 '''
@@ -180,8 +181,14 @@ def pc_status():
         s.add('%s 槽空間%s' % (v.get('d', '').rstrip(':'), '（%s）' % v['label'] if v.get('label') else ''), 'bad' if pct < 8 else 'warn' if pct < 15 else 'ok', '共 %.0f GB，剩 %.0f GB（%.0f%%）' % (size, free, pct))
     bs = o.get('badShut') or 0
     s.add('最近 7 天不正常關機', 'ok' if not bs else 'warn', '沒有' if not bs else '%d 次（停電、當機或直接按電源）' % bs)
-    wh = o.get('whea') or 0
-    s.add('最近 7 天硬體錯誤記錄', 'ok' if not wh else 'warn', '沒有' if not wh else '%d 筆（Windows 事件檢視器 › 系統 › WHEA-Logger）' % wh)
+    wh, wf = o.get('whea') or 0, o.get('wheaFix') or 0
+    if wh:
+        s.add('最近 7 天硬體錯誤記錄', 'bad', '%d 筆沒辦法自動修正的硬體錯誤（Windows 事件檢視器 › 系統 › WHEA-Logger），建議請電腦店檢查' % wh)
+    elif wf:
+        # 已修正的錯誤（多半是 PCI Express 訊號重傳）：不影響資料，偶爾幾筆只記錄；很多才提醒
+        s.add('最近 7 天硬體錯誤記錄', 'info' if wf < 20 else 'warn', '%d 筆「已自動修正」的訊號錯誤（多半是顯示卡或擴充卡插槽接觸、灰塵），不影響資料%s' % (wf, '' if wf < 20 else '；次數偏多，建議關機清潔、重插擴充卡'))
+    else:
+        s.add('最近 7 天硬體錯誤記錄', 'ok', '沒有')
     procs = ' '.join(lst(o.get('procs')))
     for key, name in (('fax_helper', '傳真小幫手'), ('print_helper', '列印小幫手')):
         s.add(name + '有在執行', 'ok' if key in procs else 'warn', '執行中' if key in procs else '沒有在執行（不能傳真／列印標籤、出貨單）')

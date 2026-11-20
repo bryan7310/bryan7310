@@ -82,7 +82,10 @@ def main():
         fl, fb = ROOT / 'data' / 'files', zpath.parent / 'files'
         if fl.is_dir():
             miss = [f for f in os.listdir(fl) if not (fb / f).exists()]
-            ok('附檔都有備份到', len(miss) <= 5, '正式 %d 個，備份缺 %d 個%s' % (len(os.listdir(fl)), len(miss), '（今天新增、下次備份會補上）' if miss else ''))
+            if not fb.is_dir():
+                ok('附檔都有備份到', False, '備份資料夾裡沒有 files 子資料夾（客戶圖面等 %d 個附檔沒有備份；下次備份會自動重新複製）' % len(os.listdir(fl)))
+            else:
+                ok('附檔都有備份到', len(miss) <= 5, '正式 %d 個，備份缺 %d 個%s' % (len(os.listdir(fl)), len(miss), '（今天新增、下次備份會補上）' if miss else ''))
         # 真的啟動一台測試主機，用還原的資料登入、把資料全部讀出來
         data = T.make_data(rdb)
         srv = T.start_server(data, PORT)
