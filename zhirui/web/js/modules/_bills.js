@@ -344,9 +344,9 @@ function bindBill(el, close) {
   const savePrint = (fn, win = true) => async () => {
     if (!hasLines()) return;
     if (e.hist) return fn(e);
-    if (win) reserveWin();
+    // 列印視窗等檢查都過了、真的要儲存時才開（先開的話，「儲存前請確認」會被新分頁蓋住，只看到一頁「儲存中」）
     let done = false;
-    await saveBill(close, b => { done = true; fn(b); });
+    await saveBill(close, b => { done = true; fn(b); }, false, win ? reserveWin : null);
     setTimeout(() => { if (!done && win) dropWin(); }, 1500);
   };
   el.querySelector('#printBill')?.addEventListener('click', savePrint(b => printBill(b)));
@@ -578,7 +578,7 @@ export function billChecks(e) {
   }
   return out;
 }
-async function saveBill(close, then, force) {
+async function saveBill(close, then, force, pre) {
   const e = edit, T = TYPES[e.type]; let err = '';
   const C = calc();
   if (!e.date) err = '請填單據日期';
@@ -610,6 +610,7 @@ async function saveBill(close, then, force) {
   doc.createdBy = e.createdBy || store.user.id; if (e.id) doc.updatedBy = store.user.id;
   { const prev = e.id ? store.get('bills', e.id) : null; if (prev) for (const k of ['faxLog', 'faxTo', 'src', 'mdbSub']) if (prev[k] != null && doc[k] == null) doc[k] = prev[k]; }   // 傳真紀錄、匯入來源：用存檔當下最新的（編輯中傳真過也不會被蓋掉）
   if (e.hist) return saveHist(e, T, { ...e._orig, ...doc, id }, close);
+  if (pre) pre();
   try { await store.save('bills', id, doc); } catch (err2) { toast('儲存失敗：' + err2.message); return; }
   store.log(e.id ? '修改' : '新增', `${T.name} ${doc.no}${T.party ? '｜' + cname(doc.cid) : ''}｜${fmt(T.lines ? totals(doc).total : doc.amount)} 元`);
   close(); toast(`${T.name} ${doc.no} 已儲存`);
