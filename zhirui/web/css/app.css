@@ -313,6 +313,9 @@ td .sub { display: block; color: var(--muted); font-size: 12px; }
 .steps label { display: inline-flex; align-items: center; gap: 3px; font-size: 12px; padding: 2px 7px; border-radius: 10px; background: var(--sunken); cursor: pointer; }
 .steps label.on { background: var(--ok-soft); color: var(--ok); }
 .steps input { margin: 0; }
+.steps label { white-space: nowrap; }
+/* 手機：進度欄給固定寬度（每列約 3 個），不要被擠成一個字一行；鈕大一點比較好按 */
+@media (max-width: 720px) { .steps { min-width: 236px; gap: 6px; } .steps label { font-size: 13px; padding: 5px 9px; gap: 5px; } }
 
 /* 列印 */
 @media print { .rail, .topbar, .toast, .scrim { display: none !important; } .app { display: block; } .content { padding: 0; } .panel { border: 0; } }
