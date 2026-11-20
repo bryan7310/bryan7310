@@ -152,7 +152,7 @@ export function rememberLabels(items) {
   ls.set(RKEY, list.slice(0, 5));
 }
 /** 最近印過的按鈕（data-rc＝第幾項） */
-export const recentHTML = () => { const r = recentLabels(); return r.length ? `<div class="sec">最近印過 <span class="muted">按一下加回清單</span></div><div class="rlist">${r.map((x, i) => { const g = store.get('goods', x.gid); return `<button type="button" class="rbtn" data-rc="${i}"><b>${esc(g.name)}</b><small>${esc(qtyText(x.per, x.unit))}・上次 ${x.n} 張</small></button>`; }).join('')}</div>` : ''; };
+export const recentHTML = () => { const r = recentLabels(); return r.length ? `<div class="sec">最近印過 <span class="muted">按一下加回清單</span></div><div class="card list rlist">${r.map((x, i) => { const g = store.get('goods', x.gid); return `<a href="#" data-rc="${i}"><span class="rn">${esc(g.name)}</span><span class="go">${esc(qtyText(x.per, x.unit))} × ${x.n} 張</span></a>`; }).join('')}</div>` : ''; };
 export const itemOf = (x, date) => { const g = store.get('goods', x.gid) || {}; const p = lblParse(g); return { name: p.name, spec: p.spec, fin: p.fin, qty: qtyText(x.per, x.unit), wt: String(x.wt || '').trim() ? `${String(x.wt).trim()}g` : '', date, code: g.code || '', p, g }; };
 
 const MODES = [['goods', '商品標籤'], ['addr', '地址標籤']];
@@ -174,7 +174,6 @@ export function labelPage(view, sub, arg) {
     <div class="sec">標籤 ${s.items.length ? `<span class="muted">${s.items.length} 種・共 ${total} 張</span>` : ''}</div>
     <div id="li">${s.items.map((x, i) => itemCard(x, i)).join('') || '<div class="card ph"><b>還沒有標籤</b><span class="muted">用下面按鈕加品項、掃 QR 碼，或在出貨單送出後按「印這張的標籤」。</span></div>'}</div>
     <div class="btn2"><button class="btn ghost" id="add">＋ 加品項</button><button class="btn ghost" id="scan">掃 QR 碼加入</button></div>
-    <div id="lrc">${recentHTML()}</div>
     ${bad ? `<div class="err">${bad} 種品名拆字需要確認（黃色框），確認後才會印。</div>` : ''}
     <p><button class="btn" id="go" ${s.items.length && !bad ? '' : 'disabled'}>列印 ${total} 張標籤</button></p>
     <div class="note" style="margin-top:-6px">標籤方向：${c.rot === 'land' ? '橫放（50 mm 橫過印字頭）' : '直放（40 mm 橫過印字頭，整張轉 90 度）'}・可在下面「標籤機設定」改</div>
@@ -190,7 +189,8 @@ export function labelPage(view, sub, arg) {
       <label class="check"><input type="checkbox" id="ldir" ${c.dir ? '' : 'checked'}> 上下顛倒（印出來倒過來時勾）</label>
       <p><button class="btn ghost" id="lsave">儲存設定</button></p>
       <div class="btn2"><button class="btn ghost" id="lpadd">＋ 新增一台標籤機</button>${c.id === 'main' ? '' : '<button class="btn ghost danger" id="lpdel">刪除這一台</button>'}</div>
-      <div class="note" style="text-align:left">每一台各自記自己的設定。新的標籤機要先裝在主機電腦上（Windows 印表機清單看得到），這裡的「印表機名稱」要跟 Windows 上的名稱一模一樣。</div></details>`;
+      <div class="note" style="text-align:left">每一台各自記自己的設定。新的標籤機要先裝在主機電腦上（Windows 印表機清單看得到），這裡的「印表機名稱」要跟 Windows 上的名稱一模一樣。</div></details>
+    <div id="lrc">${recentHTML()}</div>`;
   const $ = q => view.querySelector(q); const redraw = () => labelPage(view);
   // 預覽
   s.items.forEach((x, i) => { const cv = view.querySelector(`[data-cv="${i}"]`); if (cv) drawLabel(cv, itemOf(x, date)).catch(() => {}); });
@@ -216,7 +216,7 @@ export function labelPage(view, sub, arg) {
     const fx = ev.target.closest('[data-fix]'); if (fx) fixSheet(store.get('goods', s.items[+fx.dataset.fix].gid), redraw);
   });
   $('#add').onclick = () => pickGoods(redraw);
-  $('#lrc').addEventListener('click', ev => { const b = ev.target.closest('[data-rc]'); if (!b) return; const x = recentLabels()[+b.dataset.rc]; if (!x) return; addLabel(x.gid, x.per, x.n, x.unit); toast('已加回清單'); redraw(); });
+  $('#lrc').addEventListener('click', ev => { const b = ev.target.closest('[data-rc]'); if (!b) return; ev.preventDefault(); const x = recentLabels()[+b.dataset.rc]; if (!x) return; addLabel(x.gid, x.per, x.n, x.unit); toast('已加回清單'); redraw(); window.scrollTo(0, 0); });
   $('#scan').onclick = () => scanQR(text => { const g = findByCode(text); if (!g) { toast('找不到料號：' + text); return; } addLabel(g.id); redraw(); }, { title: '掃商品 QR 碼' });
   $('#clr')?.addEventListener('click', () => { if (!window.confirm('清空標籤清單？')) return; s.items = []; keep(); redraw(); });
   $('#go').onclick = () => printAll(view);

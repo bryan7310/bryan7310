@@ -24,8 +24,8 @@ export function staffPage(view) {
     <div id="sli">${s.items.map((x, i) => card(x, i)).join('') || '<div class="card ph"><b>還沒有標籤</b><span class="muted">按上面「找商品」或「掃 QR 碼」加進來。</span></div>'}</div>
     <div id="serr" class="err"></div>
     ${s.items.length ? `<button type="button" class="sbtn go" id="sgo"><b>列印 ${total} 張</b><small>印到「${esc(pr.name)}」</small></button><p><button class="btn ghost danger" id="sclr">全部清掉</button></p>` : ''}
-    <div id="src">${recentHTML()}</div>
-    <div class="note" id="sph"></div>`;
+    <div class="note" id="sph"></div>
+    <div id="src">${recentHTML()}</div>`;
   const $ = q => view.querySelector(q); const redraw = () => staffPage(view);
   s.items.forEach((x, i) => { const cv = view.querySelector(`[data-cv="${i}"]`); if (cv) drawLabel(cv, itemOf(x, today())).catch(() => {}); });
   $('#slo').onclick = async () => { if (!window.confirm('要登出嗎？')) return; try { await api.logout(); } catch (e) {} await store.clearCache(); location.reload(); };
@@ -42,7 +42,7 @@ export function staffPage(view) {
     if (ev.target.closest('[data-del]')) { s.items.splice(i, 1); keep(); redraw(); return; }
     if (ev.target.closest('[data-fix]')) fixSheet(store.get('goods', x.gid), redraw);
   });
-  $('#src').addEventListener('click', ev => { const b = ev.target.closest('[data-rc]'); if (!b) return; const x = recentLabels()[+b.dataset.rc]; if (!x) return; s.items.unshift({ gid: x.gid, per: x.per, n: x.n, unit: x.unit }); keep(); redraw(); window.scrollTo(0, 0); });
+  $('#src').addEventListener('click', ev => { const b = ev.target.closest('[data-rc]'); if (!b) return; ev.preventDefault(); const x = recentLabels()[+b.dataset.rc]; if (!x) return; s.items.unshift({ gid: x.gid, per: x.per, n: x.n, unit: x.unit }); keep(); redraw(); window.scrollTo(0, 0); });
   $('#sclr')?.addEventListener('click', () => { if (!window.confirm('把清單全部清掉？')) return; s.items = []; keep(); redraw(); });
   $('#sgo')?.addEventListener('click', () => print(view));
   status(view);

@@ -273,9 +273,8 @@ body.staff #view, body.staff main { padding-bottom: 24px; }
 .pbtn.on { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent); }
 .pbtn.on b::after { content: '　✓ 目前'; font-size: 14px; font-weight: 600; color: var(--accent); }
 .tabbar[hidden] { display: none; }
-/* 最近印過的標籤 */
-.rlist { display: grid; gap: 10px; margin: 0 0 14px; }
-.rbtn { appearance: none; text-align: left; min-height: 62px; border: 1px solid var(--line); border-radius: 16px; background: var(--card); color: var(--text); padding: 10px 16px; display: grid; gap: 2px; font: inherit; cursor: pointer; }
-.rbtn b { font-size: 17px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.rbtn small { color: var(--muted); font-size: 13px; }
-.rbtn:active { filter: brightness(.94); }
+/* 最近印過的標籤：列表，一項一列 */
+.rlist a { min-height: 52px; }
+.rlist a:first-child { border-top: 0; }
+.rlist .rn { flex: 1; min-width: 0; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rlist .go { flex: none; font-size: 14px; }
