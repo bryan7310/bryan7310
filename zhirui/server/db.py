@@ -498,10 +498,12 @@ class DB:
                               (uid, name, login.strip().lower(), salt, self._hash(pw, salt), role, int(time.time() * 1000)))
         return uid
 
-    def set_password(self, uid, pw):
+    def set_password(self, uid, pw, keep=None):
+        """改密碼；這個帳號其他的登入一律登出（keep＝目前這個連線的 token，保留）"""
         salt = secrets.token_hex(16)
         with self.lock:
             self.conn.execute('UPDATE users SET salt=?, hash=? WHERE id=?', (salt, self._hash(pw, salt), uid))
+            self.conn.execute('DELETE FROM sessions WHERE uid=? AND token<>?', (uid, keep or ''))
 
     def update_user(self, uid, name=None, login=None, disabled=None, role=None):
         with self.lock:

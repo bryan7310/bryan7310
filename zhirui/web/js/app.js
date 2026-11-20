@@ -6,6 +6,7 @@ import { toast, icon, ICONS, modal, isTouch } from './core/ui.js';
 import { MODULES } from './modules/index.js';
 import { calc, goodsLabel, cdisp } from './core/calc.js';
 import { preloadHist } from './modules/_bills.js';
+import { watchVersion } from './core/newver.js';
 
 let view = $('#view');
 let current = null, currentMod = null, unsub = null;
@@ -212,3 +213,4 @@ export function setSkin(v) { ls.set('zr.skin', v); if (v === 'desk') document.do
 export const getSkin = () => ls.get('zr.skin', 'desk');
 
 boot();
+watchVersion();   // 平台改版後提醒這個分頁重新整理

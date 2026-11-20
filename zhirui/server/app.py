@@ -80,7 +80,9 @@ FILE_TYPES = {'.jpg': 'image/jpeg', '.png': 'image/png', '.gif': 'image/gif', '.
 FILE_MAX = 25 * 1024 * 1024
 # 信件附件可以直接在網頁打開的類型（其他一律下載）
 # 只有老闆帳號能呼叫的功能（POST）
-ADMIN_ONLY = {'/api/optimize', '/api/ai', '/api/contacts/merge', '/api/restart'}
+ADMIN_ONLY = {'/api/optimize', '/api/ai', '/api/contacts/merge', '/api/restart', '/api/backup'}
+ADMIN_SETTINGS = {'backup', 'backup_state'}   # 這幾個設定只有老闆帳號能改（備份資料夾可以把整份資料寫到別的地方）
+UNAUTH_BODY_MAX = 64 * 1024   # 沒登入的要求（登入、第一次設定）最多收這麼大
 MAIL_INLINE = {'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/bmp', 'application/pdf'}
 # 接收傳真：瀏覽這個資料夾裡的傳真檔（PDF、圖檔；TIF 會轉成 PNG 給瀏覽器看）
 FAXIN_DIR = os.environ.get('ZR_FAX_IN') or os.path.normpath(os.path.join(HERE, '..', 'fax'))
@@ -104,6 +106,7 @@ FAX_HELPER = {}
 LOGIN_FAILS = {}
 LOGIN_LOCK = threading.Lock()
 LOGIN_MAX, LOGIN_WINDOW = 10, 15 * 60
+LOGIN_MAX_ID = 40   # 同一個帳號不分來源的上限（比單一來源寬，外人不能用 10 次錯密碼就把帳號鎖住）
 
 
 def login_locked(keys):
@@ -113,8 +116,9 @@ def login_locked(keys):
         for k in keys:
             ts = [t for t in LOGIN_FAILS.get(k, []) if now - t < LOGIN_WINDOW]
             LOGIN_FAILS[k] = ts
-            if len(ts) >= LOGIN_MAX:
-                wait = max(wait, LOGIN_WINDOW - (now - ts[-LOGIN_MAX]))
+            mx = LOGIN_MAX_ID if k.startswith('id:') else LOGIN_MAX
+            if len(ts) >= mx:
+                wait = max(wait, LOGIN_WINDOW - (now - ts[-mx]))
         return int(wait)
 
 
@@ -195,6 +199,7 @@ def json_bytes(obj):
 class Handler(BaseHTTPRequestHandler):
     server_version = 'ZhiruiServer/1.0'
     protocol_version = 'HTTP/1.1'
+    timeout = 120   # 連線閒置逾時（秒）：開著不送資料的連線不會一直佔著執行緒
     state: State = None
 
     # ---------- 工具 ----------
@@ -232,7 +237,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def body_json(self):
         n = int(self.headers.get('Content-Length') or 0)
-        if n > 64 * 1024 * 1024:
+        if n < 0 or n > 64 * 1024 * 1024:
             raise ValueError('body too large')
         raw = self.rfile.read(n) if n else b''
         return json.loads(raw.decode('utf-8')) if raw else None
@@ -278,6 +283,14 @@ class Handler(BaseHTTPRequestHandler):
             u = urlparse(self.path)
             if not u.path.startswith('/api/'):
                 return self.error('not found', 404)
+            try:
+                n = int(self.headers.get('Content-Length') or 0)
+            except ValueError:
+                n = -1
+            helper = u.path.startswith(('/api/fax/helper/', '/api/print/helper/'))   # 小幫手用自己的 token 驗證
+            if n < 0 or (n > UNAUTH_BODY_MAX and not helper and not self.user()):
+                self.close_connection = True   # 不讀 body，直接回應後關掉連線
+                return self.error('請先登入' if n >= 0 else 'bad request', 401 if n >= 0 else 400)
             if u.path == '/api/files':
                 return self.upload(parse_qs(u.query))
             if u.path == '/api/pdf/parse':
@@ -304,7 +317,10 @@ class Handler(BaseHTTPRequestHandler):
         if path == '/':
             path = '/index.html'
         fp = os.path.normpath(os.path.join(WEB, path.lstrip('/')))
-        if os.path.isdir(fp) and fp.startswith(WEB) and os.path.isfile(os.path.join(fp, 'index.html')):
+        inweb = fp == WEB or fp.startswith(WEB + os.sep)
+        if inweb and os.path.relpath(fp, WEB).replace(os.sep, '/').lower().startswith('pending/') and not self.user():
+            return self.error('請先登入', 401)
+        if os.path.isdir(fp) and inweb and os.path.isfile(os.path.join(fp, 'index.html')):
             if not path.endswith('/'):
                 # /m → /m/，相對路徑才會對
                 self.send_response(301)
@@ -313,7 +329,7 @@ class Handler(BaseHTTPRequestHandler):
                 self.end_headers()
                 return
             fp = os.path.join(fp, 'index.html')
-        if not fp.startswith(WEB) or not os.path.isfile(fp):
+        if not inweb or not os.path.isfile(fp):
             # 單頁應用：找不到的路徑回首頁
             fp = os.path.join(WEB, 'index.html')
             if not os.path.isfile(fp):
@@ -513,6 +529,8 @@ class Handler(BaseHTTPRequestHandler):
                                              'current': FAXIDX_STATE['current'], 'err': FAXIDX_STATE['err'], 'model': FAXIDX_MODEL,
                                              'ai': bool(ai_cfg(self.state.data_dir).get('anthropic_api_key')) or bool(os.environ.get('ZR_FAXIDX_MOCK'))}})
         if path == '/api/faxin/index':   # 打開／關閉自動辨識（只有老闆帳號可以改）
+            if self.command != 'POST':
+                return self.error('請用 POST', 405)
             if (self.user() or {}).get('role', 'admin') != 'admin':
                 return self.error('只有管理者可以設定', 403)
             idx, cfg = faxidx_load(self.state.data_dir)
@@ -570,14 +588,15 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_json({'ok': True, 'id': uid}, headers={'Set-Cookie': self.set_cookie(token)})
         if path == '/api/login' and method == 'POST':
             b = body or {}
-            keys = ('ip:' + self.client_ip(), 'id:' + str(b.get('login') or '').strip().lower())
+            lg = str(b.get('login') or '').strip().lower()[:80]
+            keys = ('ip:' + self.client_ip(), 'ipid:' + self.client_ip() + '|' + lg, 'id:' + lg)
             wait = login_locked(keys)
             if wait:
                 return self.error('密碼錯太多次，請 %d 分鐘後再試' % max(1, (wait + 59) // 60), 429)
             token = db.login(b.get('login') or '', b.get('pw') or '', self.headers.get('User-Agent', ''))
             if not token:
                 login_failed(keys)
-                sys.stderr.write('login failed %s %s\n' % keys)
+                sys.stderr.write('login failed %s %s\n' % (keys[0], keys[2]))
                 time.sleep(0.5)
                 return self.error('帳號或密碼不對', 401)
             login_ok(keys)
@@ -619,6 +638,8 @@ class Handler(BaseHTTPRequestHandler):
                     return self.error('不認識的集合：' + str(op['col']))
                 if not op.get('delete') and not isinstance(op.get('data'), dict):
                     return self.error('data 要是物件')
+                if op['col'] == 'settings' and str(op['id']) in ADMIN_SETTINGS and me.get('role', 'admin') != 'admin':
+                    return self.error('備份設定只有管理者可以改', 403)
                 if op['col'] == 'logs' and me.get('role', 'admin') != 'admin' and (op.get('delete') or db.get('logs', str(op['id'])) is not None):
                     return self.error('操作日誌只能新增，不能修改或刪除', 403)
             res = db.batch(ops, me['id'])
@@ -652,7 +673,7 @@ class Handler(BaseHTTPRequestHandler):
             if 'pw' in b and b['pw']:
                 if len(b['pw']) < PW_MIN:
                     return self.error('密碼至少 %d 碼' % PW_MIN)
-                db.set_password(uid, b['pw'])
+                db.set_password(uid, b['pw'], keep=self.cookie())
             if b.get('disabled') and sum(1 for u in db.users() if not u['disabled']) <= 1:
                 return self.error('至少要保留一個可用帳號')
             role = b.get('role') if b.get('role') in ('admin', 'staff') else None
@@ -1353,8 +1374,39 @@ def _ocr_list(fields):
     return out
 
 
+AI_DAILY_USD = 5.0   # 一天的 AI 花費上限（美元）；data/ai.json 的 daily_usd_cap 可以改，0＝不限
+
+
+def ai_budget(data_dir):
+    """今天的 AI 花費到上限就擋下（防止程式出錯或有人一直按，把錢燒光）。平常一天不到 1 美元。"""
+    if os.environ.get('ZR_OCR_MOCK') or os.environ.get('ZR_DOC_MOCK'):
+        return
+    try:
+        cap = float(ai_cfg(data_dir).get('daily_usd_cap', AI_DAILY_USD))
+    except Exception:
+        cap = AI_DAILY_USD
+    if cap <= 0 or not AI_LOG_DIR:
+        return
+    day0 = time.mktime(datetime.date.today().timetuple()) * 1000
+    spent = 0.0
+    try:
+        with open(os.path.join(AI_LOG_DIR, 'ai_usage.jsonl'), encoding='utf-8') as f:
+            for line in f.readlines()[-3000:]:
+                try:
+                    r = json.loads(line)
+                except Exception:
+                    continue
+                if r.get('t', 0) >= day0:
+                    spent += float(r.get('usd') or 0)
+    except OSError:
+        return
+    if spent >= cap:
+        raise OcrError('今天的 AI 用量已經到上限（%.2f／%.2f 美元），明天會自動恢復；要調高請找管理者' % (spent, cap), 429)
+
+
 def ocr_check(data_dir, data_url):
     """data_url：瀏覽器送來的 data:image/jpeg;base64,... → 回傳支票清單 list[dict]"""
+    ai_budget(data_dir)
     return _ocr_list(_ocr_raw(data_dir, data_url))
 
 
@@ -1464,6 +1516,7 @@ AGENT_PROMPT = """你是「志瑞螺絲企業有限公司」智能ERP（作業�
 
 def agent_step(data_dir, body, me):
     """一步對話：messages、tools 由瀏覽器送來（工具在瀏覽器執行），回傳 Claude 的回應內容"""
+    ai_budget(data_dir)
     messages = body.get('messages')
     tools = body.get('tools') or []
     if not isinstance(messages, list) or not messages:
@@ -1664,6 +1717,7 @@ def _order_cache(data_dir, key, val=None):
 def order_extract(data_dir, body, fax_path):
     """body：{fax: 檔名} 或 {mail: 信件 id, n: 附件編號}（n 省略＝讀信件內文）；again＝重新辨識（會再花一次錢）"""
     import zrmail as MB
+    ai_budget(data_dir)
     blocks = []
     MEDIA = {'.pdf': 'application/pdf', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.gif': 'image/gif', '.webp': 'image/webp'}
 
@@ -1815,6 +1869,12 @@ def faxidx_loop(state):
                         if not x or x.get('mtime') != mt or (x.get('err') and x.get('tries', 0) < 3 and time.time() - x.get('at', 0) / 1000 > 3600):
                             todo.append((mt, rel, fp))
                 todo.sort(reverse=True)   # 新的先讀
+                if todo and not os.environ.get('ZR_FAXIDX_MOCK'):
+                    try:
+                        ai_budget(state.data_dir)
+                    except OcrError as e:   # 今天的 AI 用量到上限：先不讀，明天再繼續（不把檔案記成失敗）
+                        FAXIDX_STATE.update(running=False, current='', err=str(e)[:200])
+                        todo = []
                 for mt, rel, fp in todo:
                     if not faxidx_load(state.data_dir)[1].get('auto'):
                         break
@@ -1841,6 +1901,7 @@ def faxidx_loop(state):
 
 def po_extract(data_dir, body, system=None, schema=None, ask='請讀這張採購單，依指定的 JSON 格式回傳。', tag='po'):
     """body：data（base64）、media（application/pdf、image/jpeg…）；system／schema 沒給就是讀客戶採購單"""
+    ai_budget(data_dir)
     data = str(body.get('data') or '')
     media = str(body.get('media') or '')
     if not data or media not in ('application/pdf', 'image/jpeg', 'image/png', 'image/webp'):
@@ -2025,6 +2086,9 @@ def run_backup(state, manual=False):
     db = state.db
     cfg = backup_settings(db)
     try:
+        bdir = os.path.normpath(os.path.abspath(str(cfg['dir'])))
+        if str(cfg['dir']).startswith(('\\\\', '//')) or bdir == WEB or bdir.startswith(WEB + os.sep):
+            raise ValueError('備份資料夾不能是網路路徑，也不能放在 web 資料夾底下')
         os.makedirs(cfg['dir'], exist_ok=True)
         stamp = datetime.datetime.now().strftime('%Y-%m-%d_%H%M')
         tmp = os.path.join(cfg['dir'], f'zhirui_{stamp}.db')

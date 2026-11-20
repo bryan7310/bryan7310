@@ -140,7 +140,7 @@ function drawIdx(el) {
   box.querySelector('#fiAuto')?.addEventListener('click', async ev => {
     ev.preventDefault(); const on = ev.target.dataset.v === '1';
     if (on && !await confirm(`開啟後，伺服器會用 Claude Haiku 讀每張傳真的寄件公司、單號、日期（每張約 NT$0.02）。\n現在有 ${left} 張還沒讀，全部讀完約 NT$${Math.max(1, Math.ceil(left * 0.02))}，之後新收到的傳真會自動讀。\n要開啟嗎？`, { ok: '開啟' })) return;
-    try { await api.get('/api/faxin/index?auto=' + (on ? 1 : 0)); toast(on ? '已開啟，伺服器一分鐘內會開始讀' : '已關閉內容辨識'); await load(); drawIdx(el); }
+    try { await api.post('/api/faxin/index?auto=' + (on ? 1 : 0), {}); toast(on ? '已開啟，伺服器一分鐘內會開始讀' : '已關閉內容辨識'); await load(); drawIdx(el); }
     catch (e) { toast(e.message || String(e)); }
   });
 }
