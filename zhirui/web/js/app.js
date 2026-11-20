@@ -52,7 +52,7 @@ function showSetup() {
     <p class="muted" style="margin:0">伺服器還沒有任何帳號。請建立第一個帳號（管理者），之後可在「設定備份 → 帳號」新增其他人。</p>
     <div class="f"><label for="sn">姓名</label><input id="sn" name="name" required autofocus></div>
     <div class="f"><label for="sl">帳號（登入用，英數字）</label><input id="sl" name="login" autocomplete="username" required></div>
-    <div class="f"><label for="sp">密碼（至少 6 碼）</label><input id="sp" name="pw" type="password" autocomplete="new-password" required minlength="6"></div>
+    <div class="f"><label for="sp">密碼（至少 8 碼）</label><input id="sp" name="pw" type="password" autocomplete="new-password" required minlength="8"></div>
     <div id="suErr" style="color:var(--bad)"></div>
     <button class="btn pri" type="submit" style="justify-content:center;padding:10px">建立並登入</button></form>`;
   document.body.prepend(el);

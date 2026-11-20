@@ -14,6 +14,14 @@ import hashlib
 import secrets
 
 SESSION_IDLE = 90 * 86400 * 1000   # 登入多久沒用就失效（毫秒）
+PW_ITER = 600000   # 密碼雜湊次數（PBKDF2-SHA256）；舊的 12 萬次在下次登入成功時自動升級
+PW_ITER_OLD = 120000
+_DUMMY_SALT = secrets.token_hex(16)   # 帳號不存在時也算一次雜湊，回應時間才看不出帳號存不存在
+
+
+def _tk(token):
+    """登入憑證只存雜湊：資料庫（含每份備份）外流也拿不到能直接用的登入"""
+    return 'h:' + hashlib.sha256(str(token or '').encode('utf-8')).hexdigest()
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS docs(
@@ -51,6 +59,11 @@ class DB:
         self.conn.execute('PRAGMA journal_mode=WAL')
         self.conn.execute('PRAGMA synchronous=NORMAL')
         self.conn.executescript(SCHEMA)
+        old = self.conn.execute("SELECT token FROM sessions WHERE token NOT LIKE 'h:%'").fetchall()
+        for (t,) in old:
+            self.conn.execute('UPDATE OR IGNORE sessions SET token=? WHERE token=?', (_tk(t), t))
+        if old:
+            self.conn.execute("DELETE FROM sessions WHERE token NOT LIKE 'h:%'")
         row = self.conn.execute("SELECT value FROM meta WHERE key='ver'").fetchone()
         self.ver = int(row[0]) if row else 0
 
@@ -478,8 +491,17 @@ class DB:
 
     # ---------- 使用者與登入 ----------
     @staticmethod
-    def _hash(pw, salt):
-        return hashlib.pbkdf2_hmac('sha256', pw.encode('utf-8'), bytes.fromhex(salt), 120000).hex()
+    def _hash(pw, salt, it=PW_ITER):
+        """新格式 'p600000$<hex>'；舊格式只有 hex（12 萬次）"""
+        h = hashlib.pbkdf2_hmac('sha256', pw.encode('utf-8'), bytes.fromhex(salt), it).hex()
+        return h if it == PW_ITER_OLD else 'p%d$%s' % (it, h)
+
+    @classmethod
+    def _check(cls, pw, salt, stored):
+        if stored.startswith('p') and '$' in stored:
+            it = int(stored[1:stored.index('$')])
+            return secrets.compare_digest(cls._hash(pw, salt, it), stored)
+        return secrets.compare_digest(cls._hash(pw, salt, PW_ITER_OLD), stored)
 
     def user_count(self):
         with self.lock:
@@ -503,7 +525,7 @@ class DB:
         salt = secrets.token_hex(16)
         with self.lock:
             self.conn.execute('UPDATE users SET salt=?, hash=? WHERE id=?', (salt, self._hash(pw, salt), uid))
-            self.conn.execute('DELETE FROM sessions WHERE uid=? AND token<>?', (uid, keep or ''))
+            self.conn.execute('DELETE FROM sessions WHERE uid=? AND token<>?', (uid, _tk(keep) if keep else ''))
 
     def update_user(self, uid, name=None, login=None, disabled=None, role=None):
         with self.lock:
@@ -520,12 +542,18 @@ class DB:
 
     def login(self, login, pw, agent=''):
         row = self.conn.execute('SELECT id, salt, hash FROM users WHERE login=? AND disabled=0', (login.strip().lower(),)).fetchone()
-        if not row or not secrets.compare_digest(self._hash(pw, row[1]), row[2]):
+        if not row:
+            self._hash(pw, _DUMMY_SALT)   # 帳號不存在也花一樣的時間
             return None
-        token = secrets.token_urlsafe(32)
+        if not self._check(pw, row[1], row[2]):
+            return None
         now = int(time.time() * 1000)
+        token = secrets.token_urlsafe(32)
         with self.lock:
-            self.conn.execute('INSERT INTO sessions(token,uid,created,last,agent) VALUES(?,?,?,?,?)', (token, row[0], now, now, agent[:200]))
+            if not row[2].startswith('p%d$' % PW_ITER):   # 舊雜湊：密碼對了就順便升級成新的
+                salt = secrets.token_hex(16)
+                self.conn.execute('UPDATE users SET salt=?, hash=? WHERE id=?', (salt, self._hash(pw, salt), row[0]))
+            self.conn.execute('INSERT INTO sessions(token,uid,created,last,agent) VALUES(?,?,?,?,?)', (_tk(token), row[0], now, now, agent[:200]))
         return token
 
     def session_user(self, token):
@@ -535,15 +563,15 @@ class DB:
             # 90 天沒用過的登入自動失效（每次使用都會延長）
             row = self.conn.execute(
                 'SELECT u.id, u.name, u.login, u.role FROM sessions s JOIN users u ON u.id=s.uid WHERE s.token=? AND u.disabled=0 AND s.last>?',
-                (token, int(time.time() * 1000) - SESSION_IDLE)).fetchone()
+                (_tk(token), int(time.time() * 1000) - SESSION_IDLE)).fetchone()
             if not row:
                 return None
-            self.conn.execute('UPDATE sessions SET last=? WHERE token=?', (int(time.time() * 1000), token))
+            self.conn.execute('UPDATE sessions SET last=? WHERE token=?', (int(time.time() * 1000), _tk(token)))
         return {'id': row[0], 'name': row[1], 'login': row[2], 'role': row[3]}
 
     def logout(self, token):
         with self.lock:
-            self.conn.execute('DELETE FROM sessions WHERE token=?', (token,))
+            self.conn.execute('DELETE FROM sessions WHERE token=?', (_tk(token),))
 
     # ---------- 資料庫優化 ----------
     def _size(self):

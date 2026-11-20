@@ -73,7 +73,7 @@ LIVE_COLS = ['settings', 'contacts', 'goods', 'warehouses', 'accounts', 'bills',
              'pricing_cats', 'pricing', 'discounts', 'receivables', 'payables', 'invoices', 'purch_invoices',
              'checks_out', 'checks_in', 'orders', 'drawings', 'labels', 'mail', 'logs', 'faxjobs', 'printjobs', 'drafts', 'uploads']
 COOKIE = 'zr_session'
-PW_MIN = 6   # 新設密碼最少幾碼（舊密碼不受影響）
+PW_MIN = 8   # 新設密碼最少幾碼（舊密碼不受影響，照樣可以登入）
 LONG_POLL = 25
 # 附檔（客戶圖面）
 FILE_TYPES = {'.jpg': 'image/jpeg', '.png': 'image/png', '.gif': 'image/gif', '.webp': 'image/webp', '.pdf': 'application/pdf'}
@@ -727,7 +727,10 @@ class Handler(BaseHTTPRequestHandler):
         if path == '/api/ai' and method == 'GET':
             return self.send_json(ai_status(self.state.data_dir))
         if path == '/api/ai' and method == 'POST':
-            ai_update(self.state.data_dir, body or {})
+            try:
+                ai_update(self.state.data_dir, body or {})
+            except OcrError as e:
+                return self.error(str(e), e.status)
             return self.send_json(ai_status(self.state.data_dir))
         if path == '/api/contacts/dups' and method == 'GET':
             kind = q('kind', 'S')
@@ -1209,6 +1212,14 @@ def ai_update(data_dir, body):
         cfg.pop(kname, None)
     if body.get('doc_engine') in DOC_ENGINES:
         cfg['doc_engine'] = body['doc_engine']
+    if 'daily_usd_cap' in body:
+        try:
+            v = float(body.get('daily_usd_cap'))
+        except (TypeError, ValueError):
+            raise OcrError('每日上限要填數字')
+        if v < 0 or v > 1000:
+            raise OcrError('每日上限要在 0～1000 美元之間（0＝不限）')
+        cfg['daily_usd_cap'] = round(v, 2)
     if 'model' in body:
         m = re.sub(r'[^A-Za-z0-9._-]', '', str(body.get('model') or ''))
         if m:
@@ -1283,7 +1294,22 @@ def ai_usage(data_dir, frm='', to=''):
                 if lo <= r.get('t', 0) < hi:
                     rows.append(r)
     rows.sort(key=lambda r: -r.get('t', 0))
-    return {'rows': rows, 'prices': {k: v for k, v in AI_PRICES}}
+    day0 = time.mktime(datetime.date.today().timetuple()) * 1000
+    today = 0.0
+    if os.path.isfile(fp):
+        with open(fp, encoding='utf-8') as f:
+            for line in f.readlines()[-3000:]:
+                try:
+                    r = json.loads(line)
+                except Exception:
+                    continue
+                if r.get('t', 0) >= day0:
+                    today += float(r.get('usd') or 0)
+    try:
+        cap = float(ai_cfg(data_dir).get('daily_usd_cap', AI_DAILY_USD))
+    except Exception:
+        cap = AI_DAILY_USD
+    return {'rows': rows, 'prices': {k: v for k, v in AI_PRICES}, 'today': round(today, 4), 'cap': cap}
 
 
 def _parse_json_text(text):
