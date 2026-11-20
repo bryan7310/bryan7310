@@ -178,7 +178,7 @@ function home() {
       <a href="#stock"><i>${SVG(IC.stock)}</i>查商品</a>
       <a href="#lbl"><i>${SVG(IC.tag)}</i>印標籤</a>
       <a href="#fax"><i>${SVG(IC.fax)}</i>收傳真${faxUnread() ? `（${faxUnread()}）` : ''}</a>
-      <a href="#so"><i>${SVG(IC.so)}</i>客戶訂單${soOpenCount() ? `（${soOpenCount()}）` : ''}</a>
+      <a href="#so"><i>${SVG(IC.so)}</i>看訂單${soOpenCount() ? `（${soOpenCount()}）` : ''}</a>
     </div>
     <div class="sec">待處理</div>
     <div class="card list">${td.length ? td.map(([, txt, h]) => `<a href="${h}"><span class="dot"></span>${esc(txt)}<span class="go">›</span></a>`).join('') : '<div class="row muted">目前沒有需要處理的事 ✓</div>'}</div>
