@@ -17,6 +17,7 @@
 | 出貨單**列印**、中一刀、不含價格、出貨單格式 | 出貨銷貨 › 列印 | `web/js/modules/ship.js`（中一刀 241×140mm、主機直接列印、Excel 匯入明細） |
 | App 的出貨單、手機開單、最近的出貨單 | App `#bill` | `web/js/m/bill.js` |
 | 進貨單、採購單、進貨退出、匯入進貨單 | 採購進貨 `#purchase` | `purchase.js`、`purchase_import.js` |
+| App 的採購單、詢價單、報價單（傳真、存成 PDF） | App `#po`、`#rfq`、`#quo` | `web/js/m/po.js`（三種共用，見 KINDS）；PDF 由伺服器 `/api/pdf` 交給列印小幫手轉 |
 | 報價單、詢價單 | 報價詢價 `#quotes` | `quotes.js` |
 | 客戶訂單、訂單匯入（豐餘 Excel）、傳真轉訂單 | 客戶訂單 `#custorders` | `custorders.js`、`so_import.js`、`order_in.js`；App `m/so.js` |
 | 委託加工、加工單 | 委託加工 `#processing` | `processing.js` |

@@ -135,6 +135,44 @@ def login_ok(keys):
         for k in keys:
             LOGIN_FAILS.pop(k, None)
 PRINT_HELPER = {}
+# 單據存成 PDF（手機 App 的採購單、詢價單、報價單）：稿件 HTML 交給列印小幫手用 Edge 轉（它在使用者桌面執行，傳真、列印都是它轉的）；
+# 小幫手還是舊版或沒在跑時，伺服器自己用 Edge 轉。工作只放在記憶體，不寫進資料庫。
+PDF_JOBS = {}
+PDF_LOCK = threading.Lock()
+
+
+def make_pdf(html):
+    """稿件 HTML → PDF 內容（bytes）。不准腳本、不准連外、不准讀本機檔案（見 fax_helper.edge_pdf）"""
+    if time.time() - (PRINT_HELPER.get('pdfSeen') or 0) < 30:
+        jid = secrets.token_hex(8)
+        job = {'html': html, 'ev': threading.Event(), 'pdf': None, 'err': '', 'taken': False, 'at': time.time()}
+        with PDF_LOCK:
+            for k in [k for k, v in PDF_JOBS.items() if time.time() - v['at'] > 300]:
+                PDF_JOBS.pop(k, None)
+            PDF_JOBS[jid] = job
+        ok = job['ev'].wait(100)
+        with PDF_LOCK:
+            PDF_JOBS.pop(jid, None)
+        if job['pdf']:
+            return job['pdf']
+        raise RuntimeError(job['err'] or ('列印小幫手沒有回應，請稍後再試' if ok or job['taken'] else '列印小幫手沒有來拿工作，請確認它有在執行'))
+    import tempfile
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import fax_helper
+    work = tempfile.mkdtemp(prefix='zrpdf_')
+    try:
+        pdf = os.path.join(work, 'doc.pdf')
+        fax_helper.edge_pdf(html, work, pdf, allow_script=False)
+        t0 = time.time()
+        while time.time() - t0 < 30 and not (os.path.exists(pdf) and os.path.getsize(pdf) > 0):
+            time.sleep(0.3)
+        time.sleep(0.4)
+        if not os.path.exists(pdf):
+            raise RuntimeError('轉 PDF 失敗（伺服器電腦上的列印小幫手沒有在執行，請先啟動它）')
+        with open(pdf, 'rb') as f:
+            return f.read()
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
 ASR = {'model': None}
 ASR_LOCK = threading.Lock()
 ASR_PROMPT = ('螺絲、螺帽、華司、彈簧華司、平華司、六角、十字、內六角、外六角、平頭、圓頭、大扁、喇叭頭、尖尾、鑽尾、鐵板牙、機械牙、'
@@ -714,6 +752,17 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send_json({'ok': False, 'msg': msg})
             r = self.state.db.optimize()
             return self.send_json(dict(r, backup=msg, msg='資料庫檢查發現問題，未整理：' + r['check'] if not r['ok'] else '已優化'))
+        if path == '/api/pdf' and method == 'POST':
+            html = str((body or {}).get('html') or '')
+            if not html.strip() or len(html) > 2 * 1024 * 1024:
+                return self.error('沒有內容或內容太大')
+            try:
+                pdf = make_pdf(html)
+            except Exception as e:
+                return self.error('存成 PDF 失敗：%s' % e, 500)
+            if pdf[:4] != b'%PDF':
+                return self.error('存成 PDF 失敗：產生的檔案不對', 500)
+            return self.send_bytes(pdf, 'application/pdf')
         if path == '/api/health' and method == 'GET':
             return self.send_json(health_info(self.state))
         if path == '/api/health/run' and method == 'POST':
@@ -975,8 +1024,27 @@ class Handler(BaseHTTPRequestHandler):
             return self.error('token 不對', 403)
         db = self.state.db
         PRINT_HELPER['seen'] = time.time()
+        if path == '/api/print/helper/pdf' and method == 'POST':   # 小幫手交回轉好的 PDF（或錯誤訊息）
+            with PDF_LOCK:
+                job = PDF_JOBS.get(str(body.get('id') or ''))
+            if not job:
+                return self.error('找不到這個 PDF 工作', 404)
+            try:
+                job['pdf'] = base64.b64decode(body.get('data') or '') or None
+            except Exception:
+                job['pdf'] = None
+            job['err'] = str(body.get('err') or '')[:300]
+            job['ev'].set()
+            return self.send_json({'ok': True})
         if path == '/api/print/helper/next' and method == 'GET':
             PRINT_HELPER['busy'] = ''
+            if (qs.get('pdf') or [''])[0]:   # 新版小幫手：會轉 PDF
+                PRINT_HELPER['pdfSeen'] = time.time()
+                with PDF_LOCK:
+                    w = sorted(((v['at'], k) for k, v in PDF_JOBS.items() if not v['taken']))
+                    if w:
+                        PDF_JOBS[w[0][1]]['taken'] = True
+                        return self.send_json({'job': {'id': w[0][1], 'pdf': True, 'html': PDF_JOBS[w[0][1]]['html']}})
             jobs = [j for j in db.list('printjobs') if j.get('status') == 'queued']
             if not jobs:
                 return self.send_json({'job': None})

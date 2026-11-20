@@ -163,12 +163,40 @@ def print_job(job):
     return '已印出 %d 頁（%s，紙張 %.0f×%.0f mm）%s' % (len(pages), printer, w, h, '（測試：印到檔案）' if TOFILE else '')
 
 
+def make_pdf(html):
+    """單據稿 HTML → PDF（base64）。不准腳本、不准連外（跟傳真稿一樣）"""
+    import base64
+    work = tempfile.mkdtemp(prefix='zrprint_')
+    pdf = os.path.join(work, 'doc.pdf')
+    fh.edge_pdf(html, work, pdf, allow_script=False)
+    t0 = time.time()
+    while time.time() - t0 < 30 and not (os.path.exists(pdf) and os.path.getsize(pdf) > 0):
+        time.sleep(0.3)
+    time.sleep(0.4)
+    if not os.path.exists(pdf):
+        raise RuntimeError('轉 PDF 失敗')
+    with open(pdf, 'rb') as f:
+        data = f.read()
+    shutil.rmtree(work, ignore_errors=True)
+    return base64.b64encode(data).decode('ascii')
+
+
 def loop(once=False):
+    last = 0
     log('列印小幫手啟動', 'pid', os.getpid(), 'tofile' if TOFILE else '')
     while True:
         try:
-            r = fh.call('GET', '/api/print/helper/next')
+            r = fh.call('GET', '/api/print/helper/next?pdf=1')
             job = r.get('job')
+            if job and job.get('pdf'):   # 單據存成 PDF（手機 App）：轉好交回伺服器，不列印
+                try:
+                    fh.call('POST', '/api/print/helper/pdf', {'id': job['id'], 'data': make_pdf(job.get('html') or '')})
+                    log('pdf', job['id'])
+                except Exception as e:
+                    log('pdf failed', e)
+                    fh.call('POST', '/api/print/helper/pdf', {'id': job['id'], 'err': str(e)})
+                last = time.time()
+                continue
             if job:
                 log('job', job.get('id'), job.get('no'), job.get('printer'))
                 try:
@@ -191,7 +219,7 @@ def loop(once=False):
                         shutil.rmtree(d, ignore_errors=True)
                 except Exception:
                     pass
-        time.sleep(3)
+        time.sleep(1 if time.time() - last < 60 else 3)   # 剛轉過 PDF：一分鐘內查勤一點，連續存幾張比較快
 
 
 if __name__ == '__main__':

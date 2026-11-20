@@ -11,7 +11,7 @@ import { billPage, onBillChange, draftCount } from './bill.js';
 import { arPage } from './ar.js';
 import { reportPage } from './report.js';
 import { labelPage, onLabelChange } from './label.js';
-import { poPage, onPOChange } from './po.js';
+import { poPage, onPOChange, draftLines } from './po.js';
 import { uploadPage, onUploadChange, uploadsWaiting } from './upload.js';
 import { settingsPage, applyTheme, themeName } from './settings.js';
 import { faxPage, faxUnread } from './fax.js';
@@ -31,6 +31,8 @@ const IC = {
   money: '<rect x="3" y="6" width="18" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/>',
   cam: '<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>',
   tag: '<path d="M3 12V4h8l10 10-8 8z"/><circle cx="7.5" cy="8" r="1.3"/>',
+  rfq: '<circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.4-1 1-1 1.7"/><path d="M12 17h.01"/>',
+  quo: '<path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4"/><path d="M12 10v8M14.2 12c-.4-.6-1.2-1-2.2-1-1.2 0-2.2.6-2.2 1.5s1 1.3 2.2 1.5 2.2.6 2.2 1.5-1 1.5-2.2 1.5c-1 0-1.800-.4-2.200-1"/>',
   po: '<path d="M7 3h10v18H7z"/><path d="M10 7h4M10 11h4M10 15h2"/><path d="M4 8h3M4 12h3"/>',
   mail: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/>',
   so: '<path d="M5 4h14v16H5z"/><path d="M8.5 9l1.5 1.5 3-3M8.5 15h7"/>',
@@ -40,7 +42,7 @@ const IC = {
 const TABS = [
   ['home', '首頁', IC.home],
   ['stock', '商品', IC.stock],
-  ['bill', '開單', IC.bill],
+  ['em', '信箱', IC.mail],
   ['ar', '帳款', IC.money],
   ['up', '上傳', IC.cam],
 ];
@@ -57,7 +59,7 @@ async function boot() {
   }
   bar.hidden = false;
   window.addEventListener('zr-nav', () => { if (cur === 'home') route(); });   // 傳真未讀數更新
-  store.subscribe(ch => { if (cur === 'home') route(); else if (cur === 'bill') onBillChange(view, ch); else if (cur === 'lbl') onLabelChange(view, ch); else if (cur === 'po') onPOChange(view, ch); else if (cur === 'up') onUploadChange(view, ch); else if (cur === 'ar' && ['receivables', 'checks_in', 'bills'].some(c => ch.has(c))) route(); });
+  store.subscribe(ch => { if (cur === 'home') route(); else if (cur === 'bill') onBillChange(view, ch); else if (cur === 'lbl') onLabelChange(view, ch); else if (['po', 'rfq', 'quo'].includes(cur)) onPOChange(view, ch); else if (cur === 'up') onUploadChange(view, ch); else if (cur === 'ar' && ['receivables', 'checks_in', 'bills'].some(c => ch.has(c))) route(); });
   window.addEventListener('hashchange', route);
   route();
   // 舊系統進貨單會影響成本（毛利），載入後重算一次，跟電腦版一致
@@ -86,9 +88,9 @@ function notBoss() {
 let cur = '';
 function route() {
   const parts = location.hash.replace(/^#\/?/, '').split('/'); const id = parts[0].split('?')[0] || 'home';
-  const tabOf = { g: 'stock', rep: 'home', lbl: 'home', po: 'stock', set: 'home', fax: 'home', em: 'home', so: 'home' };
+  const tabOf = { g: 'stock', rep: 'home', lbl: 'home', po: 'home', rfq: 'home', quo: 'home', bill: 'home', set: 'home', fax: 'home', so: 'home' };
   const t = TABS.find(x => x[0] === (tabOf[id] || id)) || TABS[0]; cur = tabOf[id] ? id : t[0];
-  bar.innerHTML = TABS.map(([k, n, ic]) => `<a href="#${k}" class="${k === t[0] ? 'on' : ''}">${SVG(ic)}<span>${n}</span></a>`).join('');
+  bar.innerHTML = TABS.map(([k, n, ic]) => `<a href="#${k}" class="${k === t[0] ? 'on' : ''}">${SVG(ic)}<span>${n}${k === 'em' && mailUnread() ? `（${mailUnread()}）` : ''}</span></a>`).join('');
   if (cur === 'home') home();
   else if (cur === 'stock') stockPage(view);
   else if (cur === 'bill') { billPage(view, parts[1], parts.slice(2).join('/')); if (parts[1] === 'v') window.scrollTo(0, 0); }
@@ -100,7 +102,7 @@ function route() {
   else if (cur === 'so') { soPage(view, parts[1], parts.slice(2).join('/')); window.scrollTo(0, 0); }
   else if (cur === 'em') { emailPage(view, parts[1], parts[2], parts[3]); window.scrollTo(0, 0); }
   else if (cur === 'fax') { faxPage(view, parts[1], parts.slice(2).join('/')); window.scrollTo(0, 0); }
-  else if (cur === 'po') { poPage(view, parts[1], parts.slice(2).join('/')); if (parts[1] === 'v') window.scrollTo(0, 0); }
+  else if (['po', 'rfq', 'quo'].includes(cur)) { poPage(view, parts[1], parts.slice(2).join('/'), cur); if (parts[1] === 'v') window.scrollTo(0, 0); }
   else if (cur === 'g') { goodsPage(view, decodeURIComponent(parts.slice(1).join('/'))); window.scrollTo(0, 0); }
   else placeholder(t);
 }
@@ -169,14 +171,14 @@ function home() {
     </div>
     <div class="sec">快捷</div>
     <div class="card quick">
-      <a href="#stock"><i>${SVG(IC.stock)}</i>查商品</a>
       <a href="#bill"><i>${SVG(IC.bill)}</i>出貨單</a>
-      <a href="#up"><i>${SVG(IC.cam)}</i>拍照上傳</a>
+      <a href="#po"><i>${SVG(IC.po)}</i>採購單${(n => n ? `（${n}）` : '')(draftLines('po'))}</a>
+      <a href="#rfq"><i>${SVG(IC.rfq)}</i>詢價單${(n => n ? `（${n}）` : '')(draftLines('rfq'))}</a>
+      <a href="#quo"><i>${SVG(IC.quo)}</i>報價單${(n => n ? `（${n}）` : '')(draftLines('quo'))}</a>
+      <a href="#stock"><i>${SVG(IC.stock)}</i>查商品</a>
       <a href="#lbl"><i>${SVG(IC.tag)}</i>印標籤</a>
-      <a href="#so"><i>${SVG(IC.so)}</i>客戶訂單${soOpenCount() ? `（${soOpenCount()}）` : ''}</a>
-      <a href="#po"><i>${SVG(IC.po)}</i>採購單${(n => n ? `（${n}）` : '')((ls.get('zr.m.po', null)?.lines || []).length)}</a>
       <a href="#fax"><i>${SVG(IC.fax)}</i>收傳真${faxUnread() ? `（${faxUnread()}）` : ''}</a>
-      <a href="#em"><i>${SVG(IC.mail)}</i>瀏覽信箱${mailUnread() ? `（${mailUnread()}）` : ''}</a>
+      <a href="#so"><i>${SVG(IC.so)}</i>客戶訂單${soOpenCount() ? `（${soOpenCount()}）` : ''}</a>
     </div>
     <div class="sec">待處理</div>
     <div class="card list">${td.length ? td.map(([, txt, h]) => `<a href="${h}"><span class="dot"></span>${esc(txt)}<span class="go">›</span></a>`).join('') : '<div class="row muted">目前沒有需要處理的事 ✓</div>'}</div>
