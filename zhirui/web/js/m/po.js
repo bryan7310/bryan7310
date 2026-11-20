@@ -92,7 +92,7 @@ export function poPage(view, sub, arg, kind) {
     ${K.type === 'RFQ' ? '' : '<div class="card list" id="ptot"></div>'}
     <div class="sec">備註</div><div class="card"><textarea id="pnote" rows="2" placeholder="選填，會印在${K.name}上">${esc(e.note)}</textarea></div>
     <div id="perr" class="err"></div>
-    <div class="acts"><button class="btn ghost" id="psave">${e.editId ? '儲存修改' : '只存' + K.name}</button><button class="btn" id="pfax">${e.editId ? '儲存並重新傳真' : '存並傳真'}</button></div>
+    <div class="acts"><button class="btn ghost" id="psave">${e.editId ? '儲存修改' : '儲存'}</button><button class="btn" id="pfax">${e.editId ? '儲存並重新傳真' : '存並傳真'}</button></div>
     <p><button class="btn ghost" id="ppdf">${e.editId ? '儲存並存成 PDF' : '存成 PDF'}</button></p>
     ${!e.editId && (e.lines.length || e.cid) ? '<p><button class="btn ghost danger" id="pclr">清除這張</button></p>' : ''}
     <div class="sec" id="recSec">最近的${K.name}</div>
