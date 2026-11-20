@@ -241,3 +241,41 @@ img.photo { display: block; width: 100%; max-height: 260px; object-fit: contain;
 .hd { flex-wrap: nowrap; }
 .hd h1 { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .hd .chip { align-self: center; }
+/* 員工版（印標籤）：按鍵大、好按 */
+body.staff #view, body.staff main { padding-bottom: 24px; }
+.sbtn { appearance: none; width: 100%; min-height: 64px; border: 1px solid var(--line); background: var(--card); color: var(--text); border-radius: 18px; padding: 12px 14px; font: inherit; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; margin: 0 0 12px; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.sbtn b { font-size: 21px; font-weight: 700; }
+.sbtn small { font-size: 13px; color: var(--muted); }
+.sbtn:active { transform: scale(.985); filter: brightness(.96); }
+.sbtn.pick { flex-direction: row; justify-content: space-between; padding: 12px 18px; }
+.sbtn.pick::after { content: '›'; font-size: 26px; color: var(--muted); margin-left: 8px; }
+.sbtn.pick b { flex: 1; text-align: right; }
+.sgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.sgrid .sbtn { min-height: 84px; }
+.sbtn.go { min-height: 78px; background: var(--accent); color: var(--accent-ink); border-color: transparent; margin-top: 4px; }
+.sbtn.go b { font-size: 25px; }
+.sbtn.go small { color: inherit; opacity: .85; }
+.sbtn.go:disabled { opacity: .5; }
+.scard .lnh b { font-size: 17px; }
+.srow { display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: end; margin-top: 10px; }
+.srow label { display: grid; gap: 4px; font-size: 13px; color: var(--muted); }
+.srow input { font-family: inherit; font-size: 24px; font-weight: 600; height: 54px; border: 1px solid var(--line); border-radius: 12px; padding: 0 12px; background: var(--card); color: var(--text); width: 100%; min-width: 0; text-align: right; }
+.scnt { display: grid; gap: 4px; font-size: 13px; color: var(--muted); }
+.scnt > div { display: flex; gap: 6px; align-items: center; }
+.scnt button { appearance: none; width: 54px; height: 54px; border-radius: 12px; border: 1px solid var(--line); background: var(--card); color: var(--text); font-family: inherit; font-size: 30px; font-weight: 700; line-height: 1; cursor: pointer; }
+.scnt button:active { filter: brightness(.92); }
+.scnt input { width: 64px; text-align: center; padding: 0 4px; }
+/* 選標籤機 */
+.plist { display: grid; gap: 12px; margin: 14px 0; }
+.pbtn { appearance: none; text-align: left; min-height: 74px; border: 2px solid var(--line); border-radius: 18px; background: var(--card); color: var(--text); padding: 12px 18px; display: grid; gap: 2px; font: inherit; cursor: pointer; }
+.pbtn b { font-size: 22px; }
+.pbtn small { color: var(--muted); font-size: 13px; }
+.pbtn.on { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent); }
+.pbtn.on b::after { content: '　✓ 目前'; font-size: 14px; font-weight: 600; color: var(--accent); }
+.tabbar[hidden] { display: none; }
+/* 最近印過的標籤 */
+.rlist { display: grid; gap: 10px; margin: 0 0 14px; }
+.rbtn { appearance: none; text-align: left; min-height: 62px; border: 1px solid var(--line); border-radius: 16px; background: var(--card); color: var(--text); padding: 10px 16px; display: grid; gap: 2px; font: inherit; cursor: pointer; }
+.rbtn b { font-size: 17px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rbtn small { color: var(--muted); font-size: 13px; }
+.rbtn:active { filter: brightness(.94); }

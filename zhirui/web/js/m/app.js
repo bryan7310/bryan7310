@@ -18,6 +18,7 @@ import { faxPage, faxUnread } from './fax.js';
 import { emailPage, mailUnread } from './email.js';
 import { soPage, soOpenCount, soLateCount } from './so.js';
 import { memoBoard, bindMemoBoard } from '../modules/memos.js';
+import { staffPage, onStaffChange } from './staff.js';
 const MU = { showDone: false };
 
 const $ = s => document.querySelector(s);
@@ -48,7 +49,12 @@ const TABS = [
 async function boot() {
   try { await store.boot(); }
   catch (e) { return e.status === 401 ? showLogin() : showLogin('載入資料失敗：' + (e.message || e)); }
-  if (store.user.role !== 'admin') return notBoss();
+  if (store.user.role !== 'admin') {   // 員工帳號：員工版（目前只有印標籤），沒有下面的選單
+    bar.hidden = true; document.body.classList.add('staff');
+    store.subscribe(ch => onStaffChange(view, ch));
+    window.addEventListener('hashchange', () => staffPage(view));
+    staffPage(view); return;
+  }
   bar.hidden = false;
   window.addEventListener('zr-nav', () => { if (cur === 'home') route(); });   // 傳真未讀數更新
   store.subscribe(ch => { if (cur === 'home') route(); else if (cur === 'bill') onBillChange(view, ch); else if (cur === 'lbl') onLabelChange(view, ch); else if (cur === 'po') onPOChange(view, ch); else if (cur === 'up') onUploadChange(view, ch); else if (cur === 'ar' && ['receivables', 'checks_in', 'bills'].some(c => ch.has(c))) route(); });

@@ -18,7 +18,33 @@ const RE_LEAD = new RegExp(`^[${CJK}]+`), RE_CJK = new RegExp(`[${CJK}]`);
 const FINS = ['三價白鋅', '三價黑鋅', '三價鋅', '鍍錏黑', '錏黑', '鍍鋅', '染黑', '五彩', '黑鎳', '鍍鎳', '鍍鉻', '紅古銅', '青古銅', '古銅', '磷酸', '達克羅', '黑身', '白皮', '原色', '洗油', '耐落', '防鬆'];
 const toast = msg => { const t = document.getElementById('toast'); t.textContent = msg; t.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(() => t.hidden = true, 2600); };
 const fixes = () => store.setting('lblfix').fix || {};
-const cfg = () => ({ printer: PRINTER_DEF, mode: 'tspl', rot: 'port', invert: false, dir: 1, dx: 0, dy: 0, qr: true, gap: 2, ...store.setting('mlabel') });
+const CFG0 = { printer: PRINTER_DEF, mode: 'tspl', rot: 'port', invert: false, dir: 1, dx: 0, dy: 0, qr: true, gap: 2 };
+/** 所有標籤機：[{ id, name, printer, mode, rot, … }]；第一台 id＝main */
+export function printers() {
+  const { list, ...base } = store.setting('mlabel');
+  return [{ ...CFG0, ...base, id: 'main', name: base.name || '辦公室' }, ...(Array.isArray(list) ? list : []).map(x => ({ ...CFG0, ...x }))];
+}
+export const curPrinter = () => { const all = printers(); return all.find(x => x.id === ls.get('zr.m.lblp', 'main')) || all[0]; };
+export const setPrinter = id => ls.set('zr.m.lblp', id);
+const cfg = () => curPrinter();
+/** 存這一台的設定（main 存在 mlabel 本身，其他存在 list 裡） */
+async function savePrinter(id, patch) {
+  const cur = store.setting('mlabel'); const { id: _i, ...clean } = patch;
+  if (id === 'main') return store.save('settings', 'mlabel', { ...cur, ...clean });
+  const list = (cur.list || []).map(x => x.id === id ? { ...x, ...clean, id } : x);
+  return store.save('settings', 'mlabel', { ...cur, list });
+}
+/** 選標籤機（全螢幕清單，大按鈕） */
+export function pickPrinter(done) {
+  const el = document.createElement('div'); el.className = 'sheet'; const cur = curPrinter().id;
+  el.innerHTML = `<div class="sheet-hd"><button class="link" data-x>取消</button><b>印到哪一台標籤機</b><span style="width:40px"></span></div>
+    <div class="plist">${printers().map(x => `<button type="button" class="pbtn ${x.id === cur ? 'on' : ''}" data-p="${esc(x.id)}"><b>${esc(x.name)}</b><small>${esc(x.printer)}</small></button>`).join('')}</div>
+    <div class="note" style="text-align:left">新增標籤機：請老闆帳號到「印標籤 › 標籤機設定」加一台（那台印表機要先裝在主機電腦上）。</div>`;
+  document.body.append(el); document.body.classList.add('noscroll');
+  const close = () => { el.remove(); document.body.classList.remove('noscroll'); };
+  el.querySelector('[data-x]').onclick = close;
+  el.querySelectorAll('[data-p]').forEach(b => b.onclick = () => { setPrinter(b.dataset.p); close(); done && done(); });
+}
 
 /** 品名 → 標籤文字；ok=false 表示拆不準、要人確認（why 說原因） */
 export function lblParse(g) {
@@ -116,7 +142,18 @@ let st = null;
 const load = () => { if (!st) { const x = ls.get(KEY, null); st = x && Array.isArray(x.items) ? x : { items: [], date: '' }; } return st; };
 const keep = () => ls.set(KEY, st);
 export function addLabel(gid, per, n, unit) { const s = load(); const g = store.get('goods', gid); if (!g) return; s.items.push({ gid, per: per || '', n: n || 1, unit: unit || g.unit || 'PCS' }); keep(); }
-const itemOf = (x, date) => { const g = store.get('goods', x.gid) || {}; const p = lblParse(g); return { name: p.name, spec: p.spec, fin: p.fin, qty: qtyText(x.per, x.unit), wt: String(x.wt || '').trim() ? `${String(x.wt).trim()}g` : '', date, code: g.code || '', p, g }; };
+const RKEY = 'zr.m.lbl.recent';
+/** 最近印過的標籤（最多 5 項，新的在前；商品被刪掉的不列） */
+export const recentLabels = () => (ls.get(RKEY, []) || []).filter(x => x && store.get('goods', x.gid)).slice(0, 5);
+/** 印完記下來：同一個商品＋同樣每張數量算同一項，移到最前面 */
+export function rememberLabels(items) {
+  const k = x => `${x.gid}|${x.per}|${x.unit}`; let list = ls.get(RKEY, []) || [];
+  for (const x of items) { const r = { gid: x.gid, per: String(x.per ?? ''), unit: x.unit || 'PCS', n: Math.max(1, Math.round(+x.n) || 1) }; list = [r, ...list.filter(y => k(y) !== k(r))]; }
+  ls.set(RKEY, list.slice(0, 5));
+}
+/** 最近印過的按鈕（data-rc＝第幾項） */
+export const recentHTML = () => { const r = recentLabels(); return r.length ? `<div class="sec">最近印過 <span class="muted">按一下加回清單</span></div><div class="rlist">${r.map((x, i) => { const g = store.get('goods', x.gid); return `<button type="button" class="rbtn" data-rc="${i}"><b>${esc(g.name)}</b><small>${esc(qtyText(x.per, x.unit))}・上次 ${x.n} 張</small></button>`; }).join('')}</div>` : ''; };
+export const itemOf = (x, date) => { const g = store.get('goods', x.gid) || {}; const p = lblParse(g); return { name: p.name, spec: p.spec, fin: p.fin, qty: qtyText(x.per, x.unit), wt: String(x.wt || '').trim() ? `${String(x.wt).trim()}g` : '', date, code: g.code || '', p, g }; };
 
 const MODES = [['goods', '商品標籤'], ['addr', '地址標籤']];
 const modeTabs = m => `<div class="chips">${MODES.map(([k, n]) => `<button class="chip ${m === k ? 'on' : ''}" data-mode="${k}">${n}</button>`).join('')}</div>`;
@@ -133,28 +170,42 @@ export function labelPage(view, sub, arg) {
   const total = s.items.reduce((a, x) => a + (Math.round(+x.n) || 0), 0);
   const bad = s.items.filter(x => !lblParse(store.get('goods', x.gid) || {}).ok).length;
   view.innerHTML = `<div class="hd"><h1>印標籤</h1><span class="sp"></span><a class="chip" href="#lbl/check">拆字檢查</a></div>${modeTabs('goods')}
-    <div class="card list"><div class="row"><span>日期</span><input type="date" id="ld" class="inl" value="${esc(date)}"></div></div>
+    <div class="card list"><a href="#" id="lpp"><span>標籤機</span><span class="go"><b>${esc(c.name)}</b> <small class="muted">${esc(c.printer)}</small> ›</span></a><div class="row"><span>日期</span><input type="date" id="ld" class="inl" value="${esc(date)}"></div></div>
     <div class="sec">標籤 ${s.items.length ? `<span class="muted">${s.items.length} 種・共 ${total} 張</span>` : ''}</div>
     <div id="li">${s.items.map((x, i) => itemCard(x, i)).join('') || '<div class="card ph"><b>還沒有標籤</b><span class="muted">用下面按鈕加品項、掃 QR 碼，或在出貨單送出後按「印這張的標籤」。</span></div>'}</div>
     <div class="btn2"><button class="btn ghost" id="add">＋ 加品項</button><button class="btn ghost" id="scan">掃 QR 碼加入</button></div>
+    <div id="lrc">${recentHTML()}</div>
     ${bad ? `<div class="err">${bad} 種品名拆字需要確認（黃色框），確認後才會印。</div>` : ''}
     <p><button class="btn" id="go" ${s.items.length && !bad ? '' : 'disabled'}>列印 ${total} 張標籤</button></p>
     <div class="note" style="margin-top:-6px">標籤方向：${c.rot === 'land' ? '橫放（50 mm 橫過印字頭）' : '直放（40 mm 橫過印字頭，整張轉 90 度）'}・可在下面「標籤機設定」改</div>
     ${s.items.length ? '<p><button class="btn ghost danger" id="clr">清空清單</button></p>' : ''}
     <div class="note" id="ph"></div>
-    <details class="card set"><summary>標籤機設定</summary>
-      <div class="f"><label for="lp">印表機名稱（主機上的）</label><input id="lp" value="${esc(c.printer)}"></div>
+    <details class="card set"><summary>標籤機設定（目前：${esc(c.name)}）</summary>
+      <div class="f2"><div class="f"><label for="lpn">顯示名稱（例如 辦公室、現場）</label><input id="lpn" value="${esc(c.name)}"></div><div class="f"><label for="lp">印表機名稱（主機上的）</label><input id="lp" value="${esc(c.printer)}"></div></div>
       <div class="f"><label>列印方式</label><div class="chips" id="lm">${[['tspl', 'TSPL 直送（建議）'], ['driver', 'Windows 驅動']].map(([k, n]) => `<button type="button" class="chip ${c.mode === k ? 'on' : ''}" data-m="${k}">${n}</button>`).join('')}</div></div>
       <div class="f2"><div class="f"><label for="ldx">往右移（點，8 點＝1 mm）</label><input id="ldx" inputmode="numeric" value="${esc(c.dx)}"></div><div class="f"><label for="ldy">往下移（點）</label><input id="ldy" inputmode="numeric" value="${esc(c.dy)}"></div></div>
       <div class="f2"><div class="f"><label for="lgap">標籤間距（mm）</label><input id="lgap" inputmode="decimal" value="${esc(c.gap)}"></div><div class="f"><label>&nbsp;</label><label class="check"><input type="checkbox" id="lqr" ${c.qr ? 'checked' : ''}> 印料號 QR 碼</label></div></div>
       <label class="check"><input type="checkbox" id="linv" ${c.invert ? 'checked' : ''}> 黑白相反（印出來整張黑底時勾）</label>
       <div class="f"><label>標籤怎麼放在標籤機裡</label><div class="chips" id="lrot">${[['port', '直放：40 mm 那邊橫過印字頭（目前這台）'], ['land', '橫放：50 mm 那邊橫過印字頭']].map(([k, n]) => `<button type="button" class="chip ${c.rot === k ? 'on' : ''}" data-r="${k}">${n}</button>`).join('')}</div></div>
       <label class="check"><input type="checkbox" id="ldir" ${c.dir ? '' : 'checked'}> 上下顛倒（印出來倒過來時勾）</label>
-      <p><button class="btn ghost" id="lsave">儲存設定</button></p></details>`;
+      <p><button class="btn ghost" id="lsave">儲存設定</button></p>
+      <div class="btn2"><button class="btn ghost" id="lpadd">＋ 新增一台標籤機</button>${c.id === 'main' ? '' : '<button class="btn ghost danger" id="lpdel">刪除這一台</button>'}</div>
+      <div class="note" style="text-align:left">每一台各自記自己的設定。新的標籤機要先裝在主機電腦上（Windows 印表機清單看得到），這裡的「印表機名稱」要跟 Windows 上的名稱一模一樣。</div></details>`;
   const $ = q => view.querySelector(q); const redraw = () => labelPage(view);
   // 預覽
   s.items.forEach((x, i) => { const cv = view.querySelector(`[data-cv="${i}"]`); if (cv) drawLabel(cv, itemOf(x, date)).catch(() => {}); });
   $('#ld').onchange = ev => { s.date = ev.target.value; keep(); redraw(); };
+  $('#lpp').onclick = ev => { ev.preventDefault(); pickPrinter(redraw); };
+  $('#lpadd').onclick = async () => {
+    const name = (window.prompt('這台標籤機要叫什麼？（例如 現場）') || '').trim(); if (!name) return;
+    const pn = (window.prompt('主機電腦上的印表機名稱（要跟 Windows 印表機清單一模一樣）', 'Gprinter GP-1326D') || '').trim(); if (!pn) return;
+    const cur = store.setting('mlabel'); const id = uid('lp'); const { id: _i, name: _n, printer: _p, ...same } = curPrinter();
+    try { await store.save('settings', 'mlabel', { ...cur, list: [...(cur.list || []), { ...same, id, name, printer: pn }] }); setPrinter(id); toast(`已新增「${name}」，設定先照目前這台，印歪了再調`); redraw(); } catch (e) { toast('新增失敗：' + e.message); }
+  };
+  $('#lpdel')?.addEventListener('click', async () => {
+    if (!window.confirm(`刪除標籤機「${c.name}」？`)) return; const cur = store.setting('mlabel');
+    try { await store.save('settings', 'mlabel', { ...cur, list: (cur.list || []).filter(x => x.id !== c.id) }); setPrinter('main'); toast('已刪除'); redraw(); } catch (e) { toast('刪除失敗：' + e.message); }
+  });
   const li = $('#li');
   // 張數：點進去先清空（灰字顯示原本的數字），直接打新的；沒打就恢復原本的
   li.addEventListener('focusin', ev => { const t = ev.target; if (t.dataset.f !== 'n') return; t.placeholder = t.value; t.value = ''; });
@@ -165,6 +216,7 @@ export function labelPage(view, sub, arg) {
     const fx = ev.target.closest('[data-fix]'); if (fx) fixSheet(store.get('goods', s.items[+fx.dataset.fix].gid), redraw);
   });
   $('#add').onclick = () => pickGoods(redraw);
+  $('#lrc').addEventListener('click', ev => { const b = ev.target.closest('[data-rc]'); if (!b) return; const x = recentLabels()[+b.dataset.rc]; if (!x) return; addLabel(x.gid, x.per, x.n, x.unit); toast('已加回清單'); redraw(); });
   $('#scan').onclick = () => scanQR(text => { const g = findByCode(text); if (!g) { toast('找不到料號：' + text); return; } addLabel(g.id); redraw(); }, { title: '掃商品 QR 碼' });
   $('#clr')?.addEventListener('click', () => { if (!window.confirm('清空標籤清單？')) return; s.items = []; keep(); redraw(); });
   $('#go').onclick = () => printAll(view);
@@ -172,8 +224,8 @@ export function labelPage(view, sub, arg) {
   view.querySelectorAll('#lrot [data-r]').forEach(b => b.onclick = () => view.querySelectorAll('#lrot [data-r]').forEach(x => x.classList.toggle('on', x === b)));
   $('#lsave').onclick = async () => {
     const n = (id, d) => { const v = parseFloat($(id).value); return isFinite(v) ? v : d; };
-    const out = { ...store.setting('mlabel'), printer: $('#lp').value.trim() || PRINTER_DEF, mode: $('#lm .on')?.dataset.m || 'tspl', rot: $('#lrot .on')?.dataset.r || 'port', dx: Math.round(n('#ldx', 0)), dy: Math.round(n('#ldy', 0)), gap: n('#lgap', 2), qr: $('#lqr').checked, invert: $('#linv').checked, dir: $('#ldir').checked ? 0 : 1 };
-    try { await store.save('settings', 'mlabel', out); toast('標籤機設定已儲存'); redraw(); } catch (e) { toast('儲存失敗：' + e.message); }
+    const out = { name: $('#lpn').value.trim() || c.name, printer: $('#lp').value.trim() || PRINTER_DEF, mode: $('#lm .on')?.dataset.m || 'tspl', rot: $('#lrot .on')?.dataset.r || 'port', dx: Math.round(n('#ldx', 0)), dy: Math.round(n('#ldy', 0)), gap: n('#lgap', 2), qr: $('#lqr').checked, invert: $('#linv').checked, dir: $('#ldir').checked ? 0 : 1 };
+    try { await savePrinter(c.id, out); toast(`「${out.name}」的設定已儲存`); redraw(); } catch (e) { toast('儲存失敗：' + e.message); }
   };
   helperState(view); bindMode(view);
 }
@@ -186,7 +238,7 @@ function itemCard(x, i) {
     <div class="lnr wtr"><label>單重（g，選填；有填會印在數量下面）<input data-f="wt" inputmode="decimal" value="${esc(x.wt || '')}" placeholder="例如 2.5"></label></div></div>`;
 }
 /** 標籤交給主機列印小幫手（TSPL 直送或 Windows 驅動）；回傳列印工作 id */
-async function queueLabels(labels, what) {
+export async function queueLabels(labels, what) {
   const c = cfg(); const n = labels.reduce((a, l) => a + l.copies, 0);
   const job = { status: 'queued', type: 'LABEL', no: what, what, printer: c.printer, by: store.user.name, at: new Date().toISOString() };
   if (c.mode === 'driver') {
@@ -204,11 +256,11 @@ async function printAll(view) {
     const labels = [];
     for (const x of s.items) { const cv = document.createElement('canvas'); await drawLabel(cv, itemOf(x, date)); labels.push({ cv, copies: Math.max(1, Math.round(+x.n) || 1) }); }
     const n = labels.reduce((a, l) => a + l.copies, 0);
-    lastJob = await queueLabels(labels, `標籤 ${n} 張`); toast(`已送出 ${n} 張標籤`); labelPage(view);
+    lastJob = await queueLabels(labels, `標籤 ${n} 張`); rememberLabels([...s.items].reverse()); toast(`已送出 ${n} 張標籤`); labelPage(view);
   } catch (e) { toast(e.message || String(e)); btn.disabled = false; }
 }
 let lastJob = '';
-const STT = { queued: '排隊中，等主機列印', printing: '列印中…', done: '已送到標籤機', failed: '列印失敗' };
+export const STT = { queued: '排隊中，等主機列印', printing: '列印中…', done: '已送到標籤機', failed: '列印失敗' };
 async function helperState(view) {
   const ph = view.querySelector('#ph'); if (!ph) return;
   const j = lastJob ? store.get('printjobs', lastJob) : null;
@@ -218,7 +270,7 @@ async function helperState(view) {
 export function onLabelChange(view, ch) { if (lastJob && ch.has('printjobs')) helperState(view); }
 
 // ---------- 加品項 ----------
-function pickGoods(done) {
+export function pickGoods(done, onPick) {
   const el = document.createElement('div'); el.className = 'sheet';
   el.innerHTML = `<div class="sheet-hd"><button class="link" data-x>完成</button><b>加標籤品項</b><span style="width:40px"></span></div>
     <div class="search"><input type="search" id="gq" placeholder="規格或品名" autocomplete="off" autocorrect="off" autocapitalize="off"></div><div class="card list" id="gl"></div>`;
@@ -227,12 +279,12 @@ function pickGoods(done) {
   const draw = v => { el.querySelector('#gl').innerHTML = search(v, '').slice(0, 50).map(g => `<a href="#" data-id="${g.id}"><div class="gm"><b>${esc(g.name)}</b><small>${esc(g.code)}${lblParse(g).ok ? '' : '・拆字需確認'}</small></div><span class="go">＋</span></a>`).join('') || `<div class="row muted">${v.trim() ? '找不到' : '輸入規格或品名'}</div>`; };
   let tm = 0; el.querySelector('#gq').addEventListener('input', ev => { clearTimeout(tm); tm = setTimeout(() => draw(ev.target.value), 150); }); draw('');
   el.querySelector('[data-x]').onclick = close;
-  el.querySelector('#gl').addEventListener('click', ev => { const a = ev.target.closest('[data-id]'); if (!a) return; ev.preventDefault(); addLabel(a.dataset.id); a.querySelector('.go').textContent = '✓'; });
+  el.querySelector('#gl').addEventListener('click', ev => { const a = ev.target.closest('[data-id]'); if (!a) return; ev.preventDefault(); if (onPick) { onPick(a.dataset.id); close(); return; } addLabel(a.dataset.id); a.querySelector('.go').textContent = '✓'; });
   setTimeout(() => el.querySelector('#gq').focus(), 50);
 }
 
 // ---------- 確認／修改標籤文字（存在設定 lblfix，全公司共用） ----------
-function fixSheet(g, done) {
+export function fixSheet(g, done) {
   if (!g) return; const p = lblParse(g);
   const el = document.createElement('div'); el.className = 'sheet';
   el.innerHTML = `<div class="sheet-hd"><button class="link" data-x>取消</button><b>標籤文字</b><span style="width:40px"></span></div>
