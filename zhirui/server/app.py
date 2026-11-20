@@ -80,8 +80,8 @@ FILE_TYPES = {'.jpg': 'image/jpeg', '.png': 'image/png', '.gif': 'image/gif', '.
 FILE_MAX = 25 * 1024 * 1024
 # 信件附件可以直接在網頁打開的類型（其他一律下載）
 # 只有老闆帳號能呼叫的功能（POST）
-ADMIN_ONLY = {'/api/optimize', '/api/ai', '/api/contacts/merge', '/api/restart', '/api/backup'}
-ADMIN_SETTINGS = {'backup', 'backup_state'}   # 這幾個設定只有老闆帳號能改（備份資料夾可以把整份資料寫到別的地方）
+ADMIN_ONLY = {'/api/optimize', '/api/ai', '/api/contacts/merge', '/api/restart', '/api/backup', '/api/health/run'}
+ADMIN_SETTINGS = {'backup', 'backup_state', 'weekly'}   # 這幾個設定只有老闆帳號能改（備份資料夾可以把整份資料寫到別的地方）
 UNAUTH_BODY_MAX = 64 * 1024   # 沒登入的要求（登入、第一次設定）最多收這麼大
 MAIL_INLINE = {'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/bmp', 'application/pdf'}
 # 接收傳真：瀏覽這個資料夾裡的傳真檔（PDF、圖檔；TIF 會轉成 PNG 給瀏覽器看）
@@ -639,7 +639,7 @@ class Handler(BaseHTTPRequestHandler):
                 if not op.get('delete') and not isinstance(op.get('data'), dict):
                     return self.error('data 要是物件')
                 if op['col'] == 'settings' and str(op['id']) in ADMIN_SETTINGS and me.get('role', 'admin') != 'admin':
-                    return self.error('備份設定只有管理者可以改', 403)
+                    return self.error('這個設定只有老闆帳號可以改', 403)
                 if op['col'] == 'logs' and me.get('role', 'admin') != 'admin' and (op.get('delete') or db.get('logs', str(op['id'])) is not None):
                     return self.error('操作日誌只能新增，不能修改或刪除', 403)
             res = db.batch(ops, me['id'])
@@ -714,6 +714,11 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send_json({'ok': False, 'msg': msg})
             r = self.state.db.optimize()
             return self.send_json(dict(r, backup=msg, msg='資料庫檢查發現問題，未整理：' + r['check'] if not r['ok'] else '已優化'))
+        if path == '/api/health' and method == 'GET':
+            return self.send_json(health_info(self.state))
+        if path == '/api/health/run' and method == 'POST':
+            ok, msg = health_start(self.state, quick=bool((body or {}).get('quick')))
+            return self.send_json(dict(health_info(self.state), ok=ok, msg=msg))
         if path == '/api/backup' and method == 'POST':
             ok, msg = run_backup(self.state, manual=True)
             return self.send_json({'ok': ok, 'msg': msg, 'backup': self.state.backup})
@@ -2179,6 +2184,86 @@ def _run_backup(state, manual=False):
         return False, '備份失敗：' + str(e)
 
 
+# ---------- 每週檢查（程式測試＋資料健康＋電腦狀態＋硬碟健康）：tools/weekly_check.py ----------
+HEALTH = {'running': False, 'started': 0, 'quick': False, 'err': ''}
+HEALTH_LOCK = threading.Lock()
+DOW = '一二三四五六日'
+
+
+def weekly_settings(db):
+    s = db.get('settings', 'weekly') or {}
+    try:
+        dow = min(7, max(1, int(s.get('dow') or 5)))
+    except (TypeError, ValueError):
+        dow = 5
+    return {'on': s.get('on', True), 'dow': dow, 'time': s.get('time') or '15:00'}
+
+
+def health_info(state):
+    h = None
+    try:
+        with open(os.path.join(state.data_dir, 'health.json'), encoding='utf-8') as f:
+            h = json.load(f)
+    except Exception:
+        pass
+    return {'health': h, 'running': HEALTH['running'], 'started': HEALTH['started'], 'quick': HEALTH['quick'], 'err': HEALTH['err'],
+            'cfg': weekly_settings(state.db), 'auto': bool(os.environ.get('ZR_LAUNCHER')) and not os.environ.get('ZR_NO_WEEKLY')}
+
+
+def health_start(state, quick=False):
+    if os.environ.get('ZR_NO_WEEKLY'):
+        return False, '測試主機不跑每週檢查'
+    with HEALTH_LOCK:
+        if HEALTH['running']:
+            return False, '檢查正在進行中'
+        HEALTH.update(running=True, started=int(time.time() * 1000), quick=quick, err='')
+
+    def work():
+        try:
+            tool = os.path.normpath(os.path.join(HERE, '..', 'tools', 'weekly_check.py'))
+            args = [sys.executable, tool, '--data', state.data_dir] + (['--quick'] if quick else [])
+            env = dict(os.environ, PYTHONIOENCODING='utf-8')
+            env.pop('ZR_LAUNCHER', None)
+            p = subprocess.run(args, capture_output=True, timeout=3600, env=env, cwd=os.path.dirname(os.path.dirname(tool)),
+                               creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
+            if p.returncode not in (0, 1):   # 1＝有檢查項目沒過（結果照樣有寫出來）
+                HEALTH['err'] = '檢查程式沒有跑完：' + ((p.stdout + p.stderr).decode('utf-8', 'replace').strip().splitlines() or ['沒有輸出'])[-1][:200]
+        except Exception as e:
+            HEALTH['err'] = '檢查程式沒有跑完：%s' % e
+        finally:
+            HEALTH['running'] = False
+            try:
+                state.db.put('settings', 'weekly_state', {'last': int(time.time() * 1000), 'quick': quick, 'err': HEALTH['err']})   # 寫一筆 → 各台的畫面會更新
+            except Exception:
+                pass
+    threading.Thread(target=work, daemon=True).start()
+    return True, '開始檢查，%s' % ('大約 1 分鐘' if quick else '大約 15 分鐘，可以先做別的事')
+
+
+def weekly_loop(state):
+    """每週固定星期、時間自動跑一次完整檢查（只有正式主機——由啟動器執行的——才排）"""
+    db = state.db
+    while True:
+        time.sleep(60)
+        try:
+            cfg = weekly_settings(db)
+            if not cfg['on'] or HEALTH['running']:
+                continue
+            now = datetime.datetime.now()
+            if now.isoweekday() != cfg['dow']:
+                continue
+            hh, mm = (cfg['time'].split(':') + ['0'])[:2]
+            due = now.replace(hour=int(hh), minute=int(mm), second=0, microsecond=0)
+            st = db.get('settings', 'weekly_state') or {}
+            last = st.get('last') or 0
+            done = last and not st.get('quick') and datetime.datetime.fromtimestamp(last / 1000) >= due
+            # 到了時間、今天這一輪還沒跑過；超過 4 小時（例如當時電腦關著）就等下週，不要半夜才補跑
+            if due <= now < due + datetime.timedelta(hours=4) and not done:
+                health_start(state, quick=False)
+        except Exception:
+            traceback.print_exc()
+
+
 def backup_loop(state):
     db = state.db
     while True:
@@ -2220,6 +2305,8 @@ def main():
     Handler.state = state
     threading.Thread(target=backup_loop, args=(state,), daemon=True).start()
     threading.Thread(target=faxidx_loop, args=(state,), daemon=True).start()
+    if os.environ.get('ZR_LAUNCHER') and not os.environ.get('ZR_NO_WEEKLY'):
+        threading.Thread(target=weekly_loop, args=(state,), daemon=True).start()
     import zrmail as _mb
     threading.Thread(target=_mb.loop, args=(data_dir,), daemon=True).start()
     # Windows 的 SO_REUSEADDR 會讓第二個伺服器也綁到同一個埠（兩個伺服器同時跑、資料不同步），所以不重用位址：埠被占用就直接失敗

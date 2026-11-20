@@ -8,6 +8,7 @@ import { openBill } from './_bills.js';
 import { arSummary } from './receivables.js';
 import { apSummary } from './payables.js';
 import { memoBoard, bindMemoBoard } from './memos.js';
+import { fillHealth } from './health.js';
 const MU = { showDone: false };
 
 export default {
@@ -70,6 +71,7 @@ function draw(el) {
   el.innerHTML = `
     <div class="head"><h1>總覽</h1><span class="sub">${esc(roc(t))}・${esc(store.user.name)}</span></div>
     ${memoBoard(MU)}
+    <div id="hHealth"></div>
     ${ls.get('zr.homeKpi', false) ? '' : '<div style="margin:0 0 12px"><button class="btn" id="kpiTgl" title="展開本月銷貨、進貨、應收、應付、客票、發票數字">本月數字 ▾</button></div>'}
     ${ls.get('zr.homeKpi', false) ? `<div class="kpis" style="position:relative">
       <button class="btn xs" id="kpiTgl2" title="收起數字" style="position:absolute;top:-10px;right:-6px;z-index:1">收起 ▴</button>
@@ -103,6 +105,7 @@ function draw(el) {
       </div>
     </div>`;
   bindMemoBoard(el, MU, () => draw(el));
+  fillHealth(el.querySelector('#hHealth'));
   el.querySelectorAll('tr[data-href]').forEach(tr => tr.addEventListener('click', () => location.hash = tr.dataset.href));
   // 門市銷售
   el.querySelector('#kpiTgl')?.addEventListener('click', () => { ls.set('zr.homeKpi', true); draw(el); });

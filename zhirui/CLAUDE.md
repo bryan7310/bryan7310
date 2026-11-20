@@ -44,6 +44,7 @@
 | 螺絲圖面 | `#drawing` | `drawing.js` |
 | 常用網站 | `#links` | `links.js` |
 | 設定、備份、外觀、帳號、操作日誌 | 設定備份 `#settings` | `settings.js` |
+| 每週檢查、電腦狀態、硬碟健康度、備份還原演練 | 設定備份 › 每週檢查 `#settings/health`；總覽上的摘要 | `health.js`；`tools/weekly_check.py`、`tools/restore_drill.py`；伺服器 `weekly_loop`、`/api/health` |
 | 確認寫入頁 | `#apply?f=<名稱>` | `apply.js`（讀 `web/pending/<名稱>.json`） |
 
 共用核心：`core/store.js`（資料同步）、`core/calc.js`（單據種類 TYPES、金額、庫存、成本）、`core/ui.js`、`core/util.js`。選單在 `modules/index.js`。

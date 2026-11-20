@@ -3,12 +3,13 @@ import { $, esc, roc, slash, money } from '../core/util.js';
 import { store } from '../core/store.js';
 import { api } from '../core/api.js';
 import { toast, modal, confirm, tabs, prompt } from '../core/ui.js';
+import { healthPanel } from './health.js';
 import { setTheme, getTheme, setSkin, getSkin } from '../app.js';
 import { PROC_DEFAULT, PROC_NAMES, procMap, isLot, qqMult } from '../core/proccost.js';
 import { calc } from '../core/calc.js';
 
 const ui = { tab: 'company' };
-const TABS = [['company', '公司資料'], ['users', '帳號'], ['backup', '備份'], ['print', '套印與顯示'], ['ai', 'AI 辨識'], ['vision', '自有辨識'], ['aicost', 'AI 費用'], ['proc', '加工成本'], ['logs', '操作日誌']];
+const TABS = [['company', '公司資料'], ['users', '帳號'], ['backup', '備份'], ['health', '每週檢查'], ['print', '套印與顯示'], ['ai', 'AI 辨識'], ['vision', '自有辨識'], ['aicost', 'AI 費用'], ['proc', '加工成本'], ['logs', '操作日誌']];
 export default {
   id: 'settings', name: '設定備份', group: '管理', icon: 'settings',
   render(el, { sub }) { this.el = el; if (sub && TABS.some(t => t[0] === sub)) ui.tab = sub; draw(el); },
@@ -31,6 +32,8 @@ async function draw(el) {
     box.querySelectorAll('[data-rn]').forEach(b => b.onclick = async () => { const u = users.find(x => x.id === b.dataset.rn); const name = await prompt('姓名', u.name, { title: '改名' }); if (!name) return; await api.updateUser(u.id, { name }); draw(el); });
     box.querySelectorAll('[data-dis]').forEach(b => b.onclick = async () => { try { await api.updateUser(b.dataset.dis, { disabled: b.dataset.to === '1' }); draw(el); } catch (e) { toast(e.message); } });
     box.querySelectorAll('[data-role]').forEach(b => b.onclick = async () => { try { await api.updateUser(b.dataset.role, { role: b.dataset.to }); toast('角色已更改'); draw(el); } catch (e) { toast(e.message); } });
+  } else if (ui.tab === 'health') {
+    await healthPanel(box, () => draw(el));
   } else if (ui.tab === 'backup') {
     const bk = store.setting('backup'); const st = store.setting('backup_state');
     box.innerHTML = `<p class="muted" style="margin:0">伺服器每天在指定時間自動把資料庫壓縮備份到下面的資料夾（伺服器電腦上的路徑，可以是 BeeStation 的網路磁碟機，例如 <span class="mono">Z:\\志瑞備份</span>），只保留最近 N 份。不需要有人開著網頁。</p>
