@@ -1,4 +1,4 @@
-// 員工版 App：一般員工帳號登入手機版看到的畫面。目前只有「印標籤」，按鍵大、步驟少：
+// 員工版 App：一般員工帳號登入手機版看到的畫面。首頁是「印標籤」，另外有「盤點」（#count，count.js 跟老闆版共用）。按鍵大、步驟少：
 //   選標籤機 → 找商品（或掃 QR 碼）→ 填每張數量、張數 → 列印。
 // 標籤的畫法、TSPL、標籤機清單都用 label.js 的（老闆版同一套）；清單記在這支手機上。
 import { esc, today, ls } from '../core/util.js';
@@ -21,6 +21,7 @@ export function staffPage(view) {
   view.innerHTML = `<div class="hd"><h1>印標籤</h1><span class="sp"></span><span class="sub">${esc(store.user.name)}</span><button class="chip" id="slo">登出</button></div>
     <button type="button" class="sbtn pick" id="spr"><small>標籤機${many ? '（按這裡換）' : ''}</small><b>🖨 ${esc(pr.name)}</b></button>
     <div class="sgrid"><button type="button" class="sbtn" id="sadd"><b>🔍 找商品</b></button><button type="button" class="sbtn" id="sscan"><b>📷 掃 QR 碼</b></button></div>
+    <button type="button" class="sbtn pick" id="scnt"><small>盤點表、掃碼盤點、印盤點標籤</small><b>📋 盤點</b></button>
     <div id="sli">${s.items.map((x, i) => card(x, i)).join('') || '<div class="card ph"><b>還沒有標籤</b><span class="muted">按上面「找商品」或「掃 QR 碼」加進來。</span></div>'}</div>
     <div id="serr" class="err"></div>
     ${s.items.length ? `<button type="button" class="sbtn go" id="sgo"><b>列印 ${total} 張</b><small>印到「${esc(pr.name)}」</small></button><p><button class="btn ghost danger" id="sclr">全部清掉</button></p>` : ''}
@@ -30,6 +31,7 @@ export function staffPage(view) {
   s.items.forEach((x, i) => { const cv = view.querySelector(`[data-cv="${i}"]`); if (cv) drawLabel(cv, itemOf(x, today())).catch(() => {}); });
   $('#slo').onclick = async () => { if (!window.confirm('要登出嗎？')) return; try { await api.logout(); } catch (e) {} await store.clearCache(); location.reload(); };
   $('#spr').onclick = () => pickPrinter(redraw);
+  $('#scnt').onclick = () => { location.hash = '#count'; };
   $('#sadd').onclick = () => pickGoods(redraw, gid => add(gid));
   $('#sscan').onclick = () => scanQR(text => { const g = findByCode(text); if (!g) { toast('找不到料號：' + text); return; } add(g.id); redraw(); }, { title: '掃商品 QR 碼' });
   const li = $('#sli');

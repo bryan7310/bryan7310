@@ -19,6 +19,7 @@ import { emailPage, mailUnread } from './email.js';
 import { soPage, soOpenCount, soLateCount } from './so.js';
 import { memoBoard, bindMemoBoard } from '../modules/memos.js';
 import { staffPage, onStaffChange } from './staff.js';
+import { countPage } from './count.js';
 const MU = { showDone: false };
 
 const $ = s => document.querySelector(s);
@@ -53,9 +54,10 @@ async function boot() {
   catch (e) { return e.status === 401 ? showLogin() : showLogin('載入資料失敗：' + (e.message || e)); }
   if (store.user.role !== 'admin') {   // 員工帳號：員工版（目前只有印標籤），沒有下面的選單
     bar.hidden = true; document.body.classList.add('staff');
-    store.subscribe(ch => onStaffChange(view, ch));
-    window.addEventListener('hashchange', () => staffPage(view));
-    staffPage(view); return;
+    const sroute = () => { if (location.hash.startsWith('#count')) countPage(view, { back: '#' }); else staffPage(view); window.scrollTo(0, 0); };   // 員工版：印標籤（首頁）、盤點表
+    store.subscribe(ch => { if (!location.hash.startsWith('#count')) onStaffChange(view, ch); });
+    window.addEventListener('hashchange', sroute);
+    sroute(); return;
   }
   bar.hidden = false;
   window.addEventListener('zr-nav', () => { if (cur === 'home') route(); });   // 傳真未讀數更新
@@ -88,11 +90,12 @@ function notBoss() {
 let cur = '';
 function route() {
   const parts = location.hash.replace(/^#\/?/, '').split('/'); const id = parts[0].split('?')[0] || 'home';
-  const tabOf = { g: 'stock', rep: 'home', lbl: 'home', po: 'home', rfq: 'home', quo: 'home', bill: 'home', set: 'home', fax: 'home', so: 'home' };
+  const tabOf = { g: 'stock', count: 'stock', rep: 'home', lbl: 'home', po: 'home', rfq: 'home', quo: 'home', bill: 'home', set: 'home', fax: 'home', so: 'home' };
   const t = TABS.find(x => x[0] === (tabOf[id] || id)) || TABS[0]; cur = tabOf[id] ? id : t[0];
   bar.innerHTML = TABS.map(([k, n, ic]) => `<a href="#${k}" class="${k === t[0] ? 'on' : ''}">${SVG(ic)}<span>${n}${k === 'em' && mailUnread() ? `（${mailUnread()}）` : ''}</span></a>`).join('');
   if (cur === 'home') home();
   else if (cur === 'stock') stockPage(view);
+  else if (cur === 'count') countPage(view, { back: '#stock' });
   else if (cur === 'bill') { billPage(view, parts[1], parts.slice(2).join('/')); if (parts[1] === 'v') window.scrollTo(0, 0); }
   else if (cur === 'ar') arPage(view, parts[1], parts.slice(2).join('/'));
   else if (cur === 'rep') { reportPage(view); window.scrollTo(0, 0); }

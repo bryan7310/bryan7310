@@ -75,7 +75,7 @@ export function qtyText(q, unit) {
 
 // ---------- 畫標籤（400×320，純黑白） ----------
 const FONT = '"PingFang TC","Noto Sans TC","Microsoft JhengHei","Heiti TC",sans-serif';
-function fitText(cx, text, maxW, px, bold, min = 18) {
+export function fitText(cx, text, maxW, px, bold, min = 18) {
   for (; px > min; px -= 2) { cx.font = `${bold ? 'bold ' : ''}${px}px ${FONT}`; if (cx.measureText(text).width <= maxW) break; }
   return px;
 }
@@ -104,7 +104,7 @@ export async function drawLabel(cv, it, opt = {}) {
   toBW(cx); return cv;
 }
 /** 轉純黑白（熱感印表機沒有灰階） */
-function toBW(cx) {
+export function toBW(cx) {
   const img = cx.getImageData(0, 0, W, H); const d = img.data;
   for (let i = 0; i < d.length; i += 4) { const v = (d[i] * 299 + d[i + 1] * 587 + d[i + 2] * 114) / 1000 < 140 ? 0 : 255; d[i] = d[i + 1] = d[i + 2] = v; d[i + 3] = 255; }
   cx.putImageData(img, 0, 0);

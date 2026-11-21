@@ -7,6 +7,7 @@ import { platCost } from '../core/pricing.js';
 import { qrSvg, scanQR } from '../core/qr.js';
 import { addToBill, billHit } from './bill.js';
 import { editGoods } from './goodsedit.js';
+import { estWeight } from '../core/spec.js';
 
 // 材質篩選（商品「類別」欄）：鐵、白鐵（不鏽鋼）、合金（合金鋼）、其他（中碳鋼、彈簧鋼、銅、鋁、代工…）
 const MAIN = ['鐵', '不鏽鋼', '合金鋼'];
@@ -47,7 +48,7 @@ export function stockPage(view) {
     <div class="search srow"><input type="search" id="q" placeholder="規格或品名，例如 M6*20" value="${esc(ui.q)}" autocomplete="off" autocorrect="off" autocapitalize="off" enterkeyhint="search"><button type="button" class="scanbtn" id="scan" aria-label="掃條碼或 QR 碼"><svg viewBox="0 0 24 24"><path d="M4 8V4h4M16 4h4v4M20 16v4h-4M8 20H4v-4"/><path d="M7 12h10"/></svg></button></div>
     <div class="chips">${FINS.map(([k, n]) => `<button class="chip ${ui.fin === k ? 'on' : ''}" data-fin="${k}">${n}</button>`).join('')}</div>
     <div class="btn2"><button class="btn ghost" id="gnew">＋ 新增商品</button><button class="btn ${ui.count ? '' : 'ghost'}" id="cnt">${ui.count ? '結束盤點' : '盤點庫存'}</button></div>
-    ${ui.count ? '<div class="note" style="text-align:left">盤點模式：搜尋後點商品，直接填實際數量，差異會自動開其他入庫／出庫補平。</div>' : ''}
+    ${ui.count ? '<div class="note" style="text-align:left">盤點模式：搜尋後點商品（或按右上掃 QR 碼），直接填實際數量，差異會自動開其他入庫／出庫補平。</div><p><a class="btn ghost" href="#count" style="display:block;text-align:center;text-decoration:none">📋 盤點表（ABC 分類、印盤點標籤）</a></p>' : ''}
     <div id="res"></div>
     <div class="sec">最近的進貨單</div>
     <div class="search"><input type="search" id="pq" placeholder="關鍵字：廠商、單號、日期、品名" value="${esc(ui.pq)}" autocomplete="off" autocorrect="off" autocapitalize="off" enterkeyhint="search"></div>
@@ -75,7 +76,7 @@ export function stockPage(view) {
   view.querySelector('#gnew').onclick = () => editGoods('new', null, id => { location.hash = '#g/' + encodeURIComponent(id); }, ui.q.trim() && !search(ui.q, ui.fin).length ? { name: ui.q.trim() } : {});
   view.querySelector('#cnt').onclick = () => { ui.count = !ui.count; stockPage(view); if (ui.count) view.querySelector('#q').focus(); };
   // 掃到：盤點模式直接開盤點；否則到商品明細。掃到的條碼還沒對應商品 → 問要綁定哪個商品
-  const open = g => { if (ui.count) adjustStock(g, () => stockPage(view)); else location.hash = '#g/' + encodeURIComponent(g.id); };
+  const open = g => { if (ui.count) adjustStock(g, () => { stockPage(view); view.querySelector('#scan')?.click(); }); else location.hash = '#g/' + encodeURIComponent(g.id); };   // 盤點模式：存好自動掃下一個
   view.querySelector('#scan').onclick = () => scanQR((text, type) => { const g = findByCode(text); if (g) return open(g);
     if (type === 'QR' && !/^\d{8,14}$/.test(text)) { ui.q = text; stockPage(view); return; }
     bindBarcode(text, g2 => open(g2), () => { ui.q = text; stockPage(view); }); }, { title: ui.count ? '盤點：掃商品條碼' : '掃商品條碼／QR 碼' });
@@ -229,13 +230,14 @@ async function recentSales(box, g, C) {
 }
 
 // ---------- 修改庫存（盤點）：填實際數量，差異開一張其他入庫／其他出庫（跟電腦版「調整即時庫存」同一種做法） ----------
-function adjustStock(g, done) {
-  const C = calc(); const whs = store.list('warehouses');
+export function adjustStock(g, done) {
+  const C = calc(); const whs = store.list('warehouses'); const wt0 = +g.wt > 0 ? +g.wt : ''; const est = wt0 === '' ? estWeight(g) : 0;
   const el = document.createElement('div'); el.className = 'sheet';
   el.innerHTML = `<div class="sheet-hd"><button class="link" data-x>取消</button><b>盤點庫存</b><span style="width:40px"></span></div>
-    <div class="card"><b>${esc(g.name)}</b><div class="muted mono">${esc(g.code)}</div></div>
+    <div class="card"><b>${esc(g.name)}</b><div class="muted mono">${esc(g.code)}${g.cntAt ? `・上次盤點 ${esc(slash(g.cntAt))}` : ''}</div></div>
     <div class="note" style="text-align:left">在「實際數量」填點到的數量，差異會自動開一張其他入庫或其他出庫補平，電腦版「庫存 › 出入庫」查得到。沒填的倉庫不調整。</div>
-    <div class="card list">${whs.map(w => { const q = (C.stock[g.id] || {})[w.id] || 0; return `<div class="row"><div class="gm"><b>${esc(w.name)}</b><small>系統 ${fmtQ(q)} ${esc(g.unit || '')}・<span data-d="${w.id}">差異 —</span></small></div><input class="inl adjq" data-w="${w.id}" data-sys="${q}" inputmode="decimal" placeholder="${fmtQ(q)}" style="width:110px;border:1px solid var(--line);border-radius:10px;padding:8px 10px"></div>`; }).join('')}</div>
+    <div class="card list">${whs.map(w => { const q = (C.stock[g.id] || {})[w.id] || 0; return `<div class="row"><div class="gm"><b>${esc(w.name)}</b><small>系統 ${fmtQ(q)} ${esc(g.unit || '')}・<span data-d="${w.id}">差異 —</span></small></div><input class="inl adjq" data-w="${w.id}" data-sys="${q}" inputmode="decimal" placeholder="${fmtQ(q)}" enterkeyhint="next" style="width:110px;border:1px solid var(--line);border-radius:10px;padding:8px 10px"></div>`; }).join('')}</div>
+    <div class="f" style="margin-top:10px"><label for="adw">單重 g／支（可以改，會存回商品資料）</label><input id="adw" inputmode="decimal" enterkeyhint="done" value="${esc(wt0)}" placeholder="${est ? '還沒登錄，自動估算約 ' + est : '還沒有單重，例如 2.5'}"></div>
     <div class="f" style="margin-top:10px"><label for="adn">原因（選填）</label><input id="adn" placeholder="例如：盤點、破損、樣品"></div>
     <div class="err" id="ade"></div>
     <p><button class="btn" id="ado">確認修改</button></p>`;
@@ -245,19 +247,31 @@ function adjustStock(g, done) {
   const diffOf = t => t.value.trim() === '' ? null : Math.round(((+t.value.replace(/,/g, '') || 0) - (+t.dataset.sys || 0)) * 1000) / 1000;
   el.addEventListener('input', ev => { const t = ev.target; if (!t.classList.contains('adjq')) return; const d = diffOf(t); const sp = el.querySelector(`[data-d="${t.dataset.w}"]`); sp.textContent = d === null ? '差異 —' : `差異 ${d > 0 ? '+' : ''}${fmtQ(d)}`; sp.className = d > 0 ? 'good' : d < 0 ? 'bad' : ''; });
   el.querySelector('#ado').onclick = async ev => {
-    const note = el.querySelector('#adn').value.trim(); const d0 = today(); const ops = []; const made = [];
+    const note = el.querySelector('#adn').value.trim(); const d0 = today(); const ops = []; const made = []; let filled = false;
+    const wraw = el.querySelector('#adw').value.trim().replace(/,/g, '');
+    if (wraw !== '' && !(+wraw > 0)) { el.querySelector('#ade').textContent = '單重要填大於 0 的數字（不知道就留空白）'; return; }
+    const wtCh = wraw !== String(wt0);
     for (const t of el.querySelectorAll('.adjq')) {
+      if (t.value.trim() !== '') filled = true;
       const d = diffOf(t); if (!d) continue;
       if (t.value.trim() !== '' && isNaN(+t.value.replace(/,/g, ''))) { el.querySelector('#ade').textContent = '數量要填數字'; return; }
       const type = d > 0 ? 'IN' : 'OUT'; const no = nextNo(type, d0, [...store.list('bills'), ...ops.map(o => o.data)]);
       ops.push({ col: 'bills', id: uid('b'), data: { type, no, date: d0, wid: t.dataset.w, lines: [{ gid: g.id, qty: Math.abs(d), price: 0 }], note: `盤點調整（手機）${note ? '：' + note : ''}`, createdAt: Date.now(), updatedAt: Date.now(), createdBy: store.user.id } });
       made.push(`${TYPES[type].name} ${no}（${d > 0 ? '+' : ''}${fmtQ(d)}）`);
     }
-    if (!ops.length) { el.querySelector('#ade').textContent = '沒有差異，不需要修改'; return; }
+    if (!filled && !wtCh) { el.querySelector('#ade').textContent = '請填實際數量'; return; }
+    // 有填數量＝盤過了：商品記下盤點日（盤點表看進度用）；單重有改就一起存回商品
+    const g0 = store.get('goods', g.id) || g; const g1 = { ...plain(g0), updatedAt: Date.now() }; if (wtCh) g1.wt = wraw === '' ? '' : +wraw; if (filled) g1.cntAt = d0;
+    ops.push({ col: 'goods', id: g.id, data: g1 });
     ev.target.disabled = true;
     try { await store.batch(ops); } catch (e) { el.querySelector('#ade').textContent = '儲存失敗：' + e.message; ev.target.disabled = false; return; }
-    store.log('新增', `${made.join('、')}｜${g.name} 盤點調整（手機）`);
-    close(); const t = document.getElementById('toast'); t.textContent = '已修改庫存：' + made.join('、'); t.hidden = false; setTimeout(() => t.hidden = true, 3000); done();
+    if (made.length) store.log('新增', `${made.join('、')}｜${g.name} 盤點調整（手機）`); else if (filled) store.log('修改', `${g.code} ${g.name} 盤點：數量相符（手機）`);
+    if (wtCh) store.log('修改', `${g.code} ${g.name} 單重 ${wt0 === '' ? '（空白）' : wt0} → ${wraw === '' ? '（空白）' : wraw}（盤點，手機）`);
+    close(); const t = document.getElementById('toast'); t.textContent = made.length ? '已修改庫存：' + made.join('、') : filled ? '數量相符，已記錄盤點' + (wtCh ? '，單重已更新' : '') : '單重已更新'; t.hidden = false; setTimeout(() => t.hidden = true, 3000); done();
   };
+  // 數量按 Enter 跳到下一格（最後一格跳到單重），單重按 Enter 就儲存
+  el.addEventListener('keydown', ev => { if (ev.key !== 'Enter') return; const t = ev.target;
+    if (t.classList.contains('adjq')) { ev.preventDefault(); const all = [...el.querySelectorAll('.adjq')]; (all[all.indexOf(t) + 1] || el.querySelector('#adw')).focus(); }
+    else if (t.id === 'adw') { ev.preventDefault(); t.blur(); el.querySelector('#ado').click(); } });
   setTimeout(() => el.querySelector('.adjq')?.focus(), 50);
 }
