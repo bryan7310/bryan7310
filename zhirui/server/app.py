@@ -708,6 +708,16 @@ class Handler(BaseHTTPRequestHandler):
         if path.startswith('/api/users/') and method == 'POST':
             uid = path.rsplit('/', 1)[1]
             b = body or {}
+            if b.get('delete'):   # 刪除帳號：不能刪自己、要留一個可用的管理者；單據上的建立者代號留著
+                if uid == me['id']:
+                    return self.error('不能刪除自己正在用的帳號')
+                if not any(u['id'] == uid for u in db.users()):
+                    return self.error('找不到這個帳號', 404)
+                if not any(u['role'] == 'admin' and not u['disabled'] and u['id'] != uid for u in db.users()):
+                    return self.error('至少要保留一個可用的管理者帳號')
+                db.delete_user(uid)
+                sys.stderr.write('user delete %s by %s\n' % (uid, me.get('name', '')))
+                return self.send_json({'ok': True, 'deleted': True, 'users': db.users()})
             if 'pw' in b and b['pw']:
                 if len(b['pw']) < PW_MIN:
                     return self.error('密碼至少 %d 碼' % PW_MIN)

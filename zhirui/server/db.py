@@ -527,6 +527,12 @@ class DB:
             self.conn.execute('UPDATE users SET salt=?, hash=? WHERE id=?', (salt, self._hash(pw, salt), uid))
             self.conn.execute('DELETE FROM sessions WHERE uid=? AND token<>?', (uid, _tk(keep) if keep else ''))
 
+    def delete_user(self, uid):
+        """刪除帳號，連同它的登入狀態"""
+        with self.lock:
+            self.conn.execute('DELETE FROM sessions WHERE uid=?', (uid,))
+            self.conn.execute('DELETE FROM users WHERE id=?', (uid,))
+
     def update_user(self, uid, name=None, login=None, disabled=None, role=None):
         with self.lock:
             if role in ('admin', 'staff'):
