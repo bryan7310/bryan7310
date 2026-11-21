@@ -1,7 +1,7 @@
 // 手機版：標籤列印（佳博 GP-1324D，50×40 mm，203 dpi ≈ 400×320 點）。
 // 手機把標籤畫成黑白點陣圖（畫面預覽＝印出來的樣子）→ 組成 TSPL 指令 → 交給主機列印小幫手直接送到標籤機。
-// 四行：品名（開頭連續中文，最多 10 字（老闆決定從規格書的 8 字放寬））／規格＋表面處理／數量 PCS（H×100）／日期；右下角料號 QR 碼。
-// 拆字拆不準的（開頭不是中文、中文中間夾數字英文…）不自己猜：列在「拆字檢查」給老闆確認，確認後的文字存在設定 lblfix。
+// 四行：品名（開頭連續中文，最多 10 字（管理者決定從規格書的 8 字放寬））／規格＋表面處理／數量 PCS（H×100）／日期；右下角料號 QR 碼。
+// 拆字拆不準的（開頭不是中文、中文中間夾數字英文…）不自己猜：列在「拆字檢查」給管理者確認，確認後的文字存在設定 lblfix。
 import { esc, today, uid, ls, qTerms, matchQ } from '../core/util.js';
 import { store } from '../core/store.js';
 import { calc, unitFactor, cdisp, customers, suppliers } from '../core/calc.js';
@@ -39,7 +39,7 @@ export function pickPrinter(done) {
   const el = document.createElement('div'); el.className = 'sheet'; const cur = curPrinter().id;
   el.innerHTML = `<div class="sheet-hd"><button class="link" data-x>取消</button><b>印到哪一台標籤機</b><span style="width:40px"></span></div>
     <div class="plist">${printers().map(x => `<button type="button" class="pbtn ${x.id === cur ? 'on' : ''}" data-p="${esc(x.id)}"><b>${esc(x.name)}</b><small>${esc(x.printer)}</small></button>`).join('')}</div>
-    <div class="note" style="text-align:left">新增標籤機：請老闆帳號到「印標籤 › 標籤機設定」加一台（那台印表機要先裝在主機電腦上）。</div>`;
+    <div class="note" style="text-align:left">新增標籤機：請管理者帳號到「印標籤 › 標籤機設定」加一台（那台印表機要先裝在主機電腦上）。</div>`;
   document.body.append(el); document.body.classList.add('noscroll');
   const close = () => { el.remove(); document.body.classList.remove('noscroll'); };
   el.querySelector('[data-x]').onclick = close;
@@ -310,7 +310,7 @@ export function fixSheet(g, done) {
   el.querySelector('#rm')?.addEventListener('click', async () => { const fx = { ...fixes() }; delete fx[g.id]; await store.save('settings', 'lblfix', { ...store.setting('lblfix'), fix: fx }); toast('已恢復自動拆字'); close(); });
 }
 
-// ---------- 拆字檢查：列出拆不準的商品給老闆確認 ----------
+// ---------- 拆字檢查：列出拆不準的商品給管理者確認 ----------
 const chk = { why: '', q: '', scope: 'stock' };
 function checkPage(view) {
   const C = calc(); const all = store.list('goods').filter(g => !g.nostock);

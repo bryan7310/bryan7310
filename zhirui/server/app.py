@@ -79,9 +79,9 @@ LONG_POLL = 25
 FILE_TYPES = {'.jpg': 'image/jpeg', '.png': 'image/png', '.gif': 'image/gif', '.webp': 'image/webp', '.pdf': 'application/pdf'}
 FILE_MAX = 25 * 1024 * 1024
 # 信件附件可以直接在網頁打開的類型（其他一律下載）
-# 只有老闆帳號能呼叫的功能（POST）
+# 只有管理者帳號能呼叫的功能（POST）
 ADMIN_ONLY = {'/api/optimize', '/api/ai', '/api/contacts/merge', '/api/restart', '/api/backup', '/api/health/run'}
-ADMIN_SETTINGS = {'backup', 'backup_state', 'weekly'}   # 這幾個設定只有老闆帳號能改（備份資料夾可以把整份資料寫到別的地方）
+ADMIN_SETTINGS = {'backup', 'backup_state', 'weekly'}   # 這幾個設定只有管理者帳號能改（備份資料夾可以把整份資料寫到別的地方）
 UNAUTH_BODY_MAX = 64 * 1024   # 沒登入的要求（登入、第一次設定）最多收這麼大
 MAIL_INLINE = {'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/bmp', 'application/pdf'}
 # 接收傳真：瀏覽這個資料夾裡的傳真檔（PDF、圖檔；TIF 會轉成 PNG 給瀏覽器看）
@@ -566,7 +566,7 @@ class Handler(BaseHTTPRequestHandler):
                                    'index': {'auto': bool(cfg.get('auto')), 'done': done, 'total': len(out), 'running': FAXIDX_STATE['running'],
                                              'current': FAXIDX_STATE['current'], 'err': FAXIDX_STATE['err'], 'model': FAXIDX_MODEL,
                                              'ai': bool(ai_cfg(self.state.data_dir).get('anthropic_api_key')) or bool(os.environ.get('ZR_FAXIDX_MOCK'))}})
-        if path == '/api/faxin/index':   # 打開／關閉自動辨識（只有老闆帳號可以改）
+        if path == '/api/faxin/index':   # 打開／關閉自動辨識（只有管理者帳號可以改）
             if self.command != 'POST':
                 return self.error('請用 POST', 405)
             if (self.user() or {}).get('role', 'admin') != 'admin':
@@ -677,7 +677,7 @@ class Handler(BaseHTTPRequestHandler):
                 if not op.get('delete') and not isinstance(op.get('data'), dict):
                     return self.error('data 要是物件')
                 if op['col'] == 'settings' and str(op['id']) in ADMIN_SETTINGS and me.get('role', 'admin') != 'admin':
-                    return self.error('這個設定只有老闆帳號可以改', 403)
+                    return self.error('這個設定只有管理者帳號可以改', 403)
                 if op['col'] == 'logs' and me.get('role', 'admin') != 'admin' and (op.get('delete') or db.get('logs', str(op['id'])) is not None):
                     return self.error('操作日誌只能新增，不能修改或刪除', 403)
             res = db.batch(ops, me['id'])
@@ -696,7 +696,7 @@ class Handler(BaseHTTPRequestHandler):
         if path == '/api/users' and method == 'GET':
             return self.send_json({'users': db.users()})
         if path.startswith('/api/users') and method == 'POST' and me.get('role') != 'admin':
-            return self.error('只有老闆帳號可以新增或修改帳號', 403)
+            return self.error('只有管理者帳號可以新增或修改帳號', 403)
         if path == '/api/users' and method == 'POST':
             b = body or {}
             if not b.get('login') or not b.get('pw') or len(b['pw']) < PW_MIN:
@@ -716,7 +716,7 @@ class Handler(BaseHTTPRequestHandler):
                 return self.error('至少要保留一個可用帳號')
             role = b.get('role') if b.get('role') in ('admin', 'staff') else None
             if (b.get('disabled') or role == 'staff') and not any(u['role'] == 'admin' and not u['disabled'] and u['id'] != uid for u in db.users()):
-                return self.error('至少要保留一個可用的老闆帳號')
+                return self.error('至少要保留一個可用的管理者帳號')
             db.update_user(uid, b.get('name'), b.get('login'), b.get('disabled'), role)
             return self.send_json({'ok': True, 'users': db.users()})
         if path.startswith('/api/faxin/'):
@@ -744,7 +744,7 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_bytes(data, FILE_TYPES.get(ext, 'application/octet-stream'), cache=True,
                                    headers={'Content-Disposition': f"{disp}; filename*=UTF-8''{quote(name)}"})
         if path in ADMIN_ONLY and method == 'POST' and me.get('role', 'admin') != 'admin':
-            return self.error('只有老闆帳號可以做這件事', 403)
+            return self.error('只有管理者帳號可以做這件事', 403)
         if path == '/api/optimize' and method == 'POST':
             # 先備份；備份失敗就不整理，避免沒有退路
             ok, msg = run_backup(self.state, manual=True)

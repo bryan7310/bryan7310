@@ -1,6 +1,6 @@
-// 員工版 App：一般員工帳號登入手機版看到的畫面。首頁是「印標籤」，另外有「盤點」（#count，count.js 跟老闆版共用）。按鍵大、步驟少：
+// 員工版 App：一般員工帳號登入手機版看到的畫面。首頁是「印標籤」，另外有「盤點」（#count，count.js 跟管理者版共用）。按鍵大、步驟少：
 //   選標籤機 → 找商品（或掃 QR 碼）→ 填每張數量、張數 → 列印。
-// 標籤的畫法、TSPL、標籤機清單都用 label.js 的（老闆版同一套）；清單記在這支手機上。
+// 標籤的畫法、TSPL、標籤機清單都用 label.js 的（管理者版同一套）；清單記在這支手機上。
 import { esc, today, ls } from '../core/util.js';
 import { store } from '../core/store.js';
 import { api } from '../core/api.js';
@@ -77,7 +77,7 @@ async function status(view) {
   const ph = view.querySelector('#sph'); if (!ph) return;
   const j = lastJob ? store.get('printjobs', lastJob) : null;
   ph.innerHTML = j ? `<div class="pst ${j.status}">${STT[j.status] || j.status}${j.msg ? `<small>${esc(j.msg)}</small>` : ''}</div>` : '';
-  try { const r = await (await fetch('/api/print/helper', { credentials: 'same-origin' })).json(); if (!r.online && ph.isConnected && !ph.querySelector('.hw')) ph.insertAdjacentHTML('beforeend', '<div class="hw">⚠ 主機的列印小幫手沒有開，標籤會先排隊，請跟老闆說</div>'); } catch (e) {}
+  try { const r = await (await fetch('/api/print/helper', { credentials: 'same-origin' })).json(); if (!r.online && ph.isConnected && !ph.querySelector('.hw')) ph.insertAdjacentHTML('beforeend', '<div class="hw">⚠ 主機的列印小幫手沒有開，標籤會先排隊，請跟管理者說</div>'); } catch (e) {}
 }
 /** 資料有變動（列印狀態、商品、標籤機設定）時更新畫面；正在打字就只更新狀態 */
 export function onStaffChange(view, ch) {

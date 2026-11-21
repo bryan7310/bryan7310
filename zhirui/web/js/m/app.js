@@ -1,4 +1,4 @@
-// 志瑞手機版（/m/）：老闆專用。和電腦版共用同一份資料（store）與計算（calc），數字算法跟電腦版總覽一致。
+// 志瑞手機版（/m/）：管理者專用。和電腦版共用同一份資料（store）與計算（calc），數字算法跟電腦版總覽一致。
 import { esc, fmt, today, thisMonth, roc, ls } from '../core/util.js';
 import { api } from '../core/api.js';
 import { store } from '../core/store.js';
@@ -81,8 +81,8 @@ function showLogin(msg) {
 }
 function notBoss() {
   bar.hidden = true;
-  view.innerHTML = `<div class="login"><h1>志瑞</h1><div class="card ph"><b>手機版只有老闆帳號能用</b><span class="muted">目前登入：${esc(store.user.name)}</span></div>
-    <p><a class="btn ghost" href="/">打開電腦版</a></p><p><button class="btn ghost" id="lo">登出，換老闆帳號</button></p></div>`;
+  view.innerHTML = `<div class="login"><h1>志瑞</h1><div class="card ph"><b>手機版只有管理者帳號能用</b><span class="muted">目前登入：${esc(store.user.name)}</span></div>
+    <p><a class="btn ghost" href="/">打開電腦版</a></p><p><button class="btn ghost" id="lo">登出，換管理者帳號</button></p></div>`;
   $('#lo').onclick = async () => { try { await api.logout(); } catch (e) {} await store.clearCache(); location.reload(); };
 }
 
@@ -164,7 +164,7 @@ function todos(C) {
 function home() {
   const k = homeNums(); const td = todos(k.C);
   const pct = (k.rate * 100).toFixed(1);
-  view.innerHTML = `<div class="hd"><h1>${themeName() === 'pop' ? '嗨，老闆！' : '首頁'}</h1><span class="sub">${esc(roc(today()))}</span><span class="sp"></span><a class="gear" href="#set" aria-label="設定">${SVG('<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/>')}</a></div>
+  view.innerHTML = `<div class="hd"><h1>${themeName() === 'pop' ? '嗨，管理者！' : '首頁'}</h1><span class="sub">${esc(roc(today()))}</span><span class="sp"></span><a class="gear" href="#set" aria-label="設定">${SVG('<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/>')}</a></div>
     ${memoBoard(MU, true)}
     <div class="kpis">
       <a class="card kpi" href="/#sales"><span>今日出貨額</span><b>${fmt(k.day)}</b><small>${k.dayN} 張・未稅</small></a>
