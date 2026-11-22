@@ -1,0 +1,823 @@
+<title>大聖煉寶 RPG</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@700;900&display=swap">
+<style>
+/* 版面：上方狀態列，中間是可捲動鏡頭的地圖，下方是隊伍與方向鍵；戰鬥與選單是全螢幕面板。刻意只用一種深色調。 */
+:root {
+  --ink-0: #0c1613; --ink-1: #12201c; --ink-2: #1a2d27; --line: #2b463e;
+  --gold: #e4b64a; --gold-hi: #ffe08a; --jade: #5fc9a0; --text: #eef3ea; --muted: #9cb3a9; --red: #ff6b5b; --mp: #6fa8ff;
+  --el-metal: #f0dc8a; --el-wood: #6fd08c; --el-water: #5aa9ff; --el-fire: #ff7a45; --el-earth: #d19a5c;
+  --f-display: "Noto Serif TC", "Songti TC", "PMingLiU", serif;
+  --f-body: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", system-ui, sans-serif;
+  color-scheme: dark;
+}
+[hidden] { display: none !important; }
+*, *::before, *::after { box-sizing: border-box; }
+html, body { height: 100%; }
+body { margin: 0; background: radial-gradient(70% 35% at 85% 0%, rgba(228,182,74,.12), transparent 70%), var(--ink-0); color: var(--text); font-family: var(--f-body); font-size: 15px; line-height: 1.5; -webkit-tap-highlight-color: transparent; }
+#app { max-width: 560px; margin: 0 auto; padding-block: 8px 16px; padding-left: max(12px, env(safe-area-inset-left, 0px)); padding-right: max(12px, env(safe-area-inset-right, 0px)); display: flex; flex-direction: column; gap: 8px; }
+button { font: inherit; color: inherit; cursor: pointer; }
+button:focus-visible { outline: 2px solid var(--gold-hi); outline-offset: 2px; }
+.num { font-variant-numeric: tabular-nums; }
+.muted { color: var(--muted); font-size: 13px; }
+h2 { font-family: var(--f-display); font-weight: 900; margin: 0; font-size: 20px; color: var(--gold-hi); }
+h3 { font-family: var(--f-display); font-weight: 700; margin: 0; font-size: 16px; color: var(--gold-hi); }
+.btn { border: 1.5px solid var(--gold); border-radius: 10px; padding: 6px 12px; min-height: 42px; background: linear-gradient(180deg, #2a4a40, #1c332c); color: var(--gold-hi); font-family: var(--f-display); font-weight: 700; font-size: 15px; display: inline-flex; flex-direction: column; align-items: center; justify-content: center; box-shadow: 0 3px 0 #08100d; }
+.btn small { font-family: var(--f-body); font-weight: 500; font-size: 11px; color: var(--text); opacity: .85; }
+.btn:active:not(:disabled) { transform: translateY(2px); box-shadow: 0 1px 0 #08100d; }
+.btn:disabled { filter: grayscale(.8) brightness(.55); cursor: not-allowed; }
+.btn.gold { background: linear-gradient(180deg, #f2cb62, #be8e2a); color: #2a1a05; border-color: var(--gold-hi); box-shadow: 0 3px 0 #6b4c10; }
+.btn.gold small { color: #3a2508; }
+.btn.ghost { background: transparent; border-color: var(--line); color: var(--text); box-shadow: none; font-family: var(--f-body); font-weight: 500; }
+.chip { border: 1px solid var(--line); background: transparent; border-radius: 6px; font-size: 12px; padding: 3px 8px; color: var(--muted); }
+.row { display: flex; gap: 8px; flex-wrap: wrap; }
+.row > .btn { flex: 1 1 0; min-width: 0; }
+.panel { background: linear-gradient(180deg, var(--ink-2), var(--ink-1)); border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
+
+/* ---------- 頂端 ---------- */
+.top { display: flex; align-items: center; gap: 8px; }
+.top .title { font-family: var(--f-display); font-weight: 900; color: var(--gold-hi); font-size: 18px; letter-spacing: .06em; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.res { display: flex; gap: 10px; align-items: center; font-size: 13px; flex-wrap: wrap; justify-content: flex-end; }
+.silver { font-weight: 700; color: var(--gold-hi); display: flex; gap: 4px; align-items: center; }
+.ingot { width: 16px; height: 11px; border-radius: 3px 3px 6px 6px; background: linear-gradient(180deg, #f5f1e6, #a9a59a); box-shadow: inset 0 -2px 0 #77736a; display: inline-block; }
+.mat { display: inline-flex; gap: 2px; align-items: center; }
+.mat b { font-family: var(--f-display); font-size: 11px; width: 17px; height: 17px; display: inline-grid; place-items: center; border-radius: 4px; background: #2c3a34; }
+
+/* ---------- 地圖 ---------- */
+.where { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.where b { font-family: var(--f-display); color: var(--gold-hi); font-size: 16px; }
+.viewport { position: relative; width: 100%; aspect-ratio: 11 / 9; overflow: hidden; border-radius: 12px; border: 1px solid var(--line); background: #0a1410; touch-action: manipulation; }
+.world { position: absolute; left: 0; top: 0; transition: transform .14s linear; }
+.tile { position: absolute; width: var(--t); height: var(--t); }
+.t-g { background: #3d6b3a; }
+.t-tg { background: repeating-linear-gradient(115deg, #2f5a2c 0 4px, #376833 4px 7px); }
+.t-p { background: #a98a5a; box-shadow: inset 0 0 0 1px rgba(0,0,0,.08); }
+.t-tree { background: #3d6b3a; }
+.t-tree::after { content: ""; position: absolute; inset: 10%; border-radius: 50%; background: radial-gradient(circle at 40% 35%, #4f8a46, #1f4220); box-shadow: 0 3px 0 rgba(0,0,0,.35); }
+.t-w { background: repeating-linear-gradient(0deg, #2a6aa8 0 5px, #3479bb 5px 9px); }
+.t-rock { background: linear-gradient(160deg, #6b6155, #3f372f); box-shadow: inset 0 -3px 0 rgba(0,0,0,.25); }
+.feat { position: absolute; inset: 8%; border-radius: 8px; display: grid; place-items: center; font-family: var(--f-display); font-weight: 900; font-size: calc(var(--t) * .48); color: #fff; box-shadow: 0 3px 0 rgba(0,0,0,.4); }
+.f-shrine { background: linear-gradient(180deg, #c43a24, #7d1a10); border: 2px solid var(--gold); color: var(--gold-hi); }
+.f-forge { background: linear-gradient(180deg, #ff8a3d, #a8401a); border: 2px solid #ffd08a; }
+.f-chest { inset: 18%; background: linear-gradient(180deg, #b8862e, #6e4a12); border: 2px solid var(--gold-hi); border-radius: 5px; }
+.f-chest.open { filter: grayscale(.8) brightness(.6); }
+.f-boss { inset: 4%; border-radius: 50%; background: radial-gradient(circle at 40% 30%, #5e2a16, #22100a); border: 2px solid var(--gold); overflow: hidden; color: var(--gold-hi); animation: pulse 1.6s ease-in-out infinite; }
+.f-boss img { width: 100%; height: 100%; object-fit: cover; transform: scale(1.7); }
+@keyframes pulse { 50% { box-shadow: 0 0 0 4px rgba(228,182,74,.35), 0 3px 0 rgba(0,0,0,.4); } }
+.hero-token { position: absolute; width: var(--t); height: var(--t); transition: transform .14s linear; z-index: 3; }
+.hero-token span { position: absolute; inset: 6%; border-radius: 50%; overflow: hidden; border: 2px solid var(--gold-hi); background: #6b4a22; box-shadow: 0 3px 4px rgba(0,0,0,.5); }
+.hero-token img { width: 100%; height: 100%; object-fit: cover; transform-origin: 56% 40%; transform: scale(1.5); }
+.flash { position: absolute; inset: 0; z-index: 5; pointer-events: none; animation: flash .5s steps(4) both; background: #fff; }
+@keyframes flash { 0%,50% { opacity: .8 } 25%,75% { opacity: 0 } 100% { opacity: 0 } }
+
+.party-strip { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.mini { display: grid; grid-template-columns: 34px 1fr; gap: 6px; align-items: center; padding: 6px; border-radius: 10px; border: 1px solid var(--line); background: var(--ink-1); min-width: 0; text-align: left; }
+.mini .nm { font-size: 12px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bar { height: 6px; border-radius: 3px; background: #07100d; overflow: hidden; margin-top: 2px; }
+.bar i { display: block; height: 100%; background: var(--red); transition: width .3s; }
+.bar.mp i { background: var(--mp); }
+
+.controls { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: center; }
+.menu-btns { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; }
+.menu-btns .btn { min-height: 40px; font-size: 14px; }
+.dpad { display: grid; grid-template-columns: repeat(3, 46px); grid-template-rows: repeat(3, 46px); gap: 3px; }
+.dpad button { border-radius: 10px; border: 1px solid var(--line); background: var(--ink-2); color: var(--gold-hi); font-size: 18px; }
+.dpad button:active { background: #23382f; }
+.ctx { display: flex; gap: 6px; flex-wrap: wrap; }
+.ctx .btn { flex: 1 1 30%; }
+
+/* ---------- 頭像 ---------- */
+.ava { width: 34px; height: 34px; border-radius: 50%; overflow: hidden; display: grid; place-items: center; font-family: var(--f-display); font-weight: 900; font-size: 16px; border: 2px solid var(--gold); flex: none; position: relative; }
+.ava img { width: 100%; height: 100%; object-fit: cover; }
+.ava.wukong { background: #6b4a22; } .ava.bajie { background: #6b3a4a; color: #ffd6e0; } .ava.wujing { background: #2f4a6b; color: #d6e8ff; }
+.ava.big { width: 52px; height: 52px; font-size: 24px; }
+.ava.dead { filter: grayscale(1) brightness(.5); }
+
+/* ---------- 戰鬥 ---------- */
+.overlay { position: fixed; inset: 0; z-index: 20; background: var(--ink-0); overflow-y: auto; }
+.overlay .in { max-width: 560px; margin: 0 auto; padding-block: max(12px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-bottom, 0px)); padding-left: max(12px, env(safe-area-inset-left, 0px)); padding-right: max(12px, env(safe-area-inset-right, 0px)); display: grid; gap: 10px; }
+.battle-bg { background: radial-gradient(90% 60% at 50% 20%, rgba(196,58,36,.18), transparent 70%), var(--ink-0); }
+.foes { display: grid; grid-template-columns: repeat(var(--n, 3), 1fr); gap: 8px; align-items: end; min-height: 170px; }
+.foe { position: relative; display: grid; gap: 4px; justify-items: center; text-align: center; padding: 8px 4px; border-radius: 12px; border: 1.5px solid transparent; background: none; min-width: 0; }
+.foe.targetable { border-color: var(--gold); background: rgba(228,182,74,.08); animation: blink 1s ease-in-out infinite; }
+@keyframes blink { 50% { background: rgba(228,182,74,.18); } }
+.foe.dead { opacity: .25; }
+.foe .seal { width: 76px; height: 76px; border-radius: 50%; overflow: hidden; display: grid; place-items: center; font-family: var(--f-display); font-weight: 900; font-size: 32px; background: radial-gradient(circle at 40% 30%, #4c2238, #200d18); color: #ffb3c7; border: 2.5px solid #a94a6d; position: relative; }
+.foe.boss .seal { width: 108px; height: 108px; border-color: var(--gold); color: var(--gold-hi); }
+.foe .seal img { width: 100%; height: 100%; object-fit: cover; }
+.foe .nm { font-family: var(--f-display); font-weight: 700; font-size: 13px; color: var(--gold-hi); line-height: 1.2; }
+.foe .bar { width: 100%; height: 8px; }
+.el { display: inline-grid; place-items: center; font-family: var(--f-display); font-weight: 900; border-radius: 50%; width: 20px; height: 20px; font-size: 11px; color: #10140f; flex: none; }
+.el-metal { background: var(--el-metal); } .el-wood { background: var(--el-wood); } .el-water { background: var(--el-water); } .el-fire { background: var(--el-fire); } .el-earth { background: var(--el-earth); }
+.foe .elx { position: absolute; top: 6px; right: 10%; }
+.msg { min-height: 44px; padding: 8px 12px; border-radius: 10px; background: var(--ink-1); border: 1px solid var(--line); font-size: 14px; }
+.heroes { display: grid; gap: 6px; }
+.hcard { display: grid; grid-template-columns: 52px 1fr; gap: 10px; align-items: center; padding: 8px 10px; border-radius: 12px; border: 1.5px solid var(--line); background: var(--ink-1); text-align: left; width: 100%; position: relative; }
+.hcard.active { border-color: var(--gold); box-shadow: 0 0 0 2px rgba(228,182,74,.25); }
+.hcard.targetable { border-color: var(--jade); animation: blink2 1s ease-in-out infinite; }
+@keyframes blink2 { 50% { background: rgba(95,201,160,.12); } }
+.hcard .top2 { display: flex; justify-content: space-between; gap: 6px; font-size: 13px; }
+.hcard .top2 b { font-family: var(--f-display); color: var(--gold-hi); font-size: 15px; }
+.hcard .bar { height: 8px; }
+.tags { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 3px; }
+.tag { font-size: 11px; border-radius: 4px; padding: 0 5px; background: #23382f; color: var(--jade); }
+.tag.bad { background: #3a2323; color: var(--red); }
+.actions { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.actions .btn { min-height: 48px; }
+.sublist { display: grid; gap: 6px; }
+.sublist button { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; text-align: left; border: 1px solid var(--line); border-radius: 10px; background: var(--ink-1); padding: 8px 10px; }
+.sublist button:disabled { opacity: .45; cursor: not-allowed; }
+.sublist b { font-family: var(--f-display); color: var(--gold-hi); }
+.sublist span { font-size: 12px; color: var(--muted); grid-column: 1 / -1; }
+.sublist .cost { color: var(--mp); font-size: 12px; font-weight: 700; }
+.elpick { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+.elpick button { border-radius: 10px; border: 1px solid var(--line); background: var(--ink-1); padding: 8px 2px; display: grid; justify-items: center; gap: 2px; font-size: 12px; }
+.elpick .el { width: 30px; height: 30px; font-size: 15px; }
+.float { position: absolute; left: 50%; top: 10%; transform: translateX(-50%); font-family: var(--f-display); font-weight: 900; font-size: 22px; pointer-events: none; animation: floatUp .9s ease-out both; white-space: nowrap; text-shadow: 0 2px 6px rgba(0,0,0,.8); z-index: 4; }
+@keyframes floatUp { from { opacity: 0; transform: translate(-50%, 12px) } 20% { opacity: 1 } to { opacity: 0; transform: translate(-50%, -26px) } }
+.shake { animation: shake .3s; }
+@keyframes shake { 25% { transform: translateX(-5px) } 75% { transform: translateX(5px) } }
+
+/* ---------- 面板 ---------- */
+.lines { display: grid; gap: 4px; }
+.lines div { display: flex; justify-content: space-between; gap: 8px; border-bottom: 1px dashed var(--line); padding: 4px 0; font-size: 14px; }
+.lines div:last-child { border: 0; }
+.tabs { display: flex; gap: 6px; }
+.tabs button { flex: 1; border: 1px solid var(--line); border-radius: 10px; background: var(--ink-1); padding: 6px; display: flex; gap: 6px; align-items: center; justify-content: center; font-size: 13px; }
+.tabs button[aria-pressed="true"] { border-color: var(--gold); background: #23382f; }
+.stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.stat { background: #08120f; border: 1px solid var(--line); border-radius: 8px; padding: 5px; text-align: center; }
+.stat b { display: block; font-family: var(--f-display); font-size: 16px; color: var(--gold-hi); }
+.stat span { font-size: 11px; color: var(--muted); }
+.eq { display: grid; gap: 6px; }
+.sockets { display: flex; gap: 6px; }
+.socket { width: 46px; height: 46px; border-radius: 10px; border: 1.5px dashed var(--line); background: #08120f; display: grid; place-items: center; padding: 0; overflow: hidden; }
+.socket.filled { border-style: solid; border-color: var(--gold); }
+.socket img, .socket svg { width: 38px; height: 38px; }
+.socket.locked { opacity: .3; cursor: default; }
+.gem-ico { width: 40px; height: 40px; flex: none; display: grid; place-items: center; }
+.gem-ico img, .gem-ico svg { width: 100%; height: 100%; }
+.gemrow { display: grid; grid-template-columns: 40px 1fr auto; gap: 8px; align-items: center; padding: 6px 8px; border: 1px solid var(--line); border-radius: 10px; background: var(--ink-1); }
+.gemrow .acts { display: flex; gap: 6px; }
+.gemrow .btn { min-height: 34px; font-size: 12px; padding: 2px 8px; }
+.stall { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.stone { display: grid; gap: 4px; justify-items: center; text-align: center; padding: 8px 4px; border-radius: 12px; border: 1px solid var(--line); background: var(--ink-1); min-width: 0; font-size: 12px; }
+.stone svg { width: 100%; max-width: 90px; height: auto; }
+.stone .btn { width: 100%; min-height: 34px; font-size: 12px; padding: 2px 4px; }
+.reveal { display: grid; justify-items: center; gap: 6px; text-align: center; }
+.reveal .gem-ico { width: 110px; height: 110px; }
+.cost { display: flex; gap: 8px; flex-wrap: wrap; font-size: 12px; }
+.cost .lack { color: var(--red); }
+.toast { position: fixed; left: 50%; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); z-index: 40; background: var(--text); color: var(--ink-0); border-radius: 8px; padding: 9px 14px; width: min(calc(100% - 32px), 440px); font-size: 14px; box-shadow: 0 10px 30px rgba(0,0,0,.5); }
+.toast b { color: #6a3a00; }
+.dialog { display: grid; grid-template-columns: 52px 1fr; gap: 10px; align-items: start; }
+.dialog p { margin: 0; font-size: 15px; }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; } }
+</style>
+
+<div id="app">
+  <div class="top">
+    <div class="title" id="title">大聖煉寶</div>
+    <div class="res num" id="res"></div>
+  </div>
+  <div class="row" style="justify-content:flex-end;gap:6px">
+    <button class="chip" id="btn-sound"></button>
+    <button class="chip" id="btn-lang"></button>
+    <button class="chip" id="btn-reset"></button>
+  </div>
+  <div class="where"><div><span class="muted" id="where-ch"></span> <b id="where-name"></b></div><span class="muted" id="where-hint"></span></div>
+  <div class="viewport" id="viewport"><div class="world" id="world"></div></div>
+  <div class="ctx" id="ctx"></div>
+  <div class="party-strip" id="strip"></div>
+  <div class="controls">
+    <div class="menu-btns">
+      <button class="btn" data-open="party"></button>
+      <button class="btn" data-open="gems"></button>
+      <button class="btn" data-open="items"></button>
+      <button class="btn ghost" data-open="help"></button>
+    </div>
+    <div class="dpad" aria-label="move">
+      <span></span><button data-dir="-1,0" aria-label="up">▲</button><span></span>
+      <button data-dir="0,-1" aria-label="left">◀</button><span></span><button data-dir="0,1" aria-label="right">▶</button>
+      <span></span><button data-dir="1,0" aria-label="down">▼</button><span></span>
+    </div>
+  </div>
+  <div class="muted" id="keys" style="text-align:center"></div>
+</div>
+
+<div class="overlay battle-bg" id="battle" hidden><div class="in" id="battle-in"></div></div>
+<div class="overlay" id="panel" hidden><div class="in" id="panel-in"></div></div>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+/*ENGINE*/
+</script>
+<script>
+window.ART = /*ASSETS*/{};
+</script>
+<script>
+(function () {
+  const $ = (s) => document.querySelector(s);
+  const rng = Math.random;
+  const SAVE = 'dsrpg.save.v1';
+  let S = null, soundOn = true, busy = false, ui = { act: null, hero: 'wukong' };
+
+  // ---------- 文字 ----------
+  const L = {
+    zh: {
+      title: '大聖煉寶', sub: '第一章・山林',
+      el: { metal: '金', wood: '木', water: '水', fire: '火', earth: '土' },
+      heroes: { wukong: '孫悟空', bajie: '豬八戒', wujing: '沙悟淨' },
+      roles: { wukong: '輸出', bajie: '坦克', wujing: '補師' },
+      regions: ['花果山', '黃風嶺', '盤絲洞', '白虎嶺'],
+      foes: { sprite: '山精', treeimp: '樹妖', sandfox: '沙狐', rockling: '石怪', spiderling: '小蜘蛛', webwitch: '絲女', bonesoldier: '白骨兵', ghostfox: '屍狐', shanxiao: '混世山魈', yellow: '黃風怪', spider: '蜘蛛精', bone: '白骨精' },
+      skills: {
+        smash: ['重擊', '對一個敵人造成 1.8 倍傷害'], morph: ['七十二變', '把自己的五行屬性變成指定屬性，持續 4 回合'],
+        eyes: ['火眼金睛', '看穿防禦，必定爆擊，1.5 倍傷害'], clones: ['分身術', '對全部敵人造成 1.15 倍傷害'],
+        sweep: ['橫掃', '釘耙橫掃全部敵人'], taunt: ['嘲諷', '2 回合內敵人都打八戒，受到傷害 −25%'], feast: ['狼吞虎嚥', '回復自己 35% 生命'],
+        mend: ['療傷', '回復一位隊友 30% 生命再加 10'], guard: ['護法', '全隊 2 回合受到傷害 −40%'], staff: ['降妖杖', '對一個敵人造成 1.4 倍傷害'], revive: ['回魂咒', '救起倒下的隊友，回復 40% 生命'],
+      },
+      items: { peach: ['蟠桃', '回復 60 生命'], elixir: ['仙丹', '救起倒下的隊友，回復 50% 生命'], dew: ['甘露', '回復 15 法力'] },
+      equip: {
+        weapon: { wukong: ['赤手空拳', '鑌鐵棍', '混鐵棍', '如意金箍棒'], bajie: ['赤手空拳', '鐵耙', '鋼耙', '九齒釘耙'], wujing: ['赤手空拳', '木杖', '月牙鏟', '降妖寶杖'] },
+        armor: { wukong: ['粗布衣', '虎皮裙', '鎖子甲', '鎖子黃金甲'], bajie: ['粗布衣', '舊僧袍', '厚皮甲', '天蓬戰甲'], wujing: ['粗布衣', '麻布袈裟', '流沙皮甲', '捲簾戰甲'] },
+      },
+      slot: { weapon: '兵器', armor: '護甲' },
+      st: { hp: '生命', mp: '法力', atk: '攻擊', def: '防禦', spd: '速度', crit: '爆擊', regen: '回血' },
+      mats: { bone: '骨', hide: '皮', core: '丹' }, matNames: { bone: '妖骨', hide: '妖皮', core: '妖丹' },
+      gemName: (el, g) => `${['', '碎', '小', '中', '大', '極'][g]}${L.zh.el[el]}晶`,
+      gemFx: { metal: (v) => `攻擊 +${v}`, water: (v) => `防禦 +${v}`, earth: (v) => `生命 +${v}`, fire: (v) => `爆擊 +${v}%`, wood: (v) => `每回合回血 ${v}` },
+      grade: ['廢', '碎', '小', '中', '大', '極'],
+      menu: { party: '隊伍', gems: '寶石', items: '道具', help: '說明' },
+      ctxShrine: '土地公廟', ctxForge: '煉器爐', rest: (c) => `休息 ${c} 兩`, shop: '買道具', stall: '賭石攤', forge: '打造裝備',
+      hint: { start: '往下走，山魈守在山口', walk: '草叢裡會遇到妖怪' },
+      keys: '鍵盤：方向鍵或 WASD 移動；也可以點地圖上的格子走過去',
+      act: { attack: '攻擊', skill: '技能', item: '道具', defend: '防禦' }, back: '返回',
+      pickEnemy: '選一個敵人', pickAlly: '選一位隊友', pickFallen: '選一位倒下的隊友', pickEl: '變成哪個屬性？',
+      turnOf: (n) => `輪到 ${n}`, foeTurn: (n) => `${n} 行動中…`,
+      log: {
+        hit: (a, t, d) => `${a} 打中 ${t}，${d} 點傷害`, crit: '爆擊！', adv: '屬性相剋！', weak: '被剋了…',
+        foeHit: (a, t, d) => `${a} 攻擊 ${t}，${d} 點傷害`, aoe: (a) => `${a} 發動全體攻擊！`, stun: (a, t) => `${a} 吐絲纏住了 ${t}！`,
+        heal: (t, v) => `${t} 回復 ${v} 生命`, mp: (t, v) => `${t} 回復 ${v} 法力`, revive: (t) => `${t} 站起來了！`,
+        defend: (a) => `${a} 擺出防禦架式`, taunt: '八戒：「來啊！打俺老豬！」', guard: '沙僧念起護法，全隊減傷', morph: (e) => `悟空搖身一變，化為${e}屬性！`,
+        stunned: (a) => `${a} 被纏住，動彈不得`, transform: (e) => `白骨精化身成${e}屬性！`, ko: (t) => `${t} 倒下了`,
+      },
+      win: '勝利', lose: '全隊倒下', loseSub: (n) => `被土地公救回廟裡，丟了 ${n} 兩銀子。`,
+      reward: { xp: '經驗', silver: '銀兩' }, levelUp: (h, l) => `${h} 升到 Lv ${l}`, newSkill: (s) => `學會「${s}」`,
+      gotGem: (g) => `撿到寶石：${g}`, ok: '好', close: '關閉', cancel: '取消',
+      bossLine: {
+        shanxiao: '混世山魈：「花果山是俺的地盤！猴子，留下你的棒子！」',
+        yellow: '黃風怪：「一陣風就能吹瞎你的火眼金睛！」',
+        spider: '蜘蛛精：「進了盤絲洞，就別想出去了。」',
+        bone: '白骨精：「唐僧肉我吃定了……你們分得出哪個才是我嗎？」',
+      },
+      bossWin: {
+        shanxiao: '山口打通了，往黃風嶺去吧。', yellow: '風停了，盤絲洞就在東邊。', spider: '蛛網散了，北邊的白虎嶺陰氣沉沉。', bone: '三打白骨精！第一章完成。',
+      },
+      chapterClear: '第一章・山林　完', chapterSub: '這是 RPG 版的第一章試玩。第二章火焰山一家、第三章東海龍宮會接著做。',
+      intro: ['土地公：「大聖！你的鐵棒斷啦？別急，山裡的石頭不只是石頭。」', '「帶著八戒、沙僧，一路降妖，賺了銀兩來我廟裡賭石切寶，再到煉器爐打造兵器。」', '「草叢裡妖怪多，打不過就回廟裡休息。」'],
+      introBtn: '出發',
+      chestGot: '打開寶箱：',
+      tParty: '隊伍', tGems: '寶石袋', tItems: '道具', tHelp: '說明',
+      skillsTitle: '技能', lvReq: (l) => `Lv ${l} 學會`, element: '五行屬性', noEl: '無（兵器鑲寶石才有）',
+      sockLocked: '升級才有孔', pickGem: '選一顆寶石', noGems: '還沒有寶石。打怪、開寶箱或去賭石攤切切看。',
+      fuse: (p) => `合成 ${p}%`, sell: (p) => `賣 ${p}`, socketed: (n) => `已鑲 ${n}`, fuseOk: '合成成功！', fuseFail: '合成失敗，三顆只剩一顆。',
+      use: '使用', useOn: '給誰用？', buy: (p) => `買 ${p} 兩`, have: (n) => `持有 ${n}`,
+      stallHelp: '外皮顏色多半是真屬性，光點越多等級通常越高。擦窗可看真屬性和等級範圍。打贏一場會進新貨。',
+      tierRough: '粗石 40 兩', tierMount: '山石 180 兩', tierLock: '打倒黃風怪後開放',
+      peek: (c) => `擦窗 ${c}`, cut: (p) => `切開 ${p}`, flip: (n) => `轉手 ${n >= 0 ? '+' : ''}${n}`, offer: (n) => `收購 ${n}`, range: (a, b) => a === b ? `${a}品` : `${a}～${b}品`,
+      waste: '廢石，什麼都沒有。', got: '切出寶石！', empty: '這批挑完了，打一場妖怪就會進新貨。',
+      craftTo: (n) => `打造 ${n}`, maxed: '已是最高階', need: '需要',
+      helpText: ['走進草叢會遇到妖怪；頭目守在各區出口，打倒才能通過。', '戰鬥依速度輪流行動。技能消耗法力，「防禦」可減半傷害並回 3 法力。', '五行相剋：金剋木、木剋土、土剋水、水剋火、火剋金。兵器上寶石最多的屬性就是角色的屬性；剋到敵人傷害 ×1.5。', '悟空的「七十二變」能臨時換屬性，對付會變身的白骨精特別有用。', '土地公廟可以休息、買道具、賭石；煉器爐可以打造兵器與護甲，裝備越好鑲嵌孔越多。'],
+      resetQ: '確定從頭開始？目前進度會清除。', resetYes: '清除重來', resetBtn: '重新開始',
+      soundOn: '音效 開', soundOff: '音效 關', langBtn: 'English', saved: '已存檔',
+    },
+    en: {
+      title: 'Monkey King RPG', sub: 'Chapter 1 · The Wilds',
+      el: { metal: 'Metal', wood: 'Wood', water: 'Water', fire: 'Fire', earth: 'Earth' },
+      heroes: { wukong: 'Wukong', bajie: 'Bajie', wujing: 'Wujing' },
+      roles: { wukong: 'Attacker', bajie: 'Tank', wujing: 'Healer' },
+      regions: ['Flower Fruit Mountain', 'Yellow Wind Ridge', 'Silk Cave', 'White Tiger Ridge'],
+      foes: { sprite: 'Mountain Sprite', treeimp: 'Tree Imp', sandfox: 'Sand Fox', rockling: 'Rockling', spiderling: 'Spiderling', webwitch: 'Silk Maiden', bonesoldier: 'Bone Soldier', ghostfox: 'Ghost Fox', shanxiao: 'Chaos Mountain Ogre', yellow: 'Yellow Wind Fiend', spider: 'Spider Spirit', bone: 'White Bone Demon' },
+      skills: {
+        smash: ['Smash', '1.8× damage to one enemy'], morph: ['72 Transformations', 'Change your element for 4 turns'],
+        eyes: ['Fiery Eyes', 'Ignores defense, always crits, 1.5× damage'], clones: ['Hair Clones', '1.15× damage to all enemies'],
+        sweep: ['Rake Sweep', 'Hit all enemies'], taunt: ['Taunt', 'Enemies target Bajie for 2 turns; he takes 25% less'], feast: ['Big Feast', 'Heal self for 35% HP'],
+        mend: ['Mend', 'Heal an ally for 30% HP + 10'], guard: ['Dharma Guard', 'Party takes 40% less damage for 2 turns'], staff: ['Demon Staff', '1.4× damage to one enemy'], revive: ['Soul Call', 'Revive a fallen ally with 40% HP'],
+      },
+      items: { peach: ['Peach', 'Restore 60 HP'], elixir: ['Elixir', 'Revive a fallen ally with 50% HP'], dew: ['Dew', 'Restore 15 MP'] },
+      equip: {
+        weapon: { wukong: ['Bare Fists', 'Iron Staff', 'Steel Staff', 'Ruyi Golden Staff'], bajie: ['Bare Fists', 'Iron Rake', 'Steel Rake', 'Nine-Tooth Rake'], wujing: ['Bare Fists', 'Wooden Staff', 'Crescent Spade', 'Demon-Quelling Staff'] },
+        armor: { wukong: ['Cloth Robe', 'Tiger Skirt', 'Chain Mail', 'Golden Chain Mail'], bajie: ['Cloth Robe', 'Old Monk Robe', 'Thick Leather', 'Marshal Armor'], wujing: ['Cloth Robe', 'Linen Cassock', 'Sand Leather', 'Curtain General Armor'] },
+      },
+      slot: { weapon: 'Weapon', armor: 'Armor' },
+      st: { hp: 'HP', mp: 'MP', atk: 'ATK', def: 'DEF', spd: 'SPD', crit: 'Crit', regen: 'Regen' },
+      mats: { bone: 'B', hide: 'H', core: 'C' }, matNames: { bone: 'Demon Bone', hide: 'Demon Hide', core: 'Demon Core' },
+      gemName: (el, g) => `${['', 'Chipped', 'Small', 'Medium', 'Large', 'Perfect'][g]} ${L.en.el[el]} Gem`,
+      gemFx: { metal: (v) => `ATK +${v}`, water: (v) => `DEF +${v}`, earth: (v) => `HP +${v}`, fire: (v) => `Crit +${v}%`, wood: (v) => `Heal ${v}/round` },
+      grade: ['Waste', 'Chipped', 'Small', 'Medium', 'Large', 'Perfect'],
+      menu: { party: 'Party', gems: 'Gems', items: 'Items', help: 'Help' },
+      ctxShrine: 'Earth God Shrine', ctxForge: 'Forge', rest: (c) => `Rest ${c}`, shop: 'Shop', stall: 'Stone Stall', forge: 'Craft gear',
+      hint: { start: 'Head south; the ogre guards the pass', walk: 'Demons lurk in tall grass' },
+      keys: 'Arrow keys or WASD to move, or tap a tile to walk there',
+      act: { attack: 'Attack', skill: 'Skill', item: 'Item', defend: 'Defend' }, back: 'Back',
+      pickEnemy: 'Pick an enemy', pickAlly: 'Pick an ally', pickFallen: 'Pick a fallen ally', pickEl: 'Which element?',
+      turnOf: (n) => `${n}'s turn`, foeTurn: (n) => `${n} is acting…`,
+      log: {
+        hit: (a, t, d) => `${a} hits ${t} for ${d}`, crit: 'Critical!', adv: 'Super effective!', weak: 'Resisted…',
+        foeHit: (a, t, d) => `${a} hits ${t} for ${d}`, aoe: (a) => `${a} attacks the whole party!`, stun: (a, t) => `${a} binds ${t} in silk!`,
+        heal: (t, v) => `${t} recovers ${v} HP`, mp: (t, v) => `${t} recovers ${v} MP`, revive: (t) => `${t} is back up!`,
+        defend: (a) => `${a} braces`, taunt: 'Bajie: "Come on, hit me!"', guard: 'Wujing chants a guard for the party', morph: (e) => `Wukong transforms into ${e}!`,
+        stunned: (a) => `${a} is bound and can't move`, transform: (e) => `The White Bone Demon shifts to ${e}!`, ko: (t) => `${t} is down`,
+      },
+      win: 'Victory', lose: 'Party defeated', loseSub: (n) => `The Earth God carried you back to the shrine. You dropped ${n} silver.`,
+      reward: { xp: 'XP', silver: 'Silver' }, levelUp: (h, l) => `${h} reached Lv ${l}`, newSkill: (s) => `Learned "${s}"`,
+      gotGem: (g) => `Found a gem: ${g}`, ok: 'OK', close: 'Close', cancel: 'Cancel',
+      bossLine: {
+        shanxiao: 'Ogre: "This mountain is mine! Leave your staff, monkey!"',
+        yellow: 'Yellow Wind Fiend: "One gust and your fiery eyes go blind!"',
+        spider: 'Spider Spirit: "Once you enter the Silk Cave, you never leave."',
+        bone: 'White Bone Demon: "The monk is mine... but can you tell which one is really me?"',
+      },
+      bossWin: { shanxiao: 'The pass is open. On to Yellow Wind Ridge.', yellow: 'The wind dies down. The Silk Cave lies east.', spider: 'The webs fall. White Tiger Ridge waits to the north.', bone: 'The White Bone Demon is beaten! Chapter 1 complete.' },
+      chapterClear: 'Chapter 1 · The Wilds — Complete', chapterSub: 'This is the RPG demo of chapter 1. Chapter 2 (Flaming Mountain family) and chapter 3 (Dragon Palace) come next.',
+      intro: ['Earth God: "Great Sage! Your staff broke? Don\'t fret—these mountain stones are more than stones."', '"Travel with Bajie and Wujing, beat demons, bring silver to my shrine to gamble on stones, and forge new weapons at the furnace."', '"Tall grass is full of demons. If it gets rough, come rest at the shrine."'],
+      introBtn: 'Set out', chestGot: 'Chest: ',
+      tParty: 'Party', tGems: 'Gem Pouch', tItems: 'Items', tHelp: 'Help',
+      skillsTitle: 'Skills', lvReq: (l) => `Learned at Lv ${l}`, element: 'Element', noEl: 'None (socket a gem in the weapon)',
+      sockLocked: 'Upgrade for more sockets', pickGem: 'Pick a gem', noGems: 'No gems yet. Beat demons, open chests, or cut stones.',
+      fuse: (p) => `Fuse ${p}%`, sell: (p) => `Sell ${p}`, socketed: (n) => `${n} socketed`, fuseOk: 'Fusion succeeded!', fuseFail: 'Fusion failed. Only one gem is left.',
+      use: 'Use', useOn: 'Use on whom?', buy: (p) => `Buy ${p}`, have: (n) => `Have ${n}`,
+      stallHelp: "Skin color usually shows the element; more sparkles usually mean a better gem. Polish a window to see the true element and grade range. Winning a fight restocks.",
+      tierRough: 'Rough · 40', tierMount: 'Mountain · 180', tierLock: 'After the Yellow Wind Fiend',
+      peek: (c) => `Polish ${c}`, cut: (p) => `Cut ${p}`, flip: (n) => `Flip ${n >= 0 ? '+' : ''}${n}`, offer: (n) => `Offer ${n}`, range: (a, b) => a === b ? a : `${a}–${b}`,
+      waste: 'Just rock.', got: 'A gem!', empty: 'Sold out. Win a fight to restock.',
+      craftTo: (n) => `Craft ${n}`, maxed: 'Fully upgraded', need: 'Needs',
+      helpText: ['Tall grass has random battles. Bosses guard each region\'s exit; beat them to pass.', 'Turn order follows speed. Skills cost MP; Defend halves damage and restores 3 MP.', 'Elements: Metal > Wood > Earth > Water > Fire > Metal. Your weapon\'s main gem element is your element; countering deals 1.5×.', 'Wukong\'s 72 Transformations swap his element mid-fight—great against the shape-shifting White Bone Demon.', 'Shrines let you rest, shop, and gamble on stones. The forge crafts weapons and armor; better gear has more sockets.'],
+      resetQ: 'Start over? Your progress will be erased.', resetYes: 'Erase and restart', resetBtn: 'Restart',
+      soundOn: 'Sound on', soundOff: 'Sound off', langBtn: '中文', saved: 'Saved',
+    },
+  };
+  let lang = (navigator.language || 'zh').toLowerCase().startsWith('zh') ? 'zh' : 'en';
+  try { lang = localStorage.getItem('dsrpg.lang') || lang; } catch (e) {}
+  const T = () => L[lang];
+  const ELCH = { metal: '金', wood: '木', water: '水', fire: '火', earth: '土' };
+  const EL_COLOR = { metal: '#f0dc8a', wood: '#6fd08c', water: '#5aa9ff', fire: '#ff7a45', earth: '#d19a5c' };
+  const FOE_GLYPH = { sprite: '精', treeimp: '樹', sandfox: '狐', rockling: '石', spiderling: '蛛', webwitch: '絲', bonesoldier: '骨', ghostfox: '屍', shanxiao: '魈', yellow: '黃', spider: '蛛', bone: '骨' };
+  const HERO_GLYPH = { wukong: '悟', bajie: '八', wujing: '沙' };
+  const art = (k) => window.ART[k] || null;
+  const elBadge = (e, cls = '') => e ? `<span class="el el-${e} ${cls}" lang="zh-Hant" title="${T().el[e]}">${ELCH[e]}</span>` : '';
+  const hn = (k) => T().heroes[k];
+  const fn = (k) => T().foes[k];
+  function ava(k, big, dead) {
+    const a = art(k === 'wukong' ? 'wukong' : 'hero_' + k);
+    return `<span class="ava ${k} ${big ? 'big' : ''} ${dead ? 'dead' : ''}" lang="zh-Hant">${a ? `<img src="${a}" alt="" style="transform-origin:56% 40%;transform:scale(1.5)">` : HERO_GLYPH[k]}</span>`;
+  }
+  function foeSeal(key) {
+    const a = art('demon_' + key);
+    return a ? `<img src="${a}" alt="" style="transform-origin:48% 30%;transform:scale(1.6)">` : FOE_GLYPH[key];
+  }
+  let gid = 0;
+  function gemIcon(el, g) {
+    const a = art(`gem_${el}_${g}`);
+    if (a) return `<span class="gem-ico"><img src="${a}" alt=""></span>`;
+    const c = EL_COLOR[el], r = 20 + g * 3.5, id = 'g' + (++gid);
+    const pts = [0, 1, 2, 3, 4, 5].map(i => { const a2 = Math.PI / 3 * i - Math.PI / 2; return [50 + r * Math.cos(a2), 50 + r * Math.sin(a2)].join(','); }).join(' ');
+    return `<span class="gem-ico"><svg viewBox="0 0 100 100"><defs><radialGradient id="${id}" cx=".4" cy=".3" r=".8"><stop offset="0" stop-color="#fff"/><stop offset=".4" stop-color="${c}"/><stop offset="1" stop-color="${c}" stop-opacity=".6"/></radialGradient></defs><polygon points="${pts}" fill="url(#${id})" stroke="${c}" stroke-width="2"/></svg></span>`;
+  }
+  const gemName = (el, g) => T().gemName(el, g);
+
+  // ---------- 音效 ----------
+  let ac = null;
+  function audio() { if (!soundOn) return null; try { ac = ac || new (window.AudioContext || window.webkitAudioContext)(); return ac; } catch (e) { return null; } }
+  function tone(fs, dur, vol = .12, type = 'triangle', delay = 0) { const a = audio(); if (!a) return; const at = a.currentTime + delay; fs.forEach((f, i) => { const o = a.createOscillator(); o.type = type; o.frequency.value = f; const g = a.createGain(); g.gain.setValueAtTime(.0001, at); g.gain.exponentialRampToValueAtTime(vol / (i + 1), at + .015); g.gain.exponentialRampToValueAtTime(.0001, at + dur); o.connect(g).connect(a.destination); o.start(at); o.stop(at + dur + .05); }); }
+  function noise(dur, freq, vol = .5) { const a = audio(); if (!a) return; const buf = a.createBuffer(1, Math.max(1, a.sampleRate * dur), a.sampleRate), d = buf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 3); const s = a.createBufferSource(); s.buffer = buf; const f = a.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = freq; const g = a.createGain(); g.gain.value = vol; s.connect(f).connect(g).connect(a.destination); s.start(); }
+  const sfx = { step() { noise(.03, 1800, .15); }, hit(c) { noise(.09, c ? 1500 : 700, .7); }, hurt() { noise(.12, 260, .6); }, heal() { tone([659, 880], .4); }, win() { tone([392, 523, 659, 784], 1.2); }, lose() { tone([196, 165, 131], 1.2); }, enc() { tone([220, 330], .3, .12, 'sawtooth'); }, coin() { tone([988, 1319], .2, .08); }, gem(g) { tone([523, 659, 784, 1047].slice(0, Math.min(4, g + 1)), .8); }, chest() { tone([523, 784], .4); } };
+
+  // ---------- 存檔 ----------
+  function save() { try { const c = { ...S, battle: null }; localStorage.setItem(SAVE, JSON.stringify(c)); } catch (e) {} }
+  function load() { try { const d = JSON.parse(localStorage.getItem(SAVE) || 'null'); if (d && d.v === 1 && d.heroes) return d; } catch (e) {} return null; }
+  function fresh() { const s = newGame(); refreshStall(s, rng); return s; }
+
+  let toastT;
+  function toast(h) { const el = $('#toast'); el.innerHTML = h; el.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => { el.hidden = true; }, 2600); }
+
+  // ---------- 地圖 ----------
+  const VW = 11, VH = 9;
+  let tileSize = 36;
+  function region(r, c) { return r < 7 ? (c < 11 ? 0 : 3) : (c < 11 ? 1 : 2); }
+  function tileClass(ch) { return { '.': 't-g', 'P': 't-g', ',': 't-tg', '=': 't-p', 'T': 't-tree', '~': 't-w', '^': 't-rock', 'S': 't-p', 'F': 't-p', 'C': 't-g', '1': 't-p', '2': 't-p', '3': 't-p', '4': 't-p' }[ch] || 't-g'; }
+  function buildMap() {
+    const vp = $('#viewport'); tileSize = Math.floor(vp.clientWidth / VW);
+    vp.style.setProperty('--t', tileSize + 'px');
+    let h = '';
+    for (let r = 0; r < MAP.length; r++) for (let c = 0; c < MAP[0].length; c++) {
+      const ch = MAP[r][c];
+      let feat = '';
+      if (ch === 'S') feat = `<span class="feat f-shrine" lang="zh-Hant">廟</span>`;
+      else if (ch === 'F') feat = `<span class="feat f-forge" lang="zh-Hant">爐</span>`;
+      else if (ch === 'C') feat = `<span class="feat f-chest ${S.opened.includes(r + ',' + c) ? 'open' : ''}"></span>`;
+      else if (BOSS_AT[ch] && !S.beaten.includes(BOSS_AT[ch])) feat = `<span class="feat f-boss" lang="zh-Hant">${foeSeal(BOSS_AT[ch])}</span>`;
+      h += `<div class="tile ${tileClass(ch)}" data-rc="${r},${c}" style="left:${c * tileSize}px;top:${r * tileSize}px">${feat}</div>`;
+    }
+    const wk = art('wukong');
+    h += `<div class="hero-token" id="token"><span>${wk ? `<img src="${wk}" alt="">` : '<b style="display:grid;place-items:center;height:100%;font-family:var(--f-display);color:var(--gold-hi)">悟</b>'}</span></div>`;
+    $('#world').innerHTML = h;
+    $('#world').style.width = MAP[0].length * tileSize + 'px';
+    $('#world').style.height = MAP.length * tileSize + 'px';
+    placeCamera(true);
+  }
+  function placeCamera(instant) {
+    const [r, c] = S.pos, w = $('#world'), tk = $('#token');
+    if (!tk) return;
+    if (instant) { w.style.transition = 'none'; tk.style.transition = 'none'; }
+    tk.style.transform = `translate(${c * tileSize}px, ${r * tileSize}px)`;
+    const vp = $('#viewport');
+    const maxX = MAP[0].length * tileSize - vp.clientWidth, maxY = MAP.length * tileSize - vp.clientHeight;
+    const x = Math.max(0, Math.min(maxX, c * tileSize - vp.clientWidth / 2 + tileSize / 2));
+    const y = Math.max(0, Math.min(maxY, r * tileSize - vp.clientHeight / 2 + tileSize / 2));
+    w.style.transform = `translate(${-x}px, ${-y}px)`;
+    if (instant) { void w.offsetWidth; w.style.transition = ''; tk.style.transition = ''; }
+  }
+  function renderTop() {
+    $('#title').textContent = T().title;
+    $('#res').innerHTML = `<span class="silver"><i class="ingot"></i>${S.silver}</span>` + ['bone', 'hide', 'core'].map(m => `<span class="mat" title="${T().matNames[m]}"><b lang="zh-Hant">${L.zh.mats[m]}</b>${S.mats[m]}</span>`).join('');
+    const [r, c] = S.pos, rg = region(r, c);
+    $('#where-ch').textContent = T().sub;
+    $('#where-name').textContent = T().regions[rg];
+    $('#where-hint').textContent = S.beaten.length === 0 ? T().hint.start : T().hint.walk;
+    $('#strip').innerHTML = PARTY.map(k => { const st = heroStats(S, k), h = S.heroes[k]; return `<button class="mini" data-open="party" data-hero="${k}">${ava(k, false, h.hp <= 0)}<div style="min-width:0"><div class="nm">${hn(k)} <span class="muted num">Lv${h.lv}</span></div><div class="bar"><i style="width:${h.hp / st.hp * 100}%"></i></div><div class="bar mp"><i style="width:${h.mp / st.mp * 100}%"></i></div></div></button>`; }).join('');
+    const ch = MAP[r][c];
+    let ctx = '';
+    if (ch === 'S') ctx = `<button class="btn" data-ctx="rest">${T().rest(restCost(S))}</button><button class="btn" data-open="shop">${T().shop}</button><button class="btn gold" data-open="stall">${T().stall}</button>`;
+    else if (ch === 'F') ctx = `<button class="btn gold" data-open="forge">${T().forge}</button>`;
+    $('#ctx').innerHTML = ctx;
+    document.querySelectorAll('[data-open]').forEach(b => { if (T().menu[b.dataset.open] && !b.dataset.hero) b.textContent = T().menu[b.dataset.open]; });
+    $('#keys').textContent = T().keys;
+    $('#btn-lang').textContent = T().langBtn;
+    $('#btn-sound').textContent = soundOn ? T().soundOn : T().soundOff;
+    $('#btn-reset').textContent = T().resetBtn;
+  }
+
+  // 走一步
+  let walkQueue = [], walkTimer = null;
+  function tryStep(dr, dc) {
+    if (busy || S.battle || !$('#panel').hidden) return false;
+    const ev = step(S, dr, dc, rng);
+    if (ev.boss) { walkQueue = []; bossPrompt(ev.boss); return false; }
+    if (!ev.moved) { walkQueue = []; return false; }
+    sfx.step(); placeCamera(false);
+    if (ev.chest) {
+      sfx.chest(); buildMap();
+      const parts = [];
+      if (ev.chest.silver) parts.push(`${T().reward.silver} +${ev.chest.silver}`);
+      for (const it of ['peach', 'elixir', 'dew']) if (ev.chest[it]) parts.push(`${T().items[it][0]} +${ev.chest[it]}`);
+      for (const m of ['bone', 'hide', 'core']) if (ev.chest[m]) parts.push(`${T().matNames[m]} +${ev.chest[m]}`);
+      if (ev.chest.gem) parts.push(gemName(ev.chest.gem[0], ev.chest.gem[1]));
+      toast(`<b>${T().chestGot}</b>${parts.join('、')}`);
+    }
+    renderTop(); save();
+    if (ev.encounter) { walkQueue = []; encounter(ev.encounter); return false; }
+    if (ev.shrine || ev.forge) walkQueue = [];
+    return true;
+  }
+  function walkTo(tr, tc) {
+    // BFS 找路
+    const key = (r, c) => r + ',' + c, start = S.pos, prev = {}, q = [start], seen = new Set([key(...start)]);
+    while (q.length) {
+      const [r, c] = q.shift();
+      if (r === tr && c === tc) break;
+      for (const [dr, dc] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const nr = r + dr, nc = c + dc, k = key(nr, nc);
+        if (seen.has(k) || !canEnter(S, nr, nc)) continue;
+        const ch = tileAt(nr, nc);
+        if (BOSS_AT[ch] && !S.beaten.includes(BOSS_AT[ch]) && !(nr === tr && nc === tc)) continue;
+        seen.add(k); prev[k] = [r, c]; q.push([nr, nc]);
+      }
+    }
+    if (!prev[key(tr, tc)]) return;
+    const path = []; let cur = [tr, tc];
+    while (key(...cur) !== key(...start)) { path.unshift(cur); cur = prev[key(...cur)]; }
+    walkQueue = path.map(([r, c], i) => { const [pr, pc] = i ? path[i - 1] : start; return [r - pr, c - pc]; });
+    clearInterval(walkTimer);
+    walkTimer = setInterval(() => { const d = walkQueue.shift(); if (!d || !tryStep(...d)) { clearInterval(walkTimer); walkQueue = []; } }, 150);
+  }
+  $('#viewport').addEventListener('click', (e) => { const t = e.target.closest('[data-rc]'); if (!t) return; const [r, c] = t.dataset.rc.split(',').map(Number); audio(); walkTo(r, c); });
+  document.querySelector('.dpad').addEventListener('click', (e) => { const b = e.target.closest('[data-dir]'); if (b) { audio(); clearInterval(walkTimer); const [dr, dc] = b.dataset.dir.split(',').map(Number); tryStep(dr, dc); } });
+  document.addEventListener('keydown', (e) => {
+    if (!$('#battle').hidden) return battleKey(e);
+    if (!$('#panel').hidden) { if (e.key === 'Escape') closePanel(); return; }
+    const m = { ArrowUp: [-1, 0], ArrowDown: [1, 0], ArrowLeft: [0, -1], ArrowRight: [0, 1], w: [-1, 0], s: [1, 0], a: [0, -1], d: [0, 1], W: [-1, 0], S: [1, 0], A: [0, -1], D: [0, 1] }[e.key];
+    if (m) { e.preventDefault(); clearInterval(walkTimer); tryStep(...m); }
+  });
+
+  // ---------- 遇敵、頭目 ----------
+  function encounter(foes) {
+    busy = true; sfx.enc();
+    const f = document.createElement('div'); f.className = 'flash'; $('#viewport').appendChild(f);
+    setTimeout(() => { f.remove(); busy = false; openBattle(foes); }, matchMedia('(prefers-reduced-motion: reduce)').matches ? 10 : 520);
+  }
+  function bossPrompt(key) {
+    openPanel(`<div class="dialog"><span class="ava big" style="border-color:var(--gold);background:#22100a;color:var(--gold-hi)" lang="zh-Hant">${foeSeal(key)}</span><div><h3>${fn(key)}</h3><p>${T().bossLine[key]}</p></div></div>
+      <div class="row"><button class="btn ghost" data-close>${T().cancel}</button><button class="btn gold" data-fight-boss="${key}">${T().act.attack}</button></div>`);
+  }
+
+  // ---------- 戰鬥 ----------
+  let logLine = '';
+  function openBattle(foes) {
+    startBattle(S, foes, rng);
+    ui.act = null; logLine = '';
+    $('#battle').hidden = false;
+    renderBattle();
+    advance();
+  }
+  function renderBattle() {
+    const b = S.battle; if (!b) return;
+    const a = current(S);
+    const targeting = ui.act && ui.act.need;
+    $('#battle-in').innerHTML = `
+      <div class="foes" style="--n:${b.foes.length}">${b.foes.map(f => `
+        <button class="foe ${f.boss ? 'boss' : ''} ${f.hp <= 0 ? 'dead' : ''} ${targeting === 'enemy' && f.hp > 0 ? 'targetable' : ''}" data-foe="${f.i}" ${targeting === 'enemy' && f.hp > 0 ? '' : 'tabindex="-1"'}>
+          <span class="seal" lang="zh-Hant">${foeSeal(f.key)}</span>${elBadge(f.el, 'elx')}
+          <span class="nm">${fn(f.key)}</span>
+          <span class="bar"><i style="width:${f.hp / f.hpMax * 100}%"></i></span>
+          <span class="muted num" style="font-size:11px">${f.hp} / ${f.hpMax}</span>
+        </button>`).join('')}</div>
+      <div class="msg" id="msg">${logLine || '&nbsp;'}</div>
+      <div class="heroes">${PARTY.map(k => {
+        const st = heroStats(S, k), h = S.heroes[k], p = b.party[k];
+        const isAct = a && a.side === 'hero' && a.id === k;
+        const tgt = (targeting === 'ally' && h.hp > 0) || (targeting === 'fallen' && h.hp <= 0);
+        const tags = [];
+        if (p.morph) tags.push(`<span class="tag">${T().skills.morph[0]}：${T().el[p.morph]}</span>`);
+        if (p.taunt) tags.push(`<span class="tag">${T().skills.taunt[0]}</span>`);
+        if (p.guard) tags.push(`<span class="tag">${T().skills.guard[0]}</span>`);
+        if (p.defend) tags.push(`<span class="tag">${T().act.defend}</span>`);
+        if (p.stun) tags.push(`<span class="tag bad">${lang === 'en' ? 'Bound' : '被纏住'}</span>`);
+        return `<button class="hcard ${isAct ? 'active' : ''} ${tgt ? 'targetable' : ''}" data-hero="${k}" ${tgt ? '' : 'tabindex="-1"'}>${ava(k, true, h.hp <= 0)}
+          <div style="min-width:0"><div class="top2"><span><b>${hn(k)}</b> <span class="muted">Lv${h.lv}</span> ${elBadge(heroEl(S, k))}</span><span class="num muted">${h.hp}/${st.hp}　${h.mp}/${st.mp}</span></div>
+          <div class="bar"><i style="width:${h.hp / st.hp * 100}%"></i></div><div class="bar mp"><i style="width:${h.mp / st.mp * 100}%"></i></div>
+          ${tags.length ? `<div class="tags">${tags.join('')}</div>` : ''}</div></button>`;
+      }).join('')}</div>
+      <div id="cmd">${commandHTML()}</div>`;
+  }
+  function commandHTML() {
+    const b = S.battle, a = current(S);
+    if (!a || b.over) return '';
+    if (a.side !== 'hero') return `<div class="muted" style="text-align:center">${T().foeTurn(fn(b.foes[a.id].key))}</div>`;
+    const k = a.id, h = S.heroes[k];
+    if (ui.act && ui.act.need) {
+      const label = ui.act.need === 'enemy' ? T().pickEnemy : ui.act.need === 'ally' ? T().pickAlly : ui.act.need === 'fallen' ? T().pickFallen : T().pickEl;
+      const els = ui.act.need === 'el' ? `<div class="elpick">${ELEMENTS.map(e => `<button data-el="${e}">${elBadge(e)}<span>${T().el[e]}</span></button>`).join('')}</div>` : '';
+      return `<div class="sublist"><div class="muted" style="text-align:center">${T().turnOf(hn(k))}：${label}</div>${els}<button class="btn ghost" data-cmd="back">${T().back}</button></div>`;
+    }
+    if (ui.act && ui.act.menu === 'skill') {
+      return `<div class="sublist">${skillsOf(S, k).map(id => { const sk = SKILLS[id]; return `<button data-skill="${id}" ${h.mp < sk.mp ? 'disabled' : ''}><b>${T().skills[id][0]}</b><span class="cost">${sk.mp} MP</span><span>${T().skills[id][1]}</span></button>`; }).join('')}<button class="btn ghost" data-cmd="back">${T().back}</button></div>`;
+    }
+    if (ui.act && ui.act.menu === 'item') {
+      return `<div class="sublist">${Object.keys(ITEMS).map(it => `<button data-item="${it}" ${S.items[it] <= 0 ? 'disabled' : ''}><b>${T().items[it][0]}</b><span class="cost" style="color:var(--gold-hi)">×${S.items[it]}</span><span>${T().items[it][1]}</span></button>`).join('')}<button class="btn ghost" data-cmd="back">${T().back}</button></div>`;
+    }
+    return `<div class="muted" style="text-align:center;margin-bottom:6px">${T().turnOf(hn(k))}</div><div class="actions">
+      <button class="btn gold" data-cmd="attack">${T().act.attack}</button><button class="btn" data-cmd="skill">${T().act.skill}</button>
+      <button class="btn" data-cmd="item">${T().act.item}</button><button class="btn ghost" data-cmd="defend">${T().act.defend}</button></div>`;
+  }
+  function needFor(target) { return target === 'enemy' ? 'enemy' : target === 'ally' ? 'ally' : target === 'fallen' ? 'fallen' : null; }
+  $('#battle').addEventListener('click', (e) => {
+    if (busy) return;
+    const a = current(S); if (!S.battle || !a || a.side !== 'hero' || S.battle.over) { const ok = e.target.closest('[data-end]'); if (ok) closeBattle(); return; }
+    const cmd = e.target.closest('[data-cmd]'), sk = e.target.closest('[data-skill]'), it = e.target.closest('[data-item]'), elb = e.target.closest('[data-el]');
+    const foeB = e.target.closest('[data-foe]'), heroB = e.target.closest('[data-hero]');
+    if (cmd) {
+      const c = cmd.dataset.cmd;
+      if (c === 'back') ui.act = null;
+      else if (c === 'attack') ui.act = { type: 'attack', need: 'enemy' };
+      else if (c === 'skill') ui.act = { menu: 'skill' };
+      else if (c === 'item') ui.act = { menu: 'item' };
+      else if (c === 'defend') return doHero({ type: 'defend' });
+      renderBattle(); return;
+    }
+    if (sk) {
+      const id = sk.dataset.skill, def = SKILLS[id];
+      if (def.morph) ui.act = { type: 'skill', skill: id, need: 'el' };
+      else if (needFor(def.target)) ui.act = { type: 'skill', skill: id, need: needFor(def.target) };
+      else return doHero({ type: 'skill', skill: id });
+      renderBattle(); return;
+    }
+    if (it) { const id = it.dataset.item; ui.act = { type: 'item', item: id, need: ITEMS[id].target === 'fallen' ? 'fallen' : 'ally' }; renderBattle(); return; }
+    if (elb && ui.act && ui.act.need === 'el') return doHero({ type: 'skill', skill: ui.act.skill, el: elb.dataset.el });
+    if (foeB && ui.act && ui.act.need === 'enemy') return doHero({ ...ui.act, target: +foeB.dataset.foe });
+    if (heroB && ui.act && (ui.act.need === 'ally' || ui.act.need === 'fallen')) return doHero({ ...ui.act, target: heroB.dataset.hero });
+  });
+  function battleKey(e) {
+    if (e.key === 'Escape' && ui.act) { ui.act = null; renderBattle(); }
+    if (e.key === 'Enter' && S.battle && S.battle.over) closeBattle();
+  }
+  function floatOn(sel, txt, color) {
+    const host = document.querySelector(sel); if (!host) return;
+    const el = document.createElement('div'); el.className = 'float'; el.textContent = txt; el.style.color = color; host.appendChild(el);
+    host.classList.remove('shake'); void host.offsetWidth; if (color === 'var(--red)' || color === '#fff' || color === 'var(--gold-hi)') host.classList.add('shake');
+    setTimeout(() => el.remove(), 950);
+  }
+  function describe(out, actorName) {
+    const lg = T().log, parts = [];
+    if (out.note === 'stunned') return lg.stunned(actorName);
+    if (out.skill) parts.push(`【${T().skills[out.skill][0]}】`);
+    if (out.item) parts.push(`【${T().items[out.item][0]}】`);
+    if (out.type === 'defend') parts.push(lg.defend(actorName));
+    if (out.morph) parts.push(lg.morph(T().el[out.morph]));
+    if (out.skill === 'taunt') parts.push(lg.taunt);
+    if (out.skill === 'guard') parts.push(lg.guard);
+    for (const h of out.hits) { const f = S.battle.foes[h.foe]; parts.push(lg.hit(actorName, fn(f.key), h.dmg) + (h.crit ? ' ' + lg.crit : '') + (h.adv > 1 ? ' ' + lg.adv : h.adv < 1 ? ' ' + lg.weak : '')); }
+    for (const h of out.heals) parts.push(h.revive ? lg.revive(hn(h.hero)) : h.mp ? lg.mp(hn(h.hero), h.mp) : lg.heal(hn(h.hero), h.amt));
+    if (out.transform) parts.push(lg.transform(T().el[out.transform.el]));
+    return parts.join('　');
+  }
+  function doHero(act) {
+    const a = current(S); const k = a.id;
+    const out = heroAct(S, act, rng);
+    if (!out) { toast(lang === 'en' ? 'That can\'t be done right now.' : '現在不能這樣做。'); ui.act = null; renderBattle(); return; }
+    ui.act = null; busy = true;
+    logLine = describe(out, hn(k));
+    renderBattle();
+    out.hits.forEach(h => { floatOn(`[data-foe="${h.foe}"]`, (h.crit ? '★' : '') + '−' + h.dmg, h.crit ? 'var(--gold-hi)' : '#fff'); });
+    out.heals.forEach(h => floatOn(`[data-hero="${h.hero}"]`, h.mp ? `+${h.mp} MP` : '+' + h.amt, h.mp ? 'var(--mp)' : 'var(--jade)'));
+    if (out.hits.length) sfx.hit(out.hits.some(h => h.crit)); if (out.heals.length) sfx.heal();
+    setTimeout(() => { busy = false; afterAction(out); }, 650);
+  }
+  function foeTurn() {
+    const a = current(S); const f = S.battle.foes[a.id];
+    const out = foeAct(S, rng);
+    if (!out) return;
+    busy = true; // 敵人動畫期間不接受操作，避免兩條回合流程同時跑
+    const lg = T().log, nm = fn(f.key);
+    let line = out.note === 'stunned' ? lg.stunned(nm) : out.special === 'aoe' ? lg.aoe(nm) : out.special === 'stun' ? lg.stun(nm, hn(out.stunned)) : '';
+    out.hits.forEach(h => { line += (line ? '　' : '') + lg.foeHit(nm, hn(h.hero), h.dmg) + (h.ko ? '　' + lg.ko(hn(h.hero)) : ''); });
+    logLine = line;
+    renderBattle();
+    out.hits.forEach(h => floatOn(`[data-hero="${h.hero}"]`, '−' + h.dmg, 'var(--red)'));
+    if (out.hits.length) sfx.hurt();
+    setTimeout(() => { busy = false; afterAction(out); }, 650);
+  }
+  function afterAction(out) {
+    if (out.result) S.battle.result = out.result;
+    if (out.endRound && out.endRound.length) out.endRound.forEach(h => floatOn(`[data-hero="${h.hero}"]`, '+' + h.amt, 'var(--jade)'));
+    if (S.battle.over) { if (S.battle.shown) return; S.battle.shown = true; return showResult(S.battle.result); }
+    renderBattle();
+    advance();
+  }
+  function advance() {
+    const a = current(S);
+    if (!a) return;
+    if (a.side === 'foe') { busy = true; setTimeout(() => { busy = false; foeTurn(); }, 500); }
+  }
+  function showResult(res) {
+    const b = S.battle, win = b.over === 'win';
+    save();
+    let h;
+    if (win) {
+      sfx.win();
+      const lines = [[T().reward.xp, `+${res.xp}`], [T().reward.silver, `+${res.silver}`]].concat(Object.keys(res.drop).map(m => [T().matNames[m], `+${res.drop[m]}`]));
+      h = `<h2>${T().win}</h2><div class="lines num">${lines.map(l => `<div><span>${l[0]}</span><span>${l[1]}</span></div>`).join('')}</div>`;
+      if (res.gem) h += `<div class="row" style="align-items:center">${gemIcon(res.gem.el, res.gem.g)}<span>${T().gotGem(gemName(res.gem.el, res.gem.g))}</span></div>`;
+      for (const u of res.levelUps) h += `<div style="color:var(--jade);font-weight:700">${T().levelUp(hn(u.hero), u.lv)}${u.skills.length ? '　' + u.skills.map(s => T().newSkill(T().skills[s][0])).join('、') : ''}</div>`;
+      if (res.bossBeaten) h += `<div class="panel" style="color:var(--gold-hi)">${T().bossWin[res.bossBeaten]}</div>`;
+      if (res.chapterClear) h += `<div class="panel"><h2>${T().chapterClear}</h2><p class="muted" style="margin:4px 0 0">${T().chapterSub}</p></div>`;
+    } else {
+      sfx.lose();
+      h = `<h2 style="color:var(--red)">${T().lose}</h2><p class="muted" style="margin:0">${T().loseSub(res.lost)}</p>`;
+    }
+    $('#cmd').innerHTML = `<div class="panel" style="display:grid;gap:8px">${h}<button class="btn gold" data-end>${T().ok}</button></div>`;
+    $('#cmd [data-end]').focus();
+  }
+  function closeBattle() {
+    const res = S.battle && S.battle.over;
+    endBattle(S); $('#battle').hidden = true;
+    buildMap(); renderTop(); save();
+  }
+
+  // ---------- 面板 ----------
+  function openPanel(h) { $('#panel-in').innerHTML = h; $('#panel').hidden = false; const f = $('#panel-in button'); if (f) f.focus(); }
+  function closePanel() { $('#panel').hidden = true; renderTop(); }
+  const head = (title) => `<div class="row" style="justify-content:space-between;align-items:center"><h2>${title}</h2><button class="btn ghost" data-close style="min-height:34px">${T().close}</button></div>`;
+  function costHTML(cost) { return Object.keys(cost).map(m => { const have = m === 'silver' ? S.silver : S.mats[m]; return `<span class="num ${have < cost[m] ? 'lack' : ''}">${m === 'silver' ? T().reward.silver : T().matNames[m]} ${cost[m]}</span>`; }).join(''); }
+
+  function partyPanel() {
+    const k = ui.hero, h = S.heroes[k], st = heroStats(S, k);
+    const tabs = `<div class="tabs">${PARTY.map(x => `<button data-tab="${x}" aria-pressed="${x === k}">${ava(x)}${hn(x)}</button>`).join('')}</div>`;
+    const stats = `<div class="stats num">${['hp', 'mp', 'atk', 'def', 'spd', 'crit'].map(s => `<div class="stat"><b>${s === 'hp' ? h.hp + '/' + st.hp : s === 'mp' ? h.mp + '/' + st.mp : s === 'crit' ? st.crit + '%' : st[s]}</b><span>${T().st[s]}</span></div>`).join('')}</div>`;
+    const el = `<div class="muted">${T().element}：${st.el ? elBadge(st.el) + ' ' + T().el[st.el] : T().noEl}${st.regen ? '　' + T().st.regen + ' ' + st.regen : ''}　Lv ${h.lv}　XP ${h.xp}/${LEVEL_XP(h.lv)}</div>`;
+    const eq = ['weapon', 'armor'].map(sl => {
+      const e = h[sl], cap = EQUIP[sl][e.tier].sockets;
+      let socks = '';
+      for (let i = 0; i < 3; i++) { const id = e.sockets[i]; if (id != null) { const gm = gemOf(S, id); socks += `<button class="socket filled" data-unsock="${sl}:${id}" title="${gemName(gm.el, gm.g)}">${gemIcon(gm.el, gm.g)}</button>`; } else if (i < cap) socks += `<button class="socket" data-sock="${sl}">+</button>`; else socks += `<span class="socket locked" title="${T().sockLocked}"></span>`; }
+      return `<div class="panel eq"><div class="row" style="justify-content:space-between"><span><span class="muted">${T().slot[sl]}</span> <b style="font-family:var(--f-display);color:var(--gold-hi)">${T().equip[sl][k][e.tier]}</b></span><span class="muted num">${sl === 'weapon' ? T().st.atk + ' +' + EQUIP.weapon[e.tier].atk : T().st.def + ' +' + EQUIP.armor[e.tier].def + '・' + T().st.hp + ' +' + EQUIP.armor[e.tier].hp}</span></div><div class="sockets">${socks}</div></div>`;
+    }).join('');
+    const skills = `<div class="sublist">${Object.keys(SKILLS).filter(id => SKILLS[id].hero === k).map(id => `<button disabled style="opacity:${h.lv >= SKILLS[id].lv ? 1 : .45};cursor:default"><b>${T().skills[id][0]}</b><span class="cost">${h.lv >= SKILLS[id].lv ? SKILLS[id].mp + ' MP' : T().lvReq(SKILLS[id].lv)}</span><span>${T().skills[id][1]}</span></button>`).join('')}</div>`;
+    openPanel(head(T().tParty) + tabs + `<div class="row" style="align-items:center">${ava(k, true)}<div><h3>${hn(k)}</h3><span class="muted">${T().roles[k]}</span></div></div>` + stats + el + eq + `<h3>${T().skillsTitle}</h3>` + skills);
+  }
+  function gemsPanel() {
+    const groups = [];
+    for (const el of ELEMENTS) for (let g = 5; g >= 1; g--) { const all = S.gems.filter(x => x.el === el && x.g === g); if (all.length) groups.push({ el, g, all, loose: all.filter(x => !isSocketed(S, x.id)) }); }
+    groups.sort((a, b) => b.g - a.g);
+    openPanel(head(T().tGems) + (groups.length ? `<div style="display:grid;gap:6px">${groups.map(gr => { const canF = gr.g < 5 && gr.loose.length >= 3; return `<div class="gemrow">${gemIcon(gr.el, gr.g)}<div style="min-width:0"><b style="color:${EL_COLOR[gr.el]};font-family:var(--f-display)">${gemName(gr.el, gr.g)} ×${gr.all.length}</b><div class="muted">${T().gemFx[gr.el](GEM_STAT[gr.el][gr.g])}${gr.all.length - gr.loose.length ? '・' + T().socketed(gr.all.length - gr.loose.length) : ''}</div></div><div class="acts">${gr.g < 5 ? `<button class="btn ${canF ? 'gold' : 'ghost'}" data-fuse="${gr.el}:${gr.g}" ${canF ? '' : 'disabled'}>${T().fuse(Math.round(FUSE_RATE[gr.g] * 100))}</button>` : ''}<button class="btn ghost" data-sell="${gr.el}:${gr.g}" ${gr.loose.length ? '' : 'disabled'}>${T().sell(GEM_PRICE[gr.g])}</button></div></div>`; }).join('')}</div>` : `<p class="muted">${T().noGems}</p>`));
+  }
+  function itemsPanel() {
+    openPanel(head(T().tItems) + `<div class="sublist">${Object.keys(ITEMS).map(it => `<button data-use="${it}" ${S.items[it] <= 0 ? 'disabled' : ''}><b>${T().items[it][0]}</b><span class="cost" style="color:var(--gold-hi)">×${S.items[it]}</span><span>${T().items[it][1]}</span></button>`).join('')}</div>`);
+  }
+  function usePanel(it) {
+    openPanel(head(T().useOn) + `<div class="heroes">${PARTY.map(k => { const h = S.heroes[k], st = heroStats(S, k); return `<button class="hcard" data-useon="${it}:${k}">${ava(k, true, h.hp <= 0)}<div><div class="top2"><b>${hn(k)}</b><span class="num muted">${h.hp}/${st.hp}　${h.mp}/${st.mp}</span></div><div class="bar"><i style="width:${h.hp / st.hp * 100}%"></i></div><div class="bar mp"><i style="width:${h.mp / st.mp * 100}%"></i></div></div></button>`; }).join('')}</div>`);
+  }
+  function shopPanel() {
+    openPanel(head(T().shop) + `<div class="sublist">${Object.keys(ITEMS).map(it => `<button data-buy="${it}" ${S.silver < ITEMS[it].price ? 'disabled' : ''}><b>${T().items[it][0]}</b><span class="cost" style="color:var(--gold-hi)">${T().buy(ITEMS[it].price)}</span><span>${T().items[it][1]}　${T().have(S.items[it])}</span></button>`).join('')}</div>`);
+  }
+  const ROCKS = ['M18 62 L22 34 L40 18 L66 16 L84 30 L90 56 L78 80 L48 86 L26 80 Z', 'M14 56 L26 28 L52 20 L76 26 L88 48 L84 72 L60 86 L32 84 Z', 'M20 70 L16 44 L34 22 L60 18 L80 30 L88 60 L72 82 L40 86 Z', 'M16 60 L28 30 L48 24 L70 20 L86 40 L84 70 L62 84 L30 82 Z'];
+  function stoneSVG(st) {
+    const id = 'st' + (++gid), c = EL_COLOR[st.tint];
+    const sparks = [[38, 40], [62, 36], [54, 60]].slice(0, st.sheen).map(([x, y]) => `<path d="M${x} ${y - 6} L${x + 1.6} ${y - 1.6} L${x + 6} ${y} L${x + 1.6} ${y + 1.6} L${x} ${y + 6} L${x - 1.6} ${y + 1.6} L${x - 6} ${y} L${x - 1.6} ${y - 1.6} Z" fill="#fff8d0"/>`).join('');
+    const win = st.peeked ? `<ellipse cx="50" cy="54" rx="14" ry="10" fill="${EL_COLOR[st.el]}" stroke="#0c1613" stroke-width="2"/>` : '';
+    return `<svg viewBox="0 0 100 100"><defs><radialGradient id="${id}" cx=".35" cy=".3" r=".9"><stop offset="0" stop-color="#9a958c"/><stop offset=".6" stop-color="#5b5750"/><stop offset="1" stop-color="#34312c"/></radialGradient></defs><path d="${ROCKS[st.shape]}" fill="url(#${id})" stroke="#1d1b18" stroke-width="2"/><path d="${ROCKS[st.shape]}" fill="${c}" opacity=".26"/>${win}${sparks}</svg>`;
+  }
+  function stallPanel() {
+    const tiers = `<div class="tabs"><button data-tier="0" aria-pressed="${S.stallTier === 0}">${T().tierRough}</button><button data-tier="1" aria-pressed="${S.stallTier === 1}" ${stoneUnlocked(S, 1) ? '' : 'disabled'}>${stoneUnlocked(S, 1) ? T().tierMount : T().tierLock}</button></div>`;
+    const g = T().grade;
+    const stall = S.stall.length ? `<div class="stall">${S.stall.map(st => { const p = STONES[st.tier].price, pc = peekCost(st); return `<div class="stone">${stoneSVG(st)}<div class="muted" style="min-height:2.6em">${st.peeked ? `${elBadge(st.el)} ${T().range(g[st.range[0]], g[st.range[1]])}<br>${T().offer(st.offer)}` : ''}</div>${st.peeked ? `<button class="btn ghost" data-flip="${st.id}" ${S.silver < p ? 'disabled' : ''}>${T().flip(st.offer - p)}</button>` : `<button class="btn ghost" data-peek="${st.id}" ${S.silver < pc ? 'disabled' : ''}>${T().peek(pc)}</button>`}<button class="btn gold" data-cut="${st.id}" ${S.silver < p ? 'disabled' : ''}>${T().cut(p)}</button></div>`; }).join('')}</div>` : `<p class="muted">${T().empty}</p>`;
+    openPanel(head(T().stall) + `<p class="muted" style="margin:0">${T().stallHelp}</p>` + tiers + stall);
+  }
+  function forgePanel() {
+    openPanel(head(T().forge) + PARTY.map(k => `<div class="panel" style="display:grid;gap:8px"><div class="row" style="align-items:center">${ava(k)}<h3>${hn(k)}</h3></div>${['weapon', 'armor'].map(sl => { const e = S.heroes[k][sl], nx = EQUIP[sl][e.tier + 1]; return `<div style="display:grid;gap:4px"><div class="row" style="justify-content:space-between"><span class="muted">${T().slot[sl]}：<b style="color:var(--text)">${T().equip[sl][k][e.tier]}</b></span></div>${nx ? `<div class="cost">${T().need}：${costHTML(nx.cost)}</div><button class="btn ${canCraft(S, k, sl) ? 'gold' : ''}" data-craft="${k}:${sl}" ${canCraft(S, k, sl) ? '' : 'disabled'}>${T().craftTo(T().equip[sl][k][e.tier + 1])}</button>` : `<span class="muted">${T().maxed}</span>`}</div>`; }).join('')}</div>`).join(''));
+  }
+  function helpPanel() { openPanel(head(T().tHelp) + `<div style="display:grid;gap:8px">${T().helpText.map(p => `<p style="margin:0">${p}</p>`).join('')}</div>`); }
+  let panelKind = null;
+  function open(kind) { panelKind = kind; ({ party: partyPanel, gems: gemsPanel, items: itemsPanel, shop: shopPanel, stall: stallPanel, forge: forgePanel, help: helpPanel })[kind](); }
+  document.addEventListener('click', (e) => {
+    const o = e.target.closest('#app [data-open]');
+    if (o) { if (o.dataset.hero) ui.hero = o.dataset.hero; audio(); open(o.dataset.open); return; }
+    const cx = e.target.closest('[data-ctx]');
+    if (cx && cx.dataset.ctx === 'rest') { if (rest(S)) { sfx.heal(); save(); renderTop(); toast(lang === 'en' ? 'Fully rested.' : '全員回滿了。'); } }
+  });
+  $('#panel').addEventListener('click', (e) => {
+    const q = (s) => e.target.closest(s);
+    if (q('[data-close]')) return closePanel();
+    if (q('[data-fight-boss]')) { const k = q('[data-fight-boss]').dataset.fightBoss; $('#panel').hidden = true; return openBattle([k]); }
+    if (q('[data-reset-yes]')) { S = fresh(); save(); closePanel(); buildMap(); renderTop(); return intro(); }
+    if (q('[data-intro-ok]')) { return closePanel(); }
+    if (q('[data-tab]')) { ui.hero = q('[data-tab]').dataset.tab; return partyPanel(); }
+    if (q('[data-sock]')) {
+      const sl = q('[data-sock]').dataset.sock, loose = S.gems.filter(g => !isSocketed(S, g.id)).sort((a, b) => b.g - a.g);
+      panelKind = 'pick';
+      return openPanel(head(T().pickGem) + (loose.length ? `<div class="sublist">${loose.map(g => `<button data-pick="${sl}:${g.id}" style="grid-template-columns:40px 1fr;align-items:center">${gemIcon(g.el, g.g)}<span style="grid-column:auto"><b style="color:${EL_COLOR[g.el]}">${gemName(g.el, g.g)}</b><br>${T().gemFx[g.el](GEM_STAT[g.el][g.g])}</span></button>`).join('')}</div>` : `<p class="muted">${T().noGems}</p>`) + `<button class="btn ghost" data-back-party>${T().back}</button>`);
+    }
+    if (q('[data-back-party]')) return partyPanel();
+    if (q('[data-pick]')) { const [sl, id] = q('[data-pick]').dataset.pick.split(':'); socket(S, ui.hero, sl, +id); save(); return partyPanel(); }
+    if (q('[data-unsock]')) { const [sl, id] = q('[data-unsock]').dataset.unsock.split(':'); unsocket(S, ui.hero, sl, +id); save(); return partyPanel(); }
+    if (q('[data-fuse]')) {
+      const [el, g] = q('[data-fuse]').dataset.fuse.split(':'); const r = fuse(S, el, +g, rng); save();
+      if (r) { r.ok ? sfx.gem(r.gem.g) : sfx.hurt(); toast(r.ok ? `<b>${T().fuseOk}</b> ${gemName(r.gem.el, r.gem.g)}` : T().fuseFail); }
+      return gemsPanel();
+    }
+    if (q('[data-sell]')) { const [el, g] = q('[data-sell]').dataset.sell.split(':'); const gm = looseGems(S, el, +g)[0]; if (gm) { sellGem(S, gm.id); sfx.coin(); save(); } renderTop(); return gemsPanel(); }
+    if (q('[data-use]')) return usePanel(q('[data-use]').dataset.use);
+    if (q('[data-useon]')) {
+      const [it, k] = q('[data-useon]').dataset.useon.split(':'), h = S.heroes[k], st = heroStats(S, k), I = ITEMS[it];
+      if (S.items[it] <= 0) return itemsPanel();
+      if (I.revivePct) { if (h.hp > 0) return toast(lang === 'en' ? 'Not fallen.' : '他沒有倒下。'); h.hp = Math.round(st.hp * I.revivePct); }
+      else { if (h.hp <= 0) return toast(lang === 'en' ? 'Revive them first.' : '要先救起來。'); if (I.heal) h.hp = Math.min(st.hp, h.hp + I.heal); if (I.mp) h.mp = Math.min(st.mp, h.mp + I.mp); }
+      S.items[it]--; sfx.heal(); save(); renderTop(); return itemsPanel();
+    }
+    if (q('[data-buy]')) { if (buyItem(S, q('[data-buy]').dataset.buy)) { sfx.coin(); save(); renderTop(); } return shopPanel(); }
+    if (q('[data-tier]')) { const t = +q('[data-tier]').dataset.tier; if (stoneUnlocked(S, t) && S.stallTier !== t) { S.stallTier = t; refreshStall(S, rng); save(); } return stallPanel(); }
+    if (q('[data-peek]')) { peek(S, +q('[data-peek]').dataset.peek, rng); save(); renderTop(); return stallPanel(); }
+    if (q('[data-flip]')) { const r = flipStone(S, +q('[data-flip]').dataset.flip); if (r) { sfx.coin(); toast(`${r.profit >= 0 ? '+' : ''}${r.profit}`); } save(); renderTop(); return stallPanel(); }
+    if (q('[data-cut]')) {
+      const r = cutStone(S, +q('[data-cut]').dataset.cut); save(); renderTop();
+      if (!r) return stallPanel();
+      if (r.gem) sfx.gem(r.gem.g); else noise(.3, 300, .6);
+      return openPanel(head(T().stall) + `<div class="reveal">${r.gem ? `${gemIcon(r.gem.el, r.gem.g)}<h2 style="color:${EL_COLOR[r.gem.el]}">${gemName(r.gem.el, r.gem.g)}</h2><span class="muted">${T().got}　${T().gemFx[r.gem.el](GEM_STAT[r.gem.el][r.gem.g])}</span>` : `<h2 style="color:var(--muted)">${T().grade[0]}</h2><span class="muted">${T().waste}</span>`}<button class="btn gold" data-back-stall>${T().ok}</button></div>`);
+    }
+    if (q('[data-back-stall]')) return stallPanel();
+    if (q('[data-craft]')) { const [k, sl] = q('[data-craft]').dataset.craft.split(':'); if (craft(S, k, sl)) { tone([440, 660], .5); toast(`<b>${T().equip[sl][k][S.heroes[k][sl].tier]}</b>`); save(); renderTop(); } return forgePanel(); }
+  });
+
+  function intro() {
+    openPanel(`<div class="dialog"><span class="ava big" style="background:#c43a24;color:var(--gold-hi)" lang="zh-Hant">${art('npc_tudi') ? `<img src="${art('npc_tudi')}" alt="">` : '土'}</span><div style="display:grid;gap:6px">${T().intro.map(p => `<p>${p}</p>`).join('')}</div></div><button class="btn gold" data-intro-ok>${T().introBtn}</button>`);
+  }
+
+  $('#btn-lang').addEventListener('click', () => { lang = lang === 'zh' ? 'en' : 'zh'; try { localStorage.setItem('dsrpg.lang', lang); } catch (e) {} document.documentElement.lang = lang === 'en' ? 'en' : 'zh-Hant'; renderTop(); if (!$('#battle').hidden) renderBattle(); if (!$('#panel').hidden && panelKind && panelKind !== 'pick') open(panelKind); });
+  $('#btn-sound').addEventListener('click', () => { soundOn = !soundOn; renderTop(); });
+  $('#btn-reset').addEventListener('click', () => { panelKind = null; openPanel(`<h2>${T().resetBtn}</h2><p class="muted">${T().resetQ}</p><div class="row"><button class="btn ghost" data-close>${T().cancel}</button><button class="btn gold" data-reset-yes>${T().resetYes}</button></div>`); });
+  window.addEventListener('resize', () => { if (S) buildMap(); });
+
+  function boot(data) {
+    const saved = data && data.S && data.S.heroes ? data.S : load();
+    S = saved || fresh();
+    S.battle = null;
+    document.documentElement.lang = lang === 'en' ? 'en' : 'zh-Hant';
+    buildMap(); renderTop();
+    if (!saved) intro();
+  }
+  window.claude?.hot?.snapshot?.(() => ({ S: { ...S, battle: null } }));
+  if (window.claude?.hot?.ready) window.claude.hot.ready(boot); else boot(window.claude?.hot?.data);
+})();
+</script>
