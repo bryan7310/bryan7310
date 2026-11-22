@@ -44,6 +44,9 @@ def run(args, timeout):
 def tests(quick):
     s = Sec('程式自動測試')
     code, out = run([PY, str(ROOT / 'tools' / 'jscheck.py')], 300)
+    if code != 0:   # 剛好有人也在跑 jscheck（同一個測試埠）或瀏覽器沒開起來：等一下再試一次，兩次都失敗才算有問題
+        time.sleep(30)
+        code, out = run([PY, str(ROOT / 'tools' / 'jscheck.py')], 300)
     last = (out.strip().splitlines() or [''])[-1]
     s.add('網頁程式都載得起來', 'ok' if code == 0 else 'bad', last)
     if quick:
@@ -177,6 +180,7 @@ def pc_status():
     for v in lst(o.get('vols')):
         if 'google drive' in (v.get('label') or '').lower(): continue   # 雲端硬碟的虛擬磁碟，不是這台電腦的空間
         size, free = v.get('size') or 0, v.get('free') or 0
+        if size <= 0: continue   # 讀不到容量：沒放卡的讀卡機、沒掛上的虛擬磁碟（例如伺服器帳號看到的 Google Drive），不是硬碟滿了
         pct = 100 * free / size if size else 0
         s.add('%s 槽空間%s' % (v.get('d', '').rstrip(':'), '（%s）' % v['label'] if v.get('label') else ''), 'bad' if pct < 8 else 'warn' if pct < 15 else 'ok', '共 %.0f GB，剩 %.0f GB（%.0f%%）' % (size, free, pct))
     bs = o.get('badShut') or 0
