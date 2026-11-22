@@ -44,6 +44,7 @@ export async function mailImport(cids) {
   const C = calc(); const cur = store.list('mail'); const ops = []; const miss = []; let add = 0;
   for (const id of cids) { const c = C.ct[id]; if (!c || cur.some(x => x.cid === id)) continue; const p = addrParts(c.addr); if (!p.addr) miss.push(shortName(c)); ops.push({ col: 'mail', id: uid('M'), data: { cid: id, name: printName(c.name), zip: contactZip(c), addr: p.addr, no: '', to: '公司 會計部收', at: Date.now() } }); add++; }
   if (ops.length) await store.batch(ops);
+  for (const o of ops) sel.add(o.id);   // 導入的直接勾好，到郵寄掛號頁按「列印大宗掛號執據」就能印
   return { add, miss };
 }
 const sorted = () => store.list('mail').sort((a, b) => String(a.zip || '999999').localeCompare(String(b.zip || '999999')) || String(a.name).localeCompare(String(b.name), 'zh-Hant'));
@@ -53,8 +54,8 @@ function draw(el) {
   el.innerHTML = `<div class="head"><h1>郵寄掛號</h1><span class="sub">寄件人：${esc(co.name || '')}　${esc(co.addr || '')}</span><span class="sp"></span><button class="btn" id="mlAdd">＋ 加客戶</button><button class="btn" id="mlExe" ${sel.size ? '' : 'disabled'}>列印大宗掛號執據${sel.size ? `（${sel.size}）` : ''}</button><button class="btn pri" id="mlLabel" ${list.length ? '' : 'disabled'}>列印地址標籤（${list.length}）</button></div>
     <div class="panel" style="display:grid;gap:10px">
       <div class="tools"><span class="muted">郵件種類</span>${['限時掛號', '掛號', '快捷郵件'].map(t => `<label class="check"><input type="radio" name="mltype" value="${t}" ${type === t ? 'checked' : ''}> ${t}</label>`).join('')}<span class="sp"></span>${list.length ? '<button class="btn sm" id="mlClear">清空</button>' : ''}</div>
-      ${miss ? `<div class="banner">有 ${miss} 筆沒有地址，請在下表補上，或到「基本資料 → 客戶」填地址後重新加入。</div>` : ''}
-      <p class="muted small" style="margin:0">從「應收帳款」勾選客戶按「導入郵寄掛號」，或按「加客戶」。勾選列右邊的方塊選要印在執據上的件數；地址標籤印全部。</p>
+      ${miss ? `<div class="banner">有 ${miss} 筆沒有地址，請在下表補上，或到「基本資料 → 客戶／供應商」填地址後重新加入。</div>` : ''}
+      <p class="muted small" style="margin:0">從「應收帳款」勾選客戶、或「支票開立」勾選支票按「導入郵寄掛號」，或按「加客戶」。勾選列右邊的方塊選要印在執據上的件數；地址標籤印全部。</p>
       <div class="tw"><table><thead><tr><th><input type="checkbox" id="mlAll" ${list.length && list.every(x => sel.has(x.id)) ? 'checked' : ''}></th><th class="n">順序</th><th>掛號號碼</th><th>姓名（公司全名）</th><th>郵遞區號</th><th>寄達地址</th><th>標籤第四行</th><th></th></tr></thead><tbody>
       ${list.map((x, i) => `<tr class="${x.addr ? '' : 'muted'}"><td><input type="checkbox" data-sel="${x.id}" ${sel.has(x.id) ? 'checked' : ''}></td><td class="n">${i + 1}</td>${[['no', 110], ['name', 120], ['zip', 70], ['addr', 300], ['to', 130]].map(([k, w]) => `<td><input data-f="${k}" data-id="${x.id}" value="${esc(x[k] ?? '')}" style="width:${w}px;border:1px solid var(--line);border-radius:6px;padding:4px 6px" ${k === 'addr' && !x.addr ? 'placeholder="找不到地址，請填"' : ''}></td>`).join('')}<td><button class="btn xs" data-del="${x.id}">✕</button></td></tr>`).join('') || '<tr><td colspan="8"><div class="empty"><b>還沒有郵寄明細</b>到「應收帳款」勾選客戶後按「導入郵寄掛號」。</div></td></tr>'}</tbody></table></div></div>`;
   el.querySelectorAll('[name=mltype]').forEach(r => r.onchange = () => store.saveSetting('mail', { ...s, type: r.value }));

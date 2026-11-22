@@ -4,6 +4,7 @@ import { store } from '../core/store.js';
 import { toast, modal, confirm, tabs, combo, printHTML, pager, onSearch } from '../core/ui.js';
 import { suppliers, cshort } from '../core/calc.js';
 import { printName, legalName } from '../core/names.js';
+import { mailImport } from './mail.js';
 
 const ui = { tab: 'pending', q: '', page: 0, day: '', cust: '', sel: new Set() };
 export default {
@@ -78,7 +79,7 @@ function draw(el) {
     ${hist ? summaryHTML(dueSummary(all)) : ''}
     <div class="panel"><div class="tools" style="align-items:flex-end">${hist ? `<div class="f" style="width:220px"><label for="coCust">客戶名稱</label><input type="search" id="coCust" placeholder="輸入抬頭／客戶名稱篩選" value="${esc(ui.cust)}"></div>` : ''}<input type="search" id="coQ" placeholder="搜尋抬頭、票號、金額、備註" value="${esc(ui.q)}"><span class="muted small">${list.length} 張・合計 ${money(list.reduce((a, c) => a + (+c.amount || 0), 0))}${!hist && ui.day ? `（兌現日 ${esc(roc(ui.day))}）` : ''}</span><span class="sp"></span>${ui.tab !== 'hist' ? `<label class="check" style="display:inline-flex;gap:5px;align-items:center;white-space:nowrap" title="一次只送一張給印表機，放好下一張支票再按「印這張」（手動進紙比較不會偏）"><input type="checkbox" id="coSeq" style="width:auto" ${ls.get('zr.co.seq', false) ? 'checked' : ''}> 逐張列印</label><button class="btn sm" id="coPrintSel" ${sel.length ? '' : 'disabled title="先勾選要印的支票"'}>列印勾選${sel.length ? `（${sel.length} 張）` : ''}</button>` : ''}${ui.tab === 'pending' && list.length ? `<button class="btn sm pri" id="coPrintAll">列印全部待列印（${list.length} 張）</button>` : ''}</div>
     ${hist ? '<p class="muted small" style="margin:6px 0 0">已列印、兌現日期已過的支票會自動移到這裡；也可以在「已列印」勾選後按「送到票據明細」。</p>' : ''}
-    <div class="tools co-selbar"${sel.length ? '' : ' hidden'}><b>已勾選 ${sel.length} 張</b><span class="muted small">合計 ${money(selSum)}</span><span class="sp"></span><button class="btn sm" id="coRptSel">列印明細表</button>${sel.some(c => tabOf(c) !== 'hist') ? `<button class="btn sm" id="coHistSel">送到票據明細${sel.length > 1 ? `（${sel.filter(c => tabOf(c) !== 'hist').length}）` : ''}</button>` : ''}<button class="btn sm" id="coEditSel">修改</button>${sel.some(c => c.printedAt) ? `<details class="co-more"><summary class="btn sm">更多 ▾</summary><div class="co-menu"><button class="btn sm" id="coBackSel">退回待列印${sel.length > 1 ? `（${sel.filter(c => c.printedAt).length}）` : ''}</button>${sel.some(c => c.toHist && (c.date || '') >= today()) ? `<button class="btn sm" id="coUnHistSel">移回已列印</button>` : ''}</div></details>` : ''}<button class="btn sm danger" id="coDelSel" style="margin-left:14px">刪除</button><button class="btn sm ghost" id="coClrSel">取消勾選</button></div>
+    <div class="tools co-selbar"${sel.length ? '' : ' hidden'}><b>已勾選 ${sel.length} 張</b><span class="muted small">合計 ${money(selSum)}</span><span class="sp"></span><button class="btn sm" id="coRptSel">列印明細表</button><button class="btn sm" id="coMailSel" title="把勾選支票的廠商加到郵寄掛號，印大宗掛號函件執據、地址標籤">導入郵寄掛號</button>${sel.some(c => tabOf(c) !== 'hist') ? `<button class="btn sm" id="coHistSel">送到票據明細${sel.length > 1 ? `（${sel.filter(c => tabOf(c) !== 'hist').length}）` : ''}</button>` : ''}<button class="btn sm" id="coEditSel">修改</button>${sel.some(c => c.printedAt) ? `<details class="co-more"><summary class="btn sm">更多 ▾</summary><div class="co-menu"><button class="btn sm" id="coBackSel">退回待列印${sel.length > 1 ? `（${sel.filter(c => c.printedAt).length}）` : ''}</button>${sel.some(c => c.toHist && (c.date || '') >= today()) ? `<button class="btn sm" id="coUnHistSel">移回已列印</button>` : ''}</div></details>` : ''}<button class="btn sm danger" id="coDelSel" style="margin-left:14px">刪除</button><button class="btn sm ghost" id="coClrSel">取消勾選</button></div>
     <div class="tw" style="margin-top:10px"><table><thead><tr><th><input type="checkbox" id="coSelAll" aria-label="全選這一頁" ${page.length && page.every(c => ui.sel.has(c.id)) ? 'checked' : ''}></th><th>兌現日期</th><th>抬頭</th><th class="n">金額</th><th>支票號碼</th><th>備註</th>${ui.tab === 'pending' ? '' : '<th>列印日</th>'}<th></th></tr></thead><tbody>${page.map(c => `<tr class="row${ui.sel.has(c.id) ? ' on' : ''}" data-id="${c.id}"><td><input type="checkbox" data-sel="${c.id}" ${ui.sel.has(c.id) ? 'checked' : ''} aria-label="勾選 ${esc(nameOf(c))}"></td><td class="nowrap">${esc(roc(c.date))}</td><td>${payeeOut(c) ? `<b>${esc(payeeOut(c))}</b>` : `<span class="muted">（空白）</span><span class="sub">${esc(c.cid ? cshort(c.cid) : '')}</span>`}</td><td class="n" title="${esc(cnMoney(c.amount))}">${money(c.amount)}</td><td class="mono">${esc(c.no || '')}</td><td class="muted">${esc(c.note || '')}</td>${ui.tab === 'pending' ? '' : `<td class="nowrap muted small">${c.printedAt ? esc(roc(new Date(c.printedAt - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10))) : ''}</td>`}<td class="nowrap"><button class="btn xs" data-print="${c.id}">${c.printedAt ? '重印' : '列印'}</button></td></tr>`).join('') || `<tr><td colspan="9"><div class="empty"><b>${ui.tab === 'pending' ? '沒有待列印的支票' : ui.tab === 'done' ? '沒有還沒兌現的已列印支票' : '沒有兌現日已過的支票'}</b></div></td></tr>`}</tbody></table></div>${pg}</div>`;
   el.addEventListener('tab', ev => { ui.tab = ev.detail.val; ui.page = 0; ui.sel.clear(); draw(el); }, { once: true });
   onSearch($('#coQ', el), v => { ui.q = v; ui.page = 0; draw(el); const i = $('#coQ', el); i.focus(); i.setSelectionRange(i.value.length, i.value.length); });
@@ -95,6 +96,7 @@ function draw(el) {
   $('#coDelSel', el)?.addEventListener('click', () => deleteChecks(sel));
   $('#coBackSel', el)?.addEventListener('click', () => backToPending(sel.filter(c => c.printedAt)));
   $('#coRptSel', el)?.addEventListener('click', () => printReport(sel));
+  $('#coMailSel', el)?.addEventListener('click', () => toMail(sel));
   $('#coHistSel', el)?.addEventListener('click', () => toHist(sel.filter(c => tabOf(c) !== 'hist'), true));
   $('#coUnHistSel', el)?.addEventListener('click', () => toHist(sel.filter(c => c.toHist && (c.date || '') >= today()), false));
   el.querySelectorAll('[data-print]').forEach(b => b.addEventListener('click', () => printChecks([store.get('checks_out', b.dataset.print)])));
@@ -141,6 +143,18 @@ function printReport(list) {
   const css = `@page{size:A4 portrait;margin:12mm}body{font-family:"Microsoft JhengHei","PMingLiU",sans-serif;color:#000;margin:0}h1{font-size:16pt;margin:0 0 2mm}.meta{font-size:10pt;margin-bottom:3mm}table{width:100%;border-collapse:collapse;font-size:10pt}th,td{border:.3mm solid #000;padding:1.2mm 1.6mm;vertical-align:top}th{background:#eee}tfoot td{font-weight:700}.n{text-align:right;white-space:nowrap}.c{text-align:center}.mono{font-family:Consolas,monospace}thead{display:table-header-group}tr{break-inside:avoid}`;
   printHTML('開立支票明細表', css, html, { tip: `A4 直式、縮放 100%。共 ${rows.length} 張，合計 ${money(sum)} 元。` });
 }
+/** 勾選的支票 → 郵寄掛號：同一家廠商只加一次；手打抬頭、沒對應廠商的不能導入（沒有地址） */
+async function toMail(list) {
+  const cids = [...new Set(list.map(c => c.cid).filter(id => id && store.get('contacts', id)))];
+  const noCid = [...new Set(list.filter(c => !c.cid || !store.get('contacts', c.cid)).map(nameOf))];
+  if (!cids.length) { toast(`勾選的支票都沒有對應到廠商，不能導入：${noCid.join('、')}`); return; }
+  const had = new Set(store.list('mail').map(x => x.cid)); const dup = cids.filter(id => had.has(id)).map(cshort);
+  const r = await mailImport(cids); ui.sel.clear();
+  store.log('新增', `支票開立導入郵寄掛號 ${r.add} 家`);
+  const msg = [`已導入 ${r.add} 家到郵寄掛號`, dup.length ? `已經在清單裡：${dup.join('、')}` : '', r.miss.length ? `沒有地址，請補上：${r.miss.join('、')}` : '', noCid.length ? `沒對應廠商、沒導入：${noCid.join('、')}` : ''].filter(Boolean).join('；');
+  toast(msg); location.hash = '#mail';
+}
+
 /** 手動送到票據明細（on）／移回已列印（off）。還沒印的送過去時記成今天開立 */
 async function toHist(list, on) {
   if (!list.length) return;
