@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; script-src 'self'">
+<title>大聖煉寶</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=LXGW+WenKai+TC:wght@400;700&family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@700;900&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app">
+  <div class="topbar">
+    <button class="chip" id="btn-sound"></button>
+    <button class="chip" id="btn-lang"></button>
+    <button class="chip" id="btn-reset"></button>
+  </div>
+  <div class="panel hud">
+    <svg id="portrait" viewBox="0 0 120 120" aria-hidden="true"></svg>
+    <div style="min-width:0">
+      <div class="lv" id="hud-lv"></div>
+      <div class="xpbar"><i id="hud-xp"></i></div>
+      <div class="muted num" id="hud-xptext" style="font-size:11.5px;margin-top:2px"></div>
+    </div>
+    <div class="res num">
+      <div class="silver"><i class="ingot"></i><span id="hud-silver"></span></div>
+      <div class="mats" id="hud-mats"></div>
+    </div>
+  </div>
+
+  <!-- 西行 -->
+  <section id="tab-road">
+    <div style="display:grid;gap:12px">
+      <div class="panel" style="display:grid;gap:8px">
+        <div class="eyebrow" data-t="myStats"></div>
+        <div class="statline num" id="statline"></div>
+        <div class="cycle" id="cycle"></div>
+      </div>
+      <div class="route" id="route"></div>
+    </div>
+  </section>
+
+  <!-- 賭石 -->
+  <section id="tab-stone" hidden>
+    <div style="display:grid;gap:12px">
+      <div>
+        <h2 data-t="stoneTitle"></h2>
+        <p class="muted" style="margin:4px 0 0" data-t="stoneHelp"></p>
+      </div>
+      <div class="tiers" id="tiers"></div>
+      <div class="stall" id="stall"></div>
+      <div class="row"><button class="btn ghost" id="btn-refresh"></button></div>
+    </div>
+  </section>
+
+  <!-- 煉器 -->
+  <section id="tab-forge" hidden>
+    <div style="display:grid;gap:12px">
+      <div><h2 data-t="equipTitle"></h2><p class="muted" style="margin:4px 0 0" data-t="equipHelp"></p></div>
+      <div class="equip" id="equip"></div>
+      <div><h2 data-t="gemTitle"></h2><p class="muted" style="margin:4px 0 0" data-t="gemHelp"></p></div>
+      <div class="gems" id="gems"></div>
+    </div>
+  </section>
+</div>
+
+<nav class="tabs" aria-label="tabs"><div class="in" role="tablist">
+  <button class="tab" role="tab" data-tab="road"><b lang="zh-Hant">行</b><span data-t="tabRoad"></span><i class="dot" id="dot-road" hidden></i></button>
+  <button class="tab" role="tab" data-tab="stone"><b lang="zh-Hant">石</b><span data-t="tabStone"></span><i class="dot" id="dot-stone" hidden></i></button>
+  <button class="tab" role="tab" data-tab="forge"><b lang="zh-Hant">爐</b><span data-t="tabForge"></span><i class="dot" id="dot-forge" hidden></i></button>
+</div></nav>
+
+<div class="modal" id="modal" hidden><div class="panel" id="modal-body"></div></div>
+<div class="toast" id="toast" hidden></div>
+
+<script src="assets/manifest.js"></script>
+<script src="engine.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

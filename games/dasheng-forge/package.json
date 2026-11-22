@@ -1,0 +1,33 @@
+{
+  "name": "dasheng-forge",
+  "productName": "DashengForge",
+  "version": "0.1.0",
+  "description": "大聖煉寶：孫悟空西行闖關、賭石合成、打造裝備",
+  "main": "electron/main.js",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "web": "node scripts/build-web.js",
+    "dist:win": "electron-builder --win dir",
+    "dist:mac": "electron-builder --mac dir",
+    "dist:linux": "electron-builder --linux dir"
+  },
+  "dependencies": {
+    "steamworks.js": "0.4.0"
+  },
+  "devDependencies": {
+    "electron": "45.2.3",
+    "electron-builder": "26.18.1"
+  },
+  "build": {
+    "appId": "com.dashengforge.game",
+    "productName": "DashengForge",
+    "directories": { "output": "dist" },
+    "files": ["electron/**", "game/**", "package.json"],
+    "extraFiles": [{ "from": "steam_appid.txt", "to": "steam_appid.txt" }],
+    "asarUnpack": ["node_modules/steamworks.js/**"],
+    "win": { "target": "dir" },
+    "mac": { "target": "dir" },
+    "linux": { "target": "dir" }
+  }
+}

@@ -1,0 +1,23 @@
+// SteamPipe 上傳設定範本。把 1000000 換成你的 App ID，1000001 換成 Windows Depot ID。
+// 上傳指令（在 steam/ 資料夾裡執行）：
+//   steamcmd +login <帳號> +run_app_build ../steam/app_build.vdf +quit
+"AppBuild"
+{
+	"AppID" "1000000"
+	"Desc" "DashengForge build"
+	"ContentRoot" "../dist/win-unpacked/"
+	"BuildOutput" "../steam/output/"
+	"Depots"
+	{
+		"1000001"
+		{
+			"FileMapping"
+			{
+				"LocalPath" "*"
+				"DepotPath" "."
+				"recursive" "1"
+			}
+			"FileExclusion" "*.pdb"
+		}
+	}
+}
