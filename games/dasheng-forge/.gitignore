@@ -1,3 +1,7 @@
 node_modules/
 dist/
 steam/output/
+
+# 根目錄的 .gitignore 排除了 *.png，遊戲美術要例外保留
+!game/assets/*.png
+!art/**/*.png
