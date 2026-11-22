@@ -38,3 +38,15 @@ const out = path.join(root, 'dist', 'web');
 fs.mkdirSync(out, { recursive: true });
 fs.writeFileSync(path.join(out, 'index.html'), html);
 console.log('web build:', path.join(out, 'index.html'), Math.round(html.length / 1024) + ' KB,', Object.keys(images).length, 'images');
+
+// Claude 網頁發布用的片段版：平台會自己加上 <html>、<head>、<body>
+const pick = (re) => (html.match(re) || [''])[0];
+const fragment = [
+  pick(/<title>[\s\S]*?<\/title>/),
+  '<meta name="claude:viewport-fit-sides" content="cover">',
+  ...(html.match(/<link [^>]+>/g) || []),
+  pick(/<style>[\s\S]*?<\/style>/),
+  html.slice(html.indexOf('<body>') + 6, html.lastIndexOf('</body>')).trim(),
+].join('\n');
+fs.writeFileSync(path.join(out, 'artifact.html'), fragment);
+console.log('artifact fragment:', path.join(out, 'artifact.html'));

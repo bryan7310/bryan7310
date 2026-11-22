@@ -114,13 +114,19 @@
   const ASSETS = new Set(window.ASSET_FILES || []);
   const hasArt = (k) => ASSETS.has(k);
   const artImg = (k, cls = '') => `<img class="art ${cls}" src="assets/${k}.png" alt="" draggable="false">`;
-  const art = (k, fallback, cls = '') => hasArt(k) ? artImg(k, cls) : fallback;
+  // 放進圓框時臉要在中間：各圖臉部的位置（水平%, 垂直%）與放大倍率，沒列的用預設
+  const FOCUS = { wukong: [56, 40, 1.45], demon_bone: [44, 36, 1.7] };
+  const cropImg = (k, cls) => {
+    const [fx, fy, z] = FOCUS[k] || [50, 40, 1.4];
+    return `<span class="crop ${cls}"><img class="art" src="assets/${k}.png" alt="" draggable="false" style="transform-origin:${fx}% ${fy}%;transform:scale(${z})"></span>`;
+  };
+  const art = (k, fallback, cls = '') => !hasArt(k) ? fallback : cls === 'demon' ? cropImg(k, 'demon') : artImg(k, cls);
   ['ch1', 'stall', 'forge'].forEach(k => { if (hasArt('bg_' + k)) document.documentElement.style.setProperty('--bg-' + k, `url(assets/bg_${k}.png)`); });
 
   // ---------- 圖形 ----------
   let gid = 0;
   function gemSVG(el, g) {
-    if (hasArt(`gem_${el}_${g}`)) return artImg(`gem_${el}_${g}`, 'gem');
+    if (hasArt(`gem_${el}_${g}`)) return `<span class="gem-art">${artImg(`gem_${el}_${g}`, 'gem')}<span class="pips" style="color:${EL_COLOR[el]}">${'●'.repeat(g)}</span></span>`;
     const c = EL_COLOR[el], id = 'gm' + (++gid);
     const r = 20 + g * 3.2;
     const pts = [[50, 50 - r], [50 + r * .87, 50 - r * .5], [50 + r * .87, 50 + r * .5], [50, 50 + r], [50 - r * .87, 50 + r * .5], [50 - r * .87, 50 - r * .5]];
@@ -152,7 +158,7 @@
       ${win}${sparks}</svg>`;
   }
   function portrait(el) {
-    if (hasArt('wukong')) { el.outerHTML = `<span id="${el.id}" class="portrait-art">${artImg('wukong')}</span>`; return; }
+    if (hasArt('wukong')) { el.outerHTML = cropImg('wukong', 'portrait-art').replace('<span class="crop', `<span id="${el.id}" class="crop`); return; }
     el.innerHTML = `<circle cx="60" cy="64" r="44" fill="#8a4a22"/><circle cx="22" cy="66" r="12" fill="#8a4a22"/><circle cx="98" cy="66" r="12" fill="#8a4a22"/>
       <circle cx="22" cy="66" r="6" fill="#f0b77a"/><circle cx="98" cy="66" r="6" fill="#f0b77a"/>
       <path d="M30 70 C 30 46, 50 40, 60 52 C 70 40, 90 46, 90 70 C 90 92, 76 104, 60 104 C 44 104, 30 92, 30 70 Z" fill="#e9b47a"/>

@@ -10,4 +10,6 @@ Game asset for a casual Chinese-mythology RPG. Modern cel-shaded illustration wi
 
 | 日期 | 檔名 | 工具 | 提示詞（風格前綴之後的部分） | 人工修改 | 審核人 |
 | --- | --- | --- | --- | --- | --- |
-| | `wukong.png` | ChatGPT | | 去背、縮圖 | |
+| 2026-11-22 | `wukong.png`（原檔：悟空猴王頭像.png） | ChatGPT | 待補 | 縮成 512 × 512 | |
+| 2026-11-22 | `demon_bone.png`（原檔：白骨夫人拈凋花.png） | ChatGPT | 待補 | 縮成 512 × 512 | |
+| 2026-11-22 | `gem_metal_1` 到 `gem_metal_5`（原檔：金屬性四寶石圖鑑.png） | ChatGPT | 待補 | 一張四顆切開、裁邊、縮成 256 × 256；等級 4 暫用等級 3 的圖 | |
