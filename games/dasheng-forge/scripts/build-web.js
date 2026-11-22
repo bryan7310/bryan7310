@@ -17,9 +17,12 @@ const files = (() => {
 // 美術：把 assets/xxx.png 換成 data URI
 let app = read('app.js');
 const images = {};
+const webpDir = path.join(root, 'dist', 'web-assets'); // 先跑 scripts/make-webp.py 就會用較小的 WebP
 for (const k of files) {
+  const w = path.join(webpDir, k + '.webp');
   const p = path.join(game, 'assets', k + '.png');
-  if (fs.existsSync(p)) images[k] = 'data:image/png;base64,' + fs.readFileSync(p).toString('base64');
+  if (fs.existsSync(w)) images[k] = 'data:image/webp;base64,' + fs.readFileSync(w).toString('base64');
+  else if (fs.existsSync(p)) images[k] = 'data:image/png;base64,' + fs.readFileSync(p).toString('base64');
   else console.warn('manifest lists a missing file:', k + '.png');
 }
 const manifest = `window.ASSET_FILES = ${JSON.stringify(Object.keys(images))};\nwindow.ASSET_DATA = ${JSON.stringify(images)};`;

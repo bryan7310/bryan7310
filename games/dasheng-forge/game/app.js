@@ -12,8 +12,8 @@
       gemName: (el, g) => `${['', '碎', '小', '中', '大', '極'][g]}${L.zh.el[el]}晶`,
       gemEffect: { metal: (v) => `攻擊 +${v}`, water: (v) => `防禦 +${v}`, earth: (v) => `生命 +${v}`, fire: (v) => `爆擊 +${v}%`, wood: (v) => `每回合回血 ${v}` },
       mats: { bone: ['骨', '妖骨'], hide: ['皮', '妖皮'], core: ['丹', '妖丹'] },
-      demons: { wind: '黑風小妖', yellow: '黃風怪', spider: '蜘蛛精', bone: '白骨精', gold: '金角大王', silver: '銀角大王', bear: '黑熊精', redboy: '紅孩兒', lion: '青獅精', elephant: '白象精', roc: '大鵬精', bull: '牛魔王' },
-      places: ['黑風山', '黃風嶺', '盤絲洞', '白虎嶺', '蓮花洞', '壓龍山', '黑風洞', '火雲洞', '獅駝嶺', '獅駝洞', '獅駝城', '翠雲山'],
+      demons: { shanxiao: '混世山魈', yellow: '黃風怪', spider: '蜘蛛精', bone: '白骨精', bear: '黑熊精', fan: '鐵扇公主', redboy: '紅孩兒', bull: '牛魔王', shrimp: '巡海蝦將', crab: '鐵鉗守庫將', soldier: '追海天兵', dragon: '東海龍王' },
+      places: ['花果山', '黃風嶺', '盤絲洞', '白虎嶺', '黑風山', '芭蕉洞', '火雲洞', '積雷山', '東海海面', '龍宮寶庫', '東海上空', '東海龍宮'],
       equip: {
         weapon: ['赤手空拳', '鑌鐵棍', '混鐵棍', '如意金箍棒'],
         armor: ['粗布衣', '藤甲', '鎖子甲', '鎖子黃金甲'],
@@ -59,8 +59,8 @@
       gemName: (el, g) => `${['', 'Chipped', 'Small', 'Medium', 'Large', 'Perfect'][g]} ${L.en.el[el]} Gem`,
       gemEffect: { metal: (v) => `Attack +${v}`, water: (v) => `Defense +${v}`, earth: (v) => `HP +${v}`, fire: (v) => `Crit +${v}%`, wood: (v) => `Heal ${v} per round` },
       mats: { bone: ['Bone', 'Demon Bone'], hide: ['Hide', 'Demon Hide'], core: ['Core', 'Demon Core'] },
-      demons: { wind: 'Black Wind Imp', yellow: 'Yellow Wind Fiend', spider: 'Spider Spirit', bone: 'White Bone Demon', gold: 'Golden Horn King', silver: 'Silver Horn King', bear: 'Black Bear Spirit', redboy: 'Red Boy', lion: 'Azure Lion', elephant: 'White Elephant', roc: 'Golden Roc', bull: 'Bull Demon King' },
-      places: ['Black Wind Hill', 'Yellow Wind Ridge', 'Silk Cave', 'White Tiger Ridge', 'Lotus Cave', 'Dragon Hill', 'Black Wind Cave', 'Fire Cloud Cave', 'Lion Camel Ridge', 'Lion Camel Cave', 'Lion Camel City', 'Jade Cloud Mountain'],
+      demons: { shanxiao: 'Chaos Mountain Ogre', yellow: 'Yellow Wind Fiend', spider: 'Spider Spirit', bone: 'White Bone Demon', bear: 'Black Bear Spirit', fan: 'Iron Fan Princess', redboy: 'Red Boy', bull: 'Bull Demon King', shrimp: 'Shrimp Sea Patrol General', crab: 'Iron-Claw Vault Guard', soldier: 'Sea-Chasing Heavenly Soldier', dragon: 'Dragon King of the East Sea' },
+      places: ['Flower Fruit Mountain', 'Yellow Wind Ridge', 'Silk Cave', 'White Tiger Ridge', 'Black Wind Mountain', 'Banana Leaf Cave', 'Fire Cloud Cave', 'Thunder Mountain', 'East Sea Waters', 'Dragon Palace Vault', 'Skies over the East Sea', 'Dragon Palace of the East Sea'],
       equip: {
         weapon: ['Bare Fists', 'Iron Staff', 'Steel Staff', 'Ruyi Golden Staff'],
         armor: ['Cloth Robe', 'Rattan Armor', 'Chain Mail', 'Golden Chain Mail'],
@@ -107,7 +107,7 @@
   const elName = (e) => L[lang].el[e];
   const ELCH = { metal: '金', wood: '木', water: '水', fire: '火', earth: '土' };
   const elBadge = (e, cls = '') => `<span class="el el-${e} ${cls}" lang="zh-Hant" title="${elName(e)}">${ELCH[e]}</span>`;
-  const DEMON_GLYPH = { wind: '風', yellow: '黃', spider: '蛛', bone: '骨', gold: '金', silver: '銀', bear: '熊', redboy: '火', lion: '獅', elephant: '象', roc: '鵬', bull: '牛' };
+  const DEMON_GLYPH = { shanxiao: '魈', yellow: '黃', spider: '蛛', bone: '骨', bear: '熊', fan: '扇', redboy: '火', bull: '牛', shrimp: '蝦', crab: '鉗', soldier: '兵', dragon: '龍' };
   const EL_COLOR = { metal: '#f0dc8a', wood: '#6fd08c', water: '#5aa9ff', fire: '#ff7a45', earth: '#d19a5c' };
 
   // ---------- 美術素材：game/assets/manifest.js 列出的檔案會取代內建圖形 ----------
@@ -115,7 +115,7 @@
   const hasArt = (k) => ASSETS.has(k);
   const artImg = (k, cls = '') => `<img class="art ${cls}" src="assets/${k}.png" alt="" draggable="false">`;
   // 放進圓框時臉要在中間：各圖臉部的位置（水平%, 垂直%）與放大倍率，沒列的用預設
-  const FOCUS = { wukong: [56, 40, 1.45], demon_bone: [44, 36, 1.7] };
+  const FOCUS = { wukong: [56, 40, 1.45], demon_bone: [44, 36, 1.7], demon_shanxiao: [46, 24, 1.8], demon_yellow: [40, 31, 1.8], demon_spider: [48, 31, 1.8], demon_bear: [46, 30, 1.8], demon_fan: [50, 31, 1.8], demon_redboy: [50, 31, 1.8], demon_bull: [50, 24, 1.6], demon_shrimp: [36, 26, 1.8], demon_crab: [52, 34, 1.8], demon_soldier: [44, 32, 1.8], demon_dragon: [48, 26, 1.7] };
   const cropImg = (k, cls) => {
     const [fx, fy, z] = FOCUS[k] || [50, 40, 1.4];
     return `<span class="crop ${cls}"><img class="art" src="assets/${k}.png" alt="" draggable="false" style="transform-origin:${fx}% ${fy}%;transform:scale(${z})"></span>`;

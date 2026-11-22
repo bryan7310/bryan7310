@@ -41,18 +41,18 @@ const EQUIP = {
 };
 
 const DEMONS = [
-  { key: 'wind',     el: 'wood',  hp: 63,   atk: 9,  def: 1,  silver: 90,  drop: { bone: 1, hide: 1 } },
-  { key: 'yellow',   el: 'earth', hp: 108,  atk: 13,  def: 3,  silver: 140,  drop: { bone: 1, hide: 2 } },
-  { key: 'spider',   el: 'wood',  hp: 153,  atk: 15,  def: 4,  silver: 190,  drop: { bone: 1, hide: 3, core: 1 } },
-  { key: 'bone',     el: 'metal', hp: 297,  atk: 22,  def: 7,  silver: 520, drop: { bone: 4, core: 1 }, boss: true },
-  { key: 'gold',     el: 'metal', hp: 342,  atk: 25,  def: 10, silver: 440, drop: { bone: 3, hide: 2 } },
-  { key: 'silver',   el: 'water', hp: 405,  atk: 28,  def: 12, silver: 520, drop: { bone: 2, hide: 3 } },
-  { key: 'bear',     el: 'earth', hp: 504,  atk: 32,  def: 15, silver: 640, drop: { hide: 4, core: 1 } },
-  { key: 'redboy',   el: 'fire',  hp: 810,  atk: 43,  def: 18, silver: 1300, drop: { bone: 3, hide: 3, core: 2 }, boss: true },
-  { key: 'lion',     el: 'metal', hp: 900, atk: 50,  def: 22, silver: 1200, drop: { bone: 4, hide: 2, core: 1 } },
-  { key: 'elephant', el: 'earth', hp: 1125, atk: 56,  def: 27, silver: 1400, drop: { bone: 2, hide: 4, core: 1 } },
-  { key: 'roc',      el: 'fire',  hp: 1350, atk: 67,  def: 31, silver: 1700, drop: { bone: 3, hide: 3, core: 2 } },
-  { key: 'bull',     el: 'earth', hp: 2340, atk: 86,  def: 40, silver: 4000, drop: { core: 3 }, boss: true },
+  { key: 'shanxiao',  el: 'earth',    hp: 63,    atk: 9,   def: 1,   silver: 90,   drop: { bone: 1, hide: 1 } },
+  { key: 'yellow',    el: 'earth',    hp: 108,   atk: 13,  def: 3,   silver: 140,  drop: { bone: 1, hide: 2 } },
+  { key: 'spider',    el: 'wood',     hp: 153,   atk: 15,  def: 4,   silver: 190,  drop: { bone: 1, hide: 3, core: 1 } },
+  { key: 'bone',      el: 'metal',    hp: 297,   atk: 22,  def: 7,   silver: 520,  drop: { bone: 4, core: 1 }, boss: true },
+  { key: 'bear',      el: 'earth',    hp: 342,   atk: 25,  def: 10,  silver: 440,  drop: { bone: 3, hide: 2 } },
+  { key: 'fan',       el: 'wood',     hp: 405,   atk: 28,  def: 12,  silver: 520,  drop: { bone: 2, hide: 3 } },
+  { key: 'redboy',    el: 'fire',     hp: 504,   atk: 32,  def: 15,  silver: 640,  drop: { hide: 4, core: 1 } },
+  { key: 'bull',      el: 'fire',     hp: 810,   atk: 43,  def: 18,  silver: 1300, drop: { bone: 3, hide: 3, core: 2 }, boss: true },
+  { key: 'shrimp',    el: 'water',    hp: 900,   atk: 50,  def: 22,  silver: 1200, drop: { bone: 4, hide: 2, core: 1 } },
+  { key: 'crab',      el: 'metal',    hp: 1125,  atk: 56,  def: 27,  silver: 1400, drop: { bone: 2, hide: 4, core: 1 } },
+  { key: 'soldier',   el: 'metal',    hp: 1350,  atk: 67,  def: 31,  silver: 1700, drop: { bone: 3, hide: 3, core: 2 } },
+  { key: 'dragon',    el: 'water',    hp: 2340,  atk: 86,  def: 40,  silver: 4000, drop: { core: 3 }, boss: true },
 ];
 const LEVEL_XP = [0, 20, 60, 130, 240, 400, 620, 900, 1260, 1700, 2250, 2900, 3700, 4600, 5700, 6900, 8300, 9900, 11700, 13700];
 const MAX_ROUNDS = 40;
