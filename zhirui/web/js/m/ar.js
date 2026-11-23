@@ -3,7 +3,7 @@ import { esc, fmt, money, today, thisMonth, shiftMonth, ymLabel, slash, daysLeft
 import { api, aiOcr } from '../core/api.js';
 import { store } from '../core/store.js';
 import { cdisp } from '../core/calc.js';
-import { arSummary, allOpen, isLate, saveRow, arMatchCheck } from '../modules/receivables.js';
+import { arSummary, allOpen, isLate, saveRow, arMatchCheck, custYear } from '../modules/receivables.js';
 import { preOf, findDupCheck, dupText } from '../modules/checks_in.js';
 import { pickCustomer } from './stock.js';
 
@@ -26,6 +26,7 @@ function groups() {
 }
 export function arPage(view, sub, arg) {
   if (sub === 'c') return custPage(view, decodeURIComponent(arg || ''));
+  if (sub === 'y') { const [k, y] = String(arg || '').split('/'); return yearPage(view, decodeURIComponent(k || ''), y); }
   const s = arSummary(); const gs = groups();
   const lateAmt = gs.reduce((t, g) => t + g.lateAmt, 0), thisAmt = gs.reduce((t, g) => t + g.thisM, 0);
   const list = gs.filter(g => ui.f === 'all' || (ui.f === 'late' ? g.late : g.thisM > 0));
@@ -52,17 +53,33 @@ export function arPage(view, sub, arg) {
 // ---------- 單一客戶：各月未收、收款沖帳 ----------
 function custPage(view, k) {
   const g = groups().find(x => x.k === k);
-  if (!g) { view.innerHTML = `<div class="hd"><a class="back" href="#ar">‹ 應收帳款</a></div><div class="card ph"><b>這家已經收齊了 ✓</b></div>`; return; }
+  const yl = `#ar/y/${encodeURIComponent(k)}/${thisMonth().slice(0, 4)}`;
+  if (!g) { view.innerHTML = `<div class="hd"><a class="back" href="#ar">‹ 應收帳款</a></div><div class="card ph"><b>這家已經收齊了 ✓</b></div><p><a class="btn ghost" href="${yl}" style="display:block;text-align:center;text-decoration:none">📅 看整年明細</a></p>`; return; }
   const c = g.cid ? store.get('contacts', g.cid) : null;
   const rows = g.rows.slice().sort((a, b) => a.ym.localeCompare(b.ym));
   view.innerHTML = `<div class="hd"><a class="back" href="#ar">‹ 應收帳款</a></div>
-    <div class="card"><div class="gname">${esc(c?.name || g.name)}</div><div class="muted">未收 <b>${money(g.total)}</b>・${rows.length} 個月${c?.payMethod ? '・付款方式 ' + esc(c.payMethod) : ''}${c?.phone ? `・<a href="tel:${esc(String(c.phone).replace(/[^\d#*+]/g, ''))}">${esc(c.phone)}</a>` : ''}</div></div>
+    <div class="card"><a class="gname" href="${yl}" style="display:block;color:inherit;text-decoration:none">${esc(c?.name || g.name)} <span class="muted" style="font-size:14px;font-weight:500">整年明細 ›</span></a><div class="muted">未收 <b>${money(g.total)}</b>・${rows.length} 個月${c?.payMethod ? '・付款方式 ' + esc(c.payMethod) : ''}${c?.phone ? `・<a href="tel:${esc(String(c.phone).replace(/[^\d#*+]/g, ''))}">${esc(c.phone)}</a>` : ''}</div></div>
     <div class="sec">各月未收（25 結）</div>
     ${rows.map((r, i) => `<div class="card arr"><div class="lnh"><div class="gm"><b>${esc(ymLabel(r.ym))}</b><small class="${isLate(r) ? 'bad' : ''}">到期 ${esc(slash(dueOf(r)))}・${esc(ageTxt(r))}${r.manual ? '・手調' : ''}</small><small>貨款 ${money(r.amt)}・稅 ${money(r.tax)}${r.note ? '・' + esc(r.note) : ''}</small></div><b class="amt2">${money(r.total)}</b></div>
       <button class="btn ghost" data-pay="${i}">收款沖帳</button></div>`).join('')}
     ${rows.length > 1 ? `<p><button class="btn" id="payall">全部收齊（${money(g.total)}）</button></p>` : ''}`;
   view.querySelectorAll('[data-pay]').forEach(b => b.onclick = () => payForm(rows[+b.dataset.pay], c, () => custPage(view, k)));
   view.querySelector('#payall')?.addEventListener('click', () => payAll(rows, c, () => custPage(view, k)));
+}
+// ---------- 單一客戶：整年明細（跟電腦版「應收帳款 › 年度彙總」點客戶看到的一樣；只看，收款沖帳回上一頁） ----------
+function yearPage(view, k, y) {
+  y = /^\d{4}$/.test(y || '') ? y : thisMonth().slice(0, 4); arSummary();
+  const rows = custYear(k, y).sort((a, b) => a.ym.localeCompare(b.ym)); const cid = k.startsWith('n:') ? '' : k;
+  const c = cid ? store.get('contacts', cid) : null; const name = c?.name || rows[0]?.name || k.replace(/^n:/, '');
+  const sum = f => rows.reduce((s, r) => s + (f(r) || 0), 0); const open = sum(r => r.rec ? 0 : r.total);
+  const go = d => `#ar/y/${encodeURIComponent(k)}/${+y + d}`;
+  view.innerHTML = `<div class="hd"><a class="back" href="#ar/c/${encodeURIComponent(k)}">‹ ${esc(c ? cdisp(c) : name)}</a></div>
+    <div class="card"><div class="gname">${esc(name)}</div><div style="display:flex;gap:8px;align-items:center;margin-top:8px"><a class="chip" style="flex:none" href="${go(-1)}">‹ ${+y - 1912} 年</a><b style="flex:1;text-align:center;font-size:16px">${+y - 1911} 年・${rows.length} 筆</b><a class="chip" style="flex:none" href="${go(1)}">${+y - 1910} 年 ›</a></div></div>
+    <div class="kpis"><div class="card kpi"><span>全年總額</span><b>${money(sum(r => r.total))}</b><small>貨款 ${money(sum(r => r.amt))}・稅 ${money(sum(r => r.tax))}</small></div><div class="card kpi ${open ? 'alert' : ''}"><span>未收</span><b>${money(open)}</b><small>已收 ${money(sum(r => r.rec ? (r.recAmt ?? r.total) : 0))}</small></div></div>
+    <div class="sec">各月（25 結）</div>
+    <div class="card list">${rows.map(r => `<div class="row"><div class="gm"><b>${+r.ym.slice(5)} 月${r.manual ? ' <span class="tag">手調</span>' : ''}${!r.rec && isLate(r) ? ' <span class="tag bad">逾期</span>' : ''}</b><small>貨款 ${money(r.amt)}・稅 ${r.tax ? money(r.tax) : '—'}</small>${r.rec ? `<small>已收 ${money(r.recAmt ?? r.total)}${r.method ? '・' + esc(r.method) : ''}${r.recDate ? '・' + esc(slash(r.recDate)) : ''}</small>` : ''}${r.note ? `<small>${esc(r.note)}</small>` : ''}</div><span class="go" style="text-align:right"><b>${money(r.total)}</b><br><small class="${r.rec ? 'good' : 'bad'}">${r.rec ? '已收' : '未收'}</small></span></div>`).join('') || `<div class="row muted">${+y - 1911} 年沒有應收帳款</div>`}</div>
+    ${open ? `<p><a class="btn" href="#ar/c/${encodeURIComponent(k)}" style="display:block;text-align:center;text-decoration:none">收款沖帳 ›</a></p>` : ''}`;
+  window.scrollTo(0, 0);
 }
 const METHODS = ['匯款', '支票', '現金', '扣趴'];
 function sheet(title, body) {

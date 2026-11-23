@@ -225,6 +225,8 @@ function yearData(y) {
     .sort((a, b) => b.tot - a.tot || String(a.name).localeCompare(String(b.name), 'zh-Hant'));
   return { list, shop };
 }
+/** 一家客戶一整年（25 結 1～12 月）的應收列：k＝客戶 id（或 'n:名稱'）；App 帳款頁「整年明細」用 */
+export function custYear(k, y) { const out = []; for (let i = 0; i < 12; i++) for (const r of arRows(mm(y, i))) if (rkey(r) === k) out.push(r); return out; }
 function arYears() {
   const ys = new Set([thisMonth().slice(0, 4), ui.year]);
   for (const r of store.list('receivables')) if (r.ym) ys.add(r.ym.slice(0, 4));
