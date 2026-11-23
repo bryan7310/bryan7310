@@ -39,7 +39,7 @@ export function arPage(view, sub, arg) {
     </div>
     <div class="chips" style="margin-top:12px">${[['all', '全部'], ['late', '逾期'], ['month', '本月到期']].map(([k, n]) => `<button class="chip ${ui.f === k ? 'on' : ''}" data-f="${k}">${n}</button>`).join('')}</div>
     ${ui.f === 'month' ? `<div class="note" style="margin:-4px 0 8px;text-align:left">本月到期（還沒逾期）共 ${money(thisAmt)}</div>` : ''}
-    <div class="card list">${list.map(g => `<a href="#ar/c/${encodeURIComponent(g.k)}"><div class="gm"><b>${esc(g.name)}</b><small class="${g.late ? 'bad' : ''}">${esc(ageTxt(g.worst))}・${g.rows.length} 個月</small></div><span class="go"><b>${money(ui.f === 'late' ? g.lateAmt : ui.f === 'month' ? g.thisM : g.total)}</b> ›</span></a>`).join('') || `<div class="row muted">${ui.f === 'all' ? '全部都收齊了 ✓' : '沒有'}</div>`}</div>
+    <div class="card list">${list.map(g => `<a href="#ar/y/${encodeURIComponent(g.k)}/${thisMonth().slice(0, 4)}"><div class="gm"><b>${esc(g.name)}</b><small class="${g.late ? 'bad' : ''}">${esc(ageTxt(g.worst))}・${g.rows.length} 個月</small></div><span class="go"><b>${money(ui.f === 'late' ? g.lateAmt : ui.f === 'month' ? g.thisM : g.total)}</b> ›</span></a>`).join('') || `<div class="row muted">${ui.f === 'all' ? '全部都收齊了 ✓' : '沒有'}</div>`}</div>
     <div class="sec">待兌現支票 <span class="muted">${cin.length} 張・${money(cin.reduce((a, c) => a + (+c.amt || 0), 0))}</span></div>
     <button class="btn ghost" id="snap" style="margin-bottom:8px">拍支票登記</button>
     <div class="card list">${cin.slice(0, 40).map(c => `<div class="row"><div class="gm"><b>${esc(c.cid ? cdisp(store.get('contacts', c.cid)) || c.name : c.name)}</b><small class="${c.due && c.due < t ? 'bad' : ''}">${esc(slash(c.due))}${c.due && c.due < t ? '・已到期還沒送代收' : ''}・${esc(c.bank || '')}</small></div><span class="go">${money(c.amt)}</span></div>`).join('') || '<div class="row muted">沒有待兌現的支票</div>'}${cin.length > 40 ? `<div class="row muted">還有 ${cin.length - 40} 張，請用電腦版看</div>` : ''}</div>
@@ -73,7 +73,7 @@ function yearPage(view, k, y) {
   const c = cid ? store.get('contacts', cid) : null; const name = c?.name || rows[0]?.name || k.replace(/^n:/, '');
   const sum = f => rows.reduce((s, r) => s + (f(r) || 0), 0); const open = sum(r => r.rec ? 0 : r.total);
   const go = d => `#ar/y/${encodeURIComponent(k)}/${+y + d}`;
-  view.innerHTML = `<div class="hd"><a class="back" href="#ar/c/${encodeURIComponent(k)}">‹ ${esc(c ? cdisp(c) : name)}</a></div>
+  view.innerHTML = `<div class="hd"><a class="back" href="#ar">‹ 應收帳款</a></div>
     <div class="card"><div class="gname">${esc(name)}</div><div style="display:flex;gap:8px;align-items:center;margin-top:8px"><a class="chip" style="flex:none" href="${go(-1)}">‹ ${+y - 1912} 年</a><b style="flex:1;text-align:center;font-size:16px">${+y - 1911} 年・${rows.length} 筆</b><a class="chip" style="flex:none" href="${go(1)}">${+y - 1910} 年 ›</a></div></div>
     <div class="kpis"><div class="card kpi"><span>全年總額</span><b>${money(sum(r => r.total))}</b><small>貨款 ${money(sum(r => r.amt))}・稅 ${money(sum(r => r.tax))}</small></div><div class="card kpi ${open ? 'alert' : ''}"><span>未收</span><b>${money(open)}</b><small>已收 ${money(sum(r => r.rec ? (r.recAmt ?? r.total) : 0))}</small></div></div>
     <div class="sec">各月（25 結）</div>
