@@ -185,7 +185,8 @@ function editInvoice(inv, isNew) {
 // 位置是 2026/11/24 拿正式發票（Excel 印的 GF14518257）跟套印試印的照片，用紙邊孔距（12.7mm）量出來對的：
 // 行距 3.864mm；X 是各欄位置（公司名左緣＝0）：to＝日期、買受人左緣，item＝品名左緣，qty／price／amt＝數量、單價、金額的中心，tot＝銷售額／稅／總計的右緣。
 // 這台點陣印表機橫向會印成約 0.855 倍，X 已經除回去了（所以比尺量的大）。
-const ROW = 3.864, X = { co: 0, to: 13.0, item: 7.0, qty: 29.65, price: 42.8, amt: 56.7, tot: 47.9 }, FORM_TOP = 19.35, FORM_LEFT = 6.1, FORM_LINES = 11;
+// 11/24 第二次：印在正式發票（GF14518258）上，日期／買受人高了約 2.5mm、總計高了約 3.3mm → 整體下移、行距 3.864 → 3.905
+const ROW = 3.905, X = { co: 0, to: 13.0, item: 7.0, qty: 29.65, price: 42.8, amt: 56.7, tot: 47.9 }, FORM_TOP = 21.7, FORM_LEFT = 6.1, FORM_LINES = 11;
 // 套印字體：點陣印表機印明體，橫的細筆畫會斷掉，所以預設用筆畫一樣粗的黑體
 export const INV_FONTS = { hei: ['黑體（筆畫一樣粗，點陣印表機清楚）', '11pt/1 "Microsoft JhengHei","微軟正黑體","Noto Sans TC",sans-serif'], heib: ['黑體加粗（更黑）', 'bold 11pt/1 "Microsoft JhengHei","微軟正黑體","Noto Sans TC",sans-serif'], ming: ['明體（原本的，雷射／噴墨用）', '11pt/1 "PMingLiU","新細明體","MingLiU","Noto Serif TC",serif'] };
 export function printInvoices(list, mode) {
