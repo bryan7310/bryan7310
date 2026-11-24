@@ -315,6 +315,15 @@ class DB:
             on = str(d.get('note') or '').strip()
             if on and on not in str(K.get('note') or ''):
                 K['note'] = (str(K.get('note') or '').strip() + '；' + on).strip('；')
+            # 同義品名：被併入那筆的品名（和它原本的同義品名）加進來，用舊名字搜尋也找得到
+            al = [' '.join(x.split()) for x in re.split(r'[,，、]', str(K.get('alias') or '')) if x.strip()]
+            kn = ' '.join(str(K.get('name') or '').split())
+            for x in [str(d.get('name') or ''), *re.split(r'[,，、]', str(d.get('alias') or ''))]:
+                x = ' '.join(x.split())
+                if x and x != kn and x not in al:
+                    al.append(x)
+            if al:
+                K['alias'] = '、'.join(al)
             K.setdefault('merged', []).append({'id': o, 'code': d.get('code', ''), 'name': d.get('name', ''), 'at': now})
 
         def fix(x):

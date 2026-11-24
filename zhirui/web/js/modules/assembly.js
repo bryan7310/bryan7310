@@ -6,7 +6,7 @@ import { store } from '../core/store.js';
 import { toast, modal, confirm, combo } from '../core/ui.js';
 import { calc, goodsLabel, nextNo, defWh, bomCost, wname } from '../core/calc.js';
 
-const goodsItems = () => store.list('goods').map(g => ({ id: g.id, label: goodsLabel(g), sub: g.unit || '', text: goodsLabel(g) + ' ' + (g.spec2 || '') + ' ' + (g.custName || '') }));
+const goodsItems = () => store.list('goods').map(g => ({ id: g.id, label: goodsLabel(g), sub: g.unit || '', text: goodsLabel(g) + ' ' + (g.spec2 || '') + ' ' + (g.custName || '') + ' ' + (g.alias || '') }));
 const whOpts = (sel, blank) => (blank ? `<option value="">${esc(blank)}</option>` : '') + store.list('warehouses').map(w => `<option value="${w.id}" ${w.id === sel ? 'selected' : ''}>${esc(w.name)}</option>`).join('');
 const qAt = (gid, wid) => ((calc().stock[gid] || {})[wid] || 0);
 
@@ -69,7 +69,7 @@ export function openAsm(id, presetGid) {
   if (id && !old) return toast('找不到這張組包單');
   const e = old ? JSON.parse(JSON.stringify(old)) : { type: 'ASM', date: today(), no: nextNo('ASM', today()), wid: defWh()?.id || '', cwid: '', kit: { gid: presetGid || '', qty: '' }, lines: [], note: '' };
   if (!old && presetGid) e.cwid = store.get('goods', presetGid)?.cwid || '';
-  const kits = () => store.list('goods').filter(g => (g.bom || []).length).map(g => ({ id: g.id, label: goodsLabel(g), sub: `${g.bom.length} 種零件`, text: goodsLabel(g) + ' ' + (g.custName || '') }));
+  const kits = () => store.list('goods').filter(g => (g.bom || []).length).map(g => ({ id: g.id, label: goodsLabel(g), sub: `${g.bom.length} 種零件`, text: goodsLabel(g) + ' ' + (g.custName || '') + ' ' + (g.alias || '') }));
   const kitG = () => e.kit.gid && store.get('goods', e.kit.gid);
   let fresh = !old;   // 舊單沒改數量、成品前，照存檔時的明細顯示
   // 編輯舊單時，可用量要把這張單原本扣掉的加回來

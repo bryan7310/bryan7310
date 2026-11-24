@@ -111,7 +111,7 @@ function review(m, S) {
     m.el.querySelector('#siQ').onchange = ev => { S.useLeft = ev.target.value === '1'; paint(); };
     m.el.querySelector('#siF').onchange = ev => { S.factor = +ev.target.value; paint(); };
     m.el.querySelectorAll('[data-po]').forEach(cb => cb.onchange = () => { S.pick.set(cb.dataset.po, cb.checked); paint(); });
-    m.el.querySelectorAll('[data-g]').forEach(inp => { const i = +inp.dataset.g; combo(inp, { inline: true, items: () => store.list('goods').map(g => ({ id: g.id, label: goodsLabel(g, 'SALE'), sub: g.unit || '', text: goodsLabel(g) + ' ' + (g.spec || '') + ' ' + (g.spec2 || '') })), onPick: it => { S.items[i].gid = it.id; S.items[i].top = null; paint(); }, onClear: () => { S.items[i].gid = ''; } }); });
+    m.el.querySelectorAll('[data-g]').forEach(inp => { const i = +inp.dataset.g; combo(inp, { inline: true, items: () => store.list('goods').map(g => ({ id: g.id, label: goodsLabel(g, 'SALE'), sub: g.unit || '', text: goodsLabel(g) + ' ' + (g.spec || '') + ' ' + (g.spec2 || '') + ' ' + (g.alias || '') })), onPick: it => { S.items[i].gid = it.id; S.items[i].top = null; paint(); }, onClear: () => { S.items[i].gid = ''; } }); });
     m.el.querySelector('#siGo').onclick = () => save(qOf, pOf);
   };
   const save = async (qOf, pOf) => {

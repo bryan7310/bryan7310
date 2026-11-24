@@ -197,7 +197,7 @@ function gsearch() {
   const out = [];
   const cs = store.list('contacts').filter(c => matchQ([c.code, c.name, c.short, ...(c.aliases || []), c.phone].join(' '), q)).slice(0, 6);
   if (cs.length) out.push(['客戶／供應商', cs.map(c => ({ href: `#master/${c.kind === 'S' ? 'suppliers' : 'customers'}?id=${c.id}`, label: c.name, sub: (c.kind === 'S' ? '供應商' : '客戶') + (c.code ? ' ' + c.code : '') }))]);
-  const gs = store.list('goods').filter(g => matchQ(goodsLabel(g), q)).slice(0, 8);
+  const gs = store.list('goods').filter(g => matchQ(goodsLabel(g) + ' ' + (g.alias || ''), q)).slice(0, 8);
   if (gs.length) out.push(['商品', gs.map(g => ({ href: `#master/goods?id=${g.id}`, label: goodsLabel(g), sub: money(Object.values(C.stock[g.id] || {}).reduce((a, b) => a + b, 0)) + ' ' + (g.unit || '') }))]);
   const bs = store.list('bills').filter(b => matchQ(b.no + ' ' + (C.ct[b.cid]?.name || '') + ' ' + (b.note || ''), q)).slice(0, 6);
   if (bs.length) out.push(['單據', bs.map(b => ({ href: `#${b.type === 'SALE' || b.type === 'SALE_RET' ? 'sales' : b.type === 'PUR' || b.type === 'PUR_RET' || b.type === 'PO' ? 'purchase' : b.type === 'QUO' || b.type === 'RFQ' ? 'quotes' : b.type === 'SO' ? 'custorders' : 'stock'}?open=${b.id}`, label: `${b.no}`, sub: `${b.date} ${cdisp(C.ct[b.cid])}` }))]);

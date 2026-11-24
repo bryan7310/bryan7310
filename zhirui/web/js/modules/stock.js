@@ -26,7 +26,7 @@ function draw(el) {
     return;
   }
   const C = calc(); const whs = store.list('warehouses'); const q = qTerms(ui.q);
-  let list = store.list('goods').filter(g => matchQ(goodsLabel(g) + ' ' + (g.cat || ''), q)).sort((a, b) => String(a.code || a.name).localeCompare(String(b.code || b.name)));
+  let list = store.list('goods').filter(g => matchQ(goodsLabel(g) + ' ' + (g.cat || '') + ' ' + (g.alias || ''), q)).sort((a, b) => String(a.code || a.name).localeCompare(String(b.code || b.name)));
   const all = g => Object.values(C.stock[g.id] || {}).reduce((a, b) => a + b, 0);
   if (ui.tab === 'low') list = list.filter(g => +g.safety > 0 && all(g) < +g.safety);
   else if (!ui.q) list = list.filter(g => all(g) !== 0);

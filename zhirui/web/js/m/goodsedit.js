@@ -4,7 +4,7 @@ import { store } from '../core/store.js';
 import { suggestCode } from '../core/codegen.js';
 
 const NUM = new Set(['salePrice', 'purPrice', 'cost', 'mkWire', 'mkFee', 'safety', 'wt', 'arate']);
-const FIELDS = ['code', 'name', 'spec', 'spec2', 'custName', 'vcode', 'cat', 'unit', 'salePrice', 'purPrice', 'cost', 'mkWire', 'mkFee', 'safety', 'wt', 'aunit', 'arate', 'note'];
+const FIELDS = ['code', 'name', 'alias', 'spec', 'spec2', 'custName', 'vcode', 'cat', 'unit', 'salePrice', 'purPrice', 'cost', 'mkWire', 'mkFee', 'safety', 'wt', 'aunit', 'arate', 'note'];
 const CATS = ['鐵', '不鏽鋼', '合金鋼', '代工', '彈簧鋼', '中碳鋼', '銅', '鋁'];
 const UNITS = ['PCS', 'KG', '包', '組', 'H', '批', '箱'];
 const toast = msg => { const t = document.getElementById('toast'); if (!t) return; t.textContent = msg; t.hidden = false; setTimeout(() => t.hidden = true, 2500); };
@@ -26,6 +26,7 @@ export function editGoods(mode, g, onSaved, tpl = {}) {
     ${mode === 'copy' ? `<div class="note" style="text-align:left">從「${esc(g.code || g.name)}」複製，請把料號改成新的（料號相同無法建立）。</div>` : ''}
     ${fld('code', '料號', 'autocapitalize="characters" autocorrect="off" autocomplete="off" spellcheck="false" class="mono"')}${mode === 'edit' ? '' : '<div class="note" id="gecg" style="text-align:left;margin:-6px 0 12px"></div>'}
     ${fld('name', '品名（必填）', 'autocomplete="off"')}
+    ${fld('alias', '同義品名（其他叫法，逗號隔開；搜尋用）', 'autocomplete="off"')}
     ${fld('cat', '類別（材質）', 'autocomplete="off"')}${chipRow('cat', CATS)}
     ${fld('unit', '單位', 'autocapitalize="characters" autocomplete="off"')}${chipRow('unit', UNITS)}
     <div class="f2">${fld('salePrice', '售價')}${fld('purPrice', '進價')}</div>

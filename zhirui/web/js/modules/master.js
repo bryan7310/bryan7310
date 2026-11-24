@@ -24,7 +24,7 @@ function draw(el) {
   const t = ui.tab;
   if (t === 'goods') {
     col = 'goods'; label = '商品'; head = ['料號', '品名', '客料號', '廠商料號', '類別', '單位', '<span class="n">庫存</span>', '<span class="n">售價</span>', '<span class="n">進價</span>'];
-    rows = store.list('goods').filter(g => matchQ([g.code, g.name, g.spec, g.cat, g.vcode].join(' '), q)).sort((a, b) => String(a.code || a.name).localeCompare(String(b.code || b.name))).map(g => [g, [esc(g.code), esc(g.name), esc(g.spec), esc(g.vcode), esc(g.cat), esc(g.unit), `<span class="n">${fmtQ(qtyAll(g.id))}</span>`, `<span class="n">${g.salePrice ? fmtQ(g.salePrice) : ''}</span>`, `<span class="n">${g.purPrice ? fmtQ(g.purPrice) : ''}</span>`]]);
+    rows = store.list('goods').filter(g => matchQ([g.code, g.name, g.alias, g.spec, g.cat, g.vcode].join(' '), q)).sort((a, b) => String(a.code || a.name).localeCompare(String(b.code || b.name))).map(g => [g, [esc(g.code), esc(g.name), esc(g.spec), esc(g.vcode), esc(g.cat), esc(g.unit), `<span class="n">${fmtQ(qtyAll(g.id))}</span>`, `<span class="n">${g.salePrice ? fmtQ(g.salePrice) : ''}</span>`, `<span class="n">${g.purPrice ? fmtQ(g.purPrice) : ''}</span>`]]);
   } else if (t === 'customers' || t === 'suppliers') {
     col = 'contacts'; const C2 = t === 'customers'; label = C2 ? '客戶' : '供應商'; head = ['編號', '名稱', '簡稱／別名', '統編', '聯絡人', '電話', `<span class="n">${C2 ? '應收' : '應付'}餘額</span>`];
     const allC = C2 ? customers(true) : suppliers(true); offN = allC.filter(c => c.inactive).length;
@@ -57,7 +57,7 @@ function draw(el) {
 }
 
 const FIELDS = {
-  goods: [['code', '料號'], ['name', '品名', 'req'], ['spec', '客料號'], ['spec2', '第二客料號'], ['custName', '客戶品名'], ['vcode', '廠商料號'], ['cat', '類別'], ['unit', '單位'], ['salePrice', '售價', 'num'], ['purPrice', '進價', 'num'], ['cost', '手動成本（進貨單、查價都找不到時用）', 'num'], ['mkWire', '線材（元／公斤，代工用）', 'num'], ['mkFee', '工錢（元／百支 H，代工用）', 'num'], ['safety', '安全庫存', 'num'], ['wt', '單重 g／支（空白＝自動估算）', 'num'], ['aunit', '大單位（例如 箱）'], ['arate', '大單位 = 幾個基本單位', 'num'], ['note', '備註']],
+  goods: [['code', '料號'], ['name', '品名', 'req'], ['alias', '同義品名（其他叫法，用逗號或頓號隔開；只用來搜尋，列印仍用品名）'], ['spec', '客料號'], ['spec2', '第二客料號'], ['custName', '客戶品名'], ['vcode', '廠商料號'], ['cat', '類別'], ['unit', '單位'], ['salePrice', '售價', 'num'], ['purPrice', '進價', 'num'], ['cost', '手動成本（進貨單、查價都找不到時用）', 'num'], ['mkWire', '線材（元／公斤，代工用）', 'num'], ['mkFee', '工錢（元／百支 H，代工用）', 'num'], ['safety', '安全庫存', 'num'], ['wt', '單重 g／支（空白＝自動估算）', 'num'], ['aunit', '大單位（例如 箱）'], ['arate', '大單位 = 幾個基本單位', 'num'], ['note', '備註']],
   C: [['code', '客戶編號'], ['name', '客戶名稱', 'req'], ['short', '簡稱'], ['taxId', '統一編號'], ['person', '聯絡人'], ['phone', '電話'], ['fax', '傳真'], ['zip', '郵遞區號'], ['addr', '地址'], ['payMethod', '付款方式（匯款、支票、扣趴…）'], ['init', '期初應收', 'num'], ['note', '備註']],
   S: [['code', '供應商編號'], ['name', '供應商名稱', 'req'], ['short', '簡稱'], ['taxId', '統一編號'], ['person', '聯絡人'], ['phone', '電話'], ['fax', '傳真'], ['zip', '郵遞區號'], ['addr', '地址'], ['checkPayee', '票據抬頭（開支票用的名稱；多個用逗號隔開，第一個是預設；填「不填」＝預設空白；欄位空白＝用正式全名）'], ['init', '期初應付', 'num'], ['note', '備註']],
   warehouses: [['name', '倉庫名稱', 'req']],
@@ -89,7 +89,7 @@ export function openMaster(col, doc, kind, onSaved, tpl, opts = {}) {
   if (!doc && (k === 'C' || k === 'S') && !v.code) v.code = nextContactCode(k);   // 新增客戶／供應商：自動帶下一個編號
   const C = calc();
   const refs = doc ? refCount(col, doc.id) : 0;
-  const body = `<div class="grid">${fs.map(([n, l, t]) => `<div class="f" ${n === 'addr' || n === 'note' || n === 'name' || n === 'checkPayee' ? 'style="grid-column:1/-1"' : ''}><label for="f-${n}">${esc(l)}</label><input id="f-${n}" name="${n}" value="${esc(v[n] ?? '')}" ${t === 'num' ? 'class="num" inputmode="decimal"' : ''} ${t === 'req' ? 'required' : ''} ${n === 'unit' || n === 'aunit' ? 'list="unitList" autocomplete="off"' : ''}></div>`).join('')}${col === 'goods' ? `<datalist id="unitList">${['PCS', 'KG', '包', '組', '盒', '箱', '件', 'SET', 'H', 'K', '批', '袋'].map(u => `<option value="${u}">`).join('')}</datalist>` : ''}
+  const body = `<div class="grid">${fs.map(([n, l, t]) => `<div class="f" ${n === 'addr' || n === 'note' || n === 'name' || n === 'alias' || n === 'checkPayee' ? 'style="grid-column:1/-1"' : ''}><label for="f-${n}">${esc(l)}</label><input id="f-${n}" name="${n}" value="${esc(v[n] ?? '')}" ${t === 'num' ? 'class="num" inputmode="decimal"' : ''} ${t === 'req' ? 'required' : ''} ${n === 'unit' || n === 'aunit' ? 'list="unitList" autocomplete="off"' : ''}></div>`).join('')}${col === 'goods' ? `<datalist id="unitList">${['PCS', 'KG', '包', '組', '盒', '箱', '件', 'SET', 'H', 'K', '批', '袋'].map(u => `<option value="${u}">`).join('')}</datalist>` : ''}
     ${col === 'contacts' ? `<div class="f" style="grid-column:1/-1"><label for="f-aliases">別名（作業平台、支票、發票上用過的其他寫法，用逗號隔開）</label><input id="f-aliases" name="aliases" value="${esc((d.aliases || []).join('、'))}"></div>
       <label class="check" style="grid-column:1/-1"><input type="checkbox" name="inactive" ${d.inactive ? 'checked' : ''}> 停用（開單、挑選${k === 'C' ? '客戶' : '供應商'}時不顯示；歷史單據、報表照常查得到）</label>
       ${k === 'C' ? `<label class="check" style="grid-column:1/-1"><input type="checkbox" name="monthEnd" ${d.monthEnd ? 'checked' : ''}> 整月結（發票照每月 1 日～月底加總；沒勾＝一般的 25 日結，上月 26 日～本月 25 日）</label>` : ''}` : ''}

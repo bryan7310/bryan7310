@@ -20,7 +20,7 @@ const p2 = n => (Math.round((+n || 0) * 100) / 100).toLocaleString('zh-TW', { ma
 let IDX = null, IDXgen = -1;
 function index() {
   if (IDX && IDXgen === store.gen) return IDX;
-  IDXgen = store.gen; IDX = store.list('goods').filter(g => !g.nostock || g.salePrice).map(g => ({ g, t: goodsLabel(g) + ' ' + (g.spec2 || '') + ' ' + (g.vcode || '') + ' ' + (g.barcodes || []).join(' ') }));
+  IDXgen = store.gen; IDX = store.list('goods').filter(g => !g.nostock || g.salePrice).map(g => ({ g, t: goodsLabel(g) + ' ' + (g.spec2 || '') + ' ' + (g.vcode || '') + ' ' + (g.alias || '') + ' ' + (g.barcodes || []).join(' ') }));
   return IDX;
 }
 const total = (C, gid) => Object.values(C.stock[gid] || {}).reduce((a, b) => a + b, 0);

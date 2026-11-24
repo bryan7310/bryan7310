@@ -60,7 +60,7 @@ const r2 = n => Math.round((+n || 0) * 100) / 100;
 function gInfo(g, C) {
   const st = C.stock[g.id] || {}; const tot = Object.values(st).reduce((a, b) => a + b, 0);
   const o = { id: g.id, 料號: g.code || '', 品名: g.name, 單位: g.unit || '', 庫存合計: r2(tot) };
-  if (g.spec) o.客料號 = g.spec; if (g.spec2) o.第二客料號 = g.spec2; if (g.custName) o.客戶品名 = g.custName;
+  if (g.alias) o.同義品名 = g.alias; if (g.spec) o.客料號 = g.spec; if (g.spec2) o.第二客料號 = g.spec2; if (g.custName) o.客戶品名 = g.custName;
   const byWh = Object.entries(st).filter(([, q]) => q).map(([w, q]) => `${wname(w)} ${r2(q)}`); if (byWh.length > 1 || (byWh.length && !st[Object.keys(st)[0]])) o.各倉 = byWh.join('、');
   if (+g.salePrice) o.售價 = +g.salePrice; if (+g.purPrice) o.進價 = +g.purPrice; if (+g.safety) o.安全庫存 = +g.safety;
   if ((g.bom || []).length) o.螺絲包 = `配方 ${g.bom.length} 種零件`;
@@ -98,7 +98,7 @@ export async function runTool(name, input, id) {   // export：方便測試
       const q = qTerms(input.query || ''); if (!q.length) return { 錯誤: '請給關鍵字' };
       const lim = Math.min(Math.max(+input.limit || 15, 1), 40);
       const exact = String(input.query).trim().toUpperCase();
-      const hits = store.list('goods').filter(g => matchQ([g.code, g.name, g.spec, g.spec2, g.custName, g.vcode].filter(Boolean).join(' '), q));
+      const hits = store.list('goods').filter(g => matchQ([g.code, g.name, g.alias, g.spec, g.spec2, g.custName, g.vcode].filter(Boolean).join(' '), q));
       hits.sort((a, b) => (String(b.code).toUpperCase() === exact) - (String(a.code).toUpperCase() === exact) || Object.values(C.stock[b.id] || {}).reduce((x, y) => x + y, 0) - Object.values(C.stock[a.id] || {}).reduce((x, y) => x + y, 0));
       return { 共: hits.length, 商品: hits.slice(0, lim).map(g => gInfo(g, C)) };
     }
