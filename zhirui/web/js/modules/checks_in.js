@@ -112,7 +112,7 @@ function drawDone(el) {
  *  存入明細勾「交換票據」並填張數。帳號、戶名第一次列印時輸入，之後記在 設定 bank_accounts。 */
 // PW：送給印表機的紙長。Brother 驅動裡使用者建的自訂紙張是「上海託收單 90×190」，頁面大小要跟它一模一樣，
 // 不然 Chrome 會改用預設紙張（76×127）把整頁縮成 66%（11/24 第一次試印就是這樣）。憑條實際長 191，少的 1mm 在左邊空白處。
-const SHB = { W: 191, PW: 190, H: 90, dateY: 13, yR: 146, mR: 164.5, dR: 183, acX: 31, acP: 6, acY: 27, nameX: 121.5, nameY: 26, amX: 38.5, amP: 7, amY: 43, ckX: 132.9, ckY: 39.4, cntX: 152.8, cntY: 39.5 };
+const SHB = { W: 191, PW: 190, H: 90, dateY: 14, yR: 146, mR: 164.5, dR: 183, acX: 31, acP: 6, acY: 27, nameX: 121.5, nameY: 26, amX: 38.5, amP: 7, amY: 43, ckX: 132.9, ckY: 39.4, cntX: 152.8, cntY: 39.5 };
 function printShbSlip(g) {
   if (!g) return; const a = acctById(g.a); const co = store.setting('company'); const ps = store.setting('shb_slip');
   const rows = g.rows.slice().sort((x, y) => String(x.due || '').localeCompare(String(y.due || '')) || String(x.no || '').localeCompare(String(y.no || '')));
