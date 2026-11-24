@@ -106,23 +106,51 @@ function drawDone(el) {
   el.querySelectorAll('[data-undo-all]').forEach(b => b.addEventListener('click', async () => { const g = byKey(b.dataset.undoAll); if (!await confirm(`把 ${gLabel(g)} 這批 ${g.rows.length} 張（${money(sum(g.rows))}）全部退回待代收？`, { danger: true, ok: '退回' })) return; await store.batch(g.rows.map(c => { const { col, id, ...rest } = c; return { col: 'checks_in', id: c.id, data: rest }; })); store.log('退回', `${gLabel(g)} ${g.rows.length} 張退回待代收`); toast('已退回待代收'); }));
 }
 /** 拍照辨識：選一張支票照片（手機會跳出拍照／相簿）→ 縮圖上傳 → AI 擷取欄位 → 帶入登記客票（仍要人工核對後才登記） */
-/** 上海銀行託收單：照原本 Excel（支票代收.xls 的 Sheet2）的欄位——筆數、票據號碼、到期日、票據金額、票據總金額。
- *  紙張 19×9 公分（橫的）：一張分左右兩欄，每欄 10 筆，一張最多 20 筆，超過印下一張 */
-const SHB_COL = 10;
+/** 上海銀行託收單＝套印上海商銀「存款憑條」（19.1×9 公分）。
+ *  位置是 2026/11/24 從空白憑條的照片量的（單位 mm，原點是憑條左上角）：
+ *  日期：年／月／日 三個字前面；帳號 14 格（第 1 格中心 x=31，格距 6）；戶名欄；金額 10 格（拾億…元，第 1 格中心 x=38.5，格距 7）；
+ *  存入明細勾「交換票據」並填張數。帳號、戶名第一次列印時輸入，之後記在 設定 bank_accounts。 */
+const SHB = { W: 191, H: 90, dateY: 16, yR: 146, mR: 164.5, dR: 183, acX: 31, acP: 6, acY: 27, nameX: 121.5, nameY: 26, amX: 38.5, amP: 7, amY: 43, ckX: 132.9, ckY: 39.4, cntX: 152.8, cntY: 39.5 };
 function printShbSlip(g) {
-  if (!g) return; const a = acctById(g.a);
+  if (!g) return; const a = acctById(g.a); const co = store.setting('company'); const ps = store.setting('shb_slip');
   const rows = g.rows.slice().sort((x, y) => String(x.due || '').localeCompare(String(y.due || '')) || String(x.no || '').localeCompare(String(y.no || '')));
-  const pages = Math.max(1, Math.ceil(rows.length / (SHB_COL * 2)));
-  const tbl = (list, from) => `<table><thead><tr><th class="c">筆數</th><th>票據號碼</th><th class="c">到期日</th><th class="n">票據金額</th></tr></thead><tbody>${list.map((c, i) => `<tr><td class="c">${from + i + 1}</td><td class="mono">${esc(c.no || '')}</td><td class="c">${esc(slash(c.due) || c.dueRaw || '')}</td><td class="n">${money(c.amt)}</td></tr>`).join('')}</tbody></table>`;
-  let html = '';
-  for (let pg = 0; pg < pages; pg++) {
-    const part = rows.slice(pg * SHB_COL * 2, (pg + 1) * SHB_COL * 2); const L = part.slice(0, SHB_COL), R = part.slice(SHB_COL);
-    html += `<div class="slip"><p>${esc(a ? a.bank + ' ' + a.holder : g.raw || '')}　託收日期 ${esc(slash(g.d) || '')}　共 ${rows.length} 張${pages > 1 ? `（第 ${pg + 1}／${pages} 張）` : ''}</p>
-      <div class="cols"><div>${tbl(L, pg * SHB_COL * 2)}</div><div>${R.length ? tbl(R, pg * SHB_COL * 2 + SHB_COL) : ''}</div></div>
-      <div class="tot">${pg === pages - 1 ? `票據總金額　<b>${money(sum(rows))}</b>` : '（接下一張）'}</div></div>`;
-  }
-  printHTML('上海託收單', `@page{size:190mm 90mm;margin:0}body{font-family:"Microsoft JhengHei",sans-serif;font-size:9.5pt;margin:0}.slip{width:190mm;height:90mm;box-sizing:border-box;padding:5mm 6mm 4mm;page-break-after:always;overflow:hidden;position:relative}.slip p{margin:0 0 1.5mm;font-size:9pt}.cols{display:grid;grid-template-columns:1fr 1fr;gap:5mm}table{width:100%;border-collapse:collapse}th,td{border:.5pt solid #000;padding:0 1.5mm;height:5.6mm;line-height:1;text-align:left;white-space:nowrap}td.n,th.n{text-align:right}td.c,th.c{text-align:center}.mono{font-family:Consolas,"Courier New",monospace}.tot{position:absolute;right:6mm;bottom:4mm;font-size:11pt}`, html, { tip: '紙張 19×9 公分（橫）：列印視窗的紙張大小請選 190×90mm（或自訂 19×9 公分）、邊界「無」、縮放 100%。' });
-  store.log('列印', `上海託收單 ${slash(g.d) || ''} ${a ? a.code : ''} ${rows.length} 張 ${money(sum(rows))}`);
+  const v = { no: a?.no || '', name: a?.name || (a?.holder === '志瑞螺絲' ? co.name || a.holder : a?.holder || ''), date: g.d || today(), amt: sum(rows), cnt: rows.length, dx: +ps.dx || 0, dy: +ps.dy || 0 };
+  modal({ title: `列印上海託收單（存款憑條）　${a ? a.code : ''}`, width: 620,
+    body: `<p class="muted small" style="margin:0 0 8px">套印在上海商銀的「存款憑條」（19.1×9 公分）上：日期、帳號、戶名、金額、勾「交換票據」和張數。帳號和戶名輸入一次就會記住。</p>
+      <div class="grid"><div class="f"><label for="sb-no">帳號（14 碼數字）</label><input id="sb-no" class="mono" inputmode="numeric" maxlength="20" value="${esc(v.no)}"></div>
+      <div class="f"><label for="sb-name">戶名</label><input id="sb-name" value="${esc(v.name)}"></div>
+      <div class="f"><label for="sb-date">日期</label><input type="date" id="sb-date" value="${esc(v.date)}"></div>
+      <div class="f"><label for="sb-amt">金額</label><input id="sb-amt" class="num" value="${money(v.amt)}"></div>
+      <div class="f"><label for="sb-cnt">交換票據張數</label><input id="sb-cnt" class="num" value="${v.cnt}"></div>
+      <div class="f"><label>位置微調 mm（右＋／下＋）</label><div class="tools" style="gap:6px"><input id="sb-dx" class="num" style="width:70px" value="${v.dx}" title="水平位移"><input id="sb-dy" class="num" style="width:70px" value="${v.dy}" title="垂直位移"></div></div></div><div class="err" id="sb-err"></div>`,
+    footer: '<button class="btn" id="sb-list">列印票據明細表（A4）</button><span class="sp"></span><button class="btn" data-close>取消</button><button class="btn pri" id="sb-ok">列印存款憑條</button>',
+    onOpen(el, close) {
+      $('#sb-list', el).onclick = () => printShbList(g, rows);
+      $('#sb-ok', el).onclick = async () => {
+        const no = $('#sb-no', el).value.replace(/\D/g, ''); const name = $('#sb-name', el).value.trim(); const amt = Math.round(+String($('#sb-amt', el).value).replace(/,/g, '') || 0); const cnt = $('#sb-cnt', el).value.trim();
+        const dx = +$('#sb-dx', el).value || 0, dy = +$('#sb-dy', el).value || 0; const d = $('#sb-date', el).value || today();
+        if (!no) return $('#sb-err', el).textContent = '請輸入帳號'; if (no.length > 14) return $('#sb-err', el).textContent = '帳號最多 14 碼（憑條上只有 14 格）'; if (!(amt > 0) || String(amt).length > 10) return $('#sb-err', el).textContent = '金額不對';
+        const ops = [];
+        if (a && (a.no !== no || a.name !== name)) ops.push({ col: 'settings', id: 'bank_accounts', data: { ...store.setting('bank_accounts'), list: accounts().map(x => x.id === a.id ? { ...x, no, name } : x) } });
+        if (dx !== v.dx || dy !== v.dy) ops.push({ col: 'settings', id: 'shb_slip', data: { ...ps, dx, dy } });
+        if (ops.length) await store.batch(ops);
+        const f = (x, y, t, al, cls) => t === '' || t == null ? '' : `<span class="f ${al || ''} ${cls || ''}" style="left:${(x + dx).toFixed(2)}mm;top:${(y + dy).toFixed(2)}mm">${esc(String(t))}</span>`;
+        const [yy, mm, dd] = d.split('-').map(Number);
+        let h = f(SHB.yR, SHB.dateY, yy - 1911, 'r') + f(SHB.mR, SHB.dateY, mm, 'r') + f(SHB.dR, SHB.dateY, dd, 'r') + f(SHB.nameX, SHB.nameY, name, '', 'nm');
+        [...no.padStart(14, ' ')].forEach((ch, i) => { if (ch !== ' ') h += f(SHB.acX + i * SHB.acP, SHB.acY, ch, 'c', 'dg'); });
+        [...String(amt).padStart(10, ' ')].forEach((ch, i) => { if (ch !== ' ') h += f(SHB.amX + i * SHB.amP, SHB.amY, ch, 'c', 'dg'); });
+        h += f(SHB.ckX, SHB.ckY, 'V', 'c', 'dg') + f(SHB.cntX, SHB.cntY, cnt, 'c', 'sm');
+        printHTML('上海存款憑條', `@page{size:${SHB.W}mm ${SHB.H}mm;margin:0}body{margin:0}.sheet{position:relative;width:${SHB.W}mm;height:${SHB.H - 0.5}mm;overflow:hidden;color:#000;font:11pt/1 "Microsoft JhengHei","微軟正黑體",sans-serif}.f{position:absolute;white-space:nowrap;transform:translateY(-50%)}.f.c{transform:translate(-50%,-50%)}.f.r{transform:translate(-100%,-50%)}.dg{font-size:13pt;font-family:Arial,"Microsoft JhengHei",sans-serif}.nm{font-size:12pt}.sm{font-size:10pt}`, `<div class="sheet">${h}</div>`, { tip: '把上海商銀的存款憑條放進印表機。紙張大小選 191×90mm（自訂 19.1×9 公分）、邊界「無」、縮放 100%。第一次請先用白紙印，疊在憑條上對位置；偏了回上一個視窗填「位置微調」。' });
+        store.log('列印', `上海存款憑條 ${slash(d)} ${a ? a.code : ''} ${cnt} 張 ${money(amt)}`); close();
+      };
+    } });
+}
+/** 票據明細表（A4，照原本 Excel「支票代收.xls」Sheet2：筆數、票據號碼、到期日、票據金額、票據總金額；上下兩份） */
+function printShbList(g, rows) {
+  const a = acctById(g.a);
+  const one = `<div class="slip"><p>${esc(a ? a.bank + ' ' + a.holder : g.raw || '')}　託收日期 ${esc(slash(g.d) || '')}　共 ${rows.length} 張</p><table><thead><tr><th class="c">筆數</th><th>票據號碼</th><th class="c">到期日</th><th class="n">票據金額</th></tr></thead><tbody>${rows.map((c, i) => `<tr><td class="c">${i + 1}</td><td class="mono">${esc(c.no || '')}</td><td class="c">${esc(slash(c.due) || c.dueRaw || '')}</td><td class="n">${money(c.amt)}</td></tr>`).join('')}</tbody><tfoot><tr><td colspan="3">票據總金額</td><td class="n">${money(sum(rows))}</td></tr></tfoot></table></div>`;
+  const two = rows.length <= 14;
+  printHTML('上海票據明細表', `@page{size:A4;margin:14mm}body{font-family:"Microsoft JhengHei",sans-serif;font-size:12pt;margin:0}.slip{width:120mm;${two ? 'height:128mm;' : 'page-break-after:always;'}box-sizing:border-box}.slip p{margin:0 0 2mm;font-size:10pt}table{width:100%;border-collapse:collapse}th,td{border:.6pt solid #000;padding:1.3mm 2.5mm;text-align:left}td.n,th.n{text-align:right}td.c,th.c{text-align:center}.mono{font-family:Consolas,"Courier New",monospace}tfoot td{font-weight:bold}`, one + one, { tip: '按 Ctrl+P 列印，A4。上下兩份內容一樣。' });
 }
 function scanCheck() {
   const inp = document.createElement('input'); inp.type = 'file'; inp.accept = 'image/*';
