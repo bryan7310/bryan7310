@@ -7,7 +7,7 @@ export const isMonthEnd = cid => !!(cid && store.get('contacts', cid)?.monthEnd)
 export const saleYm = b => b.arYm || (isMonthEnd(b.cid) ? String(b.date || '').slice(0, 7) : ym25(b.date || ''));
 /** 整月結客戶的備註文字「整月結 11/1～11/30」；一般客戶回傳空字串 */
 export const monthEndNote = (cid, ym) => { if (!isMonthEnd(cid) || !/^\d{4}-\d{2}$/.test(ym || '')) return isMonthEnd(cid) ? '整月結（每月 1 日～月底）' : ''; const [y, m] = ym.split('-').map(Number); return `整月結 ${m}/1～${m}/${new Date(y, m, 0).getDate()}`; };
-import { platCost } from './pricing.js';
+import { platCost, supDisc, fmtDisc } from './pricing.js';
 import { procCost, plateFee } from './proccost.js';
 import { estWeight } from './spec.js';
 import { printName, shortName } from './names.js';
@@ -134,7 +134,11 @@ export function calc() {
   const bills = store.list('bills').sort((a, b) => (a.date || '').localeCompare(b.date || '') || (a.createdAt || 0) - (b.createdAt || 0));
   const purIdx = {}, poIdx = {};
   for (const b of bills) { if (b.type !== 'PO') continue; for (const l of b.lines || []) { if (!l.gid || !(+l.price > 0)) continue; const [cls, f] = lineUnit(l, g[l.gid]); (poIdx[l.gid] ??= []).push({ d: dayN(b.date), date: b.date, no: b.no, cls, per: (+l.price) / f }); } }
-  for (const b of [...bills, ...HIST_PUR]) { if (b.type !== 'PUR') continue; const bd = histDisc(b); for (const l of b.lines || []) { if (!l.gid || !(+l.price > 0) || !g[l.gid]) continue; const [cls, f] = lineUnit(l, g[l.gid]); const df = bd && (!bd.hk || /^[HK]$/i.test(l.u || '')) ? bd.f : 1; (purIdx[l.gid] ??= []).push({ d: dayN(b.date), date: b.date, no: b.no, cls, per: (+l.price) / f * df, q: +l.qty || 0, cid: b.cid, hist: !!b.hist, lab: df < 1 ? `進貨單（牌價 × 折數 ${Math.round(df * 1000) / 1000}）` : undefined }); } }
+  for (const b of [...bills, ...HIST_PUR]) { if (b.type !== 'PUR') continue; const bd = histDisc(b); for (const l of b.lines || []) { if (!l.gid || !(+l.price > 0) || !g[l.gid]) continue; const [cls, f] = lineUnit(l, g[l.gid]); // 單價是供應商牌價的（久允、虹瑩、鑫城…）：乘上「螺絲查價」的折數；查價對不到的舊單，才用那張單的實付金額反推
+      let df = 1, lab; const sup = ct[b.cid]?.short || ct[b.cid]?.name || ''; const sd = cls === 'p' ? supDisc(g[l.gid], sup, (+l.price) / f) : null;
+      if (sd) { if (sd.f < 1) { df = sd.f; lab = `進貨單（${sup}牌價 × ${fmtDisc(sd.f)}）`; } }
+      else if (bd && (!bd.hk || /^[HK]$/i.test(l.u || ''))) { df = bd.f; lab = `進貨單（牌價 × 折數 ${Math.round(df * 1000) / 1000}，由實付金額反推）`; }
+      (purIdx[l.gid] ??= []).push({ d: dayN(b.date), date: b.date, no: b.no, cls, per: (+l.price) / f * df, q: +l.qty || 0, cid: b.cid, hist: !!b.hist, lab }); } }
   // 自己叫線、委外打頭（隆勝、星宇、幸利、澤發…）：「線材 某成品」(KG) 跟後面的「製作費用 每H」（還有熱處理、一批…）
   // 是同一批貨：全部金額加起來 ÷ 支數（製作費的 H 數 × 100；沒有支數就用線材 KG ÷ 單重）＝那個成品每支的進貨成本
   const mkIdx = {}; MKI.set(purIdx, mkIdx);

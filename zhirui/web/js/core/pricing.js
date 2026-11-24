@@ -194,6 +194,42 @@ function priceIdx() {
   }
   return PIDX;
 }
+/** 商品對到查價牌價的候選（同直徑、長度，頭型／材質／種類相符），依相符程度排序；sup 有給就只看那家供應商 */
+function matchItems(g, sup) {
+  const p = parseGoods(g); if (!p.dia) return [];
+  const out = [];
+  for (const it of priceIdx().get(p.dia + '|' + (p.nut || p.washer ? '' : p.len)) || []) {
+    if (sup && !(it.sup && (it.sup === sup || sup.includes(it.sup) || it.sup.includes(sup)))) continue;
+    const n = String(it.name || ''); let score = 0;
+    if (p.head && attr(it, 'head') === p.head) score += 3; else if (p.head) continue;
+    if (p.mat && matClass(it.material + n) === p.mat) score += 2; else if (p.mat) continue;
+    if (p.nut !== /帽/.test(n)) continue;
+    if (p.washer !== isWasher(n)) continue;
+    if (p.washer && p.wk !== wKind(n)) continue;
+    if (p.thread === 'tap' && !/鐵板|自攻/.test(n + (it.thread || ''))) continue;
+    if (p.thread === 'ms' && !/機械/.test(n + (it.thread || ''))) continue;
+    if (p.thread === 'cap' && !/內六角/.test(n)) continue;
+    if (!(+it.price > 0)) continue;
+    out.push({ it, score });
+  }
+  return out.sort((a, b) => b.score - a.score);
+}
+let SUPS = null, SUPSgen = -1;
+/** 查價裡有牌價表的供應商（久允、虹瑩、鑫城、東日、金同利…） */
+export function pricingSups() { if (!SUPS || SUPSgen !== store.gen) { SUPSgen = store.gen; SUPS = new Set(store.list('pricing').map(x => x.sup).filter(Boolean)); } return SUPS; }
+const sdMemo = new Map(); let sdGen = -1;
+/** 進貨單價是不是這家供應商的「牌價」？是的話回傳要乘的折數（螺絲查價的折數）。
+ *  per＝進貨單上每支的單價。跟查價的牌價差不多（0.8～1.25 倍）→ 是牌價，回傳 { f: 折數, it }；
+ *  跟「牌價×折數」差不多 → 已經是淨價，回傳 { f: 1, net: true }；對不到或看不出來 → null（讓呼叫的人用別的方法）。 */
+export function supDisc(g, sup, per) {
+  if (!g || !sup || !(per > 0)) return null;
+  if (sdGen !== store.gen) { sdMemo.clear(); sdGen = store.gen; }
+  const key = g.id + '|' + sup; let c = sdMemo.get(key);
+  if (c === undefined) { c = [...pricingSups()].some(s => s === sup || sup.includes(s) || s.includes(sup)) ? matchItems(g, sup).slice(0, 6).map(x => ({ it: x.it, f: itemFactor(x.it).f, list: +x.it.price })) : []; sdMemo.set(key, c); }
+  for (const x of c) { const r = per / x.list; if (r >= 0.8 && r <= 1.25) return x.f < 0.999 ? { f: x.f, it: x.it } : { f: 1, net: true }; }
+  for (const x of c) { const r = per / (x.list * x.f); if (x.f < 0.999 && r >= 0.88 && r <= 1.12) return { f: 1, net: true }; }
+  return null;
+}
 const pmemo = new Map(); let pmemoGen = -1;
 export function platCost(g) {
   if (pmemoGen !== store.gen) { pmemo.clear(); pmemoGen = store.gen; }
