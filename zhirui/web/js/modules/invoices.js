@@ -15,9 +15,9 @@ export default {
 };
 export const pendingBills = () => calc().bills.filter(b => b.type === 'SALE' && !b.hist && !b.invNo && !b.noInv && (b.date || '') >= '2026-11-01');
 const total = i => (+i.untaxed || 0) + (+i.tax || 0);
-export function nextInvNo() {
+export function nextInvNo(hand = false) {
   let best = null;
-  for (const i of store.list('invoices')) { const m = /^([A-Z]{2})(\d{8})$/.exec(i.no); if (!m) continue; if (!best || i.date > best.date || (i.date === best.date && +m[2] > best.n)) best = { p: m[1], n: +m[2], date: i.date }; }
+  for (const i of store.list('invoices')) { if (!!i.hand !== hand) continue; const m = /^([A-Z]{2})(\d{8})$/.exec(i.no); if (!m) continue; if (!best || i.date > best.date || (i.date === best.date && +m[2] > best.n)) best = { p: m[1], n: +m[2], date: i.date }; }
   return best ? best.p + String(best.n + 1).padStart(8, '0') : '';
 }
 function draw(el) {
@@ -34,7 +34,7 @@ function drawList(el) {
   const [s, e, pg] = pager('iv', list.length, ui.page);
   const sumU = list.reduce((a, i) => a + (+i.untaxed || 0), 0), sumT = list.reduce((a, i) => a + (+i.tax || 0), 0);
   el.innerHTML = `<div class="panel"><div class="tools"><input type="month" id="ivYm" value="${ui.ym}"><input type="search" id="ivQ" placeholder="搜尋發票號碼、買受人、統編" value="${esc(ui.q)}"><span class="muted small">${list.length} 張・銷售額 ${money(sumU)}・稅 ${money(sumT)}・合計 ${money(sumU + sumT)}</span><span class="sp"></span><button class="btn sm" id="ivPrintAll" ${list.length ? '' : 'disabled'}>列印本月明細</button></div>
-    <div class="tw" style="margin-top:10px"><table><thead><tr><th>日期</th><th>發票號碼</th><th>買受人</th><th>統編</th><th class="n">銷售額</th><th class="n">稅額</th><th class="n">總計</th><th>來源</th><th></th></tr></thead><tbody>${list.slice(s, e).map(i => `<tr class="row" data-no="${esc(i.no)}"><td class="nowrap">${esc(slash(i.date))}</td><td class="mono">${esc(i.no)}${i.void ? ' <span class="pill bad">作廢</span>' : ''}</td><td style="min-width:9em">${esc(i.cid ? cshort(i.cid) : i.name)}</td><td class="mono">${esc(i.buyer || '')}</td><td class="n">${money(i.untaxed)}</td><td class="n">${money(i.tax)}</td><td class="n">${money(total(i))}</td><td class="muted small">${i.billId ? '銷貨單' : i.legacy ? '匯入' : '手開'}</td><td class="nowrap"><button class="btn xs" data-print="${esc(i.no)}">套印</button></td></tr>`).join('') || '<tr><td colspan="9"><div class="empty"><b>這個月沒有發票</b></div></td></tr>'}</tbody></table></div>${pg}</div>`;
+    <div class="tw" style="margin-top:10px"><table><thead><tr><th>日期</th><th>發票號碼</th><th>買受人</th><th>統編</th><th class="n">銷售額</th><th class="n">稅額</th><th class="n">總計</th><th>來源</th><th></th></tr></thead><tbody>${list.slice(s, e).map(i => `<tr class="row" data-no="${esc(i.no)}"><td class="nowrap">${esc(slash(i.date))}</td><td class="mono">${esc(i.no)}${i.void ? ' <span class="pill bad">作廢</span>' : ''}</td><td style="min-width:9em">${esc(i.cid ? cshort(i.cid) : i.name)}</td><td class="mono">${esc(i.buyer || '')}</td><td class="n">${money(i.untaxed)}</td><td class="n">${money(i.tax)}</td><td class="n">${money(total(i))}</td><td class="muted small">${i.hand ? (i.billId ? '手開・銷貨單' : '手開') : i.billId ? '銷貨單' : i.legacy ? '匯入' : '手開'}</td><td class="nowrap"><button class="btn xs" data-print="${esc(i.no)}">套印</button></td></tr>`).join('') || '<tr><td colspan="9"><div class="empty"><b>這個月沒有發票</b></div></td></tr>'}</tbody></table></div>${pg}</div>`;
   $('#ivYm', el).addEventListener('change', ev => { ui.ym = ev.target.value; ui.page = 0; drawList(el); });
   onSearch($('#ivQ', el), v => { ui.q = v; ui.page = 0; drawList(el); const i = $('#ivQ', el); i.focus(); i.setSelectionRange(i.value.length, i.value.length); });
   el.querySelectorAll('[data-page]').forEach(b => b.addEventListener('click', () => { ui.page = +b.dataset.to; drawList(el); }));
@@ -44,16 +44,17 @@ function drawList(el) {
 }
 function drawPending(el) {
   const C = calc(); const list = pendingBills().sort((a, b) => (a.date || '').localeCompare(b.date || ''));
-  el.innerHTML = `<div class="panel"><p class="muted" style="margin:0 0 10px">這些銷貨單還沒開發票。按「開發票」會帶入客戶統編、品項與金額；不需要開的按「不開」。</p>
-    <div class="tw"><table><thead><tr><th>日期</th><th>單號</th><th>客戶</th><th>統編</th><th class="n">未稅</th><th class="n">稅</th><th></th></tr></thead><tbody>${list.map(b => { const c = C.ct[b.cid]; const t = C.tot[b.id]; return `<tr><td class="nowrap">${esc(slash(b.date))}</td><td class="mono"><a href="#" data-open="${b.id}">${esc(b.no)}</a></td><td style="min-width:9em">${esc(c?.name || '')}</td><td class="mono ${c?.taxId ? '' : 'muted'}">${esc(c?.taxId || '（無）')}</td><td class="n">${money(t.net)}</td><td class="n">${money(b.tax ? t.tax : Math.round(t.net * 0.05))}</td><td class="nowrap"><button class="btn xs pri" data-inv="${b.id}">開發票</button> <button class="btn xs ghost" data-skip="${b.id}">不開</button></td></tr>`; }).join('') || '<tr><td colspan="7"><div class="empty"><b>沒有待開發票的銷貨單 ✓</b></div></td></tr>'}</tbody></table></div></div>`;
+  el.innerHTML = `<div class="panel"><p class="muted" style="margin:0 0 10px">這些銷貨單還沒開發票。按「開發票」會帶入客戶統編、品項與金額；已經用手寫發票開好的按「手開」，填上發票號碼就會記到銷項發票；不需要開的按「不開」。</p>
+    <div class="tw"><table><thead><tr><th>日期</th><th>單號</th><th>客戶</th><th>統編</th><th class="n">未稅</th><th class="n">稅</th><th></th></tr></thead><tbody>${list.map(b => { const c = C.ct[b.cid]; const t = C.tot[b.id]; return `<tr><td class="nowrap">${esc(slash(b.date))}</td><td class="mono"><a href="#" data-open="${b.id}">${esc(b.no)}</a></td><td style="min-width:9em">${esc(c?.name || '')}</td><td class="mono ${c?.taxId ? '' : 'muted'}">${esc(c?.taxId || '（無）')}</td><td class="n">${money(t.net)}</td><td class="n">${money(b.tax ? t.tax : Math.round(t.net * 0.05))}</td><td class="nowrap"><button class="btn xs pri" data-inv="${b.id}">開發票</button> <button class="btn xs" data-hand="${b.id}">手開</button> <button class="btn xs ghost" data-skip="${b.id}">不開</button></td></tr>`; }).join('') || '<tr><td colspan="7"><div class="empty"><b>沒有待開發票的銷貨單 ✓</b></div></td></tr>'}</tbody></table></div></div>`;
   el.querySelectorAll('[data-open]').forEach(a => a.addEventListener('click', ev => { ev.preventDefault(); openBill(null, a.dataset.open); }));
   el.querySelectorAll('[data-inv]').forEach(b => b.addEventListener('click', () => makeInvoiceFromBill(store.get('bills', b.dataset.inv))));
+  el.querySelectorAll('[data-hand]').forEach(b => b.addEventListener('click', () => makeInvoiceFromBill(store.get('bills', b.dataset.hand), true)));
   el.querySelectorAll('[data-skip]').forEach(b => b.addEventListener('click', async () => { const bill = store.get('bills', b.dataset.skip); await store.save('bills', bill.id, { ...bill, noInv: true }); }));
 }
-export function makeInvoiceFromBill(b) {
+export function makeInvoiceFromBill(b, hand = false) {
   const C = calc(); const c = C.ct[b.cid] || {}; const t = totals(b);
   const items = (b.lines || []).filter(l => l.txt === undefined).map(l => ({ name: l.gid ? gname(l.gid) : l.n || '', qty: +l.qty || 0, price: +l.price || 0, amount: Math.round((+l.qty || 0) * (+l.price || 0)) }));
-  editInvoice({ no: nextInvNo(), date: b.date, buyer: c.taxId || '', name: c.name ? printName(c.name) : '', cid: b.cid, items, untaxed: t.net, tax: b.tax ? t.tax : Math.round(t.net * 0.05), billId: b.id, billNo: b.no }, true);
+  editInvoice({ no: nextInvNo(hand), hand, date: b.date, buyer: c.taxId || '', name: c.name ? printName(c.name) : '', cid: b.cid, items, untaxed: t.net, tax: b.tax ? t.tax : Math.round(t.net * 0.05), billId: b.id, billNo: b.no }, true);
 }
 function editInvoice(inv, isNew) {
   const d = inv || { no: nextInvNo(), date: today(), buyer: '', name: '', items: [{ name: '螺絲', qty: '', price: '', amount: '' }], untaxed: 0, tax: 0 };
@@ -66,13 +67,14 @@ function editInvoice(inv, isNew) {
       <div class="f" style="grid-column:span 2"><label for="iv-name">買受人</label><div class="combo"><input id="iv-name" value="${esc(d.name)}" placeholder="搜尋客戶或直接輸入"></div></div>
       <div class="f"><label for="iv-buyer">統一編號</label><input id="iv-buyer" class="mono" value="${esc(d.buyer || '')}" maxlength="8"></div>
       ${d.billNo ? `<div class="f"><label>來源</label><div>銷貨單 ${esc(d.billNo)}</div></div>` : ''}</div>
+      ${d.hand && isNew ? '<p class="muted small" style="margin:0 0 8px">手寫發票已經開好的，照發票上的號碼、日期、金額填，按「儲存」就會記到銷項發票（不用套印）。</p>' : ''}
       <div class="tw"><table class="lines"><thead><tr><th>品名</th><th class="r" style="width:90px">數量</th><th class="r" style="width:100px">單價</th><th class="r" style="width:110px">金額</th><th style="width:30px"></th></tr></thead><tbody>${rows}</tbody></table></div>
       <div class="tools"><button class="btn sm" id="iv-add">＋ 加一行</button><span class="sp"></span><label class="check"><input type="checkbox" id="iv-incl" ${d.taxMode === 'in' ? 'checked' : ''}> 金額為含稅（反推）</label></div>
       <div class="totals"><div><span>銷售額</span> <input id="iv-untaxed" class="num" value="${money(d.untaxed)}" style="width:110px;border:1px solid var(--line);border-radius:6px;padding:5px 8px;text-align:right"></div><div><span>稅額</span> <input id="iv-tax" class="num" value="${money(d.tax)}" style="width:90px;border:1px solid var(--line);border-radius:6px;padding:5px 8px;text-align:right"></div><div class="big"><span>總計</span> <b id="iv-total">${money(total(d))}</b></div></div>
       <div class="muted small" id="iv-cn">${cnMoney(total(d))}</div><div class="err" id="iv-err"></div>`;
   };
   const m = modal({
-    title: isNew ? '開立發票' : `發票 ${d.no}`, width: 760, body: draw2(),
+    title: isNew ? (d.hand ? '手開發票（登記）' : '開立發票') : `發票 ${d.no}`, width: 760, body: draw2(),
     footer: `${!isNew ? `<button class="btn danger" id="iv-void">${d.void ? '取消作廢' : '作廢'}</button><button class="btn" id="iv-print">套印</button>` : ''}<span class="sp"></span><button class="btn" data-close>取消</button><button class="btn pri" id="iv-ok">儲存</button>`,
     onOpen(el, close) {
       const recalc = () => {
@@ -95,7 +97,7 @@ function editInvoice(inv, isNew) {
         if (!/^[A-Z]{2}\d{8}$/.test(no)) return $('#iv-err', el).textContent = '發票號碼格式：2 個英文字母＋8 碼數字';
         if (isNew && store.get('invoices', no)) return $('#iv-err', el).textContent = '這個發票號碼已經開過';
         if (buyer && !ubnOk(buyer)) { if (!await confirm(`統一編號 ${buyer} 檢查碼不符，仍要儲存？`)) return; }
-        const out = { no, date: $('#iv-date', el).value, buyer, name: $('#iv-name', el).value.trim(), cid: d.cid || null, items: d.items.filter(it => it.name).map(it => ({ name: it.name, qty: it.qty === '' ? null : +it.qty, price: it.price === '' ? null : +it.price, amount: +it.amount || 0 })), untaxed: parseNum($('#iv-untaxed', el).value) || 0, tax: parseNum($('#iv-tax', el).value) || 0, taxMode: d.taxMode || 'ex', billId: d.billId || null, void: d.void || false, createdAt: d.createdAt || Date.now() };
+        const out = { no, date: $('#iv-date', el).value, buyer, name: $('#iv-name', el).value.trim(), cid: d.cid || null, items: d.items.filter(it => it.name).map(it => ({ name: it.name, qty: it.qty === '' ? null : +it.qty, price: it.price === '' ? null : +it.price, amount: +it.amount || 0 })), untaxed: parseNum($('#iv-untaxed', el).value) || 0, tax: parseNum($('#iv-tax', el).value) || 0, taxMode: d.taxMode || 'ex', billId: d.billId || null, hand: !!d.hand, void: d.void || false, createdAt: d.createdAt || Date.now() };
         const ops = [{ col: 'invoices', id: no, data: out }];
         if (d.billId) { const b = store.get('bills', d.billId); if (b) ops.push({ col: 'bills', id: b.id, data: { ...b, invNo: no } }); }
         if (d.cid && buyer) { const c = store.get('contacts', d.cid); if (c && !c.taxId) ops.push({ col: 'contacts', id: c.id, data: { ...c, taxId: buyer } }); }
