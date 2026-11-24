@@ -37,11 +37,13 @@ function drawList(el) {
   const [s, e, pg] = pager('iv', list.length, ui.page);
   const live = list.filter(i => !i.void); const sumU = live.reduce((a, i) => a + (+i.untaxed || 0), 0), sumT = live.reduce((a, i) => a + (+i.tax || 0), 0);   // 作廢的不算金額
   el.innerHTML = `<div class="panel"><div class="tools"><input type="month" id="ivYm" value="${ui.ym}"><input type="search" id="ivQ" placeholder="搜尋發票號碼、買受人、統編" value="${esc(ui.q)}"><span class="muted small">${list.length} 張・銷售額 ${money(sumU)}・稅 ${money(sumT)}・合計 ${money(sumU + sumT)}</span><span class="sp"></span><button class="btn sm" id="ivPrintAll" ${list.length ? '' : 'disabled'}>列印本月明細</button></div>
-    <div class="tw" style="margin-top:10px"><table><thead><tr><th>日期</th><th>發票號碼</th><th>買受人</th><th>統編</th><th class="n">銷售額</th><th class="n">稅額</th><th class="n">總計</th><th>來源</th><th></th></tr></thead><tbody>${list.slice(s, e).map(i => `<tr class="row" data-no="${esc(i.no)}"><td class="nowrap">${esc(slash(i.date))}</td><td class="mono">${esc(i.no)}${i.void ? ' <span class="pill bad">作廢</span>' : ''}</td><td style="min-width:9em">${esc(i.cid ? cshort(i.cid) : i.name)}</td><td class="mono">${esc(i.buyer || '')}</td><td class="n">${money(i.untaxed)}</td><td class="n">${money(i.tax)}</td><td class="n">${money(total(i))}</td><td class="muted small">${i.hand ? (i.billId ? '手開・銷貨單' : '手開') : i.billId ? '銷貨單' : i.legacy ? '匯入' : '手開'}</td><td class="nowrap"><button class="btn xs" data-print="${esc(i.no)}">套印</button> <button class="btn xs ghost" data-rm="${esc(i.no)}" style="color:var(--bad)">刪除</button></td></tr>`).join('') || '<tr><td colspan="9"><div class="empty"><b>這個月沒有發票</b></div></td></tr>'}</tbody></table></div>${pg}</div>`;
+    <div class="tw" style="margin-top:10px"><table><thead><tr><th>日期</th><th>發票號碼</th><th>買受人</th><th>統編</th><th class="n">銷售額</th><th class="n">稅額</th><th class="n">總計</th><th>來源</th><th></th></tr></thead><tbody>${list.slice(s, e).map(i => `<tr class="row" data-no="${esc(i.no)}"><td class="nowrap">${esc(slash(i.date))}</td><td class="mono">${esc(i.no)}${i.void ? ' <span class="pill bad">作廢</span>' : ''}</td><td style="min-width:9em"><a href="#" data-who="${esc(i.no)}" title="看這個客戶今年的發票">${esc(i.cid ? cshort(i.cid) : i.name)}</a></td><td class="mono">${esc(i.buyer || '')}</td><td class="n">${money(i.untaxed)}</td><td class="n">${money(i.tax)}</td><td class="n">${money(total(i))}</td><td class="muted small">${i.hand ? (i.billId ? '手開・銷貨單' : '手開') : i.billId ? '銷貨單' : i.legacy ? '匯入' : '手開'}</td><td class="nowrap"><button class="btn xs" data-edit="${esc(i.no)}">修改</button> <button class="btn xs" data-print="${esc(i.no)}">套印</button> <button class="btn xs ghost" data-rm="${esc(i.no)}" style="color:var(--bad)">刪除</button></td></tr>`).join('') || '<tr><td colspan="9"><div class="empty"><b>這個月沒有發票</b></div></td></tr>'}</tbody></table></div>${pg}</div>`;
   $('#ivYm', el).addEventListener('change', ev => { ui.ym = ev.target.value; ui.page = 0; drawList(el); });
   onSearch($('#ivQ', el), v => { ui.q = v; ui.page = 0; drawList(el); const i = $('#ivQ', el); i.focus(); i.setSelectionRange(i.value.length, i.value.length); });
   el.querySelectorAll('[data-page]').forEach(b => b.addEventListener('click', () => { ui.page = +b.dataset.to; drawList(el); }));
-  el.querySelectorAll('tr.row').forEach(tr => tr.addEventListener('click', ev => { if (ev.target.closest('button')) return; editInvoice(store.get('invoices', tr.dataset.no)); }));
+  el.querySelectorAll('[data-who]').forEach(a => a.addEventListener('click', ev => { ev.preventDefault(); custYear(store.get('invoices', a.dataset.who)); }));
+  el.querySelectorAll('[data-edit]').forEach(b => b.addEventListener('click', () => editInvoice(store.get('invoices', b.dataset.edit))));
+  el.querySelectorAll('tr.row').forEach(tr => tr.addEventListener('click', ev => { if (ev.target.closest('button,a')) return; editInvoice(store.get('invoices', tr.dataset.no)); }));
   el.querySelectorAll('[data-print]').forEach(b => b.addEventListener('click', () => printInvoices([store.get('invoices', b.dataset.print)], 'form')));
   el.querySelectorAll('[data-rm]').forEach(b => b.addEventListener('click', () => removeInvoice(b.dataset.rm)));
   $('#ivPrintAll', el).addEventListener('click', () => printInvoices(list, 'list'));
@@ -104,6 +106,28 @@ export function invStyleOf(cid) {
     cnt[names.every(n => n === '螺絲') ? 's' : names.length > 1 && names.every(n => ['螺絲', '螺帽', '華司'].includes(n)) ? 'c' : 'd']++;
   }
   return cnt.d > cnt.s && cnt.d >= cnt.c ? 'd' : cnt.c > cnt.s ? 'c' : 's';
+}
+/** 這個客戶某一年的發票總明細（同一個客戶＝同客戶資料，或同統編，或同抬頭） */
+function custYear(inv, year) {
+  if (!inv) return; year = year || (inv.date || today()).slice(0, 4);
+  const same = i => inv.cid ? i.cid === inv.cid || (!i.cid && inv.buyer && i.buyer === inv.buyer) : inv.buyer ? i.buyer === inv.buyer : i.name === inv.name;
+  const all = store.list('invoices').filter(same); const years = [...new Set(all.map(i => (i.date || '').slice(0, 4)).filter(Boolean))].sort().reverse(); if (!years.includes(year)) years.unshift(year);
+  const list = all.filter(i => (i.date || '').startsWith(year)).sort((a, b) => (a.date || '').localeCompare(b.date || '') || String(a.no).localeCompare(String(b.no)));
+  const live = list.filter(i => !i.void); const su = live.reduce((a, i) => a + (+i.untaxed || 0), 0), st = live.reduce((a, i) => a + (+i.tax || 0), 0);
+  const who = inv.cid ? (store.get('contacts', inv.cid)?.name || inv.name) : inv.name;
+  const byM = {}; for (const i of live) { const m = +(i.date || '').slice(5, 7); const k = Math.ceil(m / 2); (byM[k] = byM[k] || [0, 0, 0])[0]++; byM[k][1] += +i.untaxed || 0; byM[k][2] += +i.tax || 0; }
+  const items = i => (i.items || []).map(x => `${esc(x.name)}${x.qty != null && x.price != null && !(x.price === 1 && x.qty === x.amount) ? ` <span class="muted">${fmt(x.qty)} × ${x.price}</span>` : ''}`).join('、');
+  const m = modal({ title: `${who}　${+year - 1911} 年發票明細`, width: 980,
+    body: `<div class="tools" style="margin-bottom:8px"><select id="cyY">${years.map(y => `<option value="${y}" ${y === year ? 'selected' : ''}>${+y - 1911} 年（${y}）</option>`).join('')}</select><span class="muted small">統編 ${esc(inv.buyer || '（無）')}・${live.length} 張${list.length - live.length ? `（另有作廢 ${list.length - live.length} 張）` : ''}・銷售額 ${money(su)}・稅 ${money(st)}・合計 ${money(su + st)}</span></div>
+      <div class="tools" style="margin-bottom:8px;gap:6px">${Object.keys(byM).sort((a, b) => a - b).map(k => `<span class="pill">${k * 2 - 1}～${k * 2} 月　${byM[k][0]} 張　${money(byM[k][1] + byM[k][2])}</span>`).join('')}</div>
+      <div class="tw"><table><thead><tr><th>日期</th><th>發票號碼</th><th>品名</th><th class="n">銷售額</th><th class="n">稅額</th><th class="n">總計</th><th></th></tr></thead><tbody>${list.map(i => `<tr><td class="nowrap">${esc(slash(i.date))}</td><td class="mono nowrap">${esc(i.no)}${i.void ? ' <span class="pill bad">作廢</span>' : ''}</td><td class="small" style="white-space:normal">${items(i)}</td><td class="n">${money(i.untaxed)}</td><td class="n">${money(i.tax)}</td><td class="n">${money(total(i))}</td><td class="nowrap"><button class="btn xs" data-cy="${esc(i.no)}">修改</button></td></tr>`).join('') || '<tr><td colspan="7"><div class="empty"><b>這一年沒有發票</b></div></td></tr>'}</tbody>
+      ${list.length ? `<tfoot><tr><td colspan="3"><b>合計 ${live.length} 張</b></td><td class="n"><b>${money(su)}</b></td><td class="n"><b>${money(st)}</b></td><td class="n"><b>${money(su + st)}</b></td><td></td></tr></tfoot>` : ''}</table></div>`,
+    footer: '<button class="btn" id="cyPrint">列印</button><span class="sp"></span><button class="btn" data-close>關閉</button>',
+    onOpen(el, close) {
+      $('#cyY', el).onchange = () => { const y = $('#cyY', el).value; close(); custYear(inv, y); };
+      el.querySelectorAll('[data-cy]').forEach(b => b.onclick = () => { close(); editInvoice(store.get('invoices', b.dataset.cy)); });
+      $('#cyPrint', el).onclick = () => { const o = ui.ym; printInvoices(live, 'list', `${who}　${+year - 1911} 年`); ui.ym = o; };
+    } });
 }
 /** 刪除發票（打錯、重複登記用；真的開出去又作廢的請用「作廢」）。對應的銷貨單會回到「待開」 */
 async function removeInvoice(no) {
@@ -189,7 +213,7 @@ function editInvoice(inv, isNew) {
 const ROW = 3.905, X = { co: 0, to: 13.0, item: 7.0, qty: 29.65, price: 42.8, amt: 56.7, tot: 47.9 }, FORM_TOP = 21.7, FORM_LEFT = 6.1, FORM_LINES = 11, TOT_DY = 1.2;   // TOT_DY：銷售額／稅／總計再往下（11/24 第三次試印後加）
 // 套印字體：點陣印表機印明體，橫的細筆畫會斷掉，所以預設用筆畫一樣粗的黑體
 export const INV_FONTS = { hei: ['黑體（筆畫一樣粗，點陣印表機清楚）', '11pt/1 "Microsoft JhengHei","微軟正黑體","Noto Sans TC",sans-serif'], heib: ['黑體加粗（更黑）', 'bold 11pt/1 "Microsoft JhengHei","微軟正黑體","Noto Sans TC",sans-serif'], ming: ['明體（原本的，雷射／噴墨用）', '11pt/1 "PMingLiU","新細明體","MingLiU","Noto Serif TC",serif'] };
-export function printInvoices(list, mode) {
+export function printInvoices(list, mode, head) {
   const co = store.setting('company'); const ps = store.setting('invoice_print');
   const n0 = v => v == null || v === '' ? '' : Math.round(+v).toLocaleString('en-US'); const n2 = v => v == null || v === '' ? '' : (+v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 3 });
   if (mode === 'form') {
@@ -204,7 +228,7 @@ export function printInvoices(list, mode) {
   } else {
     const rows = list.map(i => `<tr><td>${esc(slash(i.date))}</td><td>${esc(i.no)}</td><td>${esc(i.name)}</td><td>${esc(i.buyer || '')}</td><td class="n">${n0(i.untaxed)}</td><td class="n">${n0(i.tax)}</td><td class="n">${n0(total(i))}</td></tr>`).join('');
     const su = list.reduce((a, i) => a + (+i.untaxed || 0), 0), st = list.reduce((a, i) => a + (+i.tax || 0), 0);
-    printHTML('發票明細', `@page{size:A4;margin:12mm}body{font-family:"Microsoft JhengHei",sans-serif;font-size:10pt;margin:0}h1{font-size:15pt;text-align:center}table{width:100%;border-collapse:collapse}th,td{border-bottom:.4pt solid #999;padding:1.2mm 1.5mm;text-align:left}th{border-top:1pt solid #000;border-bottom:1pt solid #000}td.n,th.n{text-align:right}tfoot td{font-weight:bold;border-top:1pt solid #000}`, `<h1>${esc(co.name || '')} 銷項發票明細 ${esc(ymLabel(ui.ym))}</h1><table><thead><tr><th>日期</th><th>發票號碼</th><th>買受人</th><th>統編</th><th class="n">銷售額</th><th class="n">稅額</th><th class="n">總計</th></tr></thead><tbody>${rows}</tbody><tfoot><tr><td colspan="4">合計 ${list.length} 張</td><td class="n">${n0(su)}</td><td class="n">${n0(st)}</td><td class="n">${n0(su + st)}</td></tr></tfoot></table>`, { tip: '按 Ctrl+P 列印，A4。' });
+    printHTML('發票明細', `@page{size:A4;margin:12mm}body{font-family:"Microsoft JhengHei",sans-serif;font-size:10pt;margin:0}h1{font-size:15pt;text-align:center}table{width:100%;border-collapse:collapse}th,td{border-bottom:.4pt solid #999;padding:1.2mm 1.5mm;text-align:left}th{border-top:1pt solid #000;border-bottom:1pt solid #000}td.n,th.n{text-align:right}tfoot td{font-weight:bold;border-top:1pt solid #000}`, `<h1>${esc(co.name || '')} 銷項發票明細 ${esc(head || ymLabel(ui.ym))}</h1><table><thead><tr><th>日期</th><th>發票號碼</th><th>買受人</th><th>統編</th><th class="n">銷售額</th><th class="n">稅額</th><th class="n">總計</th></tr></thead><tbody>${rows}</tbody><tfoot><tr><td colspan="4">合計 ${list.length} 張</td><td class="n">${n0(su)}</td><td class="n">${n0(st)}</td><td class="n">${n0(su + st)}</td></tr></tfoot></table>`, { tip: '按 Ctrl+P 列印，A4。' });
   }
 }
 // ---------- 進項發票 ----------
