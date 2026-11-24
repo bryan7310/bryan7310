@@ -3,11 +3,11 @@
 import { esc, fmt, money, thisMonth, shiftMonth, fmtQ, today } from '../core/util.js';
 import { api } from '../core/api.js';
 import { store } from '../core/store.js';
-import { calc, totals, costOf, cdisp, costUnitFor, withCost } from '../core/calc.js';
+import { calc, totals, costOf, cdisp, costUnitFor, withCost, saleYm } from '../core/calc.js';
 import { apYm, apRange } from '../modules/payables.js';
 import { histTot } from '../modules/receivables.js';
 // 月份一律 25 結（上月 26 日～本月 25 日），跟應收帳款同一套；銷貨單有指定應收月份的照指定
-const ymOf = b => b.arYm || apYm(b.date || '');
+const ymOf = saleYm;
 
 let HIST = { key: '', rows: null, busy: null };
 async function histSales(from, to) {

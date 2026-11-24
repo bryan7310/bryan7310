@@ -2,7 +2,7 @@
 import { esc, fmt, money, today, thisMonth, daysLeft, slash, ymLabel, roc, uid, ym25, month25, ls } from '../core/util.js';
 import { histAR, histTot } from './receivables.js';
 import { store } from '../core/store.js';
-import { calc, TYPES, cshort, nextNo, defWh, costOf } from '../core/calc.js';
+import { calc, TYPES, cshort, nextNo, defWh, costOf, saleYm } from '../core/calc.js';
 import { toast, confirm } from '../core/ui.js';
 import { openBill } from './_bills.js';
 import { arSummary } from './receivables.js';
@@ -54,7 +54,7 @@ function retailPanel(C, t) {
 }
 function draw(el) {
   // 本月銷貨／進貨：25 結（上月 26 日～本月 25 日），舊系統搬來的銷貨單一起算（跟應收帳款同一套）
-  const C = calc(); const t = today(); const m25 = month25(); const im = (b, s) => (s && b.arYm || ym25(b.date)) === m25;
+  const C = calc(); const t = today(); const m25 = month25(); const im = (b, s) => (s ? saleYm(b) : ym25(b.date)) === m25;
   let sales = 0, profit = 0, n = 0;
   for (const b of C.bills) if ((b.type === 'SALE' || b.type === 'SALE_RET') && im(b, 1)) { const s = b.type === 'SALE' ? 1 : -1; const net = C.tot[b.id]?.net || 0; sales += s * net; profit += s * (net - (C.cogs[b.id] || 0)); n++; }
   for (const b of histAR()) if ((b.type === 'SALE' || b.type === 'SALE_RET') && im(b, 1)) { const s = b.type === 'SALE' ? 1 : -1; const net = histTot(b).net; let cost = 0; for (const l of b.lines || []) { if (!l.gid) continue; const r = costOf(l, b.date, C.purIdx, C.g, C.poIdx); if (r) cost += r.c * (+l.qty || 0); } sales += s * net; profit += s * (net - cost); n++; }

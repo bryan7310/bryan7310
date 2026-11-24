@@ -1,6 +1,12 @@
 // 進銷存計算：單據種類、金額、庫存、應收應付餘額、單位換算、成本推算
 import { store } from './store.js';
-import { rnd0, dayN } from './util.js';
+import { rnd0, dayN, ym25 } from './util.js';
+// ---- 結帳月：一般客戶 25 日結（上月 26 日～本月 25 日）；客戶資料勾「整月結」的照日曆月（1 日～月底，目前只有豐民）----
+export const isMonthEnd = cid => !!(cid && store.get('contacts', cid)?.monthEnd);
+/** 這張銷貨單／銷貨退回算哪個月的應收、發票：有指定「應收月份」的照指定 */
+export const saleYm = b => b.arYm || (isMonthEnd(b.cid) ? String(b.date || '').slice(0, 7) : ym25(b.date || ''));
+/** 整月結客戶的備註文字「整月結 11/1～11/30」；一般客戶回傳空字串 */
+export const monthEndNote = (cid, ym) => { if (!isMonthEnd(cid) || !/^\d{4}-\d{2}$/.test(ym || '')) return isMonthEnd(cid) ? '整月結（每月 1 日～月底）' : ''; const [y, m] = ym.split('-').map(Number); return `整月結 ${m}/1～${m}/${new Date(y, m, 0).getDate()}`; };
 import { platCost } from './pricing.js';
 import { procCost, plateFee } from './proccost.js';
 import { estWeight } from './spec.js';

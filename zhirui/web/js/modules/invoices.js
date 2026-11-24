@@ -2,7 +2,7 @@
 import { $, esc, fmt, money, today, thisMonth, ym25, range25, month25, roc, slash, parseNum, uid, cnMoney, ubnOk, shiftMonth, ymLabel, qTerms, matchQ } from '../core/util.js';
 import { store } from '../core/store.js';
 import { toast, modal, confirm, tabs, combo, printHTML, pager, onSearch } from '../core/ui.js';
-import { calc, customers, suppliers, cshort, totals, gname } from '../core/calc.js';
+import { calc, customers, suppliers, cshort, totals, gname, saleYm, monthEndNote } from '../core/calc.js';
 import { openBill } from './_bills.js';
 import { printName } from '../core/names.js';
 
@@ -48,7 +48,8 @@ function drawList(el) {
   el.querySelectorAll('[data-rm]').forEach(b => b.addEventListener('click', () => removeInvoice(b.dataset.rm)));
   $('#ivPrintAll', el).addEventListener('click', () => printInvoices(list, 'list'));
 }
-const billYm = b => b.arYm || ym25(b.date);   // 這張銷貨單算哪個月（25 日結；有指定應收月份的照指定）
+// 這張銷貨單算哪個月：有指定應收月份的照指定；客戶資料勾「整月結」的照日曆月（1 日～月底，目前只有豐民）；其他 25 日結
+const billYm = saleYm;
 const isRet = b => b.type === 'SALE_RET';
 const sNet = b => (isRet(b) ? -1 : 1) * totals(b).net;   // 銷貨退回算負的
 const sumNet = bs => bs.reduce((a, b) => a + sNet(b), 0);
@@ -61,18 +62,39 @@ export function pendingGroups(ym) {
   for (const b of [...pendingBills(), ...pendingRets()]) { if (ym && billYm(b) !== ym) continue; const k = billYm(b) + '|' + (b.cid || 'b:' + b.id); if (!m.has(k)) m.set(k, { key: k, ym: billYm(b), cid: b.cid || '', bills: [] }); m.get(k).bills.push(b); }
   return [...m.values()].map(g => { g.bills.sort((a, b) => (a.date || '').localeCompare(b.date || '') || String(a.no).localeCompare(String(b.no))); g.net = sumNet(g.bills); g.ret = -sumNet(g.bills.filter(isRet)); g.tax = invTax(g.bills); return g; });
 }
+/** 待開的一列（一個客戶一個結帳月）的銷售明細：每張銷貨單的品名、數量、單價、金額，最後是總和、稅額、總和＋稅額 */
+function salesDetail(g) {
+  const c = g.cid ? store.get('contacts', g.cid) : null; const who = c?.name || (g.bills[0].retail ? '門市銷售' : '（沒有客戶）');
+  const [d1, d2] = c?.monthEnd ? [g.ym + '-01', g.ym + '-' + new Date(+g.ym.slice(0, 4), +g.ym.slice(5), 0).getDate()] : range25(g.ym);
+  const rows = []; let sum = 0;
+  for (const b of g.bills) { const sg = isRet(b) ? -1 : 1; let bs = 0;
+    for (const l of b.lines || []) { if (l.txt !== undefined) continue; const q = sg * (+l.qty || 0); const a = Math.round(q * (+l.price || 0)); bs += a; rows.push({ b, name: l.gid ? gname(l.gid) : l.n || '', q, u: l.u || '', p: +l.price || 0, a, memo: l.memo || '' }); }
+    const diff = sNet(b) - bs; if (Math.abs(diff) >= 0.5) rows.push({ b, name: '（折扣／尾差）', q: '', u: '', p: '', a: Math.round(diff), memo: '' });
+    sum += sNet(b); }
+  const tr = (r, i) => { const first = i === 0 || rows[i - 1].b !== r.b; return `<tr${first && i ? ' style="border-top:2px solid var(--line)"' : ''}><td class="nowrap">${first ? esc(slash(r.b.date)) : ''}</td><td class="mono nowrap">${first ? esc(r.b.no) + (isRet(r.b) ? ' <span class="pill bad">退回</span>' : '') : ''}</td><td style="white-space:normal">${esc(r.name)}${r.memo ? ` <span class="muted small">${esc(r.memo)}</span>` : ''}</td><td class="n nowrap">${r.q === '' ? '' : fmt(r.q)} ${esc(r.u)}</td><td class="n">${r.p === '' ? '' : r.p}</td><td class="n">${money(r.a)}</td></tr>`; };
+  const table = `<table><thead><tr><th>日期</th><th>單號</th><th>品名</th><th class="n">數量</th><th class="n">單價</th><th class="n">金額</th></tr></thead><tbody>${rows.map(tr).join('')}</tbody>
+    <tfoot><tr><td colspan="5" class="n"><b>總和（未稅）</b></td><td class="n"><b>${money(sum)}</b></td></tr><tr><td colspan="5" class="n">稅額 5%</td><td class="n">${money(g.tax)}</td></tr><tr><td colspan="5" class="n"><b>總和＋稅額</b></td><td class="n"><b>${money(sum + g.tax)}</b></td></tr></tfoot></table>`;
+  const head = `${who}　${+g.ym.slice(0, 4) - 1911} 年 ${+g.ym.slice(5)} 月銷售明細`; const sub = `${slash(d1)}～${slash(d2)}${c?.monthEnd ? '（整月結）' : ''}・${g.bills.length} 張・統編 ${c?.taxId || '（無）'}`;
+  modal({ title: head, width: 940, body: `<p class="muted small" style="margin:0 0 8px">${esc(sub)}・只列還沒開發票的銷貨單</p><div class="tw">${table}</div>`,
+    footer: '<button class="btn" id="sdPrint">列印</button><span class="sp"></span><button class="btn" data-close>關閉</button><button class="btn pri" id="sdInv">開發票</button>',
+    onOpen(el, close) {
+      $('#sdInv', el).disabled = !(g.net > 0); $('#sdInv', el).onclick = () => { close(); makeInvoiceFromBill(g.bills); };
+      $('#sdPrint', el).onclick = () => printHTML(head, '@page{size:A4;margin:12mm}body{font-family:"Microsoft JhengHei",sans-serif;font-size:10pt;margin:0}h1{font-size:14pt;margin:0 0 2mm}p{margin:0 0 3mm;color:#444}table{width:100%;border-collapse:collapse}th,td{border-bottom:.4pt solid #999;padding:1.1mm 1.5mm;text-align:left;vertical-align:top}th{border-top:1pt solid #000;border-bottom:1pt solid #000}td.n,th.n{text-align:right}tfoot td{border-bottom:0}.pill{font-size:8pt}', `<h1>${esc(head)}</h1><p>${esc(sub)}</p>${table}`, { tip: '按 Ctrl+P 列印，A4。' });
+    } });
+}
 function drawPending(el) {
   const C = calc(); const yms = [...new Set([...pendingBills(), ...pendingRets()].map(billYm))].sort().reverse();
   if (!yms.includes(ui.pym)) ui.pym = yms.includes(month25()) ? month25() : (yms[0] || month25());
   const [d1, d2] = range25(ui.pym);
   const list = pendingGroups(ui.pym).sort((a, b) => b.net - a.net || (a.bills[0].date || '').localeCompare(b.bills[0].date || ''));   // 金額大的排前面
   const sumN = list.reduce((a, g) => a + g.net, 0), sumT = list.reduce((a, g) => a + g.tax, 0), nb = list.reduce((a, g) => a + g.bills.length, 0);
-  el.innerHTML = `<div class="panel"><p class="muted" style="margin:0 0 10px">還沒開發票的銷貨單，照 25 日結帳（上月 26 日～本月 25 日）把同一個客戶的加總成一列，當月的銷貨退回會直接扣掉。按「開發票」會把這個客戶這個月的銷貨單開成一張；已經用手寫發票開好的按「手開」；不需要開的按「不開」。只想開其中一張，到「出貨銷貨」那張單右邊按「開發票」。</p>
+  el.innerHTML = `<div class="panel"><p class="muted" style="margin:0 0 10px">還沒開發票的銷貨單，照 25 日結帳（上月 26 日～本月 25 日）把同一個客戶的加總成一列，當月的銷貨退回會直接扣掉。按「開發票」會把這個客戶這個月的銷貨單開成一張；已經用手寫發票開好的按「手開」；不需要開的按「不開」。只想開其中一張，到「出貨銷貨」那張單右邊按「開發票」。標「整月結」的客戶是照每月 1 日～月底加總（在客戶資料勾選）。</p>
     <div class="tools" style="margin-bottom:10px">${yms.length > 1 ? `<div class="tabs" id="ivPym">${yms.map(y => `<button type="button" data-v="${y}" class="${y === ui.pym ? 'on' : ''}">${+y.slice(5)} 月</button>`).join('')}</div>` : ''}<span class="muted small">${esc(slash(d1))}～${esc(slash(d2))}・${list.length} 家・${nb} 張銷貨單・未稅 ${money(sumN)}・稅 ${money(sumT)}・合計 ${money(sumN + sumT)}</span></div>
-    <div class="tw"><table><thead><tr><th>客戶</th><th>統編</th><th>銷貨單</th><th class="n">張數</th><th class="n">未稅</th><th class="n">稅</th><th class="n">合計</th><th></th></tr></thead><tbody>${list.map(g => { const c = C.ct[g.cid]; return `<tr><td style="min-width:9em">${esc(c?.name || (g.bills[0].retail ? '門市銷售' : '（沒有客戶）'))}</td><td class="mono ${c?.taxId ? '' : 'muted'}">${esc(c?.taxId || '（無）')}</td><td class="small" style="white-space:normal;max-width:30em">${g.bills.map(b => `<a href="#" class="mono" data-open="${b.id}" title="${esc(slash(b.date))}　${isRet(b) ? '銷貨退回 ' : '未稅 '}${money(sNet(b))}"${isRet(b) ? ' style="color:var(--bad)"' : ''}>${esc(b.no)}${isRet(b) ? '（退）' : ''}</a>`).join('、')}<div class="muted">${esc(slash(g.bills[0].date).slice(5))}${g.bills.length > 1 ? '～' + esc(slash(g.bills[g.bills.length - 1].date).slice(5)) : ''}</div></td><td class="n">${g.bills.length}</td><td class="n">${money(g.net)}${g.ret ? `<div class="small" style="color:var(--bad)">已扣退回 ${money(g.ret)}</div>` : ''}</td><td class="n">${money(g.tax)}</td><td class="n"><b>${money(g.net + g.tax)}</b></td><td class="nowrap"><button class="btn xs pri" data-inv="${esc(g.key)}" ${g.net > 0 ? '' : 'disabled title="扣掉退回後沒有金額可以開"'}>開發票</button> <button class="btn xs" data-hand="${esc(g.key)}" ${g.net > 0 ? '' : 'disabled'}>手開</button> <button class="btn xs ghost" data-skip="${esc(g.key)}">不開</button></td></tr>`; }).join('') || '<tr><td colspan="8"><div class="empty"><b>沒有待開發票的銷貨單 ✓</b></div></td></tr>'}</tbody></table></div></div>`;
+    <div class="tw"><table><thead><tr><th>客戶</th><th>統編</th><th>銷貨單</th><th class="n">張數</th><th class="n">未稅</th><th class="n">稅</th><th class="n">合計</th><th></th></tr></thead><tbody>${list.map(g => { const c = C.ct[g.cid]; return `<tr><td style="min-width:9em">${esc(c?.name || (g.bills[0].retail ? '門市銷售' : '（沒有客戶）'))}${c?.monthEnd ? `<div><span class="pill warn" title="這個客戶是整月結，不是 25 日結">${esc(monthEndNote(g.cid, g.ym))}</span></div>` : ''}</td><td class="mono ${c?.taxId ? '' : 'muted'}">${esc(c?.taxId || '（無）')}</td><td class="small" style="white-space:normal;max-width:30em">${g.bills.map(b => `<a href="#" class="mono" data-open="${b.id}" title="${esc(slash(b.date))}　${isRet(b) ? '銷貨退回 ' : '未稅 '}${money(sNet(b))}"${isRet(b) ? ' style="color:var(--bad)"' : ''}>${esc(b.no)}${isRet(b) ? '（退）' : ''}</a>`).join('、')}<div class="muted">${esc(slash(g.bills[0].date).slice(5))}${g.bills.length > 1 ? '～' + esc(slash(g.bills[g.bills.length - 1].date).slice(5)) : ''}　<a href="#" data-det="${esc(g.key)}">該月銷售明細</a></div></td><td class="n">${g.bills.length}</td><td class="n">${money(g.net)}${g.ret ? `<div class="small" style="color:var(--bad)">已扣退回 ${money(g.ret)}</div>` : ''}</td><td class="n">${money(g.tax)}</td><td class="n"><b>${money(g.net + g.tax)}</b></td><td class="nowrap"><button class="btn xs pri" data-inv="${esc(g.key)}" ${g.net > 0 ? '' : 'disabled title="扣掉退回後沒有金額可以開"'}>開發票</button> <button class="btn xs" data-hand="${esc(g.key)}" ${g.net > 0 ? '' : 'disabled'}>手開</button> <button class="btn xs ghost" data-skip="${esc(g.key)}">不開</button></td></tr>`; }).join('') || '<tr><td colspan="8"><div class="empty"><b>沒有待開發票的銷貨單 ✓</b></div></td></tr>'}</tbody></table></div></div>`;
   const grp = k => list.find(g => g.key === k);
   el.querySelectorAll('#ivPym button').forEach(b => b.addEventListener('click', () => { ui.pym = b.dataset.v; drawPending(el); }));
   el.querySelectorAll('[data-open]').forEach(a => a.addEventListener('click', ev => { ev.preventDefault(); openBill(null, a.dataset.open); }));
+  el.querySelectorAll('[data-det]').forEach(a => a.addEventListener('click', ev => { ev.preventDefault(); salesDetail(grp(a.dataset.det)); }));
   el.querySelectorAll('[data-inv]').forEach(b => b.addEventListener('click', () => makeInvoiceFromBill(grp(b.dataset.inv).bills)));
   el.querySelectorAll('[data-hand]').forEach(b => b.addEventListener('click', () => makeInvoiceFromBill(grp(b.dataset.hand).bills, true)));
   el.querySelectorAll('[data-skip]').forEach(b => b.addEventListener('click', async () => { const g = grp(b.dataset.skip); if (g.bills.length > 1 && !(await confirm(`${C.ct[g.cid]?.name || ''} 這 ${g.bills.length} 張（未稅 ${money(g.net)}）都不開發票？`))) return; await store.batch(g.bills.map(x => ({ col: 'bills', id: x.id, data: { ...store.get('bills', x.id), noInv: true } }))); }));

@@ -58,8 +58,8 @@ function custPage(view, k) {
   const c = g.cid ? store.get('contacts', g.cid) : null;
   const rows = g.rows.slice().sort((a, b) => a.ym.localeCompare(b.ym));
   view.innerHTML = `<div class="hd"><a class="back" href="#ar">‹ 應收帳款</a></div>
-    <div class="card"><a class="gname" href="${yl}" style="display:block;color:inherit;text-decoration:none">${esc(c?.name || g.name)} <span class="muted" style="font-size:14px;font-weight:500">整年明細 ›</span></a><div class="muted">未收 <b>${money(g.total)}</b>・${rows.length} 個月${c?.payMethod ? '・付款方式 ' + esc(c.payMethod) : ''}${c?.phone ? `・<a href="tel:${esc(String(c.phone).replace(/[^\d#*+]/g, ''))}">${esc(c.phone)}</a>` : ''}</div></div>
-    <div class="sec">各月未收（25 結）</div>
+    <div class="card"><a class="gname" href="${yl}" style="display:block;color:inherit;text-decoration:none">${esc(c?.name || g.name)} <span class="muted" style="font-size:14px;font-weight:500">整年明細 ›</span></a><div class="muted">未收 <b>${money(g.total)}</b>・${rows.length} 個月${c?.monthEnd ? '・<b style="color:var(--warn)">整月結（每月 1 日～月底）</b>' : ''}${c?.payMethod ? '・付款方式 ' + esc(c.payMethod) : ''}${c?.phone ? `・<a href="tel:${esc(String(c.phone).replace(/[^\d#*+]/g, ''))}">${esc(c.phone)}</a>` : ''}</div></div>
+    <div class="sec">各月未收（${c?.monthEnd ? '整月結：1 日～月底' : '25 結'}）</div>
     ${rows.map((r, i) => `<div class="card arr"><div class="lnh"><div class="gm"><b>${esc(ymLabel(r.ym))}</b><small class="${isLate(r) ? 'bad' : ''}">到期 ${esc(slash(dueOf(r)))}・${esc(ageTxt(r))}${r.manual ? '・手調' : ''}</small><small>貨款 ${money(r.amt)}・稅 ${money(r.tax)}${r.note ? '・' + esc(r.note) : ''}</small></div><b class="amt2">${money(r.total)}</b></div>
       <button class="btn ghost" data-pay="${i}">收款沖帳</button></div>`).join('')}
     ${rows.length > 1 ? `<p><button class="btn" id="payall">全部收齊（${money(g.total)}）</button></p>` : ''}`;

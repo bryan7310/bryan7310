@@ -2,7 +2,7 @@
 import { esc, fmt, today, thisMonth, roc, ls } from '../core/util.js';
 import { api } from '../core/api.js';
 import { store } from '../core/store.js';
-import { calc, costOf } from '../core/calc.js';
+import { calc, costOf, saleYm } from '../core/calc.js';
 import { apYm } from '../modules/payables.js';
 import { arSummary, histAR, histTot } from '../modules/receivables.js';
 import { preloadHist } from '../modules/_bills.js';
@@ -119,7 +119,7 @@ function placeholder([, name, , stage, desk]) {
 /** 跟電腦版總覽同一套算法：銷貨單減銷貨退回，未稅金額；毛利＝未稅金額－成本 */
 export function homeNums() {
   // 本月＝25 結（上月 26 日～本月 25 日），跟應收帳款同一套；銷貨單有指定應收月份的照指定
-  const C = calc(); const t = today(), m = apYm(t); const inM = b => (b.arYm || apYm(b.date || '')) === m;
+  const C = calc(); const t = today(), m = apYm(t); const inM = b => saleYm(b) === m;
   let day = 0, dayN = 0, sales = 0, profit = 0, n = 0;
   for (const b of C.bills) {
     if (b.type !== 'SALE' && b.type !== 'SALE_RET') continue;

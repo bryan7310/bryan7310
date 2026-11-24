@@ -91,7 +91,8 @@ export function openMaster(col, doc, kind, onSaved, tpl, opts = {}) {
   const refs = doc ? refCount(col, doc.id) : 0;
   const body = `<div class="grid">${fs.map(([n, l, t]) => `<div class="f" ${n === 'addr' || n === 'note' || n === 'name' || n === 'checkPayee' ? 'style="grid-column:1/-1"' : ''}><label for="f-${n}">${esc(l)}</label><input id="f-${n}" name="${n}" value="${esc(v[n] ?? '')}" ${t === 'num' ? 'class="num" inputmode="decimal"' : ''} ${t === 'req' ? 'required' : ''} ${n === 'unit' || n === 'aunit' ? 'list="unitList" autocomplete="off"' : ''}></div>`).join('')}${col === 'goods' ? `<datalist id="unitList">${['PCS', 'KG', '包', '組', '盒', '箱', '件', 'SET', 'H', 'K', '批', '袋'].map(u => `<option value="${u}">`).join('')}</datalist>` : ''}
     ${col === 'contacts' ? `<div class="f" style="grid-column:1/-1"><label for="f-aliases">別名（作業平台、支票、發票上用過的其他寫法，用逗號隔開）</label><input id="f-aliases" name="aliases" value="${esc((d.aliases || []).join('、'))}"></div>
-      <label class="check" style="grid-column:1/-1"><input type="checkbox" name="inactive" ${d.inactive ? 'checked' : ''}> 停用（開單、挑選${k === 'C' ? '客戶' : '供應商'}時不顯示；歷史單據、報表照常查得到）</label>` : ''}
+      <label class="check" style="grid-column:1/-1"><input type="checkbox" name="inactive" ${d.inactive ? 'checked' : ''}> 停用（開單、挑選${k === 'C' ? '客戶' : '供應商'}時不顯示；歷史單據、報表照常查得到）</label>
+      ${k === 'C' ? `<label class="check" style="grid-column:1/-1"><input type="checkbox" name="monthEnd" ${d.monthEnd ? 'checked' : ''}> 整月結（發票照每月 1 日～月底加總；沒勾＝一般的 25 日結，上月 26 日～本月 25 日）</label>` : ''}` : ''}
     ${col === 'goods' ? `<label class="check" style="grid-column:1/-1"><input type="checkbox" name="mkPlate" ${d.mkPlate ? 'checked' : ''}> 代工廠（隆勝等）交黑身：線材＋製作費的成本另加電鍍費</label>` : ''}
     ${col === 'warehouses' && doc ? `<label class="check" style="grid-column:1/-1"><input type="checkbox" name="isDefault" ${store.setting('prefs').defaultWh === doc.id ? 'checked' : ''}> 設為預設倉庫</label>` : ''}</div>
     ${tpl ? `<div class="banner" style="margin-top:8px">從「${esc(tpl.code || tpl.name)}」複製，請把料號改成新的（料號相同無法建立）。</div>` : ''}
@@ -121,6 +122,7 @@ export function openMaster(col, doc, kind, onSaved, tpl, opts = {}) {
         if (col === 'contacts') {
           out.kind = k; out.aliases = String(f.aliases || '').split(/[,，、]/).map(s => s.trim()).filter(Boolean);
           if (f.inactive) out.inactive = true; else delete out.inactive;
+          if (f.monthEnd) out.monthEnd = true; else delete out.monthEnd;
           { const m = String(out.addr || '').match(/^(\d{3,6})[\s　]*(\D.*)$/); if (m && (!out.zip || out.zip === m[1] || m[1].startsWith(out.zip))) { out.zip = m[1]; out.addr = m[2].trim(); } }   // 地址開頭打了郵遞區號：搬到郵遞區號欄
           if (!out.short) out.short = shortName(out.name, out.aliases);   // 簡稱空白就自動擷取（畫面顯示用）
           if (out.code && store.list('contacts').some(c => c.code === out.code && c.id !== d.id)) { el.querySelector('#mErr').textContent = `編號 ${out.code} 已經有人用了`; return; }
