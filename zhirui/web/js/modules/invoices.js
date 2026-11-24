@@ -186,18 +186,18 @@ function editInvoice(inv, isNew) {
 // 行距 3.864mm；X 是各欄位置（公司名左緣＝0）：to＝日期、買受人左緣，item＝品名左緣，qty／price／amt＝數量、單價、金額的中心，tot＝銷售額／稅／總計的右緣。
 // 這台點陣印表機橫向會印成約 0.855 倍，X 已經除回去了（所以比尺量的大）。
 // 11/24 第二次：印在正式發票（GF14518258）上，日期／買受人高了約 2.5mm、總計高了約 3.3mm → 整體下移、行距 3.864 → 3.905
-const ROW = 3.905, X = { co: 0, to: 13.0, item: 7.0, qty: 29.65, price: 42.8, amt: 56.7, tot: 47.9 }, FORM_TOP = 21.7, FORM_LEFT = 6.1, FORM_LINES = 11;
+const ROW = 3.905, X = { co: 0, to: 13.0, item: 7.0, qty: 29.65, price: 42.8, amt: 56.7, tot: 47.9 }, FORM_TOP = 21.7, FORM_LEFT = 6.1, FORM_LINES = 11, TOT_DY = 1.2;   // TOT_DY：銷售額／稅／總計再往下（11/24 第三次試印後加）
 // 套印字體：點陣印表機印明體，橫的細筆畫會斷掉，所以預設用筆畫一樣粗的黑體
 export const INV_FONTS = { hei: ['黑體（筆畫一樣粗，點陣印表機清楚）', '11pt/1 "Microsoft JhengHei","微軟正黑體","Noto Sans TC",sans-serif'], heib: ['黑體加粗（更黑）', 'bold 11pt/1 "Microsoft JhengHei","微軟正黑體","Noto Sans TC",sans-serif'], ming: ['明體（原本的，雷射／噴墨用）', '11pt/1 "PMingLiU","新細明體","MingLiU","Noto Serif TC",serif'] };
 export function printInvoices(list, mode) {
   const co = store.setting('company'); const ps = store.setting('invoice_print');
   const n0 = v => v == null || v === '' ? '' : Math.round(+v).toLocaleString('en-US'); const n2 = v => v == null || v === '' ? '' : (+v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 3 });
   if (mode === 'form') {
-    const f = (row, x, text, al) => text === '' || text == null ? '' : `<span class="f ${al || ''}" style="top:${((row - 1) * ROW).toFixed(3)}mm;left:${x.toFixed(2)}mm">${esc(text)}</span>`;
+    const f = (row, x, text, al, dy = 0) => text === '' || text == null ? '' : `<span class="f ${al || ''}" style="top:${((row - 1) * ROW + dy).toFixed(3)}mm;left:${x.toFixed(2)}mm">${esc(text)}</span>`;
     const sheets = list.map(inv => {
       let h = f(1, X.co, co.name || '') + f(2, X.co, co.addr || '') + f(3, X.co, `${co.phone ? '電話:' + co.phone + ' ' : ''}統編:${co.taxId || ''}`) + f(4, X.to, slash(inv.date)) + f(5, X.to, inv.name) + f(6, X.to, inv.buyer ? '買受人統編:' + inv.buyer : '') + f(8, X.item, '品名') + f(8, X.qty, '數量', 'c') + f(8, X.price, '單價', 'c') + f(8, X.amt, '金額', 'c');
       (inv.items || []).slice(0, FORM_LINES).forEach((it, k) => { const r = 9 + k; h += f(r, X.item, it.name) + f(r, X.qty, n0(it.qty), 'c') + f(r, X.price, n2(it.price), 'c') + f(r, X.amt, it.qty != null && it.price != null ? n0(it.amount) : '', 'c'); });
-      h += f(24, X.tot, n0(inv.untaxed), 'r') + f(25, X.tot, n0(inv.tax), 'r') + f(26, X.tot, n0(total(inv)), 'r');
+      const td = TOT_DY + (+ps.tdy || 0); h += f(24, X.tot, n0(inv.untaxed), 'r', td) + f(25, X.tot, n0(inv.tax), 'r', td) + f(26, X.tot, n0(total(inv)), 'r', td);
       return `<div class="sheet"><div class="frm" style="top:${FORM_TOP + (+ps.dy || 0)}mm;left:${FORM_LEFT + (+ps.dx || 0)}mm">${h}</div></div>`;
     }).join('');
     printHTML('發票套印', `@page{size:3in 5.5in;margin:0}body{margin:0}.sheet{position:relative;width:76.2mm;height:139.4mm;page-break-after:always;overflow:hidden}.frm{position:absolute;width:64.2mm;color:#000;font:${INV_FONTS[ps.font]?.[1] || INV_FONTS.hei[1]}}.frm .f{position:absolute;white-space:nowrap;height:${ROW}mm;line-height:${ROW}mm}.frm .f.c{transform:translateX(-50%)}.frm .f.r{transform:translateX(-100%)}`, sheets, { tip: `把三聯式發票放進印表機，紙張選 3×5.5 吋、邊界「無」、縮放 100%。位置偏了可到「設定備份 → 發票套印」調整（目前位移 ${ps.dx || 0}, ${ps.dy || 0} mm）。` });
