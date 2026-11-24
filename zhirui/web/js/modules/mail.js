@@ -1,7 +1,7 @@
 // 郵寄掛號：寄對帳單／發票給客戶的地址標籤（5×4 cm）與大宗掛號函件執據
 import { $, esc, today, uid } from '../core/util.js';
 import { store } from '../core/store.js';
-import { toast, modal, confirm, combo, printHTML } from '../core/ui.js';
+import { toast, modal, confirm, combo, printHTML, tabs } from '../core/ui.js';
 import { calc, customers } from '../core/calc.js';
 import { printName } from '../core/names.js';
 
@@ -49,21 +49,77 @@ export async function mailImport(cids) {
 }
 const sorted = () => store.list('mail').sort((a, b) => String(a.zip || '999999').localeCompare(String(b.zip || '999999')) || String(a.name).localeCompare(String(b.name), 'zh-Hant'));
 const sel = new Set();
+const ui = { tab: 'list' };
+/** 下一個掛號號碼：郵局的掛號號碼前 6 碼是流水號、後面是局號，所以加在前 6 碼；不是這種格式的就加在最後一段數字 */
+export function nextMailNo(no, k = 1) {
+  no = String(no || '').trim(); if (!no) return '';
+  if (/^\d{12,}$/.test(no)) return String((+no.slice(0, 6) + k) % 1000000).padStart(6, '0') + no.slice(6);
+  const m = no.match(/^(.*?)(\d+)(\D*)$/); if (!m) return '';
+  return m[1] + String(+m[2] + k).padStart(m[2].length, '0') + m[3];
+}
+/** rows[i] 剛輸入號碼：後面空白的、或之前自動帶的列，依序帶入下一號。回傳有改到的列 [[row, no]] */
+function fillBelow(rows, i) {
+  const out = []; const base = String(rows[i].no || '').trim(); if (!base) return out;
+  for (let j = i + 1, k = 1; j < rows.length; j++, k++) {
+    const r = rows[j]; if (String(r.no || '').trim() && !r.noAuto) break;   // 碰到自己打的號碼就停
+    const n = nextMailNo(base, k); if (!n) break; out.push([r, n]);
+  }
+  return out;
+}
+// 執據紀錄：每次列印大宗掛號執據存一份（存在設定 mailLog，留最近 200 次）
+const logList = () => (store.setting('mailLog').list || []);
+const saveLog = list => store.saveSetting('mailLog', { list: list.slice(0, 200) });
+const dt = ms => { const d = new Date(ms); const p2 = n => String(n).padStart(2, '0'); return `${d.getFullYear() - 1911}/${p2(d.getMonth() + 1)}/${p2(d.getDate())} ${p2(d.getHours())}:${p2(d.getMinutes())}`; };
+const noRange = items => { const a = items.map(x => String(x.no || '').trim()).filter(Boolean); return !a.length ? '' : a.length === 1 ? a[0] : `${a[0]} ～ ${a[a.length - 1]}`; };
+function drawLog(el) {
+  const logs = logList();
+  el.innerHTML = `<div class="head"><h1>郵寄掛號</h1><span class="sp"></span>${tabs('ml', [['list', '郵寄明細'], ['log', `執據紀錄 ${logs.length || ''}`]], ui.tab)}</div>
+    <div class="panel" style="display:grid;gap:10px"><p class="muted small" style="margin:0">每次按「列印大宗掛號執據」會存一份在這裡。郵局貼好掛號條碼後，點進去在第一筆輸入掛號號碼，下面會自動帶入連號。</p>
+    <div class="tw"><table><thead><tr><th>列印時間</th><th>郵件種類</th><th class="n">件數</th><th>掛號號碼</th><th>收件人</th><th>經手</th><th></th></tr></thead><tbody>
+    ${logs.map(g => `<tr class="row" data-log="${g.id}"><td class="nowrap">${esc(dt(g.at))}</td><td>${esc(g.type || '')}</td><td class="n">${g.items.length}</td><td class="mono">${esc(noRange(g.items)) || '<span class="muted">還沒填</span>'}</td><td class="muted small" style="white-space:normal">${esc(g.items.slice(0, 4).map(x => x.name).join('、'))}${g.items.length > 4 ? ` 等 ${g.items.length} 家` : ''}</td><td>${esc(g.by || '')}</td><td class="nowrap"><button class="btn xs" data-log="${g.id}">查看</button></td></tr>`).join('') || '<tr><td colspan="7"><div class="empty"><b>還沒有執據紀錄</b>在「郵寄明細」勾選後按「列印大宗掛號執據」，就會存在這裡。</div></td></tr>'}</tbody></table></div></div>`;
+  el.addEventListener('tab', ev => { ui.tab = ev.detail.val; draw(el); }, { once: true });
+  el.querySelectorAll('tr[data-log]').forEach(tr => tr.onclick = () => openLog(tr.dataset.log, () => draw(el)));
+}
+function openLog(id, redraw) {
+  const g0 = logList().find(x => x.id === id); if (!g0) return;
+  const items = g0.items.map(x => ({ ...x }));
+  modal({ title: `大宗掛號執據　${dt(g0.at)}　${g0.type || ''}　${items.length} 件`, width: 900,
+    body: `<p class="muted small" style="margin:0 0 8px">在某一筆輸入掛號號碼，下面的會自動帶入連號（已經自己打過的不會被改）。改完按「儲存」。</p>
+      <div class="tw"><table><thead><tr><th class="n">順序</th><th>掛號號碼</th><th>姓名</th><th>寄達地址</th></tr></thead><tbody>${items.map((x, i) => `<tr><td class="n">${i + 1}</td><td><input data-ln="${i}" value="${esc(x.no || '')}" inputmode="numeric" style="width:150px;border:1px solid var(--line);border-radius:6px;padding:4px 6px" class="mono"></td><td>${esc(x.name || '')}</td><td class="small" style="white-space:normal">${esc((x.zip ? x.zip + ' ' : '') + (x.addr || ''))}</td></tr>`).join('')}</tbody></table></div><div class="err" id="lgErr"></div>`,
+    footer: '<button class="btn danger" id="lgDel">刪除這筆紀錄</button><button class="btn" id="lgPrint">重印執據</button><span class="sp"></span><button class="btn" data-close>關閉</button><button class="btn pri" id="lgSave">儲存</button>',
+    onOpen(m, close) {
+      const inps = [...m.querySelectorAll('[data-ln]')];
+      const read = () => inps.forEach((inp, i) => { const v = inp.value.trim(); if (v !== String(items[i].no || '')) { items[i].no = v; delete items[i].noAuto; } });
+      inps.forEach((inp, i) => inp.addEventListener('change', () => { read(); for (const [r, n] of fillBelow(items, i)) { r.no = n; r.noAuto = true; inps[items.indexOf(r)].value = n; } }));
+      const save = async () => { read(); const list = logList().map(x => x.id === id ? { ...x, items } : x); await saveLog(list); };
+      m.querySelector('#lgSave').onclick = async () => { await save(); toast('已儲存'); close(); redraw(); };
+      m.querySelector('#lgPrint').onclick = async () => { await save(); printReceipt(items, g0.type || '掛號', { when: g0.at, keep: false }); redraw(); };
+      m.querySelector('#lgDel').onclick = async () => { if (!(await confirm('刪除這筆執據紀錄？', { danger: true, ok: '刪除' }))) return; await saveLog(logList().filter(x => x.id !== id)); close(); redraw(); };
+    } });
+}
 function draw(el) {
+  if (ui.tab === 'log') return drawLog(el);
   const list = sorted(); const co = store.setting('company'); const s = store.setting('mail'); const type = s.type || '限時掛號'; const miss = list.filter(x => !x.addr).length;
-  el.innerHTML = `<div class="head"><h1>郵寄掛號</h1><span class="sub">寄件人：${esc(co.name || '')}　${esc(co.addr || '')}</span><span class="sp"></span><button class="btn" id="mlAdd">＋ 加客戶</button><button class="btn" id="mlExe" ${sel.size ? '' : 'disabled'}>列印大宗掛號執據${sel.size ? `（${sel.size}）` : ''}</button><button class="btn pri" id="mlLabel" ${list.length ? '' : 'disabled'}>列印地址標籤（${list.length}）</button></div>
+  el.innerHTML = `<div class="head"><h1>郵寄掛號</h1><span class="sub">寄件人：${esc(co.name || '')}　${esc(co.addr || '')}</span><span class="sp"></span>${tabs('ml', [['list', '郵寄明細'], ['log', `執據紀錄 ${logList().length || ''}`]], ui.tab)}<button class="btn" id="mlAdd">＋ 加客戶</button><button class="btn" id="mlExe" ${sel.size ? '' : 'disabled'}>列印大宗掛號執據${sel.size ? `（${sel.size}）` : ''}</button><button class="btn pri" id="mlLabel" ${list.length ? '' : 'disabled'}>列印地址標籤（${list.length}）</button></div>
     <div class="panel" style="display:grid;gap:10px">
       <div class="tools"><span class="muted">郵件種類</span>${['限時掛號', '掛號', '快捷郵件'].map(t => `<label class="check"><input type="radio" name="mltype" value="${t}" ${type === t ? 'checked' : ''}> ${t}</label>`).join('')}<span class="sp"></span>${list.length ? '<button class="btn sm" id="mlClear">清空</button>' : ''}</div>
       ${miss ? `<div class="banner">有 ${miss} 筆沒有地址，請在下表補上，或到「基本資料 → 客戶／供應商」填地址後重新加入。</div>` : ''}
       <p class="muted small" style="margin:0">從「應收帳款」勾選客戶、或「支票開立」勾選支票按「導入郵寄掛號」，或按「加客戶」。勾選列右邊的方塊選要印在執據上的件數；地址標籤印全部。</p>
       <div class="tw"><table><thead><tr><th><input type="checkbox" id="mlAll" ${list.length && list.every(x => sel.has(x.id)) ? 'checked' : ''}></th><th class="n">順序</th><th>掛號號碼</th><th>姓名（公司全名）</th><th>郵遞區號</th><th>寄達地址</th><th>標籤第四行</th><th></th></tr></thead><tbody>
       ${list.map((x, i) => `<tr class="${x.addr ? '' : 'muted'}"><td><input type="checkbox" data-sel="${x.id}" ${sel.has(x.id) ? 'checked' : ''}></td><td class="n">${i + 1}</td>${[['no', 110], ['name', 120], ['zip', 70], ['addr', 300], ['to', 130]].map(([k, w]) => `<td><input data-f="${k}" data-id="${x.id}" value="${esc(x[k] ?? '')}" style="width:${w}px;border:1px solid var(--line);border-radius:6px;padding:4px 6px" ${k === 'addr' && !x.addr ? 'placeholder="找不到地址，請填"' : ''}></td>`).join('')}<td><button class="btn xs" data-del="${x.id}">✕</button></td></tr>`).join('') || '<tr><td colspan="8"><div class="empty"><b>還沒有郵寄明細</b>到「應收帳款」勾選客戶後按「導入郵寄掛號」。</div></td></tr>'}</tbody></table></div></div>`;
+  el.addEventListener('tab', ev => { ui.tab = ev.detail.val; draw(el); }, { once: true });
   el.querySelectorAll('[name=mltype]').forEach(r => r.onchange = () => store.saveSetting('mail', { ...s, type: r.value }));
   el.querySelectorAll('[data-f]').forEach(inp => inp.addEventListener('change', async () => {
     const x = store.get('mail', inp.dataset.id); if (!x) return; const f = inp.dataset.f, v = inp.value.trim();
     const d = { ...x, [f]: inp.value }; delete d.id;
+    if (f === 'no') delete d.noAuto;   // 自己打的號碼
     if (f === 'addr' && v && !String(x.zip || '').trim()) { const z = zipLookup(v); if (z) d.zip = z; }   // 補了地址、郵遞區號還空著：自動帶
     const ops = [{ col: 'mail', id: x.id, data: d }];
+    if (f === 'no' && v) {   // 下面空白的（或之前自動帶的）依序帶入連號；有勾選時只帶勾選的那幾筆
+      const rows = (sel.has(x.id) ? list.filter(r => sel.has(r.id)) : list).map(r => r.id === x.id ? { ...r, no: v, noAuto: false } : r);
+      for (const [r, n] of fillBelow(rows, rows.findIndex(r => r.id === x.id))) { const nd = { ...r, no: n, noAuto: true }; delete nd.id; ops.push({ col: 'mail', id: r.id, data: nd }); }
+      if (ops.length > 1) toast(`下面 ${ops.length - 1} 筆已自動帶入連號`);
+    }
     // 客戶／供應商資料原本沒有地址（或郵遞區號），這裡補填的就存回基本資料，下次不用再填；原本有的不會被蓋掉
     const c = x.cid ? store.get('contacts', x.cid) : null; let upd = '';
     if (c && (f === 'addr' || f === 'zip') && v) {
@@ -94,8 +150,8 @@ function printLabels(list) {
     { tip: `按 Ctrl+P，紙張選 5 × 4 cm 標籤（寬 50 mm、高 40 mm），邊界「無」，縮放 100%。共 ${list.length} 張。` });
   store.log('列印', `地址標籤 ${list.length} 張`);
 }
-function printReceipt(list, type) {
-  const co = store.setting('company'); const d = new Date(); const rocD = `中華民國 ${d.getFullYear() - 1911} 年 ${d.getMonth() + 1} 月 ${d.getDate()} 日`;
+function printReceipt(list, type, opt = {}) {
+  const co = store.setting('company'); const d = opt.when ? new Date(opt.when) : new Date(); const rocD = `中華民國 ${d.getFullYear() - 1911} 年 ${d.getMonth() + 1} 月 ${d.getDate()} 日`;
   const per = 30, pages = Math.max(1, Math.ceil(list.length / per)); let html = '';
   const ty = t => type === t ? `<b class="sel">${t}</b>` : `<span class="off">${t}</span>`;
   for (let p = 0; p < pages; p++) {
@@ -112,4 +168,7 @@ function printReceipt(list, type) {
 .dt{margin-top:2mm}.snd{margin:1mm 0 2mm;line-height:1.6}table{width:100%;border-collapse:collapse;table-layout:fixed}th,td{border:.6pt solid #000;height:7mm;padding:0 1.5mm;font-size:9.5pt;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}th{font-weight:normal;font-size:8.5pt;line-height:1.2;height:auto;padding:1mm;white-space:normal;text-align:center}
 .c0{width:9mm}.c1{width:20mm}.c2{width:24mm}.c4{width:9mm}.c5{width:10mm}.c6{width:18mm}.c{text-align:center}td.ad{font-size:8.5pt;white-space:nowrap;text-overflow:clip}.ft{display:flex;justify-content:space-between;margin-top:3mm;font-size:10.5pt}.keep{text-align:right;margin-top:2mm;font-size:9pt}`, html + `<script>/* 地址長、換行多時整頁自動縮小，一定擠在一張 A4 */function fit(){/* 地址先縮字擠成一行（最小 5.5pt），還放不下才換行 */document.querySelectorAll('td.ad').forEach(td=>{if(!td.textContent.trim())return;let f=8.5;td.style.whiteSpace='nowrap';td.style.fontSize=f+'pt';while(td.scrollWidth>td.clientWidth+1&&f>5.5){f-=.5;td.style.fontSize=f+'pt';}if(td.scrollWidth>td.clientWidth+1){td.style.whiteSpace='normal';td.style.lineHeight='1.1';}});document.querySelectorAll('.page').forEach(p=>{const i=p.querySelector('.pin');i.style.transform='';i.style.width='';const cs=getComputedStyle(p);const H=p.clientHeight-parseFloat(cs.paddingTop)-parseFloat(cs.paddingBottom);const h=i.scrollHeight;if(h>H+1){const k=H/h;i.style.transform='scale('+k.toFixed(4)+')';i.style.width=(100/k).toFixed(2)+'%';}});}window.addEventListener('load',fit);window.addEventListener('beforeprint',fit);fit();<\/script>`, { tip: '大宗掛號函件執據：按 Ctrl+P，A4 直式，縮放 100%（內容多時會自動縮小成一張）。郵局規定填寫 1 式 2 份，請印兩份。' });
   store.log('列印', `大宗掛號執據 ${list.length} 件（${type}）`);
+  if (opt.keep !== false && list.length) {   // 存一份到「執據紀錄」
+    saveLog([{ id: uid('ML'), at: Date.now(), type, by: store.user.name, items: list.map(x => ({ cid: x.cid || '', no: String(x.no || '').trim(), name: outName(x), zip: x.zip || '', addr: x.addr || '' })) }, ...logList()]).then(() => toast('這次的明細已存到「執據紀錄」'));
+  }
 }
