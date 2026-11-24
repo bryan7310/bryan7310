@@ -271,7 +271,7 @@ class DB:
         self.batch(ops, None, extra)
         return {'keep': keep, 'merged': others, 'moved': moved, 'hist': hist_n[0], 'docs': len(by_ops)}
 
-    GOODS_FILL = ('spec', 'spec2', 'custName', 'vcode', 'cat', 'unit', 'salePrice', 'purPrice', 'cost', 'safety', 'wt', 'aunit', 'arate', 'sp', 'bom', 'labor', 'cwid', 'wireOf')
+    GOODS_FILL = ('spec', 'spec2', 'custName', 'vcode', 'cat', 'unit', 'salePrice', 'purPrice', 'cost', 'safety', 'wt', 'aunit', 'arate', 'sp', 'bom', 'labor', 'cwid', 'wireOf', 'mkWire', 'mkFee')
 
     def merge_goods(self, groups, uid=None):
         """商品合併：groups=[{keep, merge:[...]}]。被併入的商品資料補到保留那筆的空欄、記在 merged，

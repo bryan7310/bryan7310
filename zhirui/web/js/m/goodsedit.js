@@ -3,8 +3,8 @@ import { esc, uid } from '../core/util.js';
 import { store } from '../core/store.js';
 import { suggestCode } from '../core/codegen.js';
 
-const NUM = new Set(['salePrice', 'purPrice', 'cost', 'safety', 'wt', 'arate']);
-const FIELDS = ['code', 'name', 'spec', 'spec2', 'custName', 'vcode', 'cat', 'unit', 'salePrice', 'purPrice', 'cost', 'safety', 'wt', 'aunit', 'arate', 'note'];
+const NUM = new Set(['salePrice', 'purPrice', 'cost', 'mkWire', 'mkFee', 'safety', 'wt', 'arate']);
+const FIELDS = ['code', 'name', 'spec', 'spec2', 'custName', 'vcode', 'cat', 'unit', 'salePrice', 'purPrice', 'cost', 'mkWire', 'mkFee', 'safety', 'wt', 'aunit', 'arate', 'note'];
 const CATS = ['鐵', '不鏽鋼', '合金鋼', '代工', '彈簧鋼', '中碳鋼', '銅', '鋁'];
 const UNITS = ['PCS', 'KG', '包', '組', 'H', '批', '箱'];
 const toast = msg => { const t = document.getElementById('toast'); if (!t) return; t.textContent = msg; t.hidden = false; setTimeout(() => t.hidden = true, 2500); };
@@ -30,6 +30,7 @@ export function editGoods(mode, g, onSaved, tpl = {}) {
     ${fld('unit', '單位', 'autocapitalize="characters" autocomplete="off"')}${chipRow('unit', UNITS)}
     <div class="f2">${fld('salePrice', '售價')}${fld('purPrice', '進價')}</div>
     <div class="f2">${fld('cost', '手動成本')}${fld('safety', '安全庫存')}</div>
+    <div class="f2">${fld('mkWire', '線材（元／公斤，代工用）')}${fld('mkFee', '工錢（元／百支 H，代工用）')}</div>
     ${fld('wt', '單重 g／支（空白＝自動估算）')}
     <div class="f2">${fld('spec', '客料號', 'autocapitalize="characters" autocomplete="off"')}${fld('vcode', '廠商料號', 'autocapitalize="characters" autocomplete="off"')}</div>
     <details style="margin-bottom:12px"><summary class="muted" style="padding:6px 0 12px">更多欄位（第二客料號、客戶品名、大單位）</summary>
