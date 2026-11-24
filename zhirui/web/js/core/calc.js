@@ -67,6 +67,18 @@ export const goodsWt = g => {
 let HIST_PUR = [];
 const MKI = new WeakMap();   // purIdx → 線材＋製作費合算的成品成本（不放進 purIdx，免得開單時當成進貨單價）
 export function setHistPur(bills) { HIST_PUR = bills || []; C = null; QH = null; }
+/** 舊進貨單（舊作業平台匯入）的單價是牌價，實付金額（oamt）才是打過折的；明細沒有存折數，所以從那張單反推：
+ *  折掉的金額＝各行牌價小計合計－實付金額。單裡有用「百／千」（H／K）開的行時，折扣算在那些行上（照牌價開的零買品），
+ *  其他行是淨價；沒有 H／K 行就整張單平均。回傳 { f: 折數, hk: 只折 H／K 行 }，不需要折回傳 null。 */
+export function histDisc(b) {
+  if (!b.hist || b.oamt == null) return null;
+  const L = (b.lines || []).filter(l => l.txt === undefined); const amt = l => (+l.qty || 0) * (+l.price || 0);
+  const sum = L.reduce((a, l) => a + amt(l), 0); const off = sum - (+b.oamt || 0);
+  if (!(sum > 0) || off < Math.max(2, sum * 0.003)) return null;
+  const sHK = L.filter(l => /^[HK]$/i.test(l.u || '')).reduce((a, l) => a + amt(l), 0); const hk = sHK > off * 1.02;
+  const f = 1 - off / (hk ? sHK : sum);
+  return f >= 0.2 && f < 0.995 ? { f, hk } : null;
+}
 export function uRate(u, g) {
   if (!g) return null;
   const [c1, f1] = unitFactor(u), [c2, f2] = unitFactor(g.unit || '');
@@ -122,7 +134,7 @@ export function calc() {
   const bills = store.list('bills').sort((a, b) => (a.date || '').localeCompare(b.date || '') || (a.createdAt || 0) - (b.createdAt || 0));
   const purIdx = {}, poIdx = {};
   for (const b of bills) { if (b.type !== 'PO') continue; for (const l of b.lines || []) { if (!l.gid || !(+l.price > 0)) continue; const [cls, f] = lineUnit(l, g[l.gid]); (poIdx[l.gid] ??= []).push({ d: dayN(b.date), date: b.date, no: b.no, cls, per: (+l.price) / f }); } }
-  for (const b of [...bills, ...HIST_PUR]) { if (b.type !== 'PUR') continue; for (const l of b.lines || []) { if (!l.gid || !(+l.price > 0) || !g[l.gid]) continue; const [cls, f] = lineUnit(l, g[l.gid]); (purIdx[l.gid] ??= []).push({ d: dayN(b.date), date: b.date, no: b.no, cls, per: (+l.price) / f, q: +l.qty || 0, cid: b.cid, hist: !!b.hist }); } }
+  for (const b of [...bills, ...HIST_PUR]) { if (b.type !== 'PUR') continue; const bd = histDisc(b); for (const l of b.lines || []) { if (!l.gid || !(+l.price > 0) || !g[l.gid]) continue; const [cls, f] = lineUnit(l, g[l.gid]); const df = bd && (!bd.hk || /^[HK]$/i.test(l.u || '')) ? bd.f : 1; (purIdx[l.gid] ??= []).push({ d: dayN(b.date), date: b.date, no: b.no, cls, per: (+l.price) / f * df, q: +l.qty || 0, cid: b.cid, hist: !!b.hist, lab: df < 1 ? `進貨單（牌價 × 折數 ${Math.round(df * 1000) / 1000}）` : undefined }); } }
   // 自己叫線、委外打頭（隆勝、星宇、幸利、澤發…）：「線材 某成品」(KG) 跟後面的「製作費用 每H」（還有熱處理、一批…）
   // 是同一批貨：全部金額加起來 ÷ 支數（製作費的 H 數 × 100；沒有支數就用線材 KG ÷ 單重）＝那個成品每支的進貨成本
   const mkIdx = {}; MKI.set(purIdx, mkIdx);
