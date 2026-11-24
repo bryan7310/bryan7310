@@ -139,6 +139,11 @@ export function calc() {
       if (sd) { if (sd.f < 1) { df = sd.f; lab = `進貨單（${sup}牌價 × ${fmtDisc(sd.f)}）`; } }
       else if (bd && (!bd.hk || /^[HK]$/i.test(l.u || ''))) { df = bd.f; lab = `進貨單（牌價 × 折數 ${Math.round(df * 1000) / 1000}，由實付金額反推）`; }
       (purIdx[l.gid] ??= []).push({ d: dayN(b.date), date: b.date, no: b.no, cls, per: (+l.price) / f * df, q: +l.qty || 0, cid: b.cid, hist: !!b.hist, lab }); } }
+  // 勾了「代工廠交黑身」的商品：合併成一行成品的進貨單（線材＋工錢已經算成每支單價）也要再加表面處理每 KG × 單重
+  for (const [gid, arr] of Object.entries(purIdx)) {
+    const gg = g[gid]; if (!gg?.mkPlate) continue; const w = goodsWt(gg); if (!(w > 0)) continue;
+    for (const e of arr) { if (e.cls !== 'p' || e.plated) continue; const pf = plateFee(gg, e.d, purIdx, g); if (!pf) continue; e.per += pf.kg * w / 1000; e.plated = 1; e.lab = `${e.lab || '進貨單'}＋${pf.name} ${pf.kg}/KG`; }
+  }
   // 自己叫線、委外打頭（隆勝、星宇、幸利、澤發…）：「線材 某成品」(KG) 跟後面的「製作費用 每H」（還有熱處理、一批…）
   // 是同一批貨：全部金額加起來 ÷ 支數（製作費的 H 數 × 100；沒有支數就用線材 KG ÷ 單重）＝那個成品每支的進貨成本
   const mkIdx = {}; MKI.set(purIdx, mkIdx);
