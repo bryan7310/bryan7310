@@ -59,7 +59,22 @@ function draw(el) {
       <div class="tw"><table><thead><tr><th><input type="checkbox" id="mlAll" ${list.length && list.every(x => sel.has(x.id)) ? 'checked' : ''}></th><th class="n">順序</th><th>掛號號碼</th><th>姓名（公司全名）</th><th>郵遞區號</th><th>寄達地址</th><th>標籤第四行</th><th></th></tr></thead><tbody>
       ${list.map((x, i) => `<tr class="${x.addr ? '' : 'muted'}"><td><input type="checkbox" data-sel="${x.id}" ${sel.has(x.id) ? 'checked' : ''}></td><td class="n">${i + 1}</td>${[['no', 110], ['name', 120], ['zip', 70], ['addr', 300], ['to', 130]].map(([k, w]) => `<td><input data-f="${k}" data-id="${x.id}" value="${esc(x[k] ?? '')}" style="width:${w}px;border:1px solid var(--line);border-radius:6px;padding:4px 6px" ${k === 'addr' && !x.addr ? 'placeholder="找不到地址，請填"' : ''}></td>`).join('')}<td><button class="btn xs" data-del="${x.id}">✕</button></td></tr>`).join('') || '<tr><td colspan="8"><div class="empty"><b>還沒有郵寄明細</b>到「應收帳款」勾選客戶後按「導入郵寄掛號」。</div></td></tr>'}</tbody></table></div></div>`;
   el.querySelectorAll('[name=mltype]').forEach(r => r.onchange = () => store.saveSetting('mail', { ...s, type: r.value }));
-  el.querySelectorAll('[data-f]').forEach(inp => inp.addEventListener('change', async () => { const x = store.get('mail', inp.dataset.id); if (!x) return; const d = { ...x, [inp.dataset.f]: inp.value }; delete d.id; await store.save('mail', x.id, d); }));
+  el.querySelectorAll('[data-f]').forEach(inp => inp.addEventListener('change', async () => {
+    const x = store.get('mail', inp.dataset.id); if (!x) return; const f = inp.dataset.f, v = inp.value.trim();
+    const d = { ...x, [f]: inp.value }; delete d.id;
+    if (f === 'addr' && v && !String(x.zip || '').trim()) { const z = zipLookup(v); if (z) d.zip = z; }   // 補了地址、郵遞區號還空著：自動帶
+    const ops = [{ col: 'mail', id: x.id, data: d }];
+    // 客戶／供應商資料原本沒有地址（或郵遞區號），這裡補填的就存回基本資料，下次不用再填；原本有的不會被蓋掉
+    const c = x.cid ? store.get('contacts', x.cid) : null; let upd = '';
+    if (c && (f === 'addr' || f === 'zip') && v) {
+      const nc = { ...c }; delete nc.id; const had = addrParts(c.addr);
+      if (f === 'addr' && !had.addr) { nc.addr = v; upd = '地址'; if (!String(c.zip || '').trim() && !had.zip && d.zip) nc.zip = String(d.zip).trim(); }
+      if (f === 'zip' && !String(c.zip || '').trim() && !had.zip && !zipLookup(c.addr)) { nc.zip = v; upd = '郵遞區號'; }
+      if (upd) ops.push({ col: 'contacts', id: c.id, data: nc });
+    }
+    await store.batch(ops);
+    if (upd) { store.log('修改', `${c.kind === 'S' ? '供應商' : '客戶'} ${c.name}｜郵寄掛號補填${upd}`); toast(`已把${upd}存到「${shortName(c)}」的${c.kind === 'S' ? '供應商' : '客戶'}資料`); }
+  }));
   el.querySelectorAll('[data-del]').forEach(b => b.onclick = () => store.remove('mail', b.dataset.del));
   el.querySelectorAll('[data-sel]').forEach(cb => cb.onchange = () => { cb.checked ? sel.add(cb.dataset.sel) : sel.delete(cb.dataset.sel); draw(el); });
   $('#mlAll', el).onchange = ev => { list.forEach(x => ev.target.checked ? sel.add(x.id) : sel.delete(x.id)); draw(el); };
