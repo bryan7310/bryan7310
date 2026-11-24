@@ -18,8 +18,9 @@ function groups() {
   const m = thisMonth(); const map = new Map();
   for (const r of allOpen()) {
     const k = keyOf(r); const g = map.get(k) || map.set(k, { k, cid: r.cid, name: r.name, rows: [], total: 0, late: 0, lateAmt: 0, thisM: 0, worst: null }).get(k);
-    g.rows.push(r); g.total += r.total;
-    if (isLate(r)) { g.late++; g.lateAmt += r.total; } else if (dueOf(r).startsWith(m)) g.thisM += r.total;
+    const left = r.total - (r.cash || 0);   // 銷貨單上已收的現金先扣掉
+    g.rows.push(r); g.total += left;
+    if (isLate(r)) { g.late++; g.lateAmt += left; } else if (dueOf(r).startsWith(m)) g.thisM += left;
     if (!g.worst || dueOf(r) < dueOf(g.worst)) g.worst = r;
   }
   return [...map.values()].sort((a, b) => b.lateAmt - a.lateAmt || b.total - a.total);

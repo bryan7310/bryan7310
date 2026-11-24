@@ -873,3 +873,5 @@ tr.row.on td { background: color-mix(in srgb, var(--blue-soft) 60%, transparent)
   .kpis.k3 { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
   .kpis.k3 .kpi { padding: 10px 12px; }
 }
+/* 單據編輯器上方欄位：輸入框一樣高、對齊 */
+.bhead .f input, .bhead .f select { height: 38px; box-sizing: border-box; }
