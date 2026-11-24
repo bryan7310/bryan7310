@@ -106,14 +106,22 @@ function drawDone(el) {
   el.querySelectorAll('[data-undo-all]').forEach(b => b.addEventListener('click', async () => { const g = byKey(b.dataset.undoAll); if (!await confirm(`把 ${gLabel(g)} 這批 ${g.rows.length} 張（${money(sum(g.rows))}）全部退回待代收？`, { danger: true, ok: '退回' })) return; await store.batch(g.rows.map(c => { const { col, id, ...rest } = c; return { col: 'checks_in', id: c.id, data: rest }; })); store.log('退回', `${gLabel(g)} ${g.rows.length} 張退回待代收`); toast('已退回待代收'); }));
 }
 /** 拍照辨識：選一張支票照片（手機會跳出拍照／相簿）→ 縮圖上傳 → AI 擷取欄位 → 帶入登記客票（仍要人工核對後才登記） */
-/** 上海銀行託收單：照原本 Excel（支票代收.xls 的 Sheet2）的格式——筆數、票據號碼、到期日、票據金額、票據總金額；一張 A4 印上下兩份 */
+/** 上海銀行託收單：照原本 Excel（支票代收.xls 的 Sheet2）的欄位——筆數、票據號碼、到期日、票據金額、票據總金額。
+ *  紙張 19×9 公分（橫的）：一張分左右兩欄，每欄 10 筆，一張最多 20 筆，超過印下一張 */
+const SHB_COL = 10;
 function printShbSlip(g) {
   if (!g) return; const a = acctById(g.a);
   const rows = g.rows.slice().sort((x, y) => String(x.due || '').localeCompare(String(y.due || '')) || String(x.no || '').localeCompare(String(y.no || '')));
-  const head = `${a ? a.bank + ' ' + a.holder : g.raw || ''}　託收日期 ${slash(g.d) || ''}　共 ${rows.length} 張`;
-  const one = `<div class="slip"><p>${esc(head)}</p><table><thead><tr><th class="c">筆數</th><th>票據號碼</th><th class="c">到期日</th><th class="n">票據金額</th></tr></thead><tbody>${rows.map((c, i) => `<tr><td class="c">${i + 1}</td><td class="mono">${esc(c.no || '')}</td><td class="c">${esc(slash(c.due) || c.dueRaw || '')}</td><td class="n">${money(c.amt)}</td></tr>`).join('')}</tbody><tfoot><tr><td colspan="3">票據總金額</td><td class="n">${money(sum(rows))}</td></tr></tfoot></table></div>`;
-  const two = rows.length <= 14;   // 14 張以內上下兩份印在同一張；多的一份一頁
-  printHTML('上海託收單', `@page{size:A4;margin:14mm}body{font-family:"Microsoft JhengHei",sans-serif;font-size:12pt;margin:0}.slip{width:120mm;${two ? 'height:128mm;' : 'page-break-after:always;'}box-sizing:border-box}.slip p{margin:0 0 2mm;font-size:10pt}table{width:100%;border-collapse:collapse}th,td{border:.6pt solid #000;padding:1.3mm 2.5mm;text-align:left}td.n,th.n{text-align:right}td.c,th.c{text-align:center}.mono{font-family:Consolas,"Courier New",monospace;letter-spacing:.3pt}tfoot td{font-weight:bold}`, one + one, { tip: '按 Ctrl+P 列印，A4。上下兩份內容一樣（一份給銀行、一份留底）。' });
+  const pages = Math.max(1, Math.ceil(rows.length / (SHB_COL * 2)));
+  const tbl = (list, from) => `<table><thead><tr><th class="c">筆數</th><th>票據號碼</th><th class="c">到期日</th><th class="n">票據金額</th></tr></thead><tbody>${list.map((c, i) => `<tr><td class="c">${from + i + 1}</td><td class="mono">${esc(c.no || '')}</td><td class="c">${esc(slash(c.due) || c.dueRaw || '')}</td><td class="n">${money(c.amt)}</td></tr>`).join('')}</tbody></table>`;
+  let html = '';
+  for (let pg = 0; pg < pages; pg++) {
+    const part = rows.slice(pg * SHB_COL * 2, (pg + 1) * SHB_COL * 2); const L = part.slice(0, SHB_COL), R = part.slice(SHB_COL);
+    html += `<div class="slip"><p>${esc(a ? a.bank + ' ' + a.holder : g.raw || '')}　託收日期 ${esc(slash(g.d) || '')}　共 ${rows.length} 張${pages > 1 ? `（第 ${pg + 1}／${pages} 張）` : ''}</p>
+      <div class="cols"><div>${tbl(L, pg * SHB_COL * 2)}</div><div>${R.length ? tbl(R, pg * SHB_COL * 2 + SHB_COL) : ''}</div></div>
+      <div class="tot">${pg === pages - 1 ? `票據總金額　<b>${money(sum(rows))}</b>` : '（接下一張）'}</div></div>`;
+  }
+  printHTML('上海託收單', `@page{size:190mm 90mm;margin:0}body{font-family:"Microsoft JhengHei",sans-serif;font-size:9.5pt;margin:0}.slip{width:190mm;height:90mm;box-sizing:border-box;padding:5mm 6mm 4mm;page-break-after:always;overflow:hidden;position:relative}.slip p{margin:0 0 1.5mm;font-size:9pt}.cols{display:grid;grid-template-columns:1fr 1fr;gap:5mm}table{width:100%;border-collapse:collapse}th,td{border:.5pt solid #000;padding:0 1.5mm;height:5.6mm;line-height:1;text-align:left;white-space:nowrap}td.n,th.n{text-align:right}td.c,th.c{text-align:center}.mono{font-family:Consolas,"Courier New",monospace}.tot{position:absolute;right:6mm;bottom:4mm;font-size:11pt}`, html, { tip: '紙張 19×9 公分（橫）：列印視窗的紙張大小請選 190×90mm（或自訂 19×9 公分）、邊界「無」、縮放 100%。' });
   store.log('列印', `上海託收單 ${slash(g.d) || ''} ${a ? a.code : ''} ${rows.length} 張 ${money(sum(rows))}`);
 }
 function scanCheck() {
