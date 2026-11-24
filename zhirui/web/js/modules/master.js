@@ -59,7 +59,7 @@ function draw(el) {
 const FIELDS = {
   goods: [['code', '料號'], ['name', '品名', 'req'], ['spec', '客料號'], ['spec2', '第二客料號'], ['custName', '客戶品名'], ['vcode', '廠商料號'], ['cat', '類別'], ['unit', '單位'], ['salePrice', '售價', 'num'], ['purPrice', '進價', 'num'], ['cost', '手動成本（進貨單、查價都找不到時用）', 'num'], ['safety', '安全庫存', 'num'], ['wt', '單重 g／支（空白＝自動估算）', 'num'], ['aunit', '大單位（例如 箱）'], ['arate', '大單位 = 幾個基本單位', 'num'], ['note', '備註']],
   C: [['code', '客戶編號'], ['name', '客戶名稱', 'req'], ['short', '簡稱'], ['taxId', '統一編號'], ['person', '聯絡人'], ['phone', '電話'], ['fax', '傳真'], ['zip', '郵遞區號'], ['addr', '地址'], ['payMethod', '付款方式（匯款、支票、扣趴…）'], ['init', '期初應收', 'num'], ['note', '備註']],
-  S: [['code', '供應商編號'], ['name', '供應商名稱', 'req'], ['short', '簡稱'], ['checkPayee', '票據抬頭（開支票用的名稱；多個用逗號隔開，第一個是預設；填「不填」＝預設空白；欄位空白＝用正式全名）'], ['taxId', '統一編號'], ['person', '聯絡人'], ['phone', '電話'], ['fax', '傳真'], ['addr', '地址'], ['init', '期初應付', 'num'], ['note', '備註']],
+  S: [['code', '供應商編號'], ['name', '供應商名稱', 'req'], ['short', '簡稱'], ['taxId', '統一編號'], ['person', '聯絡人'], ['phone', '電話'], ['fax', '傳真'], ['zip', '郵遞區號'], ['addr', '地址'], ['checkPayee', '票據抬頭（開支票用的名稱；多個用逗號隔開，第一個是預設；填「不填」＝預設空白；欄位空白＝用正式全名）'], ['init', '期初應付', 'num'], ['note', '備註']],
   warehouses: [['name', '倉庫名稱', 'req']],
   accounts: [['name', '帳戶名稱', 'req'], ['bank', '銀行／帳號'], ['init', '期初餘額', 'num']],
 };
@@ -89,7 +89,7 @@ export function openMaster(col, doc, kind, onSaved, tpl, opts = {}) {
   if (!doc && (k === 'C' || k === 'S') && !v.code) v.code = nextContactCode(k);   // 新增客戶／供應商：自動帶下一個編號
   const C = calc();
   const refs = doc ? refCount(col, doc.id) : 0;
-  const body = `<div class="grid">${fs.map(([n, l, t]) => `<div class="f" ${n === 'addr' || n === 'note' || n === 'name' ? 'style="grid-column:1/-1"' : ''}><label for="f-${n}">${esc(l)}</label><input id="f-${n}" name="${n}" value="${esc(v[n] ?? '')}" ${t === 'num' ? 'class="num" inputmode="decimal"' : ''} ${t === 'req' ? 'required' : ''} ${n === 'unit' || n === 'aunit' ? 'list="unitList" autocomplete="off"' : ''}></div>`).join('')}${col === 'goods' ? `<datalist id="unitList">${['PCS', 'KG', '包', '組', '盒', '箱', '件', 'SET', 'H', 'K', '批', '袋'].map(u => `<option value="${u}">`).join('')}</datalist>` : ''}
+  const body = `<div class="grid">${fs.map(([n, l, t]) => `<div class="f" ${n === 'addr' || n === 'note' || n === 'name' || n === 'checkPayee' ? 'style="grid-column:1/-1"' : ''}><label for="f-${n}">${esc(l)}</label><input id="f-${n}" name="${n}" value="${esc(v[n] ?? '')}" ${t === 'num' ? 'class="num" inputmode="decimal"' : ''} ${t === 'req' ? 'required' : ''} ${n === 'unit' || n === 'aunit' ? 'list="unitList" autocomplete="off"' : ''}></div>`).join('')}${col === 'goods' ? `<datalist id="unitList">${['PCS', 'KG', '包', '組', '盒', '箱', '件', 'SET', 'H', 'K', '批', '袋'].map(u => `<option value="${u}">`).join('')}</datalist>` : ''}
     ${col === 'contacts' ? `<div class="f" style="grid-column:1/-1"><label for="f-aliases">別名（作業平台、支票、發票上用過的其他寫法，用逗號隔開）</label><input id="f-aliases" name="aliases" value="${esc((d.aliases || []).join('、'))}"></div>
       <label class="check" style="grid-column:1/-1"><input type="checkbox" name="inactive" ${d.inactive ? 'checked' : ''}> 停用（開單、挑選${k === 'C' ? '客戶' : '供應商'}時不顯示；歷史單據、報表照常查得到）</label>` : ''}
     ${col === 'goods' ? `<label class="check" style="grid-column:1/-1"><input type="checkbox" name="mkPlate" ${d.mkPlate ? 'checked' : ''}> 代工廠（隆勝等）交黑身：線材＋製作費的成本另加電鍍費</label>` : ''}
@@ -112,7 +112,7 @@ export function openMaster(col, doc, kind, onSaved, tpl, opts = {}) {
         const sh = el.querySelector('#f-short'), nm = el.querySelector('#f-name'), al = el.querySelector('#f-aliases');
         const ph = () => { sh.placeholder = nm.value.trim() ? '空白＝自動：' + shortName(nm.value, String(al?.value || '').split(/[,，、]/)) : ''; };
         nm.addEventListener('input', ph); ph();
-        el.querySelector('label[for="f-short"]').textContent = '簡稱（畫面顯示用，列印用全名）';
+        el.querySelector('label[for="f-short"]').textContent = '簡稱'; sh.title = '畫面顯示用，列印用全名';
       }
       el.querySelector('#mSave').onclick = async () => {
         const f = formData(el); const out = { ...d };
@@ -121,6 +121,7 @@ export function openMaster(col, doc, kind, onSaved, tpl, opts = {}) {
         if (col === 'contacts') {
           out.kind = k; out.aliases = String(f.aliases || '').split(/[,，、]/).map(s => s.trim()).filter(Boolean);
           if (f.inactive) out.inactive = true; else delete out.inactive;
+          { const m = String(out.addr || '').match(/^(\d{3,6})[\s　]*(\D.*)$/); if (m && (!out.zip || out.zip === m[1] || m[1].startsWith(out.zip))) { out.zip = m[1]; out.addr = m[2].trim(); } }   // 地址開頭打了郵遞區號：搬到郵遞區號欄
           if (!out.short) out.short = shortName(out.name, out.aliases);   // 簡稱空白就自動擷取（畫面顯示用）
           if (out.code && store.list('contacts').some(c => c.code === out.code && c.id !== d.id)) { el.querySelector('#mErr').textContent = `編號 ${out.code} 已經有人用了`; return; }
         }
