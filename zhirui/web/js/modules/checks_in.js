@@ -110,7 +110,9 @@ function drawDone(el) {
  *  位置是 2026/11/24 從空白憑條的照片量的（單位 mm，原點是憑條左上角）：
  *  日期：年／月／日 三個字前面；帳號 14 格（第 1 格中心 x=31，格距 6）；戶名欄；金額 10 格（拾億…元，第 1 格中心 x=38.5，格距 7）；
  *  存入明細勾「交換票據」並填張數。帳號、戶名第一次列印時輸入，之後記在 設定 bank_accounts。 */
-const SHB = { W: 191, H: 90, dateY: 16, yR: 146, mR: 164.5, dR: 183, acX: 31, acP: 6, acY: 27, nameX: 121.5, nameY: 26, amX: 38.5, amP: 7, amY: 43, ckX: 132.9, ckY: 39.4, cntX: 152.8, cntY: 39.5 };
+// PW：送給印表機的紙長。Brother 驅動裡使用者建的自訂紙張是「上海託收單 90×190」，頁面大小要跟它一模一樣，
+// 不然 Chrome 會改用預設紙張（76×127）把整頁縮成 66%（11/24 第一次試印就是這樣）。憑條實際長 191，少的 1mm 在左邊空白處。
+const SHB = { W: 191, PW: 190, H: 90, dateY: 16, yR: 146, mR: 164.5, dR: 183, acX: 31, acP: 6, acY: 27, nameX: 121.5, nameY: 26, amX: 38.5, amP: 7, amY: 43, ckX: 132.9, ckY: 39.4, cntX: 152.8, cntY: 39.5 };
 function printShbSlip(g) {
   if (!g) return; const a = acctById(g.a); const co = store.setting('company'); const ps = store.setting('shb_slip');
   const rows = g.rows.slice().sort((x, y) => String(x.due || '').localeCompare(String(y.due || '')) || String(x.no || '').localeCompare(String(y.no || '')));
@@ -123,7 +125,7 @@ function printShbSlip(g) {
       <div class="f"><label for="sb-amt">金額</label><input id="sb-amt" class="num" value="${money(v.amt)}"></div>
       <div class="f"><label for="sb-cnt">交換票據張數（空白＝不勾、不填）</label><input id="sb-cnt" class="num" value="${v.cnt}" placeholder="${rows.length}"></div>
       <div class="f"><label>位置微調 mm（右＋／下＋）</label><div class="tools" style="gap:6px"><input id="sb-dx" class="num" style="width:70px" value="${v.dx}" title="水平位移"><input id="sb-dy" class="num" style="width:70px" value="${v.dy}" title="垂直位移"></div></div>
-      <div class="f" style="grid-column:1/-1"><label for="sb-rot">進紙方式</label><select id="sb-rot"><option value="-90" ${v.rot ? 'selected' : ''}>直放：手動進紙槽，窄邊先進、日期那端先進、正面朝上（跟支票一樣，紙張 寬 90×高 191）</option><option value="0" ${v.rot ? '' : 'selected'}>橫放：紙張 寬 191×高 90</option></select></div></div><div class="err" id="sb-err"></div>`,
+      <div class="f" style="grid-column:1/-1"><label for="sb-rot">進紙方式</label><select id="sb-rot"><option value="-90" ${v.rot ? 'selected' : ''}>直放：手動進紙槽，窄邊先進、日期那端先進、正面朝上（跟支票一樣，紙張「上海託收單」寬 90×高 190）</option><option value="0" ${v.rot ? '' : 'selected'}>橫放：紙張 寬 191×高 90</option></select></div></div><div class="err" id="sb-err"></div>`,
     footer: '<button class="btn" id="sb-list">列印票據明細表（A4）</button><span class="sp"></span><button class="btn" data-close>取消</button><button class="btn pri" id="sb-ok">列印存款憑條</button>',
     onOpen(el, close) {
       $('#sb-list', el).onclick = () => printShbList(g, rows);
@@ -144,7 +146,7 @@ function printShbSlip(g) {
         if (blank > 0) h += `<span class="ln" style="left:${(SHB.amX - SHB.amP / 2 + 1.5 + dx).toFixed(2)}mm;top:${(SHB.amY + 1.5 + dy).toFixed(2)}mm;width:${(blank * SHB.amP - 3).toFixed(2)}mm"></span>`;
         if (cnt) h += f(SHB.ckX, SHB.ckY, 'V', 'c', 'dg') + f(SHB.cntX, SHB.cntY, cnt, 'c', 'sm');
         // 直放：紙張 90×191，內容逆時針轉 90 度（憑條右邊＝日期那端先進印表機），跟支票套印同一種放法
-        printHTML('上海存款憑條', `@page{size:${rot ? `${SHB.H}mm ${SHB.W}mm` : `${SHB.W}mm ${SHB.H}mm`};margin:0}body{margin:0}.page{position:relative;overflow:hidden;width:${rot ? SHB.H : SHB.W}mm;height:${(rot ? SHB.W : SHB.H) - 0.5}mm}.sheet{position:absolute;left:0;top:0;transform-origin:0 0;${rot ? `transform:translate(0,${SHB.W}mm) rotate(-90deg);` : ''}width:${SHB.W}mm;height:${SHB.H}mm;color:#000;font:11pt/1 "Microsoft JhengHei","微軟正黑體",sans-serif}.f{position:absolute;white-space:nowrap;transform:translateY(-50%)}.f.c{transform:translate(-50%,-50%)}.f.r{transform:translate(-100%,-50%)}.dg{font-size:13pt;font-family:Arial,"Microsoft JhengHei",sans-serif}.nm{font-size:12pt}.sm{font-size:10pt}.ln{position:absolute;height:0;border-top:.35mm solid #000}`, `<div class="page"><div class="sheet">${h}</div></div>`, { tip: rot ? '存款憑條直放在手動進紙槽：窄邊先進、日期那端先進、正面朝上、導板夾中間（跟支票一樣）。列印視窗的紙張選自訂「寬 90×高 191 mm」、邊界「無」、縮放 100%，印表機驅動的縮放要「關」。第一次請先用白紙印，疊在憑條上對位置；偏了回上一個視窗填「位置微調」（照憑條本身的方向）。' : '紙張大小選 191×90mm、邊界「無」、縮放 100%。第一次請先用白紙印，疊在憑條上對位置。' });
+        printHTML('上海存款憑條', `@page{size:${rot ? `${SHB.H}mm ${SHB.PW}mm` : `${SHB.PW}mm ${SHB.H}mm`};margin:0}body{margin:0}.page{position:relative;overflow:hidden;width:${rot ? SHB.H : SHB.PW}mm;height:${(rot ? SHB.PW : SHB.H) - 0.5}mm}.sheet{position:absolute;left:0;top:0;transform-origin:0 0;${rot ? `transform:translate(0,${SHB.W}mm) rotate(-90deg);` : ''}width:${SHB.W}mm;height:${SHB.H}mm;color:#000;font:11pt/1 "Microsoft JhengHei","微軟正黑體",sans-serif}.f{position:absolute;white-space:nowrap;transform:translateY(-50%)}.f.c{transform:translate(-50%,-50%)}.f.r{transform:translate(-100%,-50%)}.dg{font-size:13pt;font-family:Arial,"Microsoft JhengHei",sans-serif}.nm{font-size:12pt}.sm{font-size:10pt}.ln{position:absolute;height:0;border-top:.35mm solid #000}`, `<div class="page"><div class="sheet">${h}</div></div>`, { tip: rot ? '存款憑條直放在手動進紙槽：窄邊先進、日期那端先進、正面朝上、導板夾中間（跟支票一樣）。列印視窗的紙張選「上海託收單」（寬 90×高 190 mm）、邊界「無」、縮放 100%，印表機驅動的縮放要「關」。第一次請先用白紙印，疊在憑條上對位置；偏了回上一個視窗填「位置微調」（照憑條本身的方向）。' : '紙張大小選 191×90mm、邊界「無」、縮放 100%。第一次請先用白紙印，疊在憑條上對位置。' });
         store.log('列印', `上海存款憑條 ${slash(d)} ${a ? a.code : ''} ${rows.length} 張 ${money(amt)}`); close();
       };
     } });
