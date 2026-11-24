@@ -183,6 +183,8 @@ function editInvoice(inv, isNew) {
 }
 // ---------- 套印：三聯式手開發票（3×5.5 吋）或 A4 明細 ----------
 const ROW = 4.568, COL = { A: 0, B: 11.58, C: 28.25, D: 39.83, E: 50.7, end: 64.2 }, FORM_TOP = 20, FORM_LEFT = 4, FORM_LINES = 11;
+// 套印字體：點陣印表機印明體，橫的細筆畫會斷掉，所以預設用筆畫一樣粗的黑體
+export const INV_FONTS = { hei: ['黑體（筆畫一樣粗，點陣印表機清楚）', '11pt/1 "Microsoft JhengHei","微軟正黑體","Noto Sans TC",sans-serif'], heib: ['黑體加粗（更黑）', 'bold 11pt/1 "Microsoft JhengHei","微軟正黑體","Noto Sans TC",sans-serif'], ming: ['明體（原本的，雷射／噴墨用）', '11pt/1 "PMingLiU","新細明體","MingLiU","Noto Serif TC",serif'] };
 export function printInvoices(list, mode) {
   const co = store.setting('company'); const ps = store.setting('invoice_print');
   const n0 = v => v == null || v === '' ? '' : Math.round(+v).toLocaleString('en-US'); const n2 = v => v == null || v === '' ? '' : (+v).toLocaleString('en-US', { maximumFractionDigits: 2 });
@@ -195,7 +197,7 @@ export function printInvoices(list, mode) {
       h += f(24, COL.E, n0(inv.untaxed), 'r') + f(25, COL.E, n0(inv.tax), 'r') + f(26, COL.E, n0(total(inv)), 'r');
       return `<div class="sheet"><div class="frm" style="top:${FORM_TOP + (+ps.dy || 0)}mm;left:${FORM_LEFT + (+ps.dx || 0)}mm">${h}</div></div>`;
     }).join('');
-    printHTML('發票套印', `@page{size:3in 5.5in;margin:0}body{margin:0}.sheet{position:relative;width:76.2mm;height:139.4mm;page-break-after:always;overflow:hidden}.frm{position:absolute;width:64.2mm;font:11pt/1 "PMingLiU","新細明體","MingLiU","Noto Serif TC",serif}.frm .f{position:absolute;white-space:nowrap;height:${ROW}mm;line-height:${ROW}mm}.frm .f.c{transform:translateX(-50%)}.frm .f.r{transform:translateX(-100%)}`, sheets, { tip: `把三聯式發票放進印表機，紙張選 3×5.5 吋、邊界「無」、縮放 100%。位置偏了可到「設定備份 → 發票套印」調整（目前位移 ${ps.dx || 0}, ${ps.dy || 0} mm）。` });
+    printHTML('發票套印', `@page{size:3in 5.5in;margin:0}body{margin:0}.sheet{position:relative;width:76.2mm;height:139.4mm;page-break-after:always;overflow:hidden}.frm{position:absolute;width:64.2mm;color:#000;font:${INV_FONTS[ps.font]?.[1] || INV_FONTS.hei[1]}}.frm .f{position:absolute;white-space:nowrap;height:${ROW}mm;line-height:${ROW}mm}.frm .f.c{transform:translateX(-50%)}.frm .f.r{transform:translateX(-100%)}`, sheets, { tip: `把三聯式發票放進印表機，紙張選 3×5.5 吋、邊界「無」、縮放 100%。位置偏了可到「設定備份 → 發票套印」調整（目前位移 ${ps.dx || 0}, ${ps.dy || 0} mm）。` });
   } else {
     const rows = list.map(i => `<tr><td>${esc(slash(i.date))}</td><td>${esc(i.no)}</td><td>${esc(i.name)}</td><td>${esc(i.buyer || '')}</td><td class="n">${n0(i.untaxed)}</td><td class="n">${n0(i.tax)}</td><td class="n">${n0(total(i))}</td></tr>`).join('');
     const su = list.reduce((a, i) => a + (+i.untaxed || 0), 0), st = list.reduce((a, i) => a + (+i.tax || 0), 0);
