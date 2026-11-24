@@ -18,7 +18,10 @@ const total = i => (+i.untaxed || 0) + (+i.tax || 0);
 export function nextInvNo(hand = false) {
   let best = null;
   for (const i of store.list('invoices')) { if (!!i.hand !== hand) continue; const m = /^([A-Z]{2})(\d{8})$/.exec(i.no); if (!m) continue; if (!best || i.date > best.date || (i.date === best.date && +m[2] > best.n)) best = { p: m[1], n: +m[2], date: i.date }; }
-  return best ? best.p + String(best.n + 1).padStart(8, '0') : '';
+  if (!best) return '';
+  // 同一本（同字軌）裡最大的號碼＋1：日期較早的發票可能是後來才補開的，號碼反而比較大
+  for (const i of store.list('invoices')) { if (!!i.hand !== hand) continue; const m = /^([A-Z]{2})(\d{8})$/.exec(i.no); if (m && m[1] === best.p && +m[2] > best.n) best.n = +m[2]; }
+  return best.p + String(best.n + 1).padStart(8, '0');
 }
 function draw(el) {
   const TABS = [['list', '銷項發票'], ['pending', `待開 ${pendingBills().length || ''}`], ['purch', '進項發票']];
@@ -51,10 +54,60 @@ function drawPending(el) {
   el.querySelectorAll('[data-hand]').forEach(b => b.addEventListener('click', () => makeInvoiceFromBill(store.get('bills', b.dataset.hand), true)));
   el.querySelectorAll('[data-skip]').forEach(b => b.addEventListener('click', async () => { const bill = store.get('bills', b.dataset.skip); await store.save('bills', bill.id, { ...bill, noInv: true }); }));
 }
+// ---------- 品名寫法（照原本 Excel 開發票的習慣）----------
+// s＝只寫一行「螺絲」（數量＝未稅金額、單價 1）；c＝分「螺絲／螺帽／華司」三類；d＝列明細（規格＋螺絲、下一行客戶料號、最後一行採購單號）
+export const INV_STYLES = [['s', '只寫「螺絲」'], ['c', '分螺絲／螺帽／華司'], ['d', '列明細（規格、客戶料號、採購單）']];
+// 種類看品名（規格前面那段）最後的字：「半圓華司內六角螺絲」是螺絲，不是華司
+const invKind = full => { const head = String(full || '').trim().split(/\s{2,}|　/)[0]; const k = (/^(.*?[\u4e00-\u9fff])(?:M\d|\d)/.exec(head) || [0, head])[1]; const all = [...k.matchAll(/螺絲|螺栓|螺釘|螺帽|螺母|華司|墊圈|墊片/g)].map(m => m[0]); const w = all[all.length - 1] || ''; return /華司|墊/.test(w) ? '華司' : /帽|母/.test(w) ? '螺帽' : w ? '螺絲' : ''; };
+const invCat = n => invKind(n) || '螺絲';
+/** 發票上的簡短品名：「半圓華司內六角螺絲3/16*22  錏黑合金」→「3/16X22螺絲」；華司、螺帽留種類＋規格 */
+export function invShortName(full) {
+  const head = String(full || '').trim().split(/\s{2,}|　/)[0].trim(); if (!head) return '';
+  const m = /^(.*?[\u4e00-\u9fff⊕])((?:M\d|\d)[^\u4e00-\u9fff]*)/.exec(head); if (!m) return head;
+  const kind = m[1]; const size = m[2].trim().split(/\s/)[0].replace(/\*/g, 'X').replace(/x/g, 'X').replace(/\(.*$/, ''); const k = invKind(head);
+  if (k === '華司') return (/彈簧/.test(kind) ? '彈簧華司' : /平華司/.test(kind) ? '平華司' : '華司') + size;
+  if (k === '螺帽') return '螺帽' + size;
+  if (k === '螺絲') return size + '螺絲';
+  return head;
+}
+export function invItems(b, style) {
+  const t = totals(b); const goods = (b.lines || []).filter(l => l.txt === undefined);
+  const amt = l => Math.round((+l.qty || 0) * (+l.price || 0)); const nm = l => l.gid ? gname(l.gid) : l.n || '';
+  if (style === 'c') {
+    const sum = { 螺絲: 0, 螺帽: 0, 華司: 0 }; for (const l of goods) sum[invCat(nm(l))] += amt(l);
+    const keys = Object.keys(sum).filter(k => sum[k]); const diff = t.net - keys.reduce((a, k) => a + sum[k], 0); if (keys.length) sum[keys[0]] += diff;   // 折扣、尾差算在第一類
+    return keys.length ? keys.map(k => ({ name: k, qty: sum[k], price: 1, amount: sum[k] })) : [{ name: '螺絲', qty: t.net, price: 1, amount: t.net }];
+  }
+  if (style === 'd') {
+    const out = []; const pos = []; const L = b.lines || [];
+    L.forEach((l, i) => {
+      if (l.txt !== undefined || !amt(l)) return;   // 沒有金額的（贈品、樣品）不列
+      out.push({ name: invShortName(nm(l)) || nm(l), qty: +l.qty || 0, price: +l.price || 0, amount: amt(l) });
+      const nx = L[i + 1]; const g = l.gid ? store.get('goods', l.gid) : null;
+      const cno = String((nx && nx.txt !== undefined ? nx.txt : '') || g?.spec || '').trim(); if (cno) out.push({ name: cno, qty: '', price: '', amount: '' });
+      for (const x of String(l.memo || '').split(/[\s,，、]+/)) if (x && !pos.includes(x)) pos.push(x);
+    });
+    for (const x of String(b.cpo || '').split(/[\s,，、]+/)) if (x && !pos.includes(x)) pos.push(x);
+    for (let i = 0; i < pos.length; i += 3) out.push({ name: (i ? '' : '採購單 : ') + pos.slice(i, i + 3).join(' '), qty: '', price: '', amount: '' });
+    return out;
+  }
+  return [{ name: '螺絲', qty: t.net, price: 1, amount: t.net }];
+}
+/** 這個客戶習慣的寫法：客戶資料記的 → 上一張發票的樣子 → 只寫螺絲 */
+export function invStyleOf(cid) {
+  const c = cid ? store.get('contacts', cid) : null; if (c?.invStyle) return c.invStyle;
+  if (!cid) return 's';
+  const cnt = { s: 0, c: 0, d: 0 };
+  for (const i of store.list('invoices').filter(i => i.cid === cid && !i.void && (i.items || []).length).sort((a, b) => (b.date || '').localeCompare(a.date || '')).slice(0, 6)) {
+    const names = i.items.map(x => String(x.name || '').trim());
+    cnt[names.every(n => n === '螺絲') ? 's' : names.length > 1 && names.every(n => ['螺絲', '螺帽', '華司'].includes(n)) ? 'c' : 'd']++;
+  }
+  return cnt.d > cnt.s && cnt.d >= cnt.c ? 'd' : cnt.c > cnt.s ? 'c' : 's';
+}
 export function makeInvoiceFromBill(b, hand = false) {
   const C = calc(); const c = C.ct[b.cid] || {}; const t = totals(b);
-  const items = (b.lines || []).filter(l => l.txt === undefined).map(l => ({ name: l.gid ? gname(l.gid) : l.n || '', qty: +l.qty || 0, price: +l.price || 0, amount: Math.round((+l.qty || 0) * (+l.price || 0)) }));
-  editInvoice({ no: nextInvNo(hand), hand, date: b.date, buyer: c.taxId || '', name: c.name ? printName(c.name) : '', cid: b.cid, items, untaxed: t.net, tax: b.tax ? t.tax : Math.round(t.net * 0.05), billId: b.id, billNo: b.no }, true);
+  const style = invStyleOf(b.cid); const items = invItems(b, style);
+  editInvoice({ no: nextInvNo(hand), hand, style, date: b.date, buyer: c.taxId || '', name: c.name ? printName(c.name) : '', cid: b.cid, items, untaxed: t.net, tax: b.tax ? t.tax : Math.round(t.net * 0.05), billId: b.id, billNo: b.no }, true);
 }
 function editInvoice(inv, isNew) {
   const d = inv || { no: nextInvNo(), date: today(), buyer: '', name: '', items: [{ name: '螺絲', qty: '', price: '', amount: '' }], untaxed: 0, tax: 0 };
@@ -66,12 +119,13 @@ function editInvoice(inv, isNew) {
       <div class="f"><label for="iv-date">日期</label><input type="date" id="iv-date" value="${esc(d.date)}"></div>
       <div class="f" style="grid-column:span 2"><label for="iv-name">買受人</label><div class="combo"><input id="iv-name" value="${esc(d.name)}" placeholder="搜尋客戶或直接輸入"></div></div>
       <div class="f"><label for="iv-buyer">統一編號</label><input id="iv-buyer" class="mono" value="${esc(d.buyer || '')}" maxlength="8"></div>
-      ${d.billNo ? `<div class="f"><label>來源</label><div>銷貨單 ${esc(d.billNo)}</div></div>` : ''}</div>
+      ${d.billNo ? `<div class="f"><label>來源</label><div>銷貨單 ${esc(d.billNo)}</div></div>` : ''}
+      ${d.billId && isNew ? `<div class="f" style="grid-column:span 2"><label for="iv-style">品名寫法（會記住這個客戶）</label><select id="iv-style">${INV_STYLES.map(([k, n]) => `<option value="${k}" ${d.style === k ? 'selected' : ''}>${n}</option>`).join('')}</select></div>` : ''}</div>
       ${d.hand && isNew ? '<p class="muted small" style="margin:0 0 8px">手寫發票已經開好的，照發票上的號碼、日期、金額填，按「儲存」就會記到銷項發票（不用套印）。</p>' : ''}
       <div class="tw"><table class="lines"><thead><tr><th>品名</th><th class="r" style="width:90px">數量</th><th class="r" style="width:100px">單價</th><th class="r" style="width:110px">金額</th><th style="width:30px"></th></tr></thead><tbody>${rows}</tbody></table></div>
       <div class="tools"><button class="btn sm" id="iv-add">＋ 加一行</button><span class="sp"></span><label class="check"><input type="checkbox" id="iv-incl" ${d.taxMode === 'in' ? 'checked' : ''}> 金額為含稅（反推）</label></div>
       <div class="totals"><div><span>銷售額</span> <input id="iv-untaxed" class="num" value="${money(d.untaxed)}" style="width:110px;border:1px solid var(--line);border-radius:6px;padding:5px 8px;text-align:right"></div><div><span>稅額</span> <input id="iv-tax" class="num" value="${money(d.tax)}" style="width:90px;border:1px solid var(--line);border-radius:6px;padding:5px 8px;text-align:right"></div><div class="big"><span>總計</span> <b id="iv-total">${money(total(d))}</b></div></div>
-      <div class="muted small" id="iv-cn">${cnMoney(total(d))}</div><div class="err" id="iv-err"></div>`;
+      ${(d.items || []).length > FORM_LINES ? `<div class="err">品名有 ${d.items.length} 行，三聯式發票只印得下 ${FORM_LINES} 行，請刪減或分兩張開。</div>` : ''}<div class="muted small" id="iv-cn">${cnMoney(total(d))}</div><div class="err" id="iv-err"></div>`;
   };
   const m = modal({
     title: isNew ? (d.hand ? '手開發票（登記）' : '開立發票') : `發票 ${d.no}`, width: 760, body: draw2(),
@@ -86,6 +140,11 @@ function editInvoice(inv, isNew) {
         el.querySelectorAll('[data-f]').forEach(inp => inp.addEventListener('input', () => { const it = d.items[+inp.dataset.i]; it[inp.dataset.f] = inp.dataset.f === 'name' ? inp.value : inp.value; if (inp.dataset.f === 'qty' || inp.dataset.f === 'price') { it.amount = ''; } recalc(); }));
         el.querySelectorAll('[data-del]').forEach(b => b.addEventListener('click', () => { d.items.splice(+b.dataset.del, 1); el.querySelector('.mb').innerHTML = draw2(); bind(); }));
         $('#iv-add', el).onclick = () => { d.items.push({ name: '', qty: '', price: '', amount: '' }); el.querySelector('.mb').innerHTML = draw2(); bind(); };
+        if ($('#iv-style', el)) $('#iv-style', el).onchange = () => {   // 換寫法：品項照銷貨單重新帶
+          const b = store.get('bills', d.billId); if (!b) return;
+          d.style = $('#iv-style', el).value; d.items = invItems(b, d.style); d.no = $('#iv-no', el).value; d.date = $('#iv-date', el).value; d.name = $('#iv-name', el).value; d.buyer = $('#iv-buyer', el).value;
+          el.querySelector('.mb').innerHTML = draw2(); bind();
+        };
         $('#iv-incl', el).onchange = () => { d.taxMode = $('#iv-incl', el).checked ? 'in' : 'ex'; d.items.forEach(it => { if (it.qty !== '' && it.price !== '') it.amount = ''; }); recalc(); };
         $('#iv-untaxed', el).addEventListener('change', () => { d.untaxed = parseNum($('#iv-untaxed', el).value) || 0; d.tax = Math.round(d.untaxed * 0.05); $('#iv-tax', el).value = money(d.tax); $('#iv-total', el).textContent = money(total(d)); });
         $('#iv-tax', el).addEventListener('change', () => { d.tax = parseNum($('#iv-tax', el).value) || 0; $('#iv-total', el).textContent = money(total(d)); });
@@ -100,7 +159,10 @@ function editInvoice(inv, isNew) {
         const out = { no, date: $('#iv-date', el).value, buyer, name: $('#iv-name', el).value.trim(), cid: d.cid || null, items: d.items.filter(it => it.name).map(it => ({ name: it.name, qty: it.qty === '' ? null : +it.qty, price: it.price === '' ? null : +it.price, amount: +it.amount || 0 })), untaxed: parseNum($('#iv-untaxed', el).value) || 0, tax: parseNum($('#iv-tax', el).value) || 0, taxMode: d.taxMode || 'ex', billId: d.billId || null, hand: !!d.hand, void: d.void || false, createdAt: d.createdAt || Date.now() };
         const ops = [{ col: 'invoices', id: no, data: out }];
         if (d.billId) { const b = store.get('bills', d.billId); if (b) ops.push({ col: 'bills', id: b.id, data: { ...b, invNo: no } }); }
-        if (d.cid && buyer) { const c = store.get('contacts', d.cid); if (c && !c.taxId) ops.push({ col: 'contacts', id: c.id, data: { ...c, taxId: buyer } }); }
+        if (d.cid) {   // 客戶沒有統編的補上；記住這個客戶的品名寫法
+          const c = store.get('contacts', d.cid); const st = isNew && d.billId && d.style && d.style !== c?.invStyle ? d.style : null;
+          if (c && ((buyer && !c.taxId) || st)) ops.push({ col: 'contacts', id: c.id, data: { ...c, ...(buyer && !c.taxId ? { taxId: buyer } : {}), ...(st ? { invStyle: st } : {}) } });
+        }
         await store.batch(ops); store.log(isNew ? '開立' : '修改', `發票 ${no} ${out.name} ${money(total(out))}`); close(); toast(`發票 ${no} 已儲存`);
       };
       $('#iv-void', el)?.addEventListener('click', async () => { if (await confirm(d.void ? '取消作廢？' : `作廢發票 ${d.no}？`, { danger: !d.void })) { await store.save('invoices', d.no, { ...store.get('invoices', d.no), void: !d.void }); close(); } });
@@ -109,7 +171,7 @@ function editInvoice(inv, isNew) {
   });
 }
 // ---------- 套印：三聯式手開發票（3×5.5 吋）或 A4 明細 ----------
-const ROW = 4.568, COL = { A: 0, B: 11.58, C: 28.25, D: 39.83, E: 50.7, end: 64.2 }, FORM_TOP = 20, FORM_LEFT = 4, FORM_LINES = 8;
+const ROW = 4.568, COL = { A: 0, B: 11.58, C: 28.25, D: 39.83, E: 50.7, end: 64.2 }, FORM_TOP = 20, FORM_LEFT = 4, FORM_LINES = 11;
 export function printInvoices(list, mode) {
   const co = store.setting('company'); const ps = store.setting('invoice_print');
   const n0 = v => v == null || v === '' ? '' : Math.round(+v).toLocaleString('en-US'); const n2 = v => v == null || v === '' ? '' : (+v).toLocaleString('en-US', { maximumFractionDigits: 2 });
