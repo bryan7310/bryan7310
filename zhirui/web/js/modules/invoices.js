@@ -35,14 +35,15 @@ function drawList(el) {
   const q = qTerms(ui.q);
   const list = store.list('invoices').filter(i => (!ui.ym || (i.date || '').startsWith(ui.ym)) && (!q.length || matchQ([i.no, i.name, i.buyer].join(' '), q))).sort((a, b) => (b.date || '').localeCompare(a.date || '') || String(b.no).localeCompare(String(a.no)));
   const [s, e, pg] = pager('iv', list.length, ui.page);
-  const sumU = list.reduce((a, i) => a + (+i.untaxed || 0), 0), sumT = list.reduce((a, i) => a + (+i.tax || 0), 0);
+  const live = list.filter(i => !i.void); const sumU = live.reduce((a, i) => a + (+i.untaxed || 0), 0), sumT = live.reduce((a, i) => a + (+i.tax || 0), 0);   // 作廢的不算金額
   el.innerHTML = `<div class="panel"><div class="tools"><input type="month" id="ivYm" value="${ui.ym}"><input type="search" id="ivQ" placeholder="搜尋發票號碼、買受人、統編" value="${esc(ui.q)}"><span class="muted small">${list.length} 張・銷售額 ${money(sumU)}・稅 ${money(sumT)}・合計 ${money(sumU + sumT)}</span><span class="sp"></span><button class="btn sm" id="ivPrintAll" ${list.length ? '' : 'disabled'}>列印本月明細</button></div>
-    <div class="tw" style="margin-top:10px"><table><thead><tr><th>日期</th><th>發票號碼</th><th>買受人</th><th>統編</th><th class="n">銷售額</th><th class="n">稅額</th><th class="n">總計</th><th>來源</th><th></th></tr></thead><tbody>${list.slice(s, e).map(i => `<tr class="row" data-no="${esc(i.no)}"><td class="nowrap">${esc(slash(i.date))}</td><td class="mono">${esc(i.no)}${i.void ? ' <span class="pill bad">作廢</span>' : ''}</td><td style="min-width:9em">${esc(i.cid ? cshort(i.cid) : i.name)}</td><td class="mono">${esc(i.buyer || '')}</td><td class="n">${money(i.untaxed)}</td><td class="n">${money(i.tax)}</td><td class="n">${money(total(i))}</td><td class="muted small">${i.hand ? (i.billId ? '手開・銷貨單' : '手開') : i.billId ? '銷貨單' : i.legacy ? '匯入' : '手開'}</td><td class="nowrap"><button class="btn xs" data-print="${esc(i.no)}">套印</button></td></tr>`).join('') || '<tr><td colspan="9"><div class="empty"><b>這個月沒有發票</b></div></td></tr>'}</tbody></table></div>${pg}</div>`;
+    <div class="tw" style="margin-top:10px"><table><thead><tr><th>日期</th><th>發票號碼</th><th>買受人</th><th>統編</th><th class="n">銷售額</th><th class="n">稅額</th><th class="n">總計</th><th>來源</th><th></th></tr></thead><tbody>${list.slice(s, e).map(i => `<tr class="row" data-no="${esc(i.no)}"><td class="nowrap">${esc(slash(i.date))}</td><td class="mono">${esc(i.no)}${i.void ? ' <span class="pill bad">作廢</span>' : ''}</td><td style="min-width:9em">${esc(i.cid ? cshort(i.cid) : i.name)}</td><td class="mono">${esc(i.buyer || '')}</td><td class="n">${money(i.untaxed)}</td><td class="n">${money(i.tax)}</td><td class="n">${money(total(i))}</td><td class="muted small">${i.hand ? (i.billId ? '手開・銷貨單' : '手開') : i.billId ? '銷貨單' : i.legacy ? '匯入' : '手開'}</td><td class="nowrap"><button class="btn xs" data-print="${esc(i.no)}">套印</button> <button class="btn xs ghost" data-rm="${esc(i.no)}" style="color:var(--bad)">刪除</button></td></tr>`).join('') || '<tr><td colspan="9"><div class="empty"><b>這個月沒有發票</b></div></td></tr>'}</tbody></table></div>${pg}</div>`;
   $('#ivYm', el).addEventListener('change', ev => { ui.ym = ev.target.value; ui.page = 0; drawList(el); });
   onSearch($('#ivQ', el), v => { ui.q = v; ui.page = 0; drawList(el); const i = $('#ivQ', el); i.focus(); i.setSelectionRange(i.value.length, i.value.length); });
   el.querySelectorAll('[data-page]').forEach(b => b.addEventListener('click', () => { ui.page = +b.dataset.to; drawList(el); }));
   el.querySelectorAll('tr.row').forEach(tr => tr.addEventListener('click', ev => { if (ev.target.closest('button')) return; editInvoice(store.get('invoices', tr.dataset.no)); }));
   el.querySelectorAll('[data-print]').forEach(b => b.addEventListener('click', () => printInvoices([store.get('invoices', b.dataset.print)], 'form')));
+  el.querySelectorAll('[data-rm]').forEach(b => b.addEventListener('click', () => removeInvoice(b.dataset.rm)));
   $('#ivPrintAll', el).addEventListener('click', () => printInvoices(list, 'list'));
 }
 function drawPending(el) {
@@ -104,6 +105,15 @@ export function invStyleOf(cid) {
   }
   return cnt.d > cnt.s && cnt.d >= cnt.c ? 'd' : cnt.c > cnt.s ? 'c' : 's';
 }
+/** 刪除發票（打錯、重複登記用；真的開出去又作廢的請用「作廢」）。對應的銷貨單會回到「待開」 */
+async function removeInvoice(no) {
+  const inv = store.get('invoices', no); if (!inv) return false;
+  const b = inv.billId ? store.get('bills', inv.billId) : null; const back = b && b.invNo === no;
+  if (!(await confirm(`刪除發票 ${no}${inv.name ? '（' + inv.name + '　' + money(total(inv)) + '）' : ''}？${back ? `銷貨單 ${b.no} 會回到「待開」。` : ''}實際開出去又作廢的發票請用「作廢」，不要刪除。`, { danger: true, ok: '刪除' }))) return false;
+  const ops = [{ col: 'invoices', id: no, delete: true }];
+  if (back) { const nb = { ...b }; delete nb.invNo; ops.push({ col: 'bills', id: b.id, data: nb }); }
+  await store.batch(ops); store.log('刪除', `發票 ${no} ${inv.name || ''} ${money(total(inv))}`); toast(`發票 ${no} 已刪除`); return true;
+}
 export function makeInvoiceFromBill(b, hand = false) {
   const C = calc(); const c = C.ct[b.cid] || {}; const t = totals(b);
   const style = invStyleOf(b.cid); const items = invItems(b, style);
@@ -129,7 +139,7 @@ function editInvoice(inv, isNew) {
   };
   const m = modal({
     title: isNew ? (d.hand ? '手開發票（登記）' : '開立發票') : `發票 ${d.no}`, width: 760, body: draw2(),
-    footer: `${!isNew ? `<button class="btn danger" id="iv-void">${d.void ? '取消作廢' : '作廢'}</button><button class="btn" id="iv-print">套印</button>` : ''}<span class="sp"></span><button class="btn" data-close>取消</button><button class="btn pri" id="iv-ok">儲存</button>`,
+    footer: `${!isNew ? `<button class="btn danger" id="iv-void">${d.void ? '取消作廢' : '作廢'}</button><button class="btn" id="iv-print">套印</button><button class="btn ghost" id="iv-rm" style="color:var(--bad)">刪除</button>` : ''}<span class="sp"></span><button class="btn" data-close>取消</button><button class="btn pri" id="iv-ok">儲存</button>`,
     onOpen(el, close) {
       const recalc = () => {
         let sum = 0; for (const it of d.items) { if (it.qty !== '' && it.price !== '' && it.amount === '') it.amount = Math.round((+it.qty || 0) * (+it.price || 0)); sum += +it.amount || 0; }
@@ -166,6 +176,7 @@ function editInvoice(inv, isNew) {
         await store.batch(ops); store.log(isNew ? '開立' : '修改', `發票 ${no} ${out.name} ${money(total(out))}`); close(); toast(`發票 ${no} 已儲存`);
       };
       $('#iv-void', el)?.addEventListener('click', async () => { if (await confirm(d.void ? '取消作廢？' : `作廢發票 ${d.no}？`, { danger: !d.void })) { await store.save('invoices', d.no, { ...store.get('invoices', d.no), void: !d.void }); close(); } });
+      $('#iv-rm', el)?.addEventListener('click', async () => { if (await removeInvoice(d.no)) close(); });
       $('#iv-print', el)?.addEventListener('click', () => printInvoices([d], 'form'));
     },
   });
