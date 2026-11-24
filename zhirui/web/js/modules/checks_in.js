@@ -143,7 +143,7 @@ function printShbSlip(g) {
         [...no.padStart(14, ' ')].forEach((ch, i) => { if (ch !== ' ') h += f(SHB.acX + i * SHB.acP, SHB.acY, ch, 'c', 'dg'); });
         [...String(amt).padStart(10, ' ')].forEach((ch, i) => { if (ch !== ' ') h += f(SHB.amX + i * SHB.amP, SHB.amY, ch, 'c', 'dg'); });
         const blank = 10 - String(amt).length;   // 金額前面沒用到的格子劃一條橫線（照手寫的習慣）
-        if (blank > 0) h += `<span class="ln" style="left:${(SHB.amX - SHB.amP / 2 + 1.5 + dx).toFixed(2)}mm;top:${(SHB.amY + 1.5 + dy).toFixed(2)}mm;width:${(blank * SHB.amP - 3).toFixed(2)}mm"></span>`;
+        if (blank > 0) h += `<span class="ln" style="left:${(SHB.amX - SHB.amP / 2 + 1.5 + dx).toFixed(2)}mm;top:${(SHB.amY + dy).toFixed(2)}mm;width:${(blank * SHB.amP - 3).toFixed(2)}mm"></span>`;
         if (cnt) h += f(SHB.ckX, SHB.ckY, 'V', 'c', 'dg') + f(SHB.cntX, SHB.cntY, cnt, 'c', 'sm');
         // 不在 CSS 指定 @page size：11/24 實測 Chrome 會把指定的頁面「縮放去配合印表機預設紙張（76×127）」→ 整頁變 66%。紙張改由列印視窗選「上海託收單」。
         // 直放：紙張 90×190，內容逆時針轉 90 度（憑條右邊＝日期那端先進印表機），跟支票套印同一種放法
