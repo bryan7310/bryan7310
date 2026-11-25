@@ -35,7 +35,7 @@
 | 商品、客戶、供應商、倉庫、名稱對應、檢查重複、合併 | 基本資料 `#master` | `master.js` |
 | 料號、品名規則、自動料號 | — | `web/js/core/codegen.js` |
 | 成本、毛利、加工成本（黑身＋電鍍＋熱處理）、阡阡牌價 | 商品資料的「自動成本」；設定 › 加工成本 | `web/js/core/calc.js`（costOf）、`core/proccost.js` |
-| 螺絲查價、牌價 | `#pricing` | `pricing.js`、`core/pricing.js` |
+| 螺絲查價、牌價、特殊品估價 | `#pricing`（`#pricing/estimate`） | `pricing.js`、`core/pricing.js`；特殊品估價 `pricing_est.js`、`core/estimate.js`（參考資料在 settings › quoteRef） |
 | 單重、規格解析 | — | `core/spec.js` |
 | 嘉里託運 | `#kerry` | `kerry.js`（前端）、`server/kerry.py`（代登入送單） |
 | 標籤（豐餘標籤、一般標籤） | 標籤列印 `#labels` | `labels.js`；App `m/label.js`（佳博 50×40） |

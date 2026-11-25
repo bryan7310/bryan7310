@@ -2,6 +2,7 @@
 import { $, esc, ls, qTerms, matchQ, debounce, fmtQ } from '../core/util.js';
 import { store } from '../core/store.js';
 import { toast, tabs, modal, confirm, onSearch } from '../core/ui.js';
+import { drawEstimate } from './pricing_est.js';
 import { FACETS, facetVal, matchFacets, sortFacetVals, searchText, itemFactor, fmtDisc, netPrice, fmtList, fmtP, attr, noteOf, origText, perKgText, dupGroup, supName, catById, parseDisc, discKey, itemDisc } from '../core/pricing.js';
 
 const LIMIT = 150;
@@ -11,13 +12,14 @@ export const cart = { get: () => ls.get('zr.cart', { lines: [], cid: '' }), set:
 
 export default {
   id: 'pricing', name: '螺絲查價', group: '業務', icon: 'pricing',
-  render(el, { sub, params }) { this.el = el; if (params.q) ui.q = params.q; if (sub === 'discounts') ui.tab = 'discounts'; draw(el); },
+  render(el, { sub, params }) { this.el = el; if (params.q) ui.q = params.q; if (sub === 'discounts') ui.tab = 'discounts'; if (sub === 'estimate') ui.tab = 'estimate'; draw(el); },
   onChange(ch) { if (this.el?.isConnected && (ch.has('pricing') || ch.has('discounts') || ch.has('pricing_cats'))) draw(this.el); },
   badge() { const n = cart.get().lines.length; return { cnt: n }; },
 };
 function draw(el) {
   if (ui.tab === 'discounts') return drawDiscounts(el);
-  el.innerHTML = `<div class="head"><h1>螺絲查價</h1><span class="sub">${store.list('pricing').length.toLocaleString('zh-TW')} 筆牌價・一律以 1 支／個計價</span><span class="sp"></span>${tabs('pt', [['search', '查價'], ['discounts', '折數管理']], 'search')}<a class="btn pri" href="#quotes/draft">報價單草稿 <span id="cartN">${cart.get().lines.length || ''}</span></a></div>
+  if (ui.tab === 'estimate') return drawEst(el);
+  el.innerHTML = `<div class="head"><h1>螺絲查價</h1><span class="sub">${store.list('pricing').length.toLocaleString('zh-TW')} 筆牌價・一律以 1 支／個計價</span><span class="sp"></span>${tabs('pt', [['search', '查價'], ['estimate', '特殊品估價'], ['discounts', '折數管理']], 'search')}<a class="btn pri" href="#quotes/draft">報價單草稿 <span id="cartN">${cart.get().lines.length || ''}</span></a></div>
     <div class="panel" style="display:grid;gap:10px">
       <div class="tools"><input type="search" id="pq" placeholder="輸入品名、規格、料號，例如 m4x20、皿頭 白鐵、盤頭 tp" value="${esc(ui.q)}" autofocus><button class="btn sm" id="fReset" hidden>清除篩選</button></div>
       <div class="facets" id="facets">${FACETS.map(([k, l]) => `<select id="f-${k}" aria-label="${l}" ${k === 'od' || k === 'thick' ? 'hidden' : ''}></select>`).join('')}</div>
@@ -35,6 +37,11 @@ function draw(el) {
     cart.set(c); $('#cartN', el).textContent = c.lines.length; toast('已加入報價單草稿');
   });
   renderSearch(el);
+}
+function drawEst(el) {
+  el.innerHTML = `<div class="head"><h1>螺絲查價</h1><span class="sub">特殊品估價</span><span class="sp"></span>${tabs('pt', [['search', '查價'], ['estimate', '特殊品估價'], ['discounts', '折數管理']], 'estimate')}</div><div id="estBox"></div>`;
+  el.addEventListener('tab', ev => { ui.tab = ev.detail.val; draw(el); }, { once: true });
+  drawEstimate($('#estBox', el));
 }
 function renderFilters(el, base) {
   for (const [k, label] of FACETS) {
@@ -89,7 +96,7 @@ function drawDiscounts(el) {
   const edited = new Map(store.list('discounts').map(d => [d.key, d]));
   const list = [...groups.values()].filter(g => !dm.q || matchQ(g.name + ' ' + (catById(g.cat)?.name || ''), dm.q));
   const byCat = new Map(); for (const g of list) (byCat.get(g.cat) || byCat.set(g.cat, []).get(g.cat)).push(g);
-  el.innerHTML = `<div class="head"><h1>螺絲查價</h1><span class="sp"></span>${tabs('pt', [['search', '查價'], ['discounts', '折數管理']], 'discounts')}</div>
+  el.innerHTML = `<div class="head"><h1>螺絲查價</h1><span class="sp"></span>${tabs('pt', [['search', '查價'], ['estimate', '特殊品估價'], ['discounts', '折數管理']], 'discounts')}</div>
     <div class="panel" style="display:grid;gap:12px">
       <p class="muted" style="margin:0">先選廠商，再改各品名的個別折數；沒有個別折數的品項套用類別折數。改好的折數所有電腦立即同步。清空輸入欄即恢復原牌價表的折數。</p>
       <div class="tools"><select id="dmSup">${sups.map(s => `<option ${s === dm.sup ? 'selected' : ''}>${esc(s)}</option>`).join('')}</select><input type="search" id="dmQ" placeholder="篩選品名、類別" value="${esc(dm.q)}"></div>
