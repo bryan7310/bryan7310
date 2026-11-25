@@ -62,6 +62,7 @@ DEFAULT_CFG = {
     'ship': True,                              # 銷貨單自動建崧泉出貨單
     'ship_wait_min': 10,                       # 銷貨單存檔後等幾分鐘才送（留時間改單）
     'ship_auto_submit': True,                  # False＝每一張都停在最後一步等人按「完成」
+    'ship_merge': True,                        # 同一個出貨日的銷貨單合成一張崧泉出貨單
     'label': True,                             # 出貨單建好後，把崧泉平台產生的出貨標籤 PDF 抓回來
     'label_kind': '4',                         # 條碼類別：1 內箱、3 外箱、4 全部
     'label_size': '77',                        # 77＝7cm×7cm 標籤紙、A4＝A4 紙
@@ -522,7 +523,7 @@ def ship_jobs(cfg, erp, cus, state):
 
 
 WIZARD_JS = r"""
-// 出貨單建立精靈：1 選採購單 → 2 修改出貨數量 → 3 確認。ARG = {page, po, lines:[{seq, qty}], note}
+// 出貨單建立精靈：1 選採購單 → 2 修改出貨數量 → 3 確認。ARG = {page, lines:[{po, seq, qty}], note}（可以跨好幾張採購單）
 const wait = ms => new Promise(r => setTimeout(r, ms));
 const until = async (fn, ms, what) => { const end = Date.now() + ms; while (Date.now() < end) { try { const v = fn(); if (v) return v; } catch (e) {} await wait(300); } throw new Error('等不到：' + what); };
 const f = document.getElementById('WorkSpace');
@@ -542,10 +543,10 @@ await wait(1500);
 try { await until(() => g1.jqGrid('getDataIDs').length > 0, 15000, '可出貨的採購單'); } catch (e) { return {ok: false, err: '崧泉平台查不到可以出貨的採購單（採購單要先回覆交期）'}; }
 const picked = [];
 for (const L of ARG.lines) {
-  const ids = g1.jqGrid('getDataIDs').filter(id => { const r = g1.jqGrid('getRowData', id); return t(r.TAA079) === ARG.po && t(r.TAB001) === String(L.seq); });
-  if (ids.length !== 1) return {ok: false, err: `崧泉平台找不到採購單 ${ARG.po} 項次 ${L.seq}（要先回覆交期，或已經交完）`};
+  const ids = g1.jqGrid('getDataIDs').filter(id => { const r = g1.jqGrid('getRowData', id); return t(r.TAA079) === L.po && t(r.TAB001) === String(L.seq); });
+  if (ids.length !== 1) return {ok: false, err: `崧泉平台找不到採購單 ${L.po} 項次 ${L.seq}（要先回覆交期，或已經交完）`};
   const r = g1.jqGrid('getRowData', ids[0]);
-  if (L.qty > n(r.DELIVERYQTY) + 1e-6) return {ok: false, err: `採購單 ${ARG.po} 項次 ${L.seq} 未交數量只剩 ${n(r.DELIVERYQTY)}，銷貨單出 ${L.qty}`};
+  if (L.qty > n(r.DELIVERYQTY) + 1e-6) return {ok: false, err: `採購單 ${L.po} 項次 ${L.seq} 未交數量只剩 ${n(r.DELIVERYQTY)}，銷貨單出 ${L.qty}`};
   g1.jqGrid('setSelection', ids[0]); picked.push(ids[0]);
 }
 await wait(500);
@@ -556,7 +557,7 @@ await until(() => vis('step2'), 20000, '第 2 步');
 const G2 = d.getElementById('UCjqGrid2_JQGridData'), g2 = $(G2);
 await until(() => g2.jqGrid('getDataIDs').length === ARG.lines.length, 15000, '第 2 步的明細');
 for (const L of ARG.lines) {
-  const id = g2.jqGrid('getDataIDs').find(i => { const r = g2.jqGrid('getRowData', i); return t(r.TAA079) === ARG.po && t(r.TAB001) === String(L.seq); });
+  const id = g2.jqGrid('getDataIDs').find(i => { const r = g2.jqGrid('getRowData', i); return t(r.TAA079) === L.po && t(r.TAB001) === String(L.seq); });
   if (id == null) return {ok: false, err: `第 2 步找不到項次 ${L.seq}`};
   if (Math.abs(n(g2.jqGrid('getRowData', id).DELIVERYQTY) - L.qty) > 1e-6) {
     const tr = G2.querySelector('tr[id="' + id + '"]');
@@ -569,7 +570,7 @@ for (const L of ARG.lines) {
 }
 await wait(800);
 const src2 = JSON.parse(d.getElementById('S_UCjqGrid2_hf_JQGridDataSource').value || '[]');
-for (const L of ARG.lines) { const r = src2.find(x => t(x.TAA079) === ARG.po && t(x.TAB001) === String(L.seq)); if (!r || Math.abs(n(r.DELIVERYQTY) - L.qty) > 1e-6) return {ok: false, err: `項次 ${L.seq} 的出貨數量沒有改成功`}; }
+for (const L of ARG.lines) { const r = src2.find(x => t(x.TAA079) === L.po && t(x.TAB001) === String(L.seq)); if (!r || Math.abs(n(r.DELIVERYQTY) - L.qty) > 1e-6) return {ok: false, err: `項次 ${L.seq} 的出貨數量沒有改成功`}; }
 if (ARG.note && d.getElementById('S_sfTAE014edit')) setField('S_sfTAE014edit', ARG.note);
 await wait(500);
 w.GlassButton_Click('NextStepP2');
@@ -578,7 +579,7 @@ await until(() => vis('step3'), 20000, '第 3 步');
 const g3 = $(d.getElementById('UCjqGrid3_JQGridData'));
 await until(() => g3.jqGrid('getDataIDs').length > 0, 15000, '第 3 步的明細');
 const rows3 = g3.jqGrid('getRowData').map(r => ({po: t(r.TAA079), seq: t(r.TAB001), qty: n(r.DELIVERYQTY)}));
-const same = rows3.length === ARG.lines.length && ARG.lines.every(L => rows3.some(r => r.po === ARG.po && r.seq === String(L.seq) && Math.abs(r.qty - L.qty) < 1e-6));
+const same = rows3.length === ARG.lines.length && ARG.lines.every(L => rows3.some(r => r.po === L.po && r.seq === String(L.seq) && Math.abs(r.qty - L.qty) < 1e-6));
 if (!same) return {ok: false, err: '第 3 步顯示的內容和銷貨單不一樣，沒有送出', rows3};
 return {ok: true, rows3};
 """
@@ -596,7 +597,7 @@ return {text: (w.document.body.innerText || '').replace(/\s+/g, ' ').slice(0, 40
 STEP3_JS = "const f = document.getElementById('WorkSpace'); const e = f && f.contentWindow.document.getElementById('step3'); return !!(e && (e.offsetWidth || e.offsetHeight));"
 
 SHIPQ_JS = r"""
-// 出貨單查詢：找剛剛建好的那張。ARG = {page, po}
+// 出貨單查詢：找剛剛建好的那張。ARG = {page, pos:[採購單號]}
 const wait = ms => new Promise(r => setTimeout(r, ms));
 const f = document.getElementById('WorkSpace');
 await new Promise(r => { const h = () => { f.removeEventListener('load', h); r(); }; f.addEventListener('load', h); setTimeout(r, 15000); clickMenuItem(ARG.page); });
@@ -608,7 +609,7 @@ await wait(5000);
 const t = v => String(v == null ? '' : v).replace(/<[^>]+>/g, '').trim();
 const tb = d.querySelector('table.ui-jqgrid-btable'); if (!tb) return [];
 const p = $(tb).jqGrid('getGridParam'); const by = {}; p.colModel.forEach((c, i) => by[String(p.colNames[i]).replace(/<[^>]+>/g, '')] = c.name);
-return $(tb).jqGrid('getRowData').map(r => ({no: t(r[by['出貨單號']]), date: t(r[by['出貨日期']]), po: t(r[by['採購單號']]), seq: t(r[by['採購項次']]), qty: +t(r[by['出貨數量']]).replace(/,/g, '') || 0, st: t(r[by['狀態']])})).filter(r => r.po === ARG.po);
+return $(tb).jqGrid('getRowData').map(r => ({no: t(r[by['出貨單號']]), date: t(r[by['出貨日期']]), po: t(r[by['採購單號']]), seq: t(r[by['採購項次']]), qty: +t(r[by['出貨數量']]).replace(/,/g, '') || 0, st: t(r[by['狀態']])})).filter(r => ARG.pos.includes(r.po));
 """
 
 
@@ -652,15 +653,39 @@ def fetch_label(br, cfg, ship_no):
     return rel
 
 
+def merge_jobs(cfg, jobs, waiting):
+    """同一個出貨日的銷貨單合成一張崧泉出貨單（一車一張）。還有銷貨單在等待時間內就整批先不送，免得被拆成兩張。"""
+    if not jobs:
+        return []
+    if not cfg.get('ship_merge', True):
+        return [{**j, 'sales': [(j['id'], j['no'])], 'lines': [{**L, 'po': j['po']} for L in j['lines']], 'pos': [j['po']]} for j in jobs]
+    if waiting:
+        log(f'有 {waiting} 張崧泉銷貨單剛存檔，等它一起合併出貨，這一輪先不送')
+        return []
+    by_date = {}
+    for j in jobs:
+        by_date.setdefault(j.get('date') or '', []).append(j)
+    out = []
+    for date, js in by_date.items():
+        qty = {}
+        for j in js:
+            for L in j['lines']:
+                qty[(j['po'], L['seq'])] = qty.get((j['po'], L['seq']), 0) + L['qty']
+        pos = list(dict.fromkeys(j['po'] for j in js))
+        out.append({'date': date, 'sales': [(j['id'], j['no']) for j in js], 'no': '、'.join(str(j['no']) for j in js), 'po': '、'.join(pos), 'pos': pos,
+                    'lines': [{'po': p, 'seq': s, 'qty': q} for (p, s), q in qty.items()]})
+    return out
+
+
 def find_shipment(br, job, before=None):
-    rows = br.js(SHIPQ_JS, {'page': 'EC/Maintain/PQM/PQMSI02Q/PQMSI02Q_M.aspx', 'po': job['po']}, timeout=60) or []
+    rows = br.js(SHIPQ_JS, {'page': 'EC/Maintain/PQM/PQMSI02Q/PQMSI02Q_M.aspx', 'pos': job['pos']}, timeout=60) or []
     nos = {}
     for r in rows:
         nos.setdefault(r['no'], []).append(r)
     for no, rs in nos.items():
         if before is not None and no in before:
             continue
-        if len(rs) == len(job['lines']) and all(any(r['seq'] == str(L['seq']) and abs(r['qty'] - L['qty']) < 1e-6 for r in rs) for L in job['lines']):
+        if len(rs) == len(job['lines']) and all(any(r['po'] == L['po'] and r['seq'] == str(L['seq']) and abs(r['qty'] - L['qty']) < 1e-6 for r in rs) for L in job['lines']):
             return no, set(nos)
     return None, set(nos)
 
@@ -672,7 +697,7 @@ def do_ship(br, cfg, job, state):
     _, before = find_shipment(br, job)
     br.goto(main)
     br.dialogs.clear()
-    r = br.js(WIZARD_JS, {'page': 'EC/Maintain/PQM/PQMSI02/PQMSI02_M.aspx', 'po': job['po'], 'lines': job['lines'], 'note': f"志瑞銷貨單 {job['no']}"}, timeout=150)
+    r = br.js(WIZARD_JS, {'page': 'EC/Maintain/PQM/PQMSI02/PQMSI02_M.aspx', 'lines': job['lines'], 'note': f"志瑞銷貨單 {job['no']}"}, timeout=150)
     if not r or not r.get('ok'):
         return 'fail', (r or {}).get('err') or '出貨單建立沒有走完'
     manual = not cfg['ship_auto_submit'] or not state.get('ship_verified')
@@ -735,10 +760,10 @@ def cycle(br, cfg, state):
         jobs, waiting = ship_jobs(cfg, erp, cus, state)
         state['last']['shipWait'] = waiting
         for job in jobs:
-            rec = {'no': job['no'], 'po': job['po'], 'at': int(time.time() * 1000)}
             if job['err']:
                 state['last']['shipErr'].append(f"銷貨單 {job['no']}：{job['err']}")
-                continue
+        for job in merge_jobs(cfg, [j for j in jobs if not j['err']], waiting):
+            rec = {'po': job['po'], 'at': int(time.time() * 1000)}
             if DRY:
                 log('（演練）要建出貨單：', json.dumps(job, ensure_ascii=False))
                 continue
@@ -750,9 +775,11 @@ def cycle(br, cfg, state):
                 st, msg = 'fail', str(e)[:200]
             log('出貨單', job['no'], job['po'], st, msg)
             if st == 'done':
-                state['ships'][job['id']] = {**rec, 'st': 'done', 'ship': msg}
+                for sid, sno in job['sales']:          # 合併出貨：每張銷貨單都記同一張崧泉出貨單
+                    state['ships'][sid] = {**rec, 'no': sno, 'st': 'done', 'ship': msg}
             elif st == 'unknown':
-                state['ships'][job['id']] = {**rec, 'st': 'unknown', 'msg': msg}
+                for sid, sno in job['sales']:
+                    state['ships'][sid] = {**rec, 'no': sno, 'st': 'unknown', 'msg': msg}
                 state['last']['shipErr'].append(f"銷貨單 {job['no']}：{msg}")
             else:
                 state['last']['shipErr'].append(f"銷貨單 {job['no']}：{msg}")
@@ -761,6 +788,10 @@ def cycle(br, cfg, state):
         if cfg['label'] and not DRY:
             for rec in state['ships'].values():
                 if rec.get('st') != 'done' or rec.get('label') or rec.get('labelTry', 0) >= 5:
+                    continue
+                got = next((x['label'] for x in state['ships'].values() if x.get('ship') == rec.get('ship') and x.get('label')), '')
+                if got:                                # 同一張出貨單（合併出貨）的標籤已經抓過
+                    rec['label'] = got
                     continue
                 try:
                     rec['label'] = fetch_label(br, cfg, rec.get('ship'))
