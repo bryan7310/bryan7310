@@ -1,7 +1,7 @@
 // 庫存：各倉庫數量、低於安全庫存、其他出入庫、調撥
 import { $, esc, fmt, fmtQ, qTerms, matchQ } from '../core/util.js';
 import { store } from '../core/store.js';
-import { tabs, pager, onSearch, printHTML, toast, confirm } from '../core/ui.js';
+import { tabs, pager, onSearch, printHTML, toast, confirm, modal } from '../core/ui.js';
 import { today, slash, uid } from '../core/util.js';
 import { abcList, countedOk, abcCustomers } from '../core/abc.js';
 import { calc, goodsLabel, TYPES, nextNo } from '../core/calc.js';
@@ -98,22 +98,32 @@ async function drawCount(el) {
     // 印盤點標籤：跟 App 盤點表同一種標籤、同一台標籤機（主機的列印小幫手），照畫面上的清單一個商品一張
     $('#cnt-label', el).addEventListener('click', async ev => {
       if (!list.length) return toast('清單是空的');
-      const btn = ev.currentTarget; let sent = 0;
-      try {
-        const [M, L] = await Promise.all([import('../m/count.js'), import('../m/label.js')]); const pr = L.curPrinter();
-        if (!(await confirm(`要印 ${list.length} 張盤點標籤到「${pr.name}」嗎？
-
-範圍：${cname0 ? cname0 + '・' : ''}${CCLS.find(c => c[0] === ui.ccls)[1]}${ui.ctodo ? '（還沒盤的）' : ''}，照目前的排列順序，一個商品一張。`, { ok: '列印' }))) return;
-        btn.disabled = true;
-        for (let i = 0; i < list.length; i += 20) {
-          const part = list.slice(i, i + 20); const labels = [];
-          for (const x of part) { const cv = document.createElement('canvas'); await M.drawCountLabel(cv, G(x)); labels.push({ cv, copies: 1 }); }
-          btn.textContent = `送出中 ${Math.min(i + 20, list.length)}／${list.length}…`;
-          await L.queueLabels(labels, `盤點標籤 ${i + 1}～${i + part.length}（共 ${list.length} 張）`); sent += part.length;
-        }
-        toast(`已送出 ${sent} 張盤點標籤，到「${pr.name}」拿`);
-      } catch (e) { toast(`送出 ${sent} 張之後失敗：${e.message || e}`); }
-      if (btn.isConnected) { btn.disabled = false; btn.textContent = '印盤點標籤'; }
+      const btn = ev.currentTarget; let M, L; try { [M, L] = await Promise.all([import('../m/count.js'), import('../m/label.js')]); } catch (e) { return toast('載入失敗：' + (e.message || e)); }
+      const pr = L.curPrinter(); const range = `${cname0 ? cname0 + '・' : ''}${CCLS.find(c => c[0] === ui.ccls)[1]}${ui.ctodo ? '（還沒盤的）' : ''}`;
+      const reset = () => { if (btn.isConnected) { btn.disabled = false; btn.textContent = '印盤點標籤'; } };
+      // 送到主機的標籤機（列印小幫手），每 20 張一份工作
+      const toHost = async () => { let sent = 0; btn.disabled = true;
+        try { for (let i = 0; i < list.length; i += 20) {
+            const part = list.slice(i, i + 20); const labels = [];
+            for (const x of part) { const cv = document.createElement('canvas'); await M.drawCountLabel(cv, G(x)); labels.push({ cv, copies: 1 }); }
+            btn.textContent = `送出中 ${Math.min(i + 20, list.length)}／${list.length}…`;
+            await L.queueLabels(labels, `盤點標籤 ${i + 1}～${i + part.length}（共 ${list.length} 張）`); sent += part.length; }
+          toast(`已送出 ${sent} 張盤點標籤，到「${pr.name}」拿`);
+        } catch (e) { toast(`送出 ${sent} 張之後失敗：${e.message || e}`); }
+        reset(); };
+      // 本機列印：開列印視窗，用這台電腦接的印表機印（一張標籤一頁，50×40mm）
+      const toLocal = async win => { btn.disabled = true; btn.textContent = '準備標籤…';
+        try { const imgs = []; for (const x of list) { const cv = document.createElement('canvas'); await M.drawCountLabel(cv, G(x)); imgs.push(cv.toDataURL('image/png')); }
+          printHTML('盤點標籤', '@page{size:50mm 40mm;margin:0}html,body{margin:0;padding:0}.lb{width:50mm;height:40mm;break-after:page;page-break-after:always;overflow:hidden}.lb:last-child{break-after:auto;page-break-after:auto}.lb img{width:50mm;height:40mm;display:block}@media screen{body{background:#ddd}.lb{background:#fff;margin:3mm auto;box-shadow:0 0 0 1px #999}}',
+            imgs.map(u => `<div class="lb"><img src="${u}"></div>`).join(''), { win, tip: `共 ${imgs.length} 張。按 Ctrl+P，印表機選這台電腦接的標籤機，紙張選 50×40mm、邊界「無」、縮放 100%。` });
+        } catch (e) { try { win.close(); } catch (e2) { /* 已關 */ } toast('準備標籤失敗：' + (e.message || e)); }
+        reset(); };
+      modal({ title: '印盤點標籤', width: 520, body: `<p style="margin:0 0 8px">要印 <b>${list.length}</b> 張盤點標籤（50×40mm：QR 碼＋品名＋單重），一個商品一張，照目前的排列順序。</p><p class="muted small" style="margin:0">範圍：${esc(range)}</p>`,
+        footer: `<button class="btn" data-close>取消</button><span class="sp"></span><button class="btn" id="lbLocal" title="用這台電腦接的印表機，會開列印視窗">本機列印</button><button class="btn pri" id="lbHost" title="送到主機電腦接的標籤機">主機標籤機「${esc(pr.name)}」</button>`,
+        onOpen(m, close) {
+          $('#lbHost', m).onclick = () => { close(); toHost(); };
+          $('#lbLocal', m).onclick = () => { const win = window.open('', '_blank'); if (!win) return toast('瀏覽器擋住了新視窗，請允許彈出視窗'); try { win.document.write('<p style="font-family:sans-serif">準備標籤中…</p>'); } catch (e) { /* 不影響 */ } close(); toLocal(win); };
+        } });
     });
     $('#cnt-todo', el).addEventListener('change', ev => { ui.ctodo = ev.target.checked; drawCount(el); });
     el.querySelectorAll('tr.row').forEach(tr => tr.addEventListener('click', () => openMaster('goods', store.get('goods', tr.dataset.id))));
