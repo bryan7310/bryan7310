@@ -605,7 +605,7 @@ async function saveBill(close, then, force, pre) {
       if (r && r !== 1) o.rate = r; } if (l.batch) o.batch = l.batch; if (+l.wt > 0) o.wt = +l.wt; return o; }); }
   if (T.transfer) doc.toWid = e.toWid;
   if (T.doc) { doc.disc = +e.disc || 0; doc.tax = !!e.tax; for (const k of ['attn', 'valid', 'deliv', 'payterm', 'toBill', 'received', 'fromQuote', 'orderId', 'proc', 'cpo', 'src', 'closed']) if (e[k]) doc[k] = e[k]; delete doc.wid; }
-  else if (T.lines && T.party) { doc.disc = +e.disc || 0; doc.tax = !!e.tax; doc.paid = +e.paid || 0; doc.aid = e.aid || (doc.paid ? store.list('accounts')[0]?.id || '' : ''); for (const k of ['invNo', 'fromQuote', 'fromPO', 'fromSO', 'sq', 'kerry', 'noKerry', 'kerryQ']) if (e[k]) doc[k] = e[k]; }
+  else if (T.lines && T.party) { doc.disc = +e.disc || 0; doc.tax = !!e.tax; doc.paid = +e.paid || 0; doc.aid = e.aid || (doc.paid ? store.list('accounts')[0]?.id || '' : ''); for (const k of ['invNo', 'noInv', 'fromQuote', 'fromPO', 'fromSO', 'sq', 'kerry', 'noKerry', 'kerryQ']) if (e[k]) doc[k] = e[k]; }
   if (T.money && !T.lines) { doc.aid = e.aid || ''; doc.amount = +e.amount || 0; if (e.cat) doc.cat = e.cat; for (const k of ['ref', 'checkId']) if (e[k]) doc[k] = e[k]; }
   if ((e.type === 'SALE' || e.type === 'SALE_RET') && (e.arYm || e.hist)) doc.arYm = e.arYm || '';
   if (e.hist) { doc.hist = true; if (e.cn) doc.cn = e.cn; if (e.oamt != null) doc.oamt = e.oamt; }
