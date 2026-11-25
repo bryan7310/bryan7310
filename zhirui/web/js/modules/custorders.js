@@ -26,6 +26,7 @@ async function b2bBox(box) {
     <b>崧泉平台</b>　${stale ? `崧泉小幫手已經 ${ago}沒有回報，請看主機上有沒有在執行（啟動崧泉小幫手.bat）` : s.needLogin || !s.ok ? esc(s.msg || '連線有問題') : `${ago}抓過：未回覆採購單 ${s.unreplied ?? 0} 張`}
     ${s.pending && !stale ? `　<a class="btn pri" href="#apply?f=b2b_songquan">有 ${(s.new || 0) + (s.upd || 0)} 張待確認${s.miss ? `（${s.miss} 項沒對到商品）` : ''} →</a>` : ''}
     ${s.msg && s.ok && !s.needLogin && !stale ? `<div style="margin-top:6px">${esc(s.msg)}</div>` : ''}
+    ${s.replied ? `<div class="small" style="margin-top:6px">已到崧泉平台回覆交期：${esc(s.replied)}</div>` : ''}
     ${s.shipWait ? `<div class="small" style="margin-top:6px">${s.shipWait} 張銷貨單剛存檔，幾分鐘後會自動建崧泉出貨單。</div>` : ''}
     ${errs.length ? `<div style="margin-top:6px">${errs.map(x => '・' + esc(x)).join('<br>')}</div>` : ''}
     ${done.length ? `<div class="small muted" style="margin-top:6px">已建崧泉出貨單：${done.map(x => `銷貨單 ${esc(x.no || '')} → ${esc(x.ship || '')}${/^b2b_labels\/[\w-]+\.pdf$/.test(x.label || '') ? ` <a href="/pending/${esc(x.label)}" target="_blank" rel="noopener">🏷 印標籤</a>` : ''}`).join('、')}</div>` : ''}

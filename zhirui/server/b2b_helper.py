@@ -59,6 +59,8 @@ DEFAULT_CFG = {
     'customer': '崧泉',                        # ERP 客戶名稱裡要有這兩個字（只能對到一家）
     'interval_min': 10,                        # 每幾分鐘抓一次（也靠這個維持連線，不要超過 15）
     'port': 9333,                              # 控制 Edge 用的本機埠
+    'reply': True,                             # 在 ERP 確認寫入後，自動到崧泉平台回覆交期（照崧泉給的交期、數量接受）
+    'reply_auto_submit': True,                 # False＝每次都只勾好，等人按「送出」
     'ship': True,                              # 銷貨單自動建崧泉出貨單
     'ship_wait_min': 10,                       # 銷貨單存檔後等幾分鐘才送（留時間改單）
     'ship_auto_submit': True,                  # False＝每一張都停在最後一步等人按「完成」
@@ -744,6 +746,94 @@ def write_status(state, **kw):
         log('狀態檔寫不進去', e)
 
 
+REPLY_JS = r"""
+// 採購單回覆：勾選要回覆的列（回覆交期、數量預設就是崧泉給的），ARG.submit 才按「送出」。ARG = {page, keys:[{po, seq}], submit}
+const wait = ms => new Promise(r => setTimeout(r, ms));
+const until = async (fn, ms, what) => { const end = Date.now() + ms; while (Date.now() < end) { try { const v = fn(); if (v) return v; } catch (e) {} await wait(300); } throw new Error('等不到：' + what); };
+const f = document.getElementById('WorkSpace');
+if (!f || typeof clickMenuItem !== 'function') throw new Error('不在崧泉平台主畫面');
+await new Promise(r => { const h = () => { f.removeEventListener('load', h); r(); }; f.addEventListener('load', h); setTimeout(r, 15000); clickMenuItem(ARG.page); });
+const w = await until(() => f.contentWindow.document.getElementById('UCjqGrid_JQGridData') && f.contentWindow.jQuery && f.contentWindow.jQuery('#UCjqGrid_JQGridData').jqGrid && f.contentWindow, 20000, '採購單回覆頁');
+const d = w.document, $ = w.jQuery, g = $('#UCjqGrid_JQGridData');
+const t = v => String(v == null ? '' : v).replace(/<[^>]+>/g, '').trim();
+await wait(1500);
+const picked = [];
+for (const K of ARG.keys) {
+  const ids = g.jqGrid('getDataIDs').filter(id => { const r = g.jqGrid('getRowData', id); return t(r.TAA079) === K.po && t(r.TAB001) === String(K.seq); });
+  if (ids.length !== 1) return {ok: false, err: `採購單回覆頁找不到 ${K.po} 項次 ${K.seq}`};
+  const r = g.jqGrid('getRowData', ids[0]);
+  if (t(r.TAB015) !== t(r.TAB008) || Math.abs((+t(r.TAB014).replace(/,/g, '') || 0) - (+t(r.TAB007).replace(/,/g, '') || 0)) > 1e-6) return {ok: false, err: `${K.po} 項次 ${K.seq} 的回覆交期或回覆數量已經被改過，跟崧泉給的不一樣，沒有自動回覆`};
+  picked.push(ids[0]);
+}
+for (const id of picked) g.jqGrid('setSelection', id);
+await wait(700);
+const sel = (g.jqGrid('getGridParam', 'selarrrow') || []).slice().sort().join('$');
+if (sel !== picked.slice().sort().join('$') || d.getElementById('UCjqGrid_UCjqGridselectID').value.split('$').sort().join('$') !== sel) return {ok: false, err: '勾選的列不對，沒有送出'};
+if (!ARG.submit) return {ok: true, selected: picked.length};
+try { w.WaitingMaskShow('', ''); } catch (x) {}
+w.GlassButton_Click('UCjqGrid_UCjqGridgbtnJQGridReply');
+await wait(6000);
+return {ok: true, selected: picked.length, text: (d.body.innerText || '').replace(/\s+/g, ' ').slice(0, 300)};
+"""
+
+
+def reply_targets(erp, cus, unreplied, state):
+    """要回覆的列：採購單已經變成 ERP 的客戶訂單（由崧泉平台匯入、沒結案），而且訂單記的數量、交期和崧泉現在的一樣"""
+    so = {}
+    for b in erp.bills:
+        if b.get('type') == 'SO' and b.get('cid') == cus['id'] and isinstance(b.get('src'), dict) and b['src'].get('b2b') == 'songquan' and not b.get('closed'):
+            so.setdefault(b['src'].get('po'), b)
+    tries = state.get('replyTry', {})
+    out = []
+    for r in unreplied:
+        o = so.get(r['po'])
+        if not o or tries.get(r['po'], 0) >= 3:
+            continue
+        it = next((x for x in o['src'].get('items') or [] if x.get('seq') == r['seq']), None)
+        if it and it.get('qty') == r['qty'] and it.get('due') == r['due'] and it.get('part') == r['part']:
+            out.append({'po': r['po'], 'seq': r['seq']})
+    return out
+
+
+def do_reply(br, cfg, keys, state):
+    """回 (狀態, 訊息)。done 已回覆｜fail 沒送出或送出後還在未回覆清單｜wait 等人按送出"""
+    page = 'EC/Maintain/PQM/PQMSI01/PQMSI01_M.aspx'
+    main = cfg['base'] + '/FrameEnterprise/MainFrame_M.aspx'
+    manual = not cfg.get('reply_auto_submit', True) or not state.get('reply_verified')
+    br.goto(main)
+    br.dialogs.clear()
+    br.accept_confirm = not manual
+    try:
+        r = br.js(REPLY_JS, {'page': page, 'keys': keys, 'submit': not manual}, timeout=90)
+    finally:
+        br.accept_confirm = False
+    if not r or not r.get('ok'):
+        return 'fail', (r or {}).get('err') or '回覆沒有走完'
+
+    def left():
+        now = {(x['po'], x['seq']) for x in (po_line(y) for y in fetch_grid(br, '/' + page))}
+        return [k for k in keys if (k['po'], k['seq']) in now]
+    label = '、'.join(sorted({k['po'] for k in keys}))
+    if manual:
+        br.front()
+        log('採購單已勾好，等人按「送出」：', label)
+        write_status(state, msg=f"崧泉採購單 {label} 已勾好要回覆的 {len(keys)} 項，請到主機的崧泉視窗核對回覆交期後按左上角的「送出」", attn=True)
+        end = time.time() + 30 * 60
+        while time.time() < end:
+            time.sleep(15)
+            if not left():
+                state['reply_verified'] = True
+                return 'done', f'{label}（{len(keys)} 項）'
+        return 'wait', '30 分鐘內沒有人按「送出」，下一輪會重新勾一次'
+    log('按了送出：', label, (r.get('text') or '')[:200], [x['text'][:80] for x in br.dialogs])
+    time.sleep(3)
+    rest = left()
+    if not rest:
+        return 'done', f'{label}（{len(keys)} 項）'
+    said = '；'.join(x['text'][:80] for x in br.dialogs)
+    return 'fail', f'按了送出，但還有 {len(rest)} 項留在未回覆' + (f'（平台訊息：{said}）' if said else '') + '，試 3 次都不行就不再自動回覆這張'
+
+
 def cycle(br, cfg, state):
     erp = Erp()
     hit = erp.customer(cfg['customer'])
@@ -756,6 +846,31 @@ def cycle(br, cfg, state):
     sync_pending(P)
     state['last'] = {'pending': bool(P), 'new': sm['new'], 'upd': sm['upd'], 'miss': sm['miss'], 'unreplied': sm['unreplied'], 'shipWait': 0, 'shipErr': []}
     log(f"抓到未回覆採購單 {sm['unreplied']} 張；待確認：新增 {sm['new']}、變更 {sm['upd']}、沒對到商品 {sm['miss']} 項")
+    # 回覆交期：老闆在 ERP 按過「確認寫入」（訂單已經在 ERP、內容和崧泉一樣）的採購單，照崧泉給的交期、數量回覆接受
+    if cfg.get('reply', True) and not NO_SHIP:
+        keys = reply_targets(erp, cus, unreplied, state)
+        if keys and DRY:
+            log('（演練）要回覆：', json.dumps(keys, ensure_ascii=False))
+        elif keys:
+            try:
+                st, msg = do_reply(br, cfg, keys, state)
+            except NeedLogin:
+                raise
+            except Exception as e:
+                st, msg = 'fail', str(e)[:200]
+            log('回覆採購單', sorted({k['po'] for k in keys}), st, msg)
+            tries = state.setdefault('replyTry', {})
+            for po in {k['po'] for k in keys}:
+                if st == 'done':
+                    tries.pop(po, None)
+                elif st != 'wait':
+                    tries[po] = tries.get(po, 0) + 1
+            if st == 'done':
+                state['last']['replied'] = msg
+                state['last']['unreplied'] = len({r['po'] for r in unreplied if r['po']} - {k['po'] for k in keys})
+            else:
+                state['last']['shipErr'].append('回覆採購單 ' + '、'.join(sorted({k['po'] for k in keys})) + '：' + msg)
+            write_json(STATE_FILE, state)
     if cfg['ship'] and not NO_SHIP:
         jobs, waiting = ship_jobs(cfg, erp, cus, state)
         state['last']['shipWait'] = waiting
