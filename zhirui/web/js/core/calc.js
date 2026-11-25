@@ -7,7 +7,7 @@ export const isMonthEnd = cid => !!(cid && store.get('contacts', cid)?.monthEnd)
 export const saleYm = b => b.arYm || (isMonthEnd(b.cid) ? String(b.date || '').slice(0, 7) : ym25(b.date || ''));
 /** 整月結客戶的備註文字「整月結 11/1～11/30」；一般客戶回傳空字串 */
 export const monthEndNote = (cid, ym) => { if (!isMonthEnd(cid) || !/^\d{4}-\d{2}$/.test(ym || '')) return isMonthEnd(cid) ? '整月結（每月 1 日～月底）' : ''; const [y, m] = ym.split('-').map(Number); return `整月結 ${m}/1～${m}/${new Date(y, m, 0).getDate()}`; };
-import { platCost, supDisc, fmtDisc } from './pricing.js';
+import { platCost, supDisc, fmtDisc, refWt } from './pricing.js';
 import { procCost, plateFee } from './proccost.js';
 import { estWeight } from './spec.js';
 import { printName, shortName } from './names.js';
@@ -55,12 +55,12 @@ export function unitFactor(u) { // [類別, 每單位幾個基本件]
   if (/kg|公斤/i.test(u)) return ['kg', 1];
   return ['u:' + u, 1];
 }
-// 單重 g／支：有填用實測值，沒填用品名規格依標準尺寸估算（同舊進銷存）
+// 單重 g／支：有填用實測值；沒填先看螺絲查價的單重參考（華司的「約 N 個/kg」），再沒有用品名規格依標準尺寸估算
 const WTM = new Map(); let WTMgen = -1;
 export const goodsWt = g => {
   if (!g) return 0; if (+g.wt > 0) return +g.wt;
   if (WTMgen !== store.gen) { WTM.clear(); WTMgen = store.gen; }
-  if (!WTM.has(g.id)) WTM.set(g.id, estWeight(g));
+  if (!WTM.has(g.id)) WTM.set(g.id, refWt(g) || estWeight(g));
   return WTM.get(g.id);
 };
 // 舊系統的進貨單（歷史單據載入後放進來），成本推算也會用到
@@ -87,12 +87,21 @@ export function uRate(u, g) {
   if (c1 === 'p' && c2 === 'kg') { const w = goodsWt(g); return w > 0 ? Math.round(f1 * w / 1000 * 1e6) / 1e6 : null; }
   return null;
 }
+/** 單重是哪來的：商品資料填的／螺絲查價的參考／依規格估算；都沒有回空字串 */
+export const wtSrc = g => !g ? '' : +g.wt > 0 ? '商品資料的單重' : refWt(g) ? '螺絲查價的單重參考' : goodsWt(g) ? '依規格估算' : '';
+/** 一行明細的單位換成商品單位的倍數；公斤進貨、商品是支數時，那一行有填單重（g／支）就用它，沒填用商品的單重 */
+export function lineRate(l, g) {
+  if (!l.u || !g) return null;
+  const [c1] = unitFactor(l.u), [c2, f2] = unitFactor(g.unit || '');
+  if (c1 === 'kg' && c2 === 'p' && f2 && +l.wt > 0) return Math.round(1000 / +l.wt / f2 * 10000) / 10000;
+  return uRate(l.u, g);
+}
 export function lineUnit(l, g) {
   if (l.u) return unitFactor(l.u);
   if (l.unit === 'a' && g?.aunit) { const [c, f] = unitFactor(g.unit); return [c, f * (+g.arate || 1)]; }
   return unitFactor(g?.unit || '');
 }
-export const bqty = (l, g) => (+l.qty || 0) * (+l.rate || (l.u && g ? uRate(l.u, g) || 1 : 1));
+export const bqty = (l, g) => (+l.qty || 0) * (+l.rate || (l.u && g ? lineRate(l, g) || 1 : 1));
 /** 一行明細的重量 kg（單位是 KG 就是數量；支數 × 單重，沒填單重用規格估算） */
 export function lineKg(l, g) {
   if (!g) return 0;
@@ -138,7 +147,10 @@ export function calc() {
       let df = 1, lab; const sup = ct[b.cid]?.short || ct[b.cid]?.name || ''; const sd = cls === 'p' ? supDisc(g[l.gid], sup, (+l.price) / f) : null;
       if (sd) { if (sd.f < 1) { df = sd.f; lab = `進貨單（${sup}牌價 × ${fmtDisc(sd.f)}）`; } }
       else if (bd && (!bd.hk || /^[HK]$/i.test(l.u || ''))) { df = bd.f; lab = `進貨單（牌價 × 折數 ${Math.round(df * 1000) / 1000}，由實付金額反推）`; }
-      (purIdx[l.gid] ??= []).push({ d: dayN(b.date), date: b.date, no: b.no, cls, per: (+l.price) / f * df, q: +l.qty || 0, cid: b.cid, hist: !!b.hist, lab }); } }
+      (purIdx[l.gid] ??= []).push({ d: dayN(b.date), date: b.date, no: b.no, cls, per: (+l.price) / f * df, q: +l.qty || 0, cid: b.cid, hist: !!b.hist, lab });
+      // 公斤進貨、商品是支數（或反過來）：用那一行存下來的換算（沒有就用單重）折成商品單位的單價，賣支數時才找得到這筆進貨成本
+      const [gc, gf] = unitFactor(g[l.gid].unit || '');
+      if (gc !== cls && (cls === 'kg' || cls === 'p') && (gc === 'kg' || gc === 'p') && gf) { const r = +l.rate || lineRate(l, g[l.gid]); if (r > 0) purIdx[l.gid].push({ d: dayN(b.date), date: b.date, no: b.no, cls: gc, per: (+l.price) * df / (r * gf), q: (+l.qty || 0) * r, cid: b.cid, hist: !!b.hist, conv: 1, lab: `${lab || '進貨單'}（每 ${l.u} ${Math.round(+l.price * df * 100) / 100} 元，用單重換算）` }); } } }
   // 勾了「代工廠交黑身」的商品：合併成一行成品的進貨單（線材＋工錢已經算成每支單價）也要再加表面處理每 KG × 單重
   for (const [gid, arr] of Object.entries(purIdx)) {
     const gg = g[gid]; if (!gg?.mkPlate) continue; const w = goodsWt(gg); if (!(w > 0)) continue;

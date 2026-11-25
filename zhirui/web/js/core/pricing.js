@@ -182,6 +182,41 @@ function parseGoods(g) {
   const thread = tap ? 'tap' : cap ? 'cap' : ms ? 'ms' : '';
   return { dia, len, head, mat, nut, washer, wk: washer ? wKind(t) : '', thread, t };
 }
+// ---- 單重參考：查價裡有「約 N 個/kg」的華司（阡阡、東日），同外徑、厚度、種類，內徑差不多的那一筆 ----
+const mmOf = s => { s = String(s || ''); let m; if ((m = s.match(/^(\d+)-(\d+)\/(\d+)$/))) return (+m[1] + m[2] / m[3]) * 25.4; if ((m = s.match(/^(\d+)\/(\d+)$/))) return m[1] / m[2] * 25.4; return +s.replace(/^M/i, '') || 0; };
+let WIDX = null, WIDXgen = -1;
+function washIdx() {
+  if (WIDX && WIDXgen === store.gen) return WIDX;
+  WIDXgen = store.gen; WIDX = new Map();
+  for (const it of store.list('pricing')) {
+    if (!(+it.perKg > 0) || !isWasher(String(it.name || ''))) continue;
+    const d = washerDims(it); if (!d.od || !d.thick) continue;
+    const m = String(it.spec || '').replace(/^[\d\/#M.]+\s+(?=[\d外])/, '').match(/^([\d.]+)×/); if (!m) continue;
+    const key = d.od + '|' + d.thick;
+    (WIDX.get(key) || WIDX.set(key, []).get(key)).push({ it, inner: +m[1], wk: wKind(String(it.name)), mat: matClass(it.material + it.name) });
+  }
+  return WIDX;
+}
+const rwMemo = new Map(); let rwGen = -1;
+/** 商品的單重參考（g／個）：查價牌價表上的「約 N 個/kg」換算；對不到回 0 */
+export function refWt(g) {
+  if (!g) return 0;
+  if (rwGen !== store.gen) { rwMemo.clear(); rwGen = store.gen; }
+  const k = g.id + '|' + g.name; if (rwMemo.has(k)) return rwMemo.get(k);
+  let w = 0;
+  const t = String(g.name || '').replace(/[＊×xX]/g, '*').replace(/／/g, '/');
+  const m = isWasher(t) ? t.match(/(M\d+(?:\.\d+)?|\d+-\d+\/\d+|\d+\/\d+|\d+(?:\.\d+)?)\s*\*\s*(\d+(?:\.\d+)?)\s*\*\s*(\d+(?:\.\d+)?)/i) : null;
+  if (m) {
+    const inner = mmOf(m[1]), wk = wKind(t), mat = matClass(t); let best = null;
+    for (const x of washIdx().get(+m[2] + '|' + +m[3]) || []) {
+      if (x.wk !== wk) continue; const d = x.inner - inner; if (d < -0.3 || d > 1.5) continue;   // 華司內徑比公稱徑略大
+      const sc = Math.abs(d - 0.4) + (mat && x.mat && mat !== x.mat ? 0.5 : 0);
+      if (!best || sc < best.sc) best = { sc, x };
+    }
+    if (best) w = Math.round(1000 / +best.x.it.perKg * 1000) / 1000;
+  }
+  rwMemo.set(k, w); return w;
+}
 let PIDX = null, PIDXgen = -1;
 function priceIdx() {
   if (PIDX && PIDXgen === store.gen) return PIDX;

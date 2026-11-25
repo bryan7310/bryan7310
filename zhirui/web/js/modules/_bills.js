@@ -2,7 +2,7 @@
 import { $, $$, esc, fmt, fmtQ, fp4, today, uid, matchQ, qTerms, roc, slash, thisMonth, money, isoOf, downloadText, ls, dayN, lineSeq, shiftMonth, range25, month25 } from '../core/util.js';
 import { store } from '../core/store.js';
 import { toast, modal, confirm, combo, pager, tabs, printHTML, keepWhile, reserveWin, dropWin } from '../core/ui.js';
-import { TYPES, totals, lineAmt, calc, nextNo, cname, cshort, cdisp, wname, gname, goodsLabel, customers, suppliers, defWh, qtyAt, bqty, uRate, lastSale, unitPrice, unitFactor, setHistPur, setHistSale, histSaleReady, costOf, lineUnit, lineKg, qtyHist, goodsWt } from '../core/calc.js';
+import { TYPES, totals, lineAmt, calc, nextNo, cname, cshort, cdisp, wname, gname, goodsLabel, customers, suppliers, defWh, qtyAt, bqty, uRate, lastSale, unitPrice, unitFactor, setHistPur, setHistSale, histSaleReady, costOf, lineUnit, lineKg, qtyHist, goodsWt, lineRate, wtSrc } from '../core/calc.js';
 import { api } from '../core/api.js';
 import { printName } from '../core/names.js';
 import { labelPicker } from './labels.js';
@@ -264,7 +264,7 @@ function lineRow(l, i) {
     cost = `<td class="n small c-c">${l.gid && (!r || r.manual) && base ? `<input class="num" data-gcost="${i}" inputmode="decimal" value="${r ? Math.round(r.c * 10000) / 10000 : ''}" placeholder="填成本" title="查無成本時可自行填入，會存到商品資料的手動成本">` : r ? fp4(r.c) : ''}</td><td class="muted small csrc c-src" title="${r ? esc(r.src) : '查無成本'}">${r ? esc(r.src) : l.gid ? '—' : ''}</td>`;
   }
   const no = lineSeq(edit.lines)[i];
-  return `<tr data-i="${i}"><td class="c-no">${no}</td><td class="c-g"><div class="combo"><input data-f="gid" value="${esc(g ? goodsLabel(g, edit.type) : l.n || '')}" placeholder="打料號、品名、客料號搜尋"></div>${have != null ? `<div class="have ${(T.stock === -1 || T.transfer) && bqty(l, g) > have ? 'bad' : ''}">${esc(wname(edit.wid))}庫存 ${fmtQ(have)} ${esc(g?.unit || '')}</div>` : ''}${l._lp ? `<div class="lp">${esc(l._lp)}</div>` : ''}${edit.type === 'PRC' && g && +l.qty && !prcIsKg(l) && prcKg(l, g) ? `<div class="have">約 ${esc(kgText({ kg: prcKg(l, g), miss: 0 }))}（電鍍按重量計價的話，單位選 KG、數量填重量）</div>` : ''}${g ? `<div class="glinks"><a href="#" data-spec="${i}">規格・圖面${g.dwg ? '（附客戶圖）' : ''}</a><a href="#" data-gedit="${i}">修改商品</a>${edit.cid ? `<a href="#" data-ghist="${i}" title="這個${T.party === 'S' ? '廠商' : '客戶'}、這個商品的歷史交易">歷史明細</a>` : ''}</div>` : ''}</td>
+  return `<tr data-i="${i}"><td class="c-no">${no}</td><td class="c-g"><div class="combo"><input data-f="gid" value="${esc(g ? goodsLabel(g, edit.type) : l.n || '')}" placeholder="打料號、品名、客料號搜尋"></div>${have != null ? `<div class="have ${(T.stock === -1 || T.transfer) && bqty(l, g) > have ? 'bad' : ''}">${esc(wname(edit.wid))}庫存 ${fmtQ(have)} ${esc(g?.unit || '')}</div>` : ''}<div class="have" id="lcv-${i}">${convHtml(l, g)}</div>${l._lp ? `<div class="lp">${esc(l._lp)}</div>` : ''}${edit.type === 'PRC' && g && +l.qty && !prcIsKg(l) && prcKg(l, g) ? `<div class="have">約 ${esc(kgText({ kg: prcKg(l, g), miss: 0 }))}（電鍍按重量計價的話，單位選 KG、數量填重量）</div>` : ''}${g ? `<div class="glinks"><a href="#" data-spec="${i}">規格・圖面${g.dwg ? '（附客戶圖）' : ''}</a><a href="#" data-gedit="${i}">修改商品</a>${edit.cid ? `<a href="#" data-ghist="${i}" title="這個${T.party === 'S' ? '廠商' : '客戶'}、這個商品的歷史交易">歷史明細</a>` : ''}</div>` : ''}</td>
     <td class="c-q"><input data-f="qty" class="num" inputmode="decimal" value="${esc(l.qty)}"></td>
     <td class="c-u">${g ? `<select data-f="unit">${units.map(([v, lb]) => `<option value="${v}" ${(l.unit === 'a' ? 'a' : l.u || g.unit || 'PCS') === v ? 'selected' : ''}>${esc(lb)}</option>`).join('')}</select>` : `<input data-f="nu" value="${esc(l.unit || '')}" placeholder="單位">`}</td>
     ${priced ? `<td class="c-p"><input data-f="price" class="num" inputmode="decimal" value="${esc(l.price)}">${(w => w ? `<div class="pwarn">${esc(w)}</div>` : '')(priceWarn(l, g))}</td><td class="n c-s" id="ls-${i}">${fmt(lineAmt(l))}</td>` : ''}
@@ -532,7 +532,7 @@ function bindLines(el) {
 }
 function updateTotals(el) {
   const e = edit, T = TYPES[e.type]; if (!T.lines) return;
-  e.lines.forEach((l, i) => { const s = el.querySelector('#ls-' + i); if (s) s.textContent = fmt(lineAmt(l)); });
+  e.lines.forEach((l, i) => { const s = el.querySelector('#ls-' + i); if (s) s.textContent = fmt(lineAmt(l)); const cv = el.querySelector('#lcv-' + i); if (cv) cv.innerHTML = convHtml(l, calc().g[l.gid]); });
   if (!T.party) return;
   const t = totals(e); const st = (id, v) => { const x = el.querySelector(id); if (x) x.textContent = v; };
   st('#t-wt', kgText(billKg(e)));
@@ -553,6 +553,7 @@ export function billChecks(e) {
     if (l.txt !== undefined || !l.gid) return; const g = C.g[l.gid]; if (!g) return;
     if (seen.has(l.gid)) out.push(`第 ${seq[seen.get(l.gid)]} 行和第 ${seq[i]} 行是同一個商品「${g.name}」`); else seen.set(l.gid, i);
     const q = +l.qty || 0, p = +l.price || 0;
+    { const cv = convInfo(l, g); if (cv?.bad) out.push(`${name(l, i)}：單位 ${l.u} 換不成商品單位 ${g.unit || 'PCS'}（沒有單重），這樣存庫存和成本會算錯，請先填單重`); }
     if ((sale || pur || e.type === 'SALE_RET') && q > 0 && !(p > 0)) out.push(`${name(l, i)}：單價是 0`);
     // 單價和上次差太多（多打或少打一個 0）
     if (p > 0 && (sale || pur)) {
@@ -600,7 +601,8 @@ async function saveBill(close, then, force, pre) {
   const id = e.id || uid('b');
   const doc = { type: e.type, no: e.no.trim(), date: e.date, note: e.note || '', createdAt: e.createdAt || Date.now(), updatedAt: Date.now() };
   if (T.party) doc.cid = e.cid;
-  if (T.lines) { doc.wid = e.wid; doc.lines = e.lines.map(l => { if (l.txt !== undefined) return { txt: String(l.txt).trim() }; const o = { gid: l.gid || '', qty: +l.qty || 0, price: +l.price || 0 }; if (!l.gid && l.n) { o.n = l.n; if (l.unit) o.unit = l.unit; } if (l.u) o.u = l.u; if (l.sq) o.sq = l.sq; if (String(l.memo || '').trim()) o.memo = String(l.memo).trim(); if (l.unit === 'a' && +l.rate > 1) { o.unit = 'a'; o.rate = +l.rate; } else if (l.u && l.gid) { const r = uRate(l.u, C.g[l.gid]); if (r && r !== 1) o.rate = r; } if (l.batch) o.batch = l.batch; if (+l.wt > 0) o.wt = +l.wt; return o; }); }
+  if (T.lines) { doc.wid = e.wid; doc.lines = e.lines.map(l => { if (l.txt !== undefined) return { txt: String(l.txt).trim() }; const o = { gid: l.gid || '', qty: +l.qty || 0, price: +l.price || 0 }; if (!l.gid && l.n) { o.n = l.n; if (l.unit) o.unit = l.unit; } if (l.u) o.u = l.u; if (l.sq) o.sq = l.sq; if (String(l.memo || '').trim()) o.memo = String(l.memo).trim(); if (l.unit === 'a' && +l.rate > 1) { o.unit = 'a'; o.rate = +l.rate; } else if (l.u && l.gid) { let r = lineRate(l, C.g[l.gid]); if (r && unitFactor(l.u)[0] === 'kg' && unitFactor(C.g[l.gid].unit || 'PCS')[0] === 'p' && o.qty > 0 && o.qty * r >= 1) r = Math.round(o.qty * r) / o.qty;   // 公斤換支數：湊成整數支
+      if (r && r !== 1) o.rate = r; } if (l.batch) o.batch = l.batch; if (+l.wt > 0) o.wt = +l.wt; return o; }); }
   if (T.transfer) doc.toWid = e.toWid;
   if (T.doc) { doc.disc = +e.disc || 0; doc.tax = !!e.tax; for (const k of ['attn', 'valid', 'deliv', 'payterm', 'toBill', 'received', 'fromQuote', 'orderId', 'proc', 'cpo', 'src', 'closed']) if (e[k]) doc[k] = e[k]; delete doc.wid; }
   else if (T.lines && T.party) { doc.disc = +e.disc || 0; doc.tax = !!e.tax; doc.paid = +e.paid || 0; doc.aid = e.aid || (doc.paid ? store.list('accounts')[0]?.id || '' : ''); for (const k of ['invNo', 'fromQuote', 'fromPO', 'fromSO', 'sq', 'kerry', 'noKerry', 'kerryQ']) if (e[k]) doc[k] = e[k]; }
@@ -612,6 +614,8 @@ async function saveBill(close, then, force, pre) {
   if (e.hist) return saveHist(e, T, { ...e._orig, ...doc, id }, close);
   if (pre) pre();
   try { await store.save('bills', id, doc); } catch (err2) { toast('儲存失敗：' + err2.message); return; }
+  // 進貨單上填了單重、商品資料還沒有單重的：順手記到商品資料，之後公斤換支數就有依據
+  if (e.type === 'PUR') { const done = new Set(); for (const l of doc.lines) { const g0 = l.gid && !done.has(l.gid) ? store.get('goods', l.gid) : null; if (!g0 || !(+l.wt > 0) || +g0.wt > 0) continue; done.add(l.gid); try { await store.save('goods', g0.id, { ...g0, wt: +l.wt }); } catch (e3) { /* 記不進去不影響進貨單 */ } } if (done.size) toast(`已把單重記到 ${done.size} 個商品的商品資料`); }
   store.log(e.id ? '修改' : '新增', `${T.name} ${doc.no}${T.party ? '｜' + cname(doc.cid) : ''}｜${fmt(T.lines ? totals(doc).total : doc.amount)} 元`);
   close(); toast(`${T.name} ${doc.no} 已儲存`);
   onSavedCb && onSavedCb({ ...doc, id });
@@ -654,7 +658,18 @@ async function soToSale(so, close) {
   openBill('SALE', null, onSavedCb, { cid: so.cid, lines, disc: 0, tax: !!so.tax, note: `由客戶訂單 ${so.no}${so.cpo ? '（客戶單號 ' + so.cpo + '）' : ''} 出貨`, fromSO: so.id });
 }
 // 單重（g／支）：同一個商品最近一次單據上填的單重；沒填過就空白（用商品資料的單重估算）
-const WT_TYPES = ['SALE', 'SALE_RET'];
+const WT_TYPES = ['SALE', 'SALE_RET', 'PUR', 'PUR_RET'];
+// 公斤 ↔ 支數：這一行的單位跟商品單位一個是重量、一個是支數時，顯示換算結果；沒有單重換不了就標紅
+function convInfo(l, g) {
+  if (!g || !l.u || l.unit === 'a') return null;
+  const [c1] = unitFactor(l.u), [c2] = unitFactor(g.unit || 'PCS');
+  if (c1 === c2 || !['kg', 'p'].includes(c1) || !['kg', 'p'].includes(c2)) return null;
+  const gu = g.unit || 'PCS'; const r = lineRate(l, g);
+  if (!r) return { bad: true, t: `沒有單重，${l.u} 換不成 ${gu}：${c2 === 'p' ? '請在右邊「單重 g」填每支幾公克' : '請到商品資料填單重'}` };
+  const own = c1 === 'kg' && +l.wt > 0; const w = own ? +l.wt : goodsWt(g);
+  return { t: `≈ ${fmtQ(c2 === 'p' ? Math.round((+l.qty || 0) * r) : Math.round((+l.qty || 0) * r * 100) / 100)} ${gu}（單重 ${fp4(w)} g・${own ? '這張單填的' : wtSrc(g)}）` };
+}
+const convHtml = (l, g) => { const h = convInfo(l, g); return h ? `<span${h.bad ? ' style="color:var(--red, #c00)"' : ''}>${esc(h.t)}</span>` : ''; };
 let LW = null, LWgen = -1;
 function lastWt(gid, exclude) {
   if (!LW || LWgen !== store.gen) {
