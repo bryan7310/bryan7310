@@ -33,7 +33,7 @@ export async function abcList() {
   const add = b => {
     if (b.type !== 'SALE' && b.type !== 'SALE_RET') return; const d = b.date || ''; if (d < from) return; const s = b.type === 'SALE' ? 1 : -1;
     for (const l of b.lines || []) {
-      if (!l.gid) continue; const x = S.get(l.gid) || S.set(l.gid, { gid: l.gid, amt: 0, n: 0, last: '' }).get(l.gid);
+      if (!l.gid) continue; const x = S.get(l.gid) || S.set(l.gid, { gid: l.gid, amt: 0, n: 0, last: '', cids: new Set() }).get(l.gid); if (b.cid) x.cids.add(b.cid);   // cids＝這一年買過這個商品的客戶（盤點表的客戶篩選用）
       x.amt += s * Math.round((+l.qty || 0) * (+l.price || 0)); x.n++; if (d > x.last) x.last = d;
     }
   };
@@ -43,6 +43,12 @@ export async function abcList() {
   const tot = list.reduce((a, x) => a + x.amt, 0); let cum = 0;
   list.forEach((x, i) => { x.cls = cum < tot * 0.8 ? 'A' : cum < tot * 0.95 ? 'B' : 'C'; cum += x.amt; x.rank = i + 1; x.star = x.cls === 'A' && x.n >= 6; });
   return { from, list, map: new Map(list.map(x => [x.gid, x])) };
+}
+
+/** 盤點表的客戶選單：這一年有出貨的客戶，[{ cid, name, n }]，商品數多的排前面 */
+export function abcCustomers(list) {
+  const m = new Map(); for (const x of list) for (const c of x.cids || []) m.set(c, (m.get(c) || 0) + 1);
+  return [...m].map(([cid, n]) => { const c = store.get('contacts', cid); return c ? { cid, name: c.short || c.name || '', n } : null; }).filter(Boolean).sort((a, b) => b.n - a.n || a.name.localeCompare(b.name));
 }
 
 /** 這個商品這一輪盤過了沒：上次盤點日（goods.cntAt）在該類的週期內 */

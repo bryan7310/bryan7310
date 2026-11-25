@@ -7,7 +7,7 @@ import { store } from '../core/store.js';
 import { calc } from '../core/calc.js';
 import { scanQR, qrMatrix } from '../core/qr.js';
 import { estWeight } from '../core/spec.js';
-import { abcList, countedOk } from '../core/abc.js';
+import { abcList, countedOk, abcCustomers } from '../core/abc.js';
 import { adjustStock, findByCode } from './stock.js';
 import { lblParse, queueLabels, curPrinter, pickPrinter, toBW, fitText } from './label.js';
 
@@ -15,7 +15,7 @@ const W = 400, H = 320;
 const CLS = [['S', 'A★常出貨'], ['A', 'A 類'], ['B', 'B 類'], ['C', 'C 類'], ['all', '全部']];
 const SORTS = [['code', '料號'], ['amt', '出貨金額'], ['last', '最近出貨日']];
 const PKEY = 'zr.m.cnt.printed';   // 這支手機印過盤點標籤的商品
-const ui = { cls: ls.get('zr.m.cnt.cls', 'S'), sort: ls.get('zr.m.cnt.sort', 'code'), todo: false, sel: new Set(), data: null, busy: false, back: '#stock' };
+const ui = { cls: ls.get('zr.m.cnt.cls', 'S'), sort: ls.get('zr.m.cnt.sort', 'code'), todo: false, cid: '', sel: new Set(), data: null, busy: false, back: '#stock' };
 const toast = msg => { const t = document.getElementById('toast'); t.textContent = msg; t.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(() => t.hidden = true, 2800); };
 const printed = () => new Set(ls.get(PKEY, []) || []);
 
@@ -45,7 +45,7 @@ export async function drawCountLabel(cv, g) {
 
 function rows() {
   const D = ui.data; if (!D) return [];
-  let list = D.list.filter(x => ui.cls === 'all' ? true : ui.cls === 'S' ? x.star : x.cls === ui.cls);
+  let list = (ui.cid ? D.list.filter(x => x.cids?.has(ui.cid)) : D.list).filter(x => ui.cls === 'all' ? true : ui.cls === 'S' ? x.star : x.cls === ui.cls);
   if (ui.todo) list = list.filter(x => !countedOk(store.get('goods', x.gid), x.cls));
   const code = x => String(store.get('goods', x.gid)?.code || '');
   if (ui.sort === 'code') list = [...list].sort((a, b) => code(a).localeCompare(code(b)));
@@ -65,12 +65,14 @@ export async function countPage(view, opt = {}) {
 
 function draw(view) {
   const D = ui.data; const C = calc(); const list = rows(); const pr = curPrinter(); const pd = printed();
-  const cnt = k => D.list.filter(x => k === 'all' ? true : k === 'S' ? x.star : x.cls === k).length;
+  const custs = abcCustomers(D.list); const base = ui.cid ? D.list.filter(x => x.cids?.has(ui.cid)) : D.list;
+  const cnt = k => base.filter(x => k === 'all' ? true : k === 'S' ? x.star : x.cls === k).length;
   const sel = list.filter(x => ui.sel.has(x.gid)); const done = list.filter(x => countedOk(store.get('goods', x.gid), x.cls)).length;
   const y = window.scrollY;
   view.innerHTML = `<div class="hd"><a class="chip" href="${ui.back}">‹ 返回</a><h1>盤點表</h1><span class="sp"></span><span class="sub">${ui.todo ? '' : `已盤 ${done}／${list.length}`}</span></div>
     <div class="btn2"><button class="btn" id="cscan">📷 掃碼盤點</button><button class="btn ${sel.length ? '' : 'ghost'}" id="cprint">🖨 印盤點標籤${sel.length ? `（${sel.length}）` : ''}</button></div>
     <div class="chips">${CLS.map(([k, n]) => `<button class="chip ${ui.cls === k ? 'on' : ''}" data-cls="${k}">${n} ${cnt(k)}</button>`).join('')}</div>
+    <div style="margin:0 0 8px"><select id="ccust" aria-label="客戶篩選" style="width:100%;font-size:16px;padding:9px 10px;border:1px solid var(--line);border-radius:10px;background:var(--card, transparent);color:inherit"><option value="">全部客戶</option>${custs.map(c => `<option value="${c.cid}" ${c.cid === ui.cid ? 'selected' : ''}>${esc(c.name)}（${c.n}）</option>`).join('')}</select></div>
     <div class="chips seg">${SORTS.map(([k, n]) => `<button class="chip ${ui.sort === k ? 'on' : ''}" data-sort="${k}">${n}</button>`).join('')}</div>
     <div class="chips"><button class="chip ${ui.todo ? 'on' : ''}" id="ctodo">只看還沒盤的</button><button class="chip" id="call">全選</button><button class="chip" id="cnew">選沒印過標籤的</button>${ui.sel.size ? '<button class="chip" id="cnone">取消勾選</button>' : ''}</div>
     <div class="note" style="text-align:left;margin:0 0 8px">近一年有出貨的商品，依出貨金額分類：A 每月盤、B 每季盤、C 半年盤。點商品直接盤點；勾起來可以印盤點標籤（標籤機：<a href="#" id="cpp">${esc(pr.name)}</a>）。</div>
@@ -81,6 +83,7 @@ function draw(view) {
   view.querySelectorAll('[data-cls]').forEach(b => b.onclick = () => { ui.cls = b.dataset.cls; ls.set('zr.m.cnt.cls', ui.cls); ui.sel.clear(); window.scrollTo(0, 0); redraw(); });
   view.querySelectorAll('[data-sort]').forEach(b => b.onclick = () => { ui.sort = b.dataset.sort; ls.set('zr.m.cnt.sort', ui.sort); redraw(); });
   $('#ctodo').onclick = () => { ui.todo = !ui.todo; redraw(); };
+  $('#ccust').onchange = ev => { ui.cid = ev.target.value; ui.sel.clear(); window.scrollTo(0, 0); redraw(); };
   $('#call').onclick = () => { list.forEach(x => ui.sel.add(x.gid)); redraw(); };
   $('#cnew').onclick = () => { ui.sel.clear(); list.forEach(x => { if (!pd.has(x.gid)) ui.sel.add(x.gid); }); redraw(); if (!ui.sel.size) toast('這個清單的標籤都印過了'); };
   $('#cnone')?.addEventListener('click', () => { ui.sel.clear(); redraw(); });

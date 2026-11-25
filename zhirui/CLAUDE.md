@@ -23,7 +23,7 @@
 | 委託加工、加工單 | 委託加工 `#processing` | `processing.js` |
 | 訂貨排程 | `#orders` | `orders.js` |
 | 庫存、出入庫、調撥；App 的查商品、盤點 | 庫存數量 `#stock` | `stock.js`；App 查商品 `m/stock.js`（盤點模式、新增商品）、`m/goodsedit.js` |
-| 盤點表、ABC 分類、盤點標籤（50×40，QR＋品名＋單重）、掃碼盤點 | 庫存數量 › 盤點表 `#stock/count`；App `#count`（員工版首頁「盤點」） | `core/abc.js`（分類）、`m/count.js`（清單、標籤、列印）、`m/stock.js` 的 adjustStock（盤點表單：數量、單重、盤點日 cntAt） |
+| 盤點表、ABC 分類、盤點標籤（50×40，QR＋品名＋單重）、掃碼盤點 | 庫存數量 › 盤點表 `#stock/count`；App `#count`（員工版首頁「盤點」） | `core/abc.js`（分類、客戶篩選 abcCustomers）、`stock.js` 的 drawCount（電腦版盤點表、印盤點標籤）、`m/count.js`（清單、標籤、列印）、`m/stock.js` 的 adjustStock（盤點表單：數量、單重、盤點日 cntAt） |
 | 應收帳款、收款沖帳、未收、應收月份 | 應收帳款 `#receivables` | `receivables.js`；App `m/ar.js` |
 | 應付帳款 | `#payables` | `payables.js` |
 | 收款單、付款單、帳戶 | 收款登記 `#money` | `money.js` |

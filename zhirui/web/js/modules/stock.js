@@ -3,12 +3,12 @@ import { $, esc, fmt, fmtQ, qTerms, matchQ } from '../core/util.js';
 import { store } from '../core/store.js';
 import { tabs, pager, onSearch, printHTML, toast, confirm } from '../core/ui.js';
 import { today, slash, uid } from '../core/util.js';
-import { abcList, countedOk } from '../core/abc.js';
+import { abcList, countedOk, abcCustomers } from '../core/abc.js';
 import { calc, goodsLabel, TYPES, nextNo } from '../core/calc.js';
 import { billList, openBill } from './_bills.js';
 import { openMaster } from './master.js';
 
-const ui = { tab: 'qty', q: '', page: 0, bills: {}, ccls: 'S', csort: 'code', ctodo: false, cedit: false, cvals: {}, cwid: '', cdate: '' };   // cedit＝正在輸入盤點結果，cvals＝{ 商品 id: { q, w } }
+const ui = { tab: 'qty', q: '', page: 0, bills: {}, ccls: 'S', csort: 'code', ccid: '', ctodo: false, cedit: false, cvals: {}, cwid: '', cdate: '' };   // cedit＝正在輸入盤點結果，cvals＝{ 商品 id: { q, w } }
 const STABS = [['qty', '庫存數量'], ['low', '低於安全庫存'], ['count', '盤點表'], ['moves', '出入庫／調撥／組包']];
 export default {
   id: 'stock', name: '庫存數量', group: '倉儲', icon: 'stock',
@@ -58,8 +58,11 @@ async function drawCount(el) {
   const C = calc(); const whs = store.list('warehouses'); const G = x => store.get('goods', x.gid);
   if (!whs.some(w => w.id === ui.cwid)) ui.cwid = (whs.find(w => w.name === '預設倉庫') || whs[0])?.id || '';
   const edit = ui.cedit; const V = ui.cvals;
-  const cnt = k => D.list.filter(x => k === 'all' ? true : k === 'S' ? x.star : x.cls === k).length;
-  let list = D.list.filter(x => ui.ccls === 'all' ? true : ui.ccls === 'S' ? x.star : x.cls === ui.ccls);
+  const custs = abcCustomers(D.list); if (ui.ccid && !custs.some(c => c.cid === ui.ccid)) ui.ccid = '';
+  const base = ui.ccid ? D.list.filter(x => x.cids?.has(ui.ccid)) : D.list;   // 客戶篩選：只看這一年賣給這個客戶的商品
+  const cname0 = custs.find(c => c.cid === ui.ccid)?.name || '';
+  const cnt = k => base.filter(x => k === 'all' ? true : k === 'S' ? x.star : x.cls === k).length;
+  let list = base.filter(x => ui.ccls === 'all' ? true : ui.ccls === 'S' ? x.star : x.cls === ui.ccls);
   const done = list.filter(x => countedOk(G(x), x.cls)).length; const n0 = list.length;
   if (ui.ctodo && !edit) list = list.filter(x => !countedOk(G(x), x.cls));
   if (ui.csort === 'code') list = [...list].sort((a, b) => String(G(a).code || '').localeCompare(String(G(b).code || '')));
@@ -74,8 +77,8 @@ async function drawCount(el) {
   const whSel = `<select id="cnt-wh" title="盤哪一個倉庫">${whs.map(w => `<option value="${w.id}" ${w.id === ui.cwid ? 'selected' : ''}>${esc(w.name)}</option>`).join('')}</select>`;
   el.innerHTML = `<div class="head"><h1>庫存</h1><span class="sp"></span>${edit
       ? `<span class="muted small" id="cnt-sum"></span><button class="btn" id="cnt-cancel">取消</button><button class="btn pri" id="cnt-save">儲存盤點結果</button>`
-      : `<button class="btn" id="cnt-print">列印盤點表（紙本）</button><button class="btn pri" id="cnt-edit">輸入盤點結果</button>`}</div>
-    <div class="panel"><div class="tools">${tabs('s', STABS, 'count')}${tabs('cc', CCLS.map(([k, n]) => [k, `${n} ${cnt(k)}`]), ui.ccls)}<span class="muted small">排列</span>${tabs('cs', CSORT, ui.csort)}${edit
+      : `<button class="btn" id="cnt-label" title="跟 App 一樣的盤點標籤（50×40：QR 碼＋品名＋單重），送到標籤機">印盤點標籤</button><button class="btn" id="cnt-print">列印盤點表（紙本）</button><button class="btn pri" id="cnt-edit">輸入盤點結果</button>`}</div>
+    <div class="panel"><div class="tools">${tabs('s', STABS, 'count')}${tabs('cc', CCLS.map(([k, n]) => [k, `${n} ${cnt(k)}`]), ui.ccls)}<span class="muted small">排列</span>${tabs('cs', CSORT, ui.csort)}<select id="cnt-cust" title="只看這一年賣給這個客戶的商品" style="max-width:15em"><option value="">全部客戶</option>${custs.map(c => `<option value="${c.cid}" ${c.cid === ui.ccid ? 'selected' : ''}>${esc(c.name)}（${c.n}）</option>`).join('')}</select>${edit
       ? `<span class="muted small">倉庫</span>${whSel}<span class="muted small">盤點日期</span><input type="date" id="cnt-date" value="${esc(ui.cdate || today())}">`
       : `<label class="small"><input type="checkbox" id="cnt-todo" ${ui.ctodo ? 'checked' : ''}> 只看還沒盤的</label><span class="muted small">已盤 ${done}／${n0}</span>`}</div>
     <div class="muted small" style="margin:8px 0">${edit
@@ -90,12 +93,33 @@ async function drawCount(el) {
     if (key === 's') { if (ui.cedit && Object.keys(ui.cvals).length && !window.confirm('盤點結果還沒儲存，要離開嗎？（已經打的數字會留著，回到盤點表還在）')) return drawCount(el); ui.tab = val; ui.page = 0; draw(el); }
     else { if (key === 'cc') ui.ccls = val; if (key === 'cs') ui.csort = val; drawCount(el); } };
   el.addEventListener('tab', el._cntTab);
+  $('#cnt-cust', el).addEventListener('change', ev => { ui.ccid = ev.target.value; drawCount(el); });
   if (!edit) {
+    // 印盤點標籤：跟 App 盤點表同一種標籤、同一台標籤機（主機的列印小幫手），照畫面上的清單一個商品一張
+    $('#cnt-label', el).addEventListener('click', async ev => {
+      if (!list.length) return toast('清單是空的');
+      const btn = ev.currentTarget; let sent = 0;
+      try {
+        const [M, L] = await Promise.all([import('../m/count.js'), import('../m/label.js')]); const pr = L.curPrinter();
+        if (!(await confirm(`要印 ${list.length} 張盤點標籤到「${pr.name}」嗎？
+
+範圍：${cname0 ? cname0 + '・' : ''}${CCLS.find(c => c[0] === ui.ccls)[1]}${ui.ctodo ? '（還沒盤的）' : ''}，照目前的排列順序，一個商品一張。`, { ok: '列印' }))) return;
+        btn.disabled = true;
+        for (let i = 0; i < list.length; i += 20) {
+          const part = list.slice(i, i + 20); const labels = [];
+          for (const x of part) { const cv = document.createElement('canvas'); await M.drawCountLabel(cv, G(x)); labels.push({ cv, copies: 1 }); }
+          btn.textContent = `送出中 ${Math.min(i + 20, list.length)}／${list.length}…`;
+          await L.queueLabels(labels, `盤點標籤 ${i + 1}～${i + part.length}（共 ${list.length} 張）`); sent += part.length;
+        }
+        toast(`已送出 ${sent} 張盤點標籤，到「${pr.name}」拿`);
+      } catch (e) { toast(`送出 ${sent} 張之後失敗：${e.message || e}`); }
+      if (btn.isConnected) { btn.disabled = false; btn.textContent = '印盤點標籤'; }
+    });
     $('#cnt-todo', el).addEventListener('change', ev => { ui.ctodo = ev.target.checked; drawCount(el); });
     el.querySelectorAll('tr.row').forEach(tr => tr.addEventListener('click', () => openMaster('goods', store.get('goods', tr.dataset.id))));
     $('#cnt-edit', el).addEventListener('click', () => { ui.cedit = true; ui.cdate = today(); drawCount(el); });
     $('#cnt-print', el).addEventListener('click', () => printHTML('盤點表', '@page{size:A4;margin:10mm}body{font-family:"Microsoft JhengHei",sans-serif;font-size:11px}h2{margin:0 0 6px;font-size:16px}table{border-collapse:collapse;width:100%}th,td{border:1px solid #888;padding:5px;text-align:left}td.n,th.n{text-align:right}.mono{font-family:Consolas,monospace}thead{display:table-header-group}tr{break-inside:avoid}',
-      `<h2>盤點表　${esc(CCLS.find(c => c[0] === ui.ccls)[1])}${ui.ctodo ? '（還沒盤的）' : ''}・依${esc(CSORT.find(c => c[0] === ui.csort)[1])}排列　${slash(today())}　共 ${list.length} 項　倉庫：${esc(wname)}　盤點人：＿＿＿＿＿</h2><table><thead><tr><th style="width:26px">#</th><th>類別</th><th>料號</th><th>品名規格</th><th class="n">系統庫存</th><th>單位</th><th style="width:80px">實際數量（手填）</th><th style="width:64px">單重 g（手填）</th><th>最近出貨</th></tr></thead><tbody>${list.map((x, i) => { const g = G(x); return `<tr><td>${i + 1}</td><td>${x.cls}${x.star ? '★' : ''}</td><td class="mono">${esc(g.code)}</td><td>${esc(g.name)}</td><td class="n">${fmtQ(sysQ(g))}</td><td>${esc(g.unit || '')}</td><td></td><td class="n" style="color:#777">${+g.wt > 0 ? esc(g.wt) : ''}</td><td>${esc(slash(x.last))}</td></tr>`; }).join('')}</tbody></table><p style="font-size:10px;color:#555">單重欄印的是系統目前的單重；現場有重新秤，直接劃掉改寫。回辦公室後到「庫存 › 盤點表 › 輸入盤點結果」，選同樣的分類和排列，照順序打進去。</p>`, { tip: '按 Ctrl+P 列印，紙張 A4。' }));
+      `<h2>盤點表　${cname0 ? esc(cname0) + '・' : ''}${esc(CCLS.find(c => c[0] === ui.ccls)[1])}${ui.ctodo ? '（還沒盤的）' : ''}・依${esc(CSORT.find(c => c[0] === ui.csort)[1])}排列　${slash(today())}　共 ${list.length} 項　倉庫：${esc(wname)}　盤點人：＿＿＿＿＿</h2><table><thead><tr><th style="width:26px">#</th><th>類別</th><th>料號</th><th>品名規格</th><th class="n">系統庫存</th><th>單位</th><th style="width:80px">實際數量（手填）</th><th style="width:64px">單重 g（手填）</th><th>最近出貨</th></tr></thead><tbody>${list.map((x, i) => { const g = G(x); return `<tr><td>${i + 1}</td><td>${x.cls}${x.star ? '★' : ''}</td><td class="mono">${esc(g.code)}</td><td>${esc(g.name)}</td><td class="n">${fmtQ(sysQ(g))}</td><td>${esc(g.unit || '')}</td><td></td><td class="n" style="color:#777">${+g.wt > 0 ? esc(g.wt) : ''}</td><td>${esc(slash(x.last))}</td></tr>`; }).join('')}</tbody></table><p style="font-size:10px;color:#555">單重欄印的是系統目前的單重；現場有重新秤，直接劃掉改寫。回辦公室後到「庫存 › 盤點表 › 輸入盤點結果」，選同樣的分類和排列，照順序打進去。</p>`, { tip: '按 Ctrl+P 列印，紙張 A4。' }));
     return;
   }
   // ----- 輸入盤點結果 -----
