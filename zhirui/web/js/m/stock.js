@@ -237,6 +237,17 @@ export function adjustStock(g, done) {
     <div class="card"><b>${esc(g.name)}</b><div class="muted mono">${esc(g.code)}${g.cntAt ? `・上次盤點 ${esc(slash(g.cntAt))}` : ''}</div></div>
     <div class="note" style="text-align:left">在「實際數量」填點到的數量，差異會自動開一張其他入庫或其他出庫補平，電腦版「庫存 › 出入庫」查得到。沒填的倉庫不調整。</div>
     <div class="card list">${whs.map(w => { const q = (C.stock[g.id] || {})[w.id] || 0; return `<div class="row"><div class="gm"><b>${esc(w.name)}</b><small>系統 ${fmtQ(q)} ${esc(g.unit || '')}・<span data-d="${w.id}">差異 —</span></small></div><input class="inl adjq" data-w="${w.id}" data-sys="${q}" inputmode="decimal" placeholder="${fmtQ(q)}" enterkeyhint="next" style="width:110px;border:1px solid var(--line);border-radius:10px;padding:8px 10px"></div>`; }).join('')}</div>
+    <p style="margin:10px 0 0"><button type="button" class="btn ghost" id="calcT" style="width:100%">計算機（加總、公斤換支數）</button></p>
+    <div class="card" id="calcB" hidden style="margin-top:8px;padding:10px">
+      <div id="calcE" class="mono" style="min-height:22px;text-align:right;word-break:break-all;color:var(--muted)"></div>
+      <div id="calcR" style="text-align:right;font-size:28px;font-weight:700;min-height:36px">0</div>
+      <div id="calcK" style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:8px">${['7', '8', '9', '÷', '4', '5', '6', '×', '1', '2', '3', '−', '0', '.', '⌫', '＋'].map(k => `<button type="button" data-k="${k}" style="height:48px;font-size:20px;border:1px solid var(--line);border-radius:10px;background:var(--surface, transparent);color:inherit">${k}</button>`).join('')}
+        <button type="button" data-k="C" style="height:48px;font-size:17px;border:1px solid var(--line);border-radius:10px;background:transparent;color:var(--bad, #c00)">清除</button>
+        <button type="button" data-k="kg" style="height:48px;font-size:15px;grid-column:span 2;border:1px solid var(--line);border-radius:10px;background:transparent;color:inherit">公斤 → 支數</button>
+        <button type="button" data-k="=" style="height:48px;font-size:20px;border:1px solid var(--line);border-radius:10px;background:transparent;color:inherit">＝</button></div>
+      <div class="muted" id="calcN" style="font-size:13px;margin-top:6px"></div>
+      <p style="margin:8px 0 0"><button type="button" class="btn" id="calcF">填入</button></p>
+    </div>
     <div class="f" style="margin-top:10px"><label for="adw">單重 g／支（可以改，會存回商品資料）</label><input id="adw" inputmode="decimal" enterkeyhint="done" value="${esc(wt0)}" placeholder="${est ? '還沒登錄，自動估算約 ' + est : '還沒有單重，例如 2.5'}"></div>
     <div class="f" style="margin-top:10px"><label for="adn">原因（選填）</label><input id="adn" placeholder="例如：盤點、破損、樣品"></div>
     <div class="err" id="ade"></div>
@@ -246,6 +257,23 @@ export function adjustStock(g, done) {
   el.querySelector('[data-x]').onclick = close;
   const diffOf = t => t.value.trim() === '' ? null : Math.round(((+t.value.replace(/,/g, '') || 0) - (+t.dataset.sys || 0)) * 1000) / 1000;
   el.addEventListener('input', ev => { const t = ev.target; if (!t.classList.contains('adjq')) return; const d = diffOf(t); const sp = el.querySelector(`[data-d="${t.dataset.w}"]`); sp.textContent = d === null ? '差異 —' : `差異 ${d > 0 ? '+' : ''}${fmtQ(d)}`; sp.className = d > 0 ? 'good' : d < 0 ? 'bad' : ''; });
+  // 計算機：一箱一箱加總（5000×7＋2873），或把秤到的公斤換成支數（× 1000 ÷ 單重）；算好按「填入」放進剛才點的那個倉庫
+  { let expr = '', fresh = false, tgt = el.querySelector('.adjq'); const q = s => el.querySelector(s);
+    const val = () => { let s = expr.replace(/×/g, '*').replace(/÷/g, '/').replace(/−/g, '-').replace(/＋/g, '+').replace(/[-+*/.]+$/, ''); if (!s || !/^[\d.+\-*/]+$/.test(s)) return null; try { const v = Function('"use strict";return (' + s + ')')(); return Number.isFinite(v) ? Math.round(v * 1000) / 1000 : null; } catch (e) { return null; } };
+    const show = msg => { const v = val(); q('#calcE').textContent = expr; q('#calcR').textContent = v === null ? '0' : fmtQ(v); q('#calcN').textContent = msg || ''; const w = whs.find(x => x.id === tgt?.dataset.w); q('#calcF').textContent = `填入 ${w ? w.name : ''}${v === null ? '' : '：' + fmtQ(v)}`; };
+    el.addEventListener('focusin', ev => { if (ev.target.classList.contains('adjq')) { tgt = ev.target; show(); } });
+    q('#calcT').onclick = () => { const b = q('#calcB'); b.hidden = !b.hidden; if (!b.hidden) { document.activeElement?.blur(); show(); b.scrollIntoView({ block: 'center', behavior: 'smooth' }); } };
+    q('#calcK').addEventListener('click', ev => { const k = ev.target.closest('[data-k]')?.dataset.k; if (!k) return; let msg = '';
+      const wasFresh = fresh; fresh = false; if (wasFresh && /[\d.]/.test(k)) expr = '';   // 剛按過＝或換算：再按數字是重新算，按＋−×÷是接著算
+      if (k === 'C') expr = '';
+      else if (k === '⌫') expr = expr.slice(0, -1);
+      else if (k === '=') { const v = val(); if (v !== null) { expr = String(v); fresh = true; } }
+      else if (k === 'kg') { const v = val(); const w = +q('#adw').value.replace(/,/g, '') || est; if (v === null) msg = '先輸入秤到的公斤數'; else if (!(w > 0)) msg = '沒有單重，先在下面填單重 g／支'; else { const n = Math.round(v * 1000 / w); msg = `${fmtQ(v)} 公斤 × 1000 ÷ 單重 ${w} g ＝ ${fmtQ(n)} 支`; expr = String(n); fresh = true; } }
+      else if ('÷×−＋'.includes(k)) { if (expr) expr = expr.replace(/[÷×−＋.]+$/, '') + k; }
+      else if (k === '.') { if (!/\.\d*$/.test(expr)) expr += /\d$/.test(expr) ? '.' : '0.'; }
+      else expr += k;
+      show(msg); });
+    q('#calcF').onclick = () => { const v = val(); if (v === null || !tgt) { show('先算出數字'); return; } tgt.value = String(v); tgt.dispatchEvent(new Event('input', { bubbles: true })); q('#calcB').hidden = true; tgt.scrollIntoView({ block: 'center', behavior: 'smooth' }); }; }
   el.querySelector('#ado').onclick = async ev => {
     const note = el.querySelector('#adn').value.trim(); const d0 = today(); const ops = []; const made = []; let filled = false;
     const wraw = el.querySelector('#adw').value.trim().replace(/,/g, '');
