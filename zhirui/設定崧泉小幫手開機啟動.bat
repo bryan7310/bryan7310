@@ -2,7 +2,7 @@
 chcp 65001 >nul
 cd /d "%~dp0"
 rem 在 Windows「啟動」資料夾放一個捷徑：以後登入 Windows 就自動執行崧泉小幫手
-powershell -NoProfile -Command "$s=(New-Object -ComObject WScript.Shell).CreateShortcut([Environment]::GetFolderPath('Startup')+'\zhirui_b2b_helper.lnk'); $s.TargetPath='C:\Users\ㄧ\AppData\Local\Python\pythoncore-3.15-64\pythonw.exe'; $s.Arguments='\"%~dp0server\b2b_helper.py\"'; $s.WorkingDirectory='%~dp0'; $s.Save()"
+powershell -NoProfile -Command "$s=(New-Object -ComObject WScript.Shell).CreateShortcut([Environment]::GetFolderPath('Startup')+'\zhirui_b2b_helper.lnk'); $s.TargetPath=$env:LOCALAPPDATA+'\Python\pythoncore-3.15-64\pythonw.exe'; $s.Arguments='\"%~dp0server\b2b_helper.py\"'; $s.WorkingDirectory='%~dp0'; $s.Save()"
 if errorlevel 1 (
   echo 設定失敗
 ) else (
