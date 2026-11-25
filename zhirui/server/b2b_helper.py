@@ -704,6 +704,12 @@ def find_shipment(br, job, before=None):
     return None, set(nos)
 
 
+def ship_note(job):
+    """崧泉出貨單的備註：崧泉要求寫出貨日期（＝銷貨單日期），放最前面；後面帶志瑞銷貨單號方便對帳"""
+    d = (job.get('date') or time.strftime('%Y-%m-%d')).replace('-', '/')
+    return f"出貨日期 {d}　志瑞銷貨單 {job['no']}"
+
+
 def do_ship(br, cfg, job, state):
     """回 (狀態, 訊息)。狀態：done 已建立｜fail 沒送出（可以重試）｜unknown 送出了但確認不到（不重試，要人看）｜wait 等人按完成"""
     main = cfg['base'] + '/FrameEnterprise/MainFrame_M.aspx'
@@ -711,7 +717,7 @@ def do_ship(br, cfg, job, state):
     _, before = find_shipment(br, job)
     br.goto(main)
     br.dialogs.clear()
-    r = br.js(WIZARD_JS, {'page': 'EC/Maintain/PQM/PQMSI02/PQMSI02_M.aspx', 'lines': job['lines'], 'note': f"志瑞銷貨單 {job['no']}"}, timeout=150)
+    r = br.js(WIZARD_JS, {'page': 'EC/Maintain/PQM/PQMSI02/PQMSI02_M.aspx', 'lines': job['lines'], 'note': ship_note(job)}, timeout=150)
     if not r or not r.get('ok'):
         return 'fail', (r or {}).get('err') or '出貨單建立沒有走完'
     manual = not cfg['ship_auto_submit'] or not state.get('ship_verified')
