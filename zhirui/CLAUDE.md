@@ -19,7 +19,7 @@
 | 進貨單、採購單、進貨退出、匯入進貨單 | 採購進貨 `#purchase` | `purchase.js`、`purchase_import.js` |
 | App 的採購單、詢價單、報價單（傳真、存成 PDF） | App `#po`、`#rfq`、`#quo` | `web/js/m/po.js`（三種共用，見 KINDS）；PDF 由伺服器 `/api/pdf` 交給列印小幫手轉 |
 | 報價單、詢價單 | 報價詢價 `#quotes` | `quotes.js` |
-| 客戶訂單、訂單匯入（豐餘 Excel）、傳真轉訂單 | 客戶訂單 `#custorders` | `custorders.js`、`so_import.js`、`order_in.js`；App `m/so.js` |
+| 客戶訂單、訂單匯入（豐餘 Excel）、傳真轉訂單、合併出貨（勾多張訂單轉一張銷貨單） | 客戶訂單 `#custorders` | `custorders.js`（mergeShip）、`so_import.js`、`order_in.js`；App `m/so.js`。合併出貨的銷貨單記 `fromSOs`（訂單 id 陣列），每一行的 `so` 記它是哪張訂單的；出貨進度看 `_bills.js` 的 soShipped |
 | 委託加工、加工單 | 委託加工 `#processing` | `processing.js` |
 | 訂貨排程 | `#orders` | `orders.js` |
 | 庫存、出入庫、調撥；App 的查商品、盤點 | 庫存數量 `#stock` | `stock.js`；App 查商品 `m/stock.js`（盤點模式、新增商品）、`m/goodsedit.js` |

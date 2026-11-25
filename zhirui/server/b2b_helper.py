@@ -492,35 +492,47 @@ def ship_jobs(cfg, erp, cus, state):
     done = state.setdefault('ships', {})
     since = state.setdefault('since', int(time.time() * 1000))
     jobs, waiting = [], 0
-    for b in sorted((x for x in erp.bills if x.get('type') == 'SALE' and x.get('fromSO') in so), key=lambda x: x.get('createdAt') or 0):
+    def from_ids(x):      # 一張銷貨單可以由好幾張客戶訂單合併轉出（fromSOs，每一行的 so 記它屬於哪張訂單）
+        return x.get('fromSOs') or ([x['fromSO']] if x.get('fromSO') else [])
+    for b in sorted((x for x in erp.bills if x.get('type') == 'SALE' and any(i in so for i in from_ids(x))), key=lambda x: x.get('createdAt') or 0):
         if b['id'] in done or (b.get('createdAt') or 0) < since:
             continue
         if time.time() * 1000 - (b.get('updatedAt') or b.get('createdAt') or 0) < cfg['ship_wait_min'] * 60000:
             waiting += 1
             continue
-        o = so[b['fromSO']]
-        items = o['src'].get('items') or []
-        so_lines = [l for l in o.get('lines') or [] if 'txt' not in l]
+        ids = from_ids(b)
+        multi = bool(b.get('fromSOs'))
         want, err = {}, ''
         for l in b.get('lines') or []:
             if 'txt' in l or not l.get('gid') or not (l.get('qty') or 0) > 0:
                 continue
+            n = (b.get('lines') or []).index(l) + 1
             if l.get('u') or l.get('rate'):
                 err = '銷貨單有換算單位的行，請自己到崧泉平台建出貨單'
                 break
-            # 依商品找回崧泉的項次：先看訂單同一位置的行，再看客料號
-            seqs = [it['seq'] for it, sl in zip(items, so_lines) if sl.get('gid') == l['gid']]
-            if not seqs:
-                g = erp.g.get(l['gid']) or {}
-                seqs = [it['seq'] for it in items if norm(it.get('part')) and norm(it.get('part')) in (norm(g.get('spec')), norm(g.get('spec2')))]
-            if len(seqs) != 1:
-                err = f"銷貨單第 {(b.get('lines') or []).index(l) + 1} 行對不到崧泉採購單的項次" + ('（同一商品有好幾個項次）' if seqs else '')
+            # 這一行屬於哪張訂單：合併轉出的看行上的 so；沒記的（手動加的行）就在這張銷貨單的訂單裡找有這個商品的
+            cands = [l['so']] if multi and l.get('so') else ids
+            hits = []
+            for oid in cands:
+                o = so.get(oid)
+                if not o:
+                    continue
+                items = o['src'].get('items') or []
+                so_lines = [x for x in o.get('lines') or [] if 'txt' not in x]
+                seqs = [it['seq'] for it, sl in zip(items, so_lines) if sl.get('gid') == l['gid']]     # 先看訂單同一位置的行
+                if not seqs:                                                                           # 再看客料號
+                    g = erp.g.get(l['gid']) or {}
+                    seqs = [it['seq'] for it in items if norm(it.get('part')) and norm(it.get('part')) in (norm(g.get('spec')), norm(g.get('spec2')))]
+                hits += [(o['src']['po'], s) for s in seqs]
+            if len(hits) != 1:
+                err = f'銷貨單第 {n} 行對不到崧泉採購單的項次' + ('（同一商品有好幾個項次）' if hits else '（這一行的訂單不是從崧泉平台匯入的）' if multi and l.get('so') and l['so'] not in so else '')
                 break
-            want[seqs[0]] = want.get(seqs[0], 0) + l['qty']
+            want[hits[0]] = want.get(hits[0], 0) + l['qty']
         if not err and not want:
             err = '銷貨單沒有可出貨的明細'
-        jobs.append({'id': b['id'], 'no': b.get('no'), 'date': b.get('date'), 'po': o['src']['po'], 'so': o.get('no'),
-                     'lines': [{'seq': k, 'qty': v} for k, v in want.items()], 'err': err})
+        pos = list(dict.fromkeys(p for p, _ in want)) or [so[i]['src']['po'] for i in ids if i in so]
+        jobs.append({'id': b['id'], 'no': b.get('no'), 'date': b.get('date'), 'po': '、'.join(pos), 'pos': pos,
+                     'lines': [{'po': p, 'seq': s, 'qty': v} for (p, s), v in want.items()], 'err': err})
     return jobs, waiting
 
 
@@ -660,7 +672,7 @@ def merge_jobs(cfg, jobs, waiting):
     if not jobs:
         return []
     if not cfg.get('ship_merge', True):
-        return [{**j, 'sales': [(j['id'], j['no'])], 'lines': [{**L, 'po': j['po']} for L in j['lines']], 'pos': [j['po']]} for j in jobs]
+        return [{**j, 'sales': [(j['id'], j['no'])]} for j in jobs]
     if waiting:
         log(f'有 {waiting} 張崧泉銷貨單剛存檔，等它一起合併出貨，這一輪先不送')
         return []
@@ -672,8 +684,8 @@ def merge_jobs(cfg, jobs, waiting):
         qty = {}
         for j in js:
             for L in j['lines']:
-                qty[(j['po'], L['seq'])] = qty.get((j['po'], L['seq']), 0) + L['qty']
-        pos = list(dict.fromkeys(j['po'] for j in js))
+                qty[(L['po'], L['seq'])] = qty.get((L['po'], L['seq']), 0) + L['qty']
+        pos = list(dict.fromkeys(p for p, _ in qty))
         out.append({'date': date, 'sales': [(j['id'], j['no']) for j in js], 'no': '、'.join(str(j['no']) for j in js), 'po': '、'.join(pos), 'pos': pos,
                     'lines': [{'po': p, 'seq': s, 'qty': q} for (p, s), q in qty.items()]})
     return out

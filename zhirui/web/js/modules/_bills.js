@@ -602,10 +602,10 @@ async function saveBill(close, then, force, pre) {
   const doc = { type: e.type, no: e.no.trim(), date: e.date, note: e.note || '', createdAt: e.createdAt || Date.now(), updatedAt: Date.now() };
   if (T.party) doc.cid = e.cid;
   if (T.lines) { doc.wid = e.wid; doc.lines = e.lines.map(l => { if (l.txt !== undefined) return { txt: String(l.txt).trim() }; const o = { gid: l.gid || '', qty: +l.qty || 0, price: +l.price || 0 }; if (!l.gid && l.n) { o.n = l.n; if (l.unit) o.unit = l.unit; } if (l.u) o.u = l.u; if (l.sq) o.sq = l.sq; if (String(l.memo || '').trim()) o.memo = String(l.memo).trim(); if (l.unit === 'a' && +l.rate > 1) { o.unit = 'a'; o.rate = +l.rate; } else if (l.u && l.gid) { let r = lineRate(l, C.g[l.gid]); if (r && unitFactor(l.u)[0] === 'kg' && unitFactor(C.g[l.gid].unit || 'PCS')[0] === 'p' && o.qty > 0 && o.qty * r >= 1) r = Math.round(o.qty * r) / o.qty;   // 公斤換支數：湊成整數支
-      if (r && r !== 1) o.rate = r; } if (l.batch) o.batch = l.batch; if (+l.wt > 0) o.wt = +l.wt; return o; }); }
+      if (r && r !== 1) o.rate = r; } if (l.batch) o.batch = l.batch; if (+l.wt > 0) o.wt = +l.wt; if (l.so) o.so = l.so; return o; }); }
   if (T.transfer) doc.toWid = e.toWid;
   if (T.doc) { doc.disc = +e.disc || 0; doc.tax = !!e.tax; for (const k of ['attn', 'valid', 'deliv', 'payterm', 'toBill', 'received', 'fromQuote', 'orderId', 'proc', 'cpo', 'src', 'closed']) if (e[k]) doc[k] = e[k]; delete doc.wid; }
-  else if (T.lines && T.party) { doc.disc = +e.disc || 0; doc.tax = !!e.tax; doc.paid = +e.paid || 0; doc.aid = e.aid || (doc.paid ? store.list('accounts')[0]?.id || '' : ''); for (const k of ['invNo', 'noInv', 'fromQuote', 'fromPO', 'fromSO', 'sq', 'kerry', 'noKerry', 'kerryQ']) if (e[k]) doc[k] = e[k]; }
+  else if (T.lines && T.party) { doc.disc = +e.disc || 0; doc.tax = !!e.tax; doc.paid = +e.paid || 0; doc.aid = e.aid || (doc.paid ? store.list('accounts')[0]?.id || '' : ''); for (const k of ['invNo', 'noInv', 'fromQuote', 'fromPO', 'fromSO', 'fromSOs', 'sq', 'kerry', 'noKerry', 'kerryQ']) if (e[k]) doc[k] = e[k]; }
   if (T.money && !T.lines) { doc.aid = e.aid || ''; doc.amount = +e.amount || 0; if (e.cat) doc.cat = e.cat; for (const k of ['ref', 'checkId']) if (e[k]) doc[k] = e[k]; }
   if ((e.type === 'SALE' || e.type === 'SALE_RET') && (e.arYm || e.hist)) doc.arYm = e.arYm || '';
   if (e.hist) { doc.hist = true; if (e.cn) doc.cn = e.cn; if (e.oamt != null) doc.oamt = e.oamt; }
@@ -637,7 +637,8 @@ async function saveHist(e, T, doc, close) {
 // ---------- 客戶訂單：出貨進度（銷貨單 fromSO 指回訂單，依商品累計已出數量） ----------
 export const srcUrl = s => s?.fax ? `/api/faxin/file?name=${encodeURIComponent(s.fax)}` : s?.mail ? (s.n != null && s.n !== '' ? `/api/email/att?id=${s.mail}&n=${s.n}` : `#email`) : '#';
 export function soShipped(so) {
-  const got = {}; for (const b of store.list('bills')) if (b.type === 'SALE' && b.fromSO === so.id) for (const l of b.lines || []) if (l.gid) got[l.gid] = (got[l.gid] || 0) + (+l.qty || 0);
+  // 合併出貨的銷貨單（fromSOs：好幾張訂單轉成一張）：每一行的 so 記它是哪張訂單的，只算自己的那幾行
+  const got = {}; for (const b of store.list('bills')) { if (b.type !== 'SALE') continue; const multi = Array.isArray(b.fromSOs) && b.fromSOs.length; if (multi ? !b.fromSOs.includes(so.id) : b.fromSO !== so.id) continue; for (const l of b.lines || []) if (l.gid && (!multi || l.so === so.id)) got[l.gid] = (got[l.gid] || 0) + (+l.qty || 0); }
   return got;
 }
 /** 還沒出完的行：[{ l, left }] */
@@ -656,6 +657,17 @@ async function soToSale(so, close) {
   const lines = left.map(x => ({ ...x.l, qty: x.left }));
   close();
   openBill('SALE', null, onSavedCb, { cid: so.cid, lines, disc: 0, tax: !!so.tax, note: `由客戶訂單 ${so.no}${so.cpo ? '（客戶單號 ' + so.cpo + '）' : ''} 出貨`, fromSO: so.id });
+}
+/** 合併出貨：同一個客戶的好幾張客戶訂單，還沒出的行一起轉成一張銷貨單（每一行記 so＝它是哪張訂單的） */
+export function soToSaleMulti(sos, onSaved) {
+  sos = (sos || []).filter(Boolean); if (!sos.length) return;
+  if (new Set(sos.map(s => s.cid)).size > 1) { toast('要同一個客戶的訂單才能合併出貨'); return; }
+  const lines = []; const miss = [];
+  for (const so of sos) for (const x of soLeft(so)) { if (!x.l.gid) miss.push(`${so.no} ${x.l.n || ''}`); else lines.push({ ...x.l, qty: x.left, so: so.id }); }
+  if (miss.length) { toast(`有 ${miss.length} 項還沒對到商品（${miss.slice(0, 2).join('、')}），請先在訂單上選好商品`); return; }
+  if (!lines.length) { toast('這幾張訂單都已經出完了'); return; }
+  const note = `由客戶訂單 ${sos.map(s => s.no + (s.cpo ? '（客戶單號 ' + s.cpo + '）' : '')).join('、')} 出貨`;
+  openBill('SALE', null, onSaved, { cid: sos[0].cid, lines, disc: 0, tax: sos.some(s => s.tax), note, fromSO: sos[0].id, ...(sos.length > 1 ? { fromSOs: sos.map(s => s.id) } : {}) });
 }
 // 單重（g／支）：同一個商品最近一次單據上填的單重；沒填過就空白（用商品資料的單重估算）
 const WT_TYPES = ['SALE', 'SALE_RET', 'PUR', 'PUR_RET'];

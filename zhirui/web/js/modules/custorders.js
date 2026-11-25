@@ -3,9 +3,37 @@
 // 崧泉平台（鼎新 B2B）：主機上的崧泉小幫手（server/b2b_helper.py）把未回覆的採購單做成待確認檔，這一頁顯示連結和連線狀態。
 import { esc, slash, today, daysLeft } from '../core/util.js';
 import { store } from '../core/store.js';
-import { billList, openBill, soStatus, soLeft } from './_bills.js';
+import { billList, openBill, soStatus, soLeft, soToSaleMulti } from './_bills.js';
+import { modal, toast } from '../core/ui.js';
+import { calc, cdisp } from '../core/calc.js';
+import { fmtQ } from '../core/util.js';
 
 const ui = {};
+/** 合併出貨：勾同一個客戶的好幾張訂單，還沒出的品項一起轉成一張銷貨單 */
+function mergeShip(onDone) {
+  const C = calc();
+  const live = store.list('bills').filter(b => b.type === 'SO' && !b.hist && ['open', 'part'].includes(soStatus(b)));
+  if (!live.length) return toast('沒有還沒出貨的客戶訂單');
+  const byCus = new Map(); for (const b of live) (byCus.get(b.cid) || byCus.set(b.cid, []).get(b.cid)).push(b);
+  const groups = [...byCus.entries()].map(([cid, list]) => ({ cid, name: cdisp(C.ct[cid]) || '（沒有客戶）', list: list.sort((a, b) => (a.deliv || '9') < (b.deliv || '9') ? -1 : 1) })).sort((a, b) => b.list.length - a.list.length);
+  const pick = new Set(); let cid = '';
+  const m = modal({ title: '合併出貨：勾選要一起出的客戶訂單', width: 900, body: '', footer: '' });
+  const paint = () => {
+    const top = m.el.querySelector('.mb .tw')?.scrollTop || 0;   // 重畫後捲回原位，清單長的時候才不會跳回最上面
+    m.el.querySelector('.mb').innerHTML = `<p class="muted small" style="margin-top:0">勾同一個客戶的訂單，還沒出的品項會放進同一張銷貨單；數量可以在銷貨單上再改（分批出）。</p>
+      <div class="tw" style="max-height:60vh;overflow:auto"><table><thead><tr><th style="width:30px"></th><th>訂單</th><th>客戶單號</th><th>交期</th><th>還沒出的品項</th></tr></thead><tbody>
+      ${groups.map(g => `<tr style="background:var(--sunken)"><td></td><td colspan="4"><b>${esc(g.name)}</b>　<span class="muted small">${g.list.length} 張</span></td></tr>
+        ${g.list.map(b => { const left = soLeft(b); const off = cid && cid !== b.cid; return `<tr ${off ? 'style="opacity:.4"' : ''}><td><input type="checkbox" data-so="${esc(b.id)}" ${pick.has(b.id) ? 'checked' : ''} ${off ? 'disabled' : ''}></td><td class="mono nowrap">${esc(b.no)}</td><td class="mono">${esc(b.cpo || '')}</td><td class="nowrap">${esc(b.deliv ? slash(b.deliv) : '')}</td>
+          <td class="small">${left.map(x => `${esc(x.l.gid ? (C.g[x.l.gid]?.name || '') : (x.l.n || '') + '（沒對到商品）')} × ${fmtQ(x.left)}`).join('<br>')}</td></tr>`; }).join('')}`).join('')}
+      </tbody></table></div>`;
+    m.el.querySelector('.mf').innerHTML = `<span class="muted small">${pick.size ? `已勾 ${pick.size} 張` : '還沒勾'}</span><span class="sp"></span><button class="btn" data-close>關閉</button><button class="btn pri" id="msGo" ${pick.size ? '' : 'disabled'}>轉成一張銷貨單</button>`;
+    m.el.querySelector('.mf [data-close]').onclick = () => m.close();
+    const tw = m.el.querySelector('.mb .tw'); if (tw) tw.scrollTop = top;
+    m.el.querySelectorAll('[data-so]').forEach(cb => cb.onchange = () => { const b = store.get('bills', cb.dataset.so); if (cb.checked) { pick.add(b.id); cid = b.cid; } else { pick.delete(b.id); if (!pick.size) cid = ''; } paint(); });
+    m.el.querySelector('#msGo').onclick = () => { const sos = live.filter(b => pick.has(b.id)); m.close(); soToSaleMulti(sos, onDone); };
+  };
+  paint();
+}
 const ST = { open: ['未出貨', ''], part: ['部分出貨', 'warn'], done: ['已出貨', 'ok'], closed: ['已結案', ''] };
 export default {
   id: 'custorders', name: '客戶訂單', group: '業務', icon: 'quotes',
@@ -35,9 +63,10 @@ async function b2bBox(box) {
 function draw(el) {
   billList(el, {
     key: 'custorders', title: '客戶訂單', types: ['SO'], newTypes: ['SO'],
-    extraHead: '<button class="btn" id="soImp">匯入 Excel</button><a class="btn" href="#faxin">從傳真轉入</a><a class="btn" href="#email">從 Email 轉入</a>',
+    extraHead: '<button class="btn" id="soMerge" title="勾同一個客戶的好幾張訂單，一起轉成一張銷貨單">合併出貨…</button><button class="btn" id="soImp">匯入 Excel</button><a class="btn" href="#faxin">從傳真轉入</a><a class="btn" href="#email">從 Email 轉入</a>',
     bind: el2 => {
       el2.querySelector('#soImp')?.addEventListener('click', async () => { const { importSO } = await import('./so_import.js'); importSO(() => { if (el.isConnected) draw(el); }); });
+      el2.querySelector('#soMerge')?.addEventListener('click', () => mergeShip(() => { if (el.isConnected) draw(el); }));
       const head = el2.querySelector('.head'); if (head && !el2.querySelector('#b2bBox')) { const box = document.createElement('div'); box.id = 'b2bBox'; head.after(box); b2bBox(box); }
     },
     cols: [
