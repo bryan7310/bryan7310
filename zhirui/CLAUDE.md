@@ -48,6 +48,7 @@
 | 設定、備份、外觀、帳號、操作日誌 | 設定備份 `#settings` | `settings.js` |
 | 每週檢查、電腦狀態、硬碟健康度、備份還原演練 | 設定備份 › 每週檢查 `#settings/health`；總覽上的摘要 | `health.js`；`tools/weekly_check.py`、`tools/restore_drill.py`；伺服器 `weekly_loop`、`/api/health` |
 | 確認寫入頁 | `#apply?f=<名稱>` | `apply.js`（讀 `web/pending/<名稱>.json`） |
+| 崧泉平台、崧泉採購單匯入、崧泉出貨單、崧泉出貨標籤 | 客戶訂單 `#custorders` 最上面的「崧泉平台」那一塊 | `server/b2b_helper.py`（崧泉小幫手，在主機桌面執行，控制專用 Edge 視窗；說明見 `崧泉小幫手說明.md`）、`custorders.js` 的 b2bBox（讀 `web/pending/b2b_status.json`） |
 
 共用核心：`core/store.js`（資料同步）、`core/calc.js`（單據種類 TYPES、金額、庫存、成本）、`core/ui.js`、`core/util.js`。選單在 `modules/index.js`。
 

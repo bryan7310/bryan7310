@@ -1,10 +1,11 @@
 // 待確認匯入：Claude 整理好的資料（web/pending/<名稱>.json）先預覽，使用者按「確認寫入」才用自己的帳號寫入。
 // 網址：#apply?f=<名稱>。不在側邊選單顯示；寫入後資料檔會被移除。
+// docs（新增單據：{col,id,label,data}；加 autoNo:'SO' 這種單據種類，單號就在寫入當下才取）、
 // 資料可含：newgoods（新建商品）、wt（補單重）、bills（新建進貨單）、updates（修改既有資料：{col,id,label,from,set}）、
 // dwgs（商品掛客戶圖面：{gid,label,file,name,why}，file 是 web/pending 底下的圖檔）、
 // newwh（新建倉庫：{name}，同名已有就沿用）、kits（螺絲包配方：{gid,label,bom:[{gid|code,qty,cust}],labor,cwh(客供倉名稱),custName}）、
 // merges（商品合併：{keep,merge:[gid],why}；伺服器 /api/goods/merge 一次做完，單據與舊系統歷史單據改掛保留的料號）
-import { $, esc, fmt, fmtQ, fp4, slash, uid } from '../core/util.js';
+import { $, esc, fmt, fmtQ, fp4, slash, today, uid } from '../core/util.js';
 import { store } from '../core/store.js';
 import { calc, totals, nextNo, defWh, cname } from '../core/calc.js';
 import { toast, confirm } from '../core/ui.js';
@@ -148,7 +149,8 @@ async function draw(el, f) {
         const g = { ...store.get('goods', d.gid), dwg: { id: j.id, name: j.name, type: j.type, size: j.size, at: Date.now() } }; delete g.id;
         await store.save('goods', d.gid, g); store.log('上傳圖面', `商品「${g.name}」${j.name}（${P.title || f}）`); dwN++;
       }
-      for (const x of P.docs || []) { if (store.get(x.col, x.id)) continue; const lines = (x.data.lines || []).map(l => l.gid && !store.get('goods', l.gid) && newId[(P.newgoods || []).find(g => g.id === l.gid)?.code] ? { ...l, gid: newId[(P.newgoods || []).find(g => g.id === l.gid).code] } : l); await store.save(x.col, x.id, { ...x.data, lines, createdBy: x.data.createdBy || store.user.id }); store.log('匯入', `${x.label}（${P.title || f}）`); }
+      for (const x of P.docs || []) { if (store.get(x.col, x.id)) continue; if (x.autoNo && !x.data.no) x.data.no = nextNo(x.autoNo, today());   // 單號留到寫入當下才取，才不會跟這段時間新開的單撞號
+        const lines =(x.data.lines || []).map(l => l.gid && !store.get('goods', l.gid) && newId[(P.newgoods || []).find(g => g.id === l.gid)?.code] ? { ...l, gid: newId[(P.newgoods || []).find(g => g.id === l.gid).code] } : l); await store.save(x.col, x.id, { ...x.data, lines, createdBy: x.data.createdBy || store.user.id }); store.log('匯入', `${x.label}（${P.title || f}）`); }
       let hN = 0; const hSkip = [];
       for (const h of P.hist || []) {
         const r = await api.hist({ q: h.no, limit: 50 });

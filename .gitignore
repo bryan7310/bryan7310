@@ -1,3 +1,4 @@
 *.png
 zhirui/data/
 __pycache__/
+zhirui/web/pending/
