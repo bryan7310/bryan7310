@@ -48,7 +48,7 @@ export async function abcList() {
 /** 盤點表的客戶選單：這一年有出貨的客戶，[{ cid, name, n }]，商品數多的排前面 */
 export function abcCustomers(list) {
   const m = new Map(); for (const x of list) for (const c of x.cids || []) m.set(c, (m.get(c) || 0) + 1);
-  return [...m].map(([cid, n]) => { const c = store.get('contacts', cid); return c ? { cid, name: c.short || c.name || '', n } : null; }).filter(Boolean).sort((a, b) => b.n - a.n || a.name.localeCompare(b.name));
+  return [...m].map(([cid, n]) => { const c = store.get('contacts', cid); return c ? { cid, name: c.short || c.name || '', full: c.name || '', n, text: [c.code, c.name, c.short, ...(c.aliases || [])].filter(Boolean).join(' ') } : null; }).filter(Boolean).sort((a, b) => b.n - a.n || a.name.localeCompare(b.name));
 }
 
 /** 這個商品這一輪盤過了沒：上次盤點日（goods.cntAt）在該類的週期內 */

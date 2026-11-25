@@ -1,7 +1,7 @@
 // 庫存：各倉庫數量、低於安全庫存、其他出入庫、調撥
 import { $, esc, fmt, fmtQ, qTerms, matchQ } from '../core/util.js';
 import { store } from '../core/store.js';
-import { tabs, pager, onSearch, printHTML, toast, confirm, modal } from '../core/ui.js';
+import { tabs, pager, onSearch, printHTML, toast, confirm, modal, combo } from '../core/ui.js';
 import { today, slash, uid } from '../core/util.js';
 import { abcList, countedOk, abcCustomers } from '../core/abc.js';
 import { calc, goodsLabel, TYPES, nextNo } from '../core/calc.js';
@@ -78,7 +78,7 @@ async function drawCount(el) {
   el.innerHTML = `<div class="head"><h1>庫存</h1><span class="sp"></span>${edit
       ? `<span class="muted small" id="cnt-sum"></span><button class="btn" id="cnt-cancel">取消</button><button class="btn pri" id="cnt-save">儲存盤點結果</button>`
       : `<button class="btn" id="cnt-label" title="跟 App 一樣的盤點標籤（50×40：QR 碼＋品名＋單重），送到標籤機">印盤點標籤</button><button class="btn" id="cnt-print">列印盤點表（紙本）</button><button class="btn pri" id="cnt-edit">輸入盤點結果</button>`}</div>
-    <div class="panel"><div class="tools">${tabs('s', STABS, 'count')}${tabs('cc', CCLS.map(([k, n]) => [k, `${n} ${cnt(k)}`]), ui.ccls)}<span class="muted small">排列</span>${tabs('cs', CSORT, ui.csort)}<select id="cnt-cust" title="只看這一年賣給這個客戶的商品" style="max-width:15em"><option value="">全部客戶</option>${custs.map(c => `<option value="${c.cid}" ${c.cid === ui.ccid ? 'selected' : ''}>${esc(c.name)}（${c.n}）</option>`).join('')}</select>${edit
+    <div class="panel"><div class="tools">${tabs('s', STABS, 'count')}${tabs('cc', CCLS.map(([k, n]) => [k, `${n} ${cnt(k)}`]), ui.ccls)}<span class="muted small">排列</span>${tabs('cs', CSORT, ui.csort)}<input id="cnt-cq" placeholder="打字找客戶" value="${esc(cname0)}" autocomplete="off" title="輸入客戶名稱、簡稱或代號，只看這一年賣給這個客戶的商品" style="width:10em"><select id="cnt-cust" title="只看這一年賣給這個客戶的商品" style="max-width:15em"><option value="">全部客戶</option>${custs.map(c => `<option value="${c.cid}" ${c.cid === ui.ccid ? 'selected' : ''}>${esc(c.name)}（${c.n}）</option>`).join('')}</select>${edit
       ? `<span class="muted small">倉庫</span>${whSel}<span class="muted small">盤點日期</span><input type="date" id="cnt-date" value="${esc(ui.cdate || today())}">`
       : `<label class="small"><input type="checkbox" id="cnt-todo" ${ui.ctodo ? 'checked' : ''}> 只看還沒盤的</label><span class="muted small">已盤 ${done}／${n0}</span>`}</div>
     <div class="muted small" style="margin:8px 0">${edit
@@ -94,6 +94,7 @@ async function drawCount(el) {
     else { if (key === 'cc') ui.ccls = val; if (key === 'cs') ui.csort = val; drawCount(el); } };
   el.addEventListener('tab', el._cntTab);
   $('#cnt-cust', el).addEventListener('change', ev => { ui.ccid = ev.target.value; drawCount(el); });
+  combo($('#cnt-cq', el), { items: () => custs.map(c => ({ id: c.cid, label: c.name, sub: `${c.full !== c.name ? c.full + '・' : ''}${c.n} 項`, text: c.text })), onPick: it => { ui.ccid = it.id; drawCount(el); }, onClear: () => { if (ui.ccid) { ui.ccid = ''; drawCount(el); } } });
   if (!edit) {
     // 印盤點標籤：跟 App 盤點表同一種標籤、同一台標籤機（主機的列印小幫手），照畫面上的清單一個商品一張
     $('#cnt-label', el).addEventListener('click', async ev => {
