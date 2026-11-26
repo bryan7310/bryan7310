@@ -59,8 +59,12 @@ async function drawCount(el) {
   if (!whs.some(w => w.id === ui.cwid)) ui.cwid = (whs.find(w => w.name === '預設倉庫') || whs[0])?.id || '';
   const edit = ui.cedit; const V = ui.cvals;
   const custs = abcCustomers(D.list); if (ui.ccid && !custs.some(c => c.cid === ui.ccid)) ui.ccid = '';
-  const base = ui.ccid ? D.list.filter(x => x.cids?.has(ui.ccid)) : D.list;   // 客戶篩選：只看這一年賣給這個客戶的商品
+  const base0 = ui.ccid ? D.list.filter(x => x.cids?.has(ui.ccid)) : D.list;   // 客戶篩選：只看這一年賣給這個客戶的商品
   const cname0 = custs.find(c => c.cid === ui.ccid)?.name || '';
+  // 商品篩選：只看指定的一個商品（在客戶篩選之後的範圍裡找，找不到就清掉）
+  const gHit = ui.cgid ? base0.find(x => x.gid === ui.cgid) : null; if (ui.cgid && !gHit) ui.cgid = '';
+  const gname0 = gHit ? (G(gHit)?.name || '') : '';
+  const base = ui.cgid ? base0.filter(x => x.gid === ui.cgid) : base0;
   const cnt = k => base.filter(x => k === 'all' ? true : k === 'S' ? x.star : x.cls === k).length;
   let list = base.filter(x => ui.ccls === 'all' ? true : ui.ccls === 'S' ? x.star : x.cls === ui.ccls);
   const done = list.filter(x => countedOk(G(x), x.cls)).length; const n0 = list.length;
@@ -78,7 +82,7 @@ async function drawCount(el) {
   el.innerHTML = `<div class="head"><h1>庫存</h1><span class="sp"></span>${edit
       ? `<span class="muted small" id="cnt-sum"></span><button class="btn" id="cnt-cancel">取消</button><button class="btn pri" id="cnt-save">儲存盤點結果</button>`
       : `<button class="btn" id="cnt-label" title="跟 App 一樣的盤點標籤（50×40：QR 碼＋品名＋單重），送到標籤機">印盤點標籤</button><button class="btn" id="cnt-print">列印盤點表（紙本）</button><button class="btn pri" id="cnt-edit">輸入盤點結果</button>`}</div>
-    <div class="panel"><div class="tools">${tabs('s', STABS, 'count')}${tabs('cc', CCLS.map(([k, n]) => [k, `${n} ${cnt(k)}`]), ui.ccls)}<span class="muted small">排列</span>${tabs('cs', CSORT, ui.csort)}<input id="cnt-cq" placeholder="打字找客戶" value="${esc(cname0)}" autocomplete="off" title="輸入客戶名稱、簡稱或代號，只看這一年賣給這個客戶的商品" style="width:10em"><select id="cnt-cust" title="只看這一年賣給這個客戶的商品" style="max-width:15em"><option value="">全部客戶</option>${custs.map(c => `<option value="${c.cid}" ${c.cid === ui.ccid ? 'selected' : ''}>${esc(c.name)}（${c.n}）</option>`).join('')}</select>${edit
+    <div class="panel"><div class="tools">${tabs('s', STABS, 'count')}${tabs('cc', CCLS.map(([k, n]) => [k, `${n} ${cnt(k)}`]), ui.ccls)}<span class="muted small">排列</span>${tabs('cs', CSORT, ui.csort)}<input id="cnt-cq" placeholder="打字找客戶" value="${esc(cname0)}" autocomplete="off" title="輸入客戶名稱、簡稱或代號，只看這一年賣給這個客戶的商品" style="width:10em"><select id="cnt-cust" title="只看這一年賣給這個客戶的商品" style="max-width:15em"><option value="">全部客戶</option>${custs.map(c => `<option value="${c.cid}" ${c.cid === ui.ccid ? 'selected' : ''}>${esc(c.name)}（${c.n}）</option>`).join('')}</select><input id="cnt-gq" placeholder="打字找商品" value="${esc(gname0)}" autocomplete="off" title="輸入商品名稱、料號或同義品名，只看這一個商品" style="width:12em">${edit
       ? `<span class="muted small">倉庫</span>${whSel}<span class="muted small">盤點日期</span><input type="date" id="cnt-date" value="${esc(ui.cdate || today())}">`
       : `<label class="small"><input type="checkbox" id="cnt-todo" ${ui.ctodo ? 'checked' : ''}> 只看還沒盤的</label><span class="muted small">已盤 ${done}／${n0}</span>`}</div>
     <div class="muted small" style="margin:8px 0">${edit
@@ -95,6 +99,7 @@ async function drawCount(el) {
   el.addEventListener('tab', el._cntTab);
   $('#cnt-cust', el).addEventListener('change', ev => { ui.ccid = ev.target.value; drawCount(el); });
   combo($('#cnt-cq', el), { items: () => custs.map(c => ({ id: c.cid, label: c.name, sub: `${c.full !== c.name ? c.full + '・' : ''}${c.n} 項`, text: c.text })), onPick: it => { ui.ccid = it.id; drawCount(el); }, onClear: () => { if (ui.ccid) { ui.ccid = ''; drawCount(el); } } });
+  combo($('#cnt-gq', el), { items: () => base0.map(x => { const g = G(x) || {}; return { id: x.gid, label: g.name || '', sub: `${g.code || ''}・${x.cls}${x.star ? '★' : ''}`, text: `${g.code || ''} ${g.name || ''} ${g.alias || ''}` }; }), onPick: it => { ui.cgid = it.id; ui.ccls = 'all'; drawCount(el); }, onClear: () => { if (ui.cgid) { ui.cgid = ''; drawCount(el); } } });
   if (!edit) {
     // 印盤點標籤：跟 App 盤點表同一種標籤、同一台標籤機（主機的列印小幫手），照畫面上的清單一個商品一張
     $('#cnt-label', el).addEventListener('click', async ev => {
