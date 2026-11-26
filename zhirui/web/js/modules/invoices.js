@@ -79,7 +79,7 @@ function salesDetail(g) {
   const [d1, d2] = c?.monthEnd ? [g.ym + '-01', g.ym + '-' + new Date(+g.ym.slice(0, 4), +g.ym.slice(5), 0).getDate()] : range25(g.ym);
   const rows = []; let sum = 0;
   for (const b of g.bills) { const sg = isRet(b) ? -1 : 1; let bs = 0;
-    for (const l of b.lines || []) { if (l.txt !== undefined) continue; const q = sg * (+l.qty || 0); const a = Math.round(q * (+l.price || 0)); bs += a; rows.push({ b, name: l.gid ? gname(l.gid) : l.n || '', q, u: l.u || '', p: +l.price || 0, a, memo: l.memo || '' }); }
+    for (const l of b.lines || []) { if (l.txt !== undefined) continue; const q = sg * (+l.qty || 0); const a = Math.round(q * (+l.price || 0)); bs += a; rows.push({ b, gid: l.gid || '', name: l.gid ? gname(l.gid) : l.n || '', q, u: l.u || '', p: +l.price || 0, a, memo: l.memo || '' }); }
     const diff = sNet(b) - bs; if (Math.abs(diff) >= 0.5) rows.push({ b, name: '（折扣／尾差）', q: '', u: '', p: '', a: Math.round(diff), memo: '' });
     sum += sNet(b); }
   const tr = (r, i) => { const first = i === 0 || rows[i - 1].b !== r.b; return `<tr${first && i ? ' style="border-top:2px solid var(--line)"' : ''}><td class="nowrap">${first ? esc(slash(r.b.date)) : ''}</td><td class="mono nowrap">${first ? esc(r.b.no) + (isRet(r.b) ? ' <span class="pill bad">退回</span>' : '') : ''}</td><td style="white-space:normal">${esc(r.name)}${r.memo ? ` <span class="muted small">${esc(r.memo)}</span>` : ''}</td><td class="n nowrap">${r.q === '' ? '' : fmt(r.q)} ${esc(r.u)}</td><td class="n">${r.p === '' ? '' : r.p}</td><td class="n">${money(r.a)}</td></tr>`; };
@@ -87,7 +87,7 @@ function salesDetail(g) {
     <tfoot><tr><td colspan="5" class="n"><b>總和（未稅）</b></td><td class="n"><b>${money(sum)}</b></td></tr><tr><td colspan="5" class="n">稅額 5%</td><td class="n">${money(g.tax)}</td></tr><tr><td colspan="5" class="n"><b>總和＋稅額</b></td><td class="n"><b>${money(sum + g.tax)}</b></td></tr></tfoot></table>`;
   const head = `${who}　${+g.ym.slice(0, 4) - 1911} 年 ${+g.ym.slice(5)} 月銷售明細`; const sub = `${slash(d1)}～${slash(d2)}${c?.monthEnd ? '（整月結）' : ''}・${g.bills.length} 張・統編 ${c?.taxId || '（無）'}`;
   modal({ title: head, width: 940, body: `<p class="muted small" style="margin:0 0 8px">${esc(sub)}・只列還沒開發票的銷貨單</p><div class="tw">${table}</div>`,
-    footer: '<button class="btn" id="sdPrint">列印</button><button class="btn" id="sdXls">匯出 Excel</button><span class="sp"></span><button class="btn" data-close>關閉</button><button class="btn pri" id="sdInv">開發票</button>',
+    footer: `<button class="btn" id="sdPrint">列印</button><button class="btn" id="sdXls">匯出 Excel</button>${/豐餘/.test(who) ? '<button class="btn" id="sdFy" title="同一個單價的商品合併成一行（品名取數量最多的那一項），數量×單價加起來等於營業額">匯出豐餘特製銷售明細</button>' : ''}<span class="sp"></span><button class="btn" data-close>關閉</button><button class="btn pri" id="sdInv">開發票</button>`,
     onOpen(el, close) {
       // 匯出 Excel：每一行都帶日期、單號（方便篩選排序），明細備註（採購單號）另成一欄，最後是總和、稅額、總和＋稅額
       $('#sdXls', el).onclick = async () => {
@@ -99,6 +99,27 @@ function salesDetail(g) {
         const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, '銷售明細');
         XLSX.writeFile(wb, `${who}_${+g.ym.slice(0, 4) - 1911}年${+g.ym.slice(5)}月銷售明細.xlsx`.replace(/[\\/:*?"<>|]/g, '_'));
       };
+      // 豐餘特製：同一個單價（同單位）的商品合併成一行，品名取數量最多的那一項；單價由高到低；
+      // 每行金額＝數量×單價（四捨五入），加起來要等於營業額，對不上的差額（折扣、尾差）另列一行
+      $('#sdFy', el)?.addEventListener('click', async () => {
+        let XLSX; try { XLSX = await (await import('./purchase_import.js')).loadXlsx(); } catch (e) { return toast('載入 Excel 元件失敗：' + (e.message || e)); }
+        const grp = new Map();
+        for (const r of rows) {
+          if (r.p === '' || !r.q) continue; const g0 = r.gid ? store.get('goods', r.gid) : null; const u = r.u || g0?.unit || 'PCS';
+          const k = r.p + '|' + u; const x = grp.get(k) || grp.set(k, { p: r.p, u, q: 0, items: new Map() }).get(k);
+          x.q += r.q; const nm = g0?.name || r.name; x.items.set(nm, (x.items.get(nm) || 0) + Math.abs(r.q));
+        }
+        const body = [...grp.values()].map(x => ({ ...x, q: Math.round(x.q * 1000) / 1000 })).filter(x => x.q).sort((a, b) => b.p - a.p)
+          .map(x => [[...x.items].sort((a, b) => b[1] - a[1])[0][0], x.q, x.u, x.p, Math.round(Number((x.q * x.p).toFixed(4)))]);
+        const diff = Math.round(sum - body.reduce((s, r) => s + r[4], 0));
+        const aoa = [['品名', '數量', '單位', '單價', '金額'], ...body]; if (diff) aoa.push(['折扣／尾差', '', '', '', diff]);
+        const n = aoa.length; aoa.push(['營業額', '', '', '', Math.round(sum)], ['營業稅', '', '', '', g.tax], ['總計', '', '', '', Math.round(sum) + g.tax]);
+        const ws = XLSX.utils.aoa_to_sheet(aoa); ws['!cols'] = [{ wch: 41 }, { wch: 8 }, { wch: 6 }, { wch: 7 }, { wch: 10 }];
+        ws['!merges'] = [0, 1, 2].map(i => ({ s: { r: n + i, c: 0 }, e: { r: n + i, c: 3 } }));
+        const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, '銷售明細');
+        XLSX.writeFile(wb, `豐餘特製_${+g.ym.slice(0, 4) - 1911}年${+g.ym.slice(5)}月銷售明細.xlsx`);
+        if (diff) toast(`數量×單價加起來跟營業額差 ${diff} 元，已另列「折扣／尾差」一行`);
+      });
       $('#sdInv', el).disabled = !(g.net > 0); $('#sdInv', el).onclick = () => { close(); makeInvoiceFromBill(g.bills); };
       $('#sdPrint', el).onclick = () => printHTML(head, '@page{size:A4;margin:12mm}body{font-family:"Microsoft JhengHei",sans-serif;font-size:10pt;margin:0}h1{font-size:14pt;margin:0 0 2mm}p{margin:0 0 3mm;color:#444}table{width:100%;border-collapse:collapse}th,td{border-bottom:.4pt solid #999;padding:1.1mm 1.5mm;text-align:left;vertical-align:top}th{border-top:1pt solid #000;border-bottom:1pt solid #000}td.n,th.n{text-align:right}tfoot td{border-bottom:0}.pill{font-size:8pt}', `<h1>${esc(head)}</h1><p>${esc(sub)}</p>${table}`, { tip: '按 Ctrl+P 列印，A4。' });
     } });
