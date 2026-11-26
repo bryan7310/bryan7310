@@ -281,7 +281,7 @@ export async function shipImportLines(file, edit) {
   const N = x => String(x ?? '').trim().toUpperCase();
   const goods = store.list('goods'); const bySpec = new Map(); for (const g of goods) for (const k0 of [g.spec, g.spec2]) { const k = N(k0); if (!k) continue; const a = bySpec.get(k) || bySpec.set(k, []).get(k); if (!a.includes(g)) a.push(g); }
   const byCode = new Map(); for (const g of goods) { const k = N(g.code); if (k && !byCode.has(k)) byCode.set(k, g); }
-  const add = [], miss = [], multi = [];
+  const keyed = [], miss = [], multi = [];
   for (const r of aoa.slice(hi + 1)) {
     const sp = String(r[ix.spec] ?? '').trim(); const qty = +String(r[ix.qty] ?? '').replace(/,/g, '') || 0; const po = ix.po >= 0 ? String(r[ix.po] ?? '').trim() : '';
     if (!sp && !qty) continue;
@@ -292,8 +292,11 @@ export async function shipImportLines(file, edit) {
     const x = lastSale(edit.cid, g.id, edit.date, edit.id);
     if (x) { l.price = x.price; if (x.u) l.u = x.u; if (x.unit === 'a' && g.aunit) { l.unit = 'a'; l.rate = +g.arate || 1; } }
     else { const p = unitPrice(g, edit.type); if (p !== '') l.price = p; }
-    add.push(l);
+    keyed.push({ l, sp });
   }
+  // 依客料號由小到大排（數字照大小比，AH1-00002 排在 AH1-00010 前面）
+  keyed.sort((a, b) => a.sp.localeCompare(b.sp, 'en', { numeric: true }));
+  const add = keyed.map(x => x.l);
   return { add, miss, multi, C };
 }
 
