@@ -87,8 +87,18 @@ function salesDetail(g) {
     <tfoot><tr><td colspan="5" class="n"><b>總和（未稅）</b></td><td class="n"><b>${money(sum)}</b></td></tr><tr><td colspan="5" class="n">稅額 5%</td><td class="n">${money(g.tax)}</td></tr><tr><td colspan="5" class="n"><b>總和＋稅額</b></td><td class="n"><b>${money(sum + g.tax)}</b></td></tr></tfoot></table>`;
   const head = `${who}　${+g.ym.slice(0, 4) - 1911} 年 ${+g.ym.slice(5)} 月銷售明細`; const sub = `${slash(d1)}～${slash(d2)}${c?.monthEnd ? '（整月結）' : ''}・${g.bills.length} 張・統編 ${c?.taxId || '（無）'}`;
   modal({ title: head, width: 940, body: `<p class="muted small" style="margin:0 0 8px">${esc(sub)}・只列還沒開發票的銷貨單</p><div class="tw">${table}</div>`,
-    footer: '<button class="btn" id="sdPrint">列印</button><span class="sp"></span><button class="btn" data-close>關閉</button><button class="btn pri" id="sdInv">開發票</button>',
+    footer: '<button class="btn" id="sdPrint">列印</button><button class="btn" id="sdXls">匯出 Excel</button><span class="sp"></span><button class="btn" data-close>關閉</button><button class="btn pri" id="sdInv">開發票</button>',
     onOpen(el, close) {
+      // 匯出 Excel：每一行都帶日期、單號（方便篩選排序），明細備註（採購單號）另成一欄，最後是總和、稅額、總和＋稅額
+      $('#sdXls', el).onclick = async () => {
+        let XLSX; try { XLSX = await (await import('./purchase_import.js')).loadXlsx(); } catch (e) { return toast('載入 Excel 元件失敗：' + (e.message || e)); }
+        const aoa = [[head], [sub], [], ['日期', '單號', '品名', '備註（採購單號）', '數量', '單位', '單價', '金額']];
+        for (const r of rows) aoa.push([slash(r.b.date), r.b.no + (isRet(r.b) ? '（退回）' : ''), r.name, r.memo, r.q === '' ? '' : r.q, r.u, r.p === '' ? '' : r.p, r.a]);
+        aoa.push([], ['', '', '', '', '', '', '總和（未稅）', sum], ['', '', '', '', '', '', '稅額 5%', g.tax], ['', '', '', '', '', '', '總和＋稅額', sum + g.tax]);
+        const ws = XLSX.utils.aoa_to_sheet(aoa); ws['!cols'] = [{ wch: 11 }, { wch: 16 }, { wch: 44 }, { wch: 13 }, { wch: 10 }, { wch: 6 }, { wch: 13 }, { wch: 12 }];
+        const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, '銷售明細');
+        XLSX.writeFile(wb, `${who}_${+g.ym.slice(0, 4) - 1911}年${+g.ym.slice(5)}月銷售明細.xlsx`.replace(/[\\/:*?"<>|]/g, '_'));
+      };
       $('#sdInv', el).disabled = !(g.net > 0); $('#sdInv', el).onclick = () => { close(); makeInvoiceFromBill(g.bills); };
       $('#sdPrint', el).onclick = () => printHTML(head, '@page{size:A4;margin:12mm}body{font-family:"Microsoft JhengHei",sans-serif;font-size:10pt;margin:0}h1{font-size:14pt;margin:0 0 2mm}p{margin:0 0 3mm;color:#444}table{width:100%;border-collapse:collapse}th,td{border-bottom:.4pt solid #999;padding:1.1mm 1.5mm;text-align:left;vertical-align:top}th{border-top:1pt solid #000;border-bottom:1pt solid #000}td.n,th.n{text-align:right}tfoot td{border-bottom:0}.pill{font-size:8pt}', `<h1>${esc(head)}</h1><p>${esc(sub)}</p>${table}`, { tip: '按 Ctrl+P 列印，A4。' });
     } });
