@@ -65,6 +65,9 @@ DEFAULT_CFG = {
     'ship_wait_min': 10,                       # 銷貨單存檔後等幾分鐘才送（留時間改單）
     'ship_auto_submit': True,                  # False＝每一張都停在最後一步等人按「完成」
     'ship_merge': True,                        # 同一個出貨日的銷貨單合成一張崧泉出貨單
+    'ship_send': True,                         # 出貨單建好之後接著補每行備註並送出（False＝停在「未送出」，自己到崧泉平台送）
+    'ship_line_memo': True,                    # 每行的備註填出貨日期（YYYYMMDD，崧泉的規定）
+    'ship_send_auto': True,                    # 自動按「儲存」「送出」（第一次一律由人按；False＝每次都填好備註等人按）
     'label': True,                             # 出貨單建好後，把崧泉平台產生的出貨標籤 PDF 抓回來
     'label_kind': '4',                         # 條碼類別：1 內箱、3 外箱、4 全部
     'label_size': '77',                        # 77＝7cm×7cm 標籤紙、A4＝A4 紙
@@ -705,9 +708,115 @@ def find_shipment(br, job, before=None):
 
 
 def ship_note(job):
-    """崧泉出貨單的備註：崧泉要求寫出貨日期（＝銷貨單日期），放最前面；後面帶志瑞銷貨單號方便對帳"""
-    d = (job.get('date') or time.strftime('%Y-%m-%d')).replace('-', '/')
-    return f"出貨日期 {d}　志瑞銷貨單 {job['no']}"
+    """崧泉出貨單表頭的備註：帶志瑞銷貨單號方便對帳（崧泉要的出貨日期是寫在每一行的備註，見 do_send）"""
+    return f"志瑞銷貨單 {job['no']}"
+
+
+SEND_JS = r"""
+// 出貨單建好之後：到「出貨單查詢」開這張的明細，每一行的備註填出貨日期（崧泉的規定），再按工具列的「儲存」「送出」。
+// ARG = {page, no, memo, submit, check}；check 只查狀態不動；submit 才按儲存和送出（否則填好備註就停，等人按）
+const wait = ms => new Promise(r => setTimeout(r, ms));
+const until = async (fn, ms, what) => { const end = Date.now() + ms; while (Date.now() < end) { try { const v = fn(); if (v) return v; } catch (e) {} await wait(300); } throw new Error('等不到：' + what); };
+const f = document.getElementById('WorkSpace');
+if (!f || typeof clickMenuItem !== 'function') throw new Error('不在崧泉平台主畫面');
+await new Promise(r => { const h = () => { f.removeEventListener('load', h); r(); }; f.addEventListener('load', h); setTimeout(r, 15000); clickMenuItem(ARG.page); });
+const W = () => f.contentWindow, D = () => f.contentWindow.document;
+const vis = e => !!(e && (e.offsetWidth || e.offsetHeight));
+const t = v => String(v == null ? '' : v).replace(/<[^>]+>/g, '').trim();
+const grid = () => { const tb = D().getElementById('UCjqGrid_JQGridData'); return tb && W().jQuery && W().jQuery(tb); };
+const tool = id => { const e = [...D().querySelectorAll('td#' + id)].find(vis); return e && !/ui-state-disabled/.test(e.className) ? e.querySelector('.ui-pg-div') : null; };
+await until(() => D().getElementById('S_sddlTAE015') && grid(), 20000, '出貨單查詢頁');
+await wait(1500);
+// 狀態預設只查「未送出」，改成全部；再用出貨單號查
+const set = (id, v) => { const e = D().getElementById(id); if (!e) return; e.value = v; for (const k of ['input', 'change', 'blur']) e.dispatchEvent(new Event(k, {bubbles: true})); };
+set('S_sddlTAE015', ''); set('iacTAE002_txtSearch', ARG.no);
+await wait(1500);
+const btn = [...D().querySelectorAll('[onclick]')].find(e => /GlassButton_Click\('QuickSearch/.test(e.getAttribute('onclick')));
+if (!btn) return {ok: false, err: '出貨單查詢頁找不到查詢鈕'};
+btn.click();
+try { await until(() => grid() && grid().jqGrid('getDataIDs').length > 0, 20000, '查詢結果'); } catch (e) { return {ok: false, err: `出貨單查詢裡找不到 ${ARG.no}`}; }
+await wait(800);
+let g = grid();
+const rows = g.jqGrid('getDataIDs').map(id => ({id, ...g.jqGrid('getRowData', id)})).filter(r => t(r.TAE002) === ARG.no);
+if (!rows.length) return {ok: false, err: `出貨單查詢裡找不到 ${ARG.no}`};
+const unsent = rows.some(r => +t(r.TAE015) === -1 || /未送出/.test(t(r.TAE015) + t(r.TAF047)));   // 狀態碼：-1 未送出、0 已出貨、1 已收貨、-2 作廢
+if (ARG.check || !unsent) return {ok: true, sent: !unsent, rows: rows.map(r => ({seq: t(r.TAF001), st: t(r.TAF047), memo: t(r.TAF022)}))};
+// 開明細
+g.jqGrid('resetSelection'); g.jqGrid('setSelection', rows[0].id);
+await wait(500);
+const det = tool('Detail'); if (!det) return {ok: false, err: '出貨單查詢頁的「明細」不能按'};
+det.click();
+const onDetail = () => /Detail_M\.aspx/i.test(W().location.pathname) && D().getElementById('S_sfTAE002') && t(D().getElementById('S_sfTAE002').value) === ARG.no && grid() && grid().jqGrid('getDataIDs').length > 0;
+await until(onDetail, 25000, '出貨明細頁');
+await wait(1500);
+g = grid(); const G = D().getElementById('UCjqGrid_JQGridData');
+let filled = 0;
+if (ARG.memo) for (const id of g.jqGrid('getDataIDs')) {
+  if (t(g.jqGrid('getRowData', id).TAF022) === ARG.memo) continue;
+  const tr = G.querySelector('tr[id="' + id + '"]');
+  const eb = tr && tr.querySelector('.ui-inline-edit'); if (!eb) return {ok: false, err: '出貨明細頁不能編輯（找不到每列的編輯鈕）'};
+  eb.click();
+  const q = await until(() => tr.querySelector('input[name="TAF022"]'), 5000, '備註輸入框');
+  q.value = ARG.memo; q.dispatchEvent(new Event('change', {bubbles: true}));
+  tr.querySelector('.ui-inline-save').click();
+  await until(() => !tr.querySelector('input[name="TAF022"]') && t(g.jqGrid('getRowData', id).TAF022) === ARG.memo, 10000, '備註存入');
+  filled++;
+}
+if (!ARG.submit) return {ok: true, filled, manual: true};
+const sv = tool('Save');
+if (sv) { sv.click(); await wait(6000); }
+try { await until(onDetail, 20000, '儲存後的出貨明細頁'); } catch (e) { return {ok: false, err: '按了「儲存」之後畫面不在出貨明細頁，沒有送出'}; }
+if (ARG.memo && grid().jqGrid('getRowData').some(r => t(r.TAF022) !== ARG.memo)) return {ok: false, err: '按了「儲存」，但每行的備註沒有存進去，沒有送出'};
+const rp = tool('Reply'); if (!rp) return {ok: false, err: '出貨明細頁的「送出」不能按'};
+rp.click();
+await wait(7000);
+return {ok: true, filled, clicked: true};
+"""
+
+SENDWAIT_JS = "const f = document.getElementById('WorkSpace'); const w = f && f.contentWindow; if (!w || !/Detail_M\\.aspx/i.test(w.location.pathname)) return false; const e = [...w.document.querySelectorAll('td#Reply')].find(x => x.offsetWidth || x.offsetHeight); return !!(e && !/ui-state-disabled/.test(e.className));"
+
+
+def do_send(br, cfg, ship_no, date, state):
+    """出貨單建好之後補每行備註（出貨日期 YYYYMMDD）並送出。回 (狀態, 訊息)：done 已送出｜wait 等人按｜fail 沒成功（下一輪再試）"""
+    main = cfg['base'] + '/FrameEnterprise/MainFrame_M.aspx'
+    page = 'EC/Maintain/PQM/PQMSI02Q/PQMSI02Q_M.aspx'
+    memo = (date or time.strftime('%Y-%m-%d')).replace('-', '') if cfg.get('ship_line_memo', True) else ''
+    manual = not cfg.get('ship_send_auto', True) or not state.get('send_verified')
+    br.goto(main)
+    br.dialogs.clear()
+    br.accept_confirm = not manual
+    try:
+        r = br.js(SEND_JS, {'page': page, 'no': ship_no, 'memo': memo, 'submit': not manual}, timeout=180) or {}
+    finally:
+        br.accept_confirm = False
+    if not r.get('ok'):
+        return 'fail', r.get('err') or '出貨明細頁沒有走完'
+    if r.get('sent'):
+        return 'done', '已經送出'
+    if manual:
+        br.front()
+        log('出貨單備註已填好，等人按「儲存」「送出」：', ship_no)
+        write_status(state, msg=f"崧泉出貨單 {ship_no} 每行的備註已填好出貨日期，請到主機的崧泉視窗按工具列的「儲存」，再按「送出」", attn=True)
+        end = time.time() + 30 * 60
+        while time.time() < end:
+            time.sleep(5)
+            try:
+                if not br.js(SENDWAIT_JS):
+                    break
+            except Exception:
+                break
+        else:
+            return 'wait', '30 分鐘內沒有人按「送出」，下一輪會再開一次'
+        time.sleep(3)
+    else:
+        log('按了儲存、送出：', ship_no, json.dumps(r, ensure_ascii=False)[:200], [x['text'][:80] for x in br.dialogs])
+    said = '；'.join(x['text'][:80] for x in br.dialogs)
+    br.goto(main)
+    c = br.js(SEND_JS, {'page': page, 'no': ship_no, 'check': True}, timeout=90) or {}
+    if c.get('ok') and c.get('sent'):
+        state['send_verified'] = True
+        return 'done', ''
+    return ('wait', '視窗離開了出貨明細頁，但這張還是「未送出」，下一輪會再開一次') if manual else ('fail', '按了「送出」，但狀態還是「未送出」' + (f'（平台訊息：{said}）' if said else ''))
 
 
 def do_ship(br, cfg, job, state):
@@ -909,7 +1018,7 @@ def cycle(br, cfg, state):
             log('出貨單', job['no'], job['po'], st, msg)
             if st == 'done':
                 for sid, sno in job['sales']:          # 合併出貨：每張銷貨單都記同一張崧泉出貨單
-                    state['ships'][sid] = {**rec, 'no': sno, 'st': 'done', 'ship': msg}
+                    state['ships'][sid] = {**rec, 'no': sno, 'st': 'done', 'ship': msg, 'date': job.get('date'), **({'sent': False} if cfg.get('ship_send', True) else {})}
             elif st == 'unknown':
                 for sid, sno in job['sales']:
                     state['ships'][sid] = {**rec, 'no': sno, 'st': 'unknown', 'msg': msg}
@@ -917,6 +1026,29 @@ def cycle(br, cfg, state):
             else:
                 state['last']['shipErr'].append(f"銷貨單 {job['no']}：{msg}")
             write_json(STATE_FILE, state)
+        # 補每行備註（出貨日期）並送出：出貨單精靈按完「完成」只是「未送出」，崧泉要每行備註寫出貨日期再送出（沒成功的下一輪再試，最多 3 次）
+        if cfg.get('ship_send', True) and not DRY:
+            todo = {}
+            for rec in state['ships'].values():
+                if rec.get('st') == 'done' and rec.get('sent') is False and rec.get('sendTry', 0) < 3 and rec.get('ship'):
+                    todo.setdefault(rec['ship'], rec.get('date'))
+            for ship_no, date in todo.items():
+                try:
+                    st, msg = do_send(br, cfg, ship_no, date, state)
+                except NeedLogin:
+                    raise
+                except Exception as e:
+                    st, msg = 'fail', str(e)[:200]
+                log('出貨單送出', ship_no, st, msg)
+                for rec in state['ships'].values():
+                    if rec.get('ship') == ship_no:
+                        if st == 'done':
+                            rec['sent'] = True
+                        elif st == 'fail':
+                            rec['sendTry'] = rec.get('sendTry', 0) + 1
+                if st != 'done':
+                    state['last']['shipErr'].append(f"崧泉出貨單 {ship_no} 還沒送出：{msg}")
+                write_json(STATE_FILE, state)
         # 出貨標籤：出貨單建好就把崧泉平台產生的標籤 PDF 抓回來（抓不到的下一輪再試，最多 5 次）
         if cfg['label'] and not DRY:
             for rec in state['ships'].values():
