@@ -42,13 +42,18 @@ function draw(el) {
   const body = $('#ivBody', el);
   if (ui.tab === 'pending') drawPending(body); else if (ui.tab === 'purch') drawPurch(body); else drawList(body);
 }
+/** 發票清單的一列（立即開、手寫本共用） */
+const ivSrc = i => (i.hand ? (i.billId ? '手寫本・銷貨單' : '手寫本') : i.billId ? '銷貨單' : i.legacy ? '匯入' : '立即開') + (i.billIds?.length > 1 ? ` ${i.billIds.length} 張` : '');
+const ivRow = i => `<tr class="row" data-no="${esc(i.no)}"><td class="nowrap">${esc(slash(i.date))}</td><td class="mono">${esc(i.no)}${i.void ? ' <span class="pill bad">作廢</span>' : ''}</td><td style="min-width:9em"><a href="#" data-who="${esc(i.no)}" title="看這個客戶今年的發票">${esc(i.cid ? cshort(i.cid) : i.name)}</a></td><td class="mono">${esc(i.buyer || '')}</td><td class="n">${money(i.untaxed)}</td><td class="n">${money(i.tax)}</td><td class="n">${money(total(i))}</td><td class="muted small">${ivSrc(i)}${i.note ? `<div title="${esc(i.note)}">${esc(i.note)}</div>` : ''}${i.photo || i.files?.length ? ` <button type="button" class="link" data-edit="${esc(i.no)}" title="點開這張發票看附件">📎 附件 ${(i.photo ? 1 : 0) + (i.files?.length || 0)}</button>` : ''}</td><td class="nowrap"><button class="btn xs" data-edit="${esc(i.no)}">修改</button>${i.hand ? '' : ` <button class="btn xs" data-print="${esc(i.no)}">套印</button>`} <button class="btn xs ghost" data-rm="${esc(i.no)}" style="color:var(--bad)">刪除</button></td></tr>`;
 function drawList(el) {
   const q = qTerms(ui.q);
   const list = store.list('invoices').filter(i => (!ui.ym || (i.date || '').startsWith(ui.ym)) && (!q.length || matchQ([i.no, i.name, i.buyer].join(' '), q))).sort((a, b) => (b.date || '').localeCompare(a.date || '') || String(b.no).localeCompare(String(a.no)));
-  const [s, e, pg] = pager('iv', list.length, ui.page);
+  const main = list.filter(i => !i.hand), hands = list.filter(i => i.hand);   // 手寫本開的發票另外列在最下面
+  const [s, e, pg] = pager('iv', main.length, ui.page);
+  const hLive = hands.filter(i => !i.void); const hU = hLive.reduce((a, i) => a + (+i.untaxed || 0), 0), hT = hLive.reduce((a, i) => a + (+i.tax || 0), 0);
   const live = list.filter(i => !i.void); const sumU = live.reduce((a, i) => a + (+i.untaxed || 0), 0), sumT = live.reduce((a, i) => a + (+i.tax || 0), 0);   // 作廢的不算金額
   el.innerHTML = `<div class="panel"><div class="tools"><input type="month" id="ivYm" value="${ui.ym}"><input type="search" id="ivQ" placeholder="搜尋發票號碼、買受人、統編" value="${esc(ui.q)}"><span class="muted small">${list.length} 張・銷售額 ${money(sumU)}・稅 ${money(sumT)}・合計 ${money(sumU + sumT)}</span><span class="sp"></span><button class="btn sm" id="ivPrintAll" ${list.length ? '' : 'disabled'}>列印本月明細</button></div>
-    <div class="tw" style="margin-top:10px"><table><thead><tr><th>日期</th><th>發票號碼</th><th>買受人</th><th>統編</th><th class="n">銷售額</th><th class="n">稅額</th><th class="n">總計</th><th>來源</th><th></th></tr></thead><tbody>${list.slice(s, e).map(i => `<tr class="row" data-no="${esc(i.no)}"><td class="nowrap">${esc(slash(i.date))}</td><td class="mono">${esc(i.no)}${i.void ? ' <span class="pill bad">作廢</span>' : ''}</td><td style="min-width:9em"><a href="#" data-who="${esc(i.no)}" title="看這個客戶今年的發票">${esc(i.cid ? cshort(i.cid) : i.name)}</a></td><td class="mono">${esc(i.buyer || '')}</td><td class="n">${money(i.untaxed)}</td><td class="n">${money(i.tax)}</td><td class="n">${money(total(i))}</td><td class="muted small">${(i.hand ? (i.billId ? '立即開・銷貨單' : '立即開') : i.billId ? '銷貨單' : i.legacy ? '匯入' : '立即開') + (i.billIds?.length > 1 ? ` ${i.billIds.length} 張` : '')}</td><td class="nowrap"><button class="btn xs" data-edit="${esc(i.no)}">修改</button> <button class="btn xs" data-print="${esc(i.no)}">套印</button> <button class="btn xs ghost" data-rm="${esc(i.no)}" style="color:var(--bad)">刪除</button></td></tr>`).join('') || '<tr><td colspan="9"><div class="empty"><b>這個月沒有發票</b></div></td></tr>'}</tbody></table></div>${pg}</div>`;
+    <div class="tw" style="margin-top:10px"><table><thead><tr><th>日期</th><th>發票號碼</th><th>買受人</th><th>統編</th><th class="n">銷售額</th><th class="n">稅額</th><th class="n">總計</th><th>來源</th><th></th></tr></thead><tbody>${main.slice(s, e).map(ivRow).join('') || `<tr><td colspan="9"><div class="empty"><b>${hands.length ? '這個月沒有立即開的發票' : '這個月沒有發票'}</b></div></td></tr>`}</tbody></table></div>${pg}${hands.length ? `<h3 style="margin:18px 0 0;font-size:15px">手寫本發票 <span class="muted small" style="font-weight:400">${hands.length} 張・銷售額 ${money(hU)}・稅 ${money(hT)}・合計 ${money(hU + hT)}・手機「拍照上傳 › 銷項發票」或「立即開發票」勾手寫本登記的</span></h3><div class="tw" style="margin-top:6px"><table><thead><tr><th>日期</th><th>發票號碼</th><th>買受人</th><th>統編</th><th class="n">銷售額</th><th class="n">稅額</th><th class="n">總計</th><th>來源</th><th></th></tr></thead><tbody>${hands.map(ivRow).join('')}</tbody></table></div>` : ''}</div>`;
   $('#ivYm', el).addEventListener('change', ev => { ui.ym = ev.target.value; ui.page = 0; drawList(el); });
   onSearch($('#ivQ', el), v => { ui.q = v; ui.page = 0; drawList(el); const i = $('#ivQ', el); i.focus(); i.setSelectionRange(i.value.length, i.value.length); });
   el.querySelectorAll('[data-page]').forEach(b => b.addEventListener('click', () => { ui.page = +b.dataset.to; drawList(el); }));
@@ -130,9 +135,9 @@ function drawPending(el) {
   const [d1, d2] = range25(ui.pym);
   const list = pendingGroups(ui.pym).sort((a, b) => b.net - a.net || (a.bills[0].date || '').localeCompare(b.bills[0].date || ''));   // 金額大的排前面
   const sumN = list.reduce((a, g) => a + g.net, 0), sumT = list.reduce((a, g) => a + g.tax, 0), nb = list.reduce((a, g) => a + g.bills.length, 0);
-  el.innerHTML = `<div class="panel"><p class="muted" style="margin:0 0 10px">還沒開發票的銷貨單，照 25 日結帳（上月 26 日～本月 25 日）把同一個客戶的加總成一列，當月的銷貨退回會直接扣掉。按「開發票」會把這個客戶這個月的銷貨單開成一張；已經用手寫發票開好的按「手開」；不需要開的按「不開」。只想開其中一張，到「出貨銷貨」那張單右邊按「開發票」。標「整月結」的客戶是照每月 1 日～月底加總（在客戶資料勾選）。舊系統開的銷貨單（10/26 起）也列在這裡，單號後面標「舊」。</p>
+  el.innerHTML = `<div class="panel"><p class="muted" style="margin:0 0 10px">還沒開發票的銷貨單，照 25 日結帳（上月 26 日～本月 25 日）把同一個客戶的加總成一列，當月的銷貨退回會直接扣掉。按「開發票」會把這個客戶這個月的銷貨單開成一張；已經用手寫本發票開好的按「手寫本」（手機「拍照上傳 › 銷項發票」拍照也可以）；不需要開的按「不開」。只想開其中一張，到「出貨銷貨」那張單右邊按「開發票」。標「整月結」的客戶是照每月 1 日～月底加總（在客戶資料勾選）。舊系統開的銷貨單（10/26 起）也列在這裡，單號後面標「舊」。</p>
     <div class="tools" style="margin-bottom:10px">${yms.length > 1 ? `<div class="tabs" id="ivPym">${yms.map(y => `<button type="button" data-v="${y}" class="${y === ui.pym ? 'on' : ''}">${+y.slice(5)} 月</button>`).join('')}</div>` : ''}<span class="muted small">${esc(slash(d1))}～${esc(slash(d2))}・${list.length} 家・${nb} 張銷貨單・未稅 ${money(sumN)}・稅 ${money(sumT)}・合計 ${money(sumN + sumT)}</span></div>
-    <div class="tw"><table><thead><tr><th>客戶</th><th>統編</th><th>銷貨單</th><th class="n">張數</th><th class="n">未稅</th><th class="n">稅</th><th class="n">合計</th><th></th></tr></thead><tbody>${list.map(g => { const c = C.ct[g.cid]; return `<tr><td style="min-width:9em">${esc(c?.name || (g.bills[0].retail ? '門市銷售' : '（沒有客戶）'))}${c?.monthEnd ? `<div><span class="pill warn" title="這個客戶是整月結，不是 25 日結">${esc(monthEndNote(g.cid, g.ym))}</span></div>` : ''}</td><td class="mono ${c?.taxId ? '' : 'muted'}">${esc(c?.taxId || '（無）')}</td><td class="small" style="white-space:normal;max-width:30em">${g.bills.map(b => `<a href="#" class="mono" data-open="${b.id}" title="${esc(slash(b.date))}　${isRet(b) ? '銷貨退回 ' : '未稅 '}${money(sNet(b))}"${isRet(b) ? ' style="color:var(--bad)"' : ''}>${esc(b.no)}${isRet(b) ? '（退）' : ''}${b.hist ? '<span class="muted">舊</span>' : ''}</a>`).join('、')}<div class="muted">${esc(slash(g.bills[0].date).slice(5))}${g.bills.length > 1 ? '～' + esc(slash(g.bills[g.bills.length - 1].date).slice(5)) : ''}　<a href="#" data-det="${esc(g.key)}">該月銷售明細</a></div></td><td class="n">${g.bills.length}</td><td class="n">${money(g.net)}${g.ret ? `<div class="small" style="color:var(--bad)">已扣退回 ${money(g.ret)}</div>` : ''}</td><td class="n">${money(g.tax)}</td><td class="n"><b>${money(g.net + g.tax)}</b></td><td class="nowrap"><button class="btn xs pri" data-inv="${esc(g.key)}" ${g.net > 0 ? '' : 'disabled title="扣掉退回後沒有金額可以開"'}>開發票</button> <button class="btn xs" data-hand="${esc(g.key)}" ${g.net > 0 ? '' : 'disabled'}>手開</button> <button class="btn xs ghost" data-skip="${esc(g.key)}">不開</button></td></tr>`; }).join('') || '<tr><td colspan="8"><div class="empty"><b>沒有待開發票的銷貨單 ✓</b></div></td></tr>'}</tbody></table></div></div>`;
+    <div class="tw"><table><thead><tr><th>客戶</th><th>統編</th><th>銷貨單</th><th class="n">張數</th><th class="n">未稅</th><th class="n">稅</th><th class="n">合計</th><th></th></tr></thead><tbody>${list.map(g => { const c = C.ct[g.cid]; return `<tr><td style="min-width:9em">${esc(c?.name || (g.bills[0].retail ? '門市銷售' : '（沒有客戶）'))}${c?.monthEnd ? `<div><span class="pill warn" title="這個客戶是整月結，不是 25 日結">${esc(monthEndNote(g.cid, g.ym))}</span></div>` : ''}</td><td class="mono ${c?.taxId ? '' : 'muted'}">${esc(c?.taxId || '（無）')}</td><td class="small" style="white-space:normal;max-width:30em">${g.bills.map(b => `<a href="#" class="mono" data-open="${b.id}" title="${esc(slash(b.date))}　${isRet(b) ? '銷貨退回 ' : '未稅 '}${money(sNet(b))}"${isRet(b) ? ' style="color:var(--bad)"' : ''}>${esc(b.no)}${isRet(b) ? '（退）' : ''}${b.hist ? '<span class="muted">舊</span>' : ''}</a>`).join('、')}<div class="muted">${esc(slash(g.bills[0].date).slice(5))}${g.bills.length > 1 ? '～' + esc(slash(g.bills[g.bills.length - 1].date).slice(5)) : ''}　<a href="#" data-det="${esc(g.key)}">該月銷售明細</a></div></td><td class="n">${g.bills.length}</td><td class="n">${money(g.net)}${g.ret ? `<div class="small" style="color:var(--bad)">已扣退回 ${money(g.ret)}</div>` : ''}</td><td class="n">${money(g.tax)}</td><td class="n"><b>${money(g.net + g.tax)}</b></td><td class="nowrap"><button class="btn xs pri" data-inv="${esc(g.key)}" ${g.net > 0 ? '' : 'disabled title="扣掉退回後沒有金額可以開"'}>開發票</button> <button class="btn xs" data-hand="${esc(g.key)}" ${g.net > 0 ? '' : 'disabled'} title="已經用手寫本發票開好的，登記發票號碼">手寫本</button> <button class="btn xs ghost" data-skip="${esc(g.key)}">不開</button></td></tr>`; }).join('') || '<tr><td colspan="8"><div class="empty"><b>沒有待開發票的銷貨單 ✓</b></div></td></tr>'}</tbody></table></div></div>`;
   const grp = k => list.find(g => g.key === k);
   el.querySelectorAll('#ivPym button').forEach(b => b.addEventListener('click', () => { ui.pym = b.dataset.v; drawPending(el); }));
   el.querySelectorAll('[data-open]').forEach(a => a.addEventListener('click', ev => { ev.preventDefault(); const hb = histAR().find(x => x.id === a.dataset.open); if (hb) histView(hb, () => histAR()); else openBill(null, a.dataset.open); }));
@@ -226,10 +231,55 @@ async function removeInvoice(no) {
   await markHist(hback.map(b => b.id), { invNo: '' });
   await store.batch(ops); store.log('刪除', `發票 ${no} ${inv.name || ''} ${money(total(inv))}`); toast(`發票 ${no} 已刪除`); return true;
 }
+/** 手機拍照登記的手寫本發票：存成銷項發票（hand），有對到的銷貨單一起標發票號碼（舊系統的記在歷史單據上） */
+export async function saveHandInvoice(out, billIds = []) {
+  if (store.get('invoices', out.no)) throw new Error(`發票 ${out.no} 已經登記過`);
+  const ops = [{ col: 'invoices', id: out.no, data: { ...out, hand: true, billId: billIds[0] || null, billIds: billIds.length > 1 ? billIds : null } }];
+  for (const id of billIds) { const b = store.get('bills', id); if (b && b.invNo !== out.no) ops.push({ col: 'bills', id: b.id, data: { ...b, invNo: out.no } }); }
+  await markHist(billIds.filter(id => !store.get('bills', id)), { invNo: out.no });
+  await store.batch(ops); store.log('開立', `發票 ${out.no} ${out.name || ''} ${money(total(out))}（手寫本，手機拍照）`);
+}
 export function makeInvoiceFromBill(b, hand = false) {   // b：一張銷貨單，或同一個客戶同一個結帳月的好幾張
   const bs = Array.isArray(b) ? b : [b]; const b0 = bs[0]; const C = calc(); const c = C.ct[b0.cid] || {};
   const style = invStyleOf(b0.cid); const items = invItems(bs, style);
-  editInvoice({ no: nextInvNo(hand), hand, style, date: bs.length > 1 ? today() : b0.date, buyer: c.taxId || '', name: c.name ? printName(c.name) : '', cid: b0.cid, items, untaxed: sumNet(bs), tax: invTax(bs), billId: b0.id, billIds: bs.map(x => x.id), billNo: bs.length > 1 ? `${b0.no} 等 ${bs.length} 張${bs.some(isRet) ? `（含銷貨退回 ${bs.filter(isRet).length} 張，已扣 ${money(-sumNet(bs.filter(isRet)))}）` : ''}` : b0.no }, true);
+  editInvoice({ no: nextInvNo(hand), hand, ...(hand ? { note: '手寫本發票' } : {}), style, date: bs.length > 1 ? today() : b0.date, buyer: c.taxId || '', name: c.name ? printName(c.name) : '', cid: b0.cid, items, untaxed: sumNet(bs), tax: invTax(bs), billId: b0.id, billIds: bs.map(x => x.id), billNo: bs.length > 1 ? `${b0.no} 等 ${bs.length} 張${bs.some(isRet) ? `（含銷貨退回 ${bs.filter(isRet).length} 張，已扣 ${money(-sumNet(bs.filter(isRet)))}）` : ''}` : b0.no }, true);
+}
+// ---------- 發票附件（手寫本發票的明細：Excel、PDF、照片；事後查詢用）----------
+const ATT_ACCEPT = '.xlsx,.xls,.csv,.pdf,image/*';
+const attIcon = n => /\.(xlsx|xls|csv)$/i.test(n) ? '📊' : /\.pdf$/i.test(n) ? '📄' : '🖼';
+function attachBox(d) {
+  const fs = d.files || [];
+  return `<div class="f" style="grid-column:1/-1"><label>附件（明細 Excel、PDF、照片）</label><div id="iv-att" style="display:flex;flex-wrap:wrap;gap:6px;align-items:center">
+    ${d.photo ? `<a class="btn sm" href="/api/files/${esc(d.photo)}" target="_blank" title="手機拍照登記的發票照片">🖼 發票照片</a>` : ''}
+    ${fs.map((f, i) => `<span class="btn sm" style="gap:4px"><a href="/api/files/${esc(f.id)}?n=${encodeURIComponent(f.name || f.id)}" target="_blank" title="${esc(f.name || '')}${f.at ? '・' + esc(slash(f.at)) + ' 加的' : ''}">${attIcon(f.id)} ${esc(f.name || f.id)}</a><button type="button" class="link" data-attrm="${i}" title="刪除這個附件" style="color:var(--bad);padding:0 2px">×</button></span>`).join('')}
+    <button type="button" class="btn sm" id="iv-attadd">＋ 加附件</button><input type="file" id="iv-attf" accept="${ATT_ACCEPT}" multiple hidden>
+    <span class="muted small" id="iv-attmsg">${fs.length || d.photo ? '' : '還沒有附件；手寫本的明細可以存 Excel、PDF 或拍照放這裡'}</span></div></div>`;
+}
+function bindAttach(el, d, isNew, redraw) {
+  const add = el.querySelector('#iv-attadd'), inp = el.querySelector('#iv-attf'); if (!add) return;
+  // 已經存檔的發票：附件馬上存進去（不用再按儲存）；新開的跟著「儲存」一起存
+  const persist = async () => { if (isNew || !store.get('invoices', d.no)) return; await store.save('invoices', d.no, { ...store.get('invoices', d.no), files: d.files }); };
+  add.onclick = () => inp.click();
+  inp.onchange = async () => {
+    const list = [...inp.files]; inp.value = ''; if (!list.length) return;
+    const msg = el.querySelector('#iv-attmsg'); d.files = d.files || [];
+    for (const f of list) {
+      msg.textContent = `上傳 ${f.name}…`;
+      try {
+        const r = await fetch('/api/files?name=' + encodeURIComponent(f.name), { method: 'POST', body: f, credentials: 'same-origin' }).then(x => x.json());
+        if (!r.ok) throw new Error(r.error || '上傳失敗');
+        d.files.push({ id: r.id, name: f.name, at: today(), size: r.size });
+      } catch (e) { toast(`${f.name}：${e.message || e}`); }
+    }
+    try { await persist(); } catch (e) { toast('附件存檔失敗：' + e.message); }
+    toast(`已加 ${list.length} 個附件`); redraw();
+  };
+  el.querySelectorAll('[data-attrm]').forEach(b => b.onclick = async () => {
+    const f = d.files[+b.dataset.attrm]; if (!f || !(await confirm(`刪除附件「${f.name}」？刪了就找不回來。`, { danger: true }))) return;
+    d.files.splice(+b.dataset.attrm, 1);
+    try { await persist(); await api.post(`/api/files/${f.id}/delete`, {}); } catch (e) { toast('刪除失敗：' + e.message); }
+    redraw();
+  });
 }
 function editInvoice(inv, isNew) {
   const d = inv || { no: nextInvNo(), date: today(), buyer: '', name: '', items: [{ name: '螺絲', qty: '', price: '', amount: '' }], untaxed: 0, tax: 0 };
@@ -242,7 +292,9 @@ function editInvoice(inv, isNew) {
       <div class="f" style="grid-column:span 2"><label for="iv-name">買受人</label><div class="combo"><input id="iv-name" value="${esc(d.name)}" placeholder="搜尋客戶或直接輸入"></div></div>
       <div class="f"><label for="iv-buyer">統一編號</label><input id="iv-buyer" class="mono" value="${esc(d.buyer || '')}" maxlength="8"></div>
       ${d.billNo ? `<div class="f"><label>來源</label><div>銷貨單 ${esc(d.billNo)}</div></div>` : ''}
+      ${d.hand || d.note ? `<div class="f" style="grid-column:span 2"><label for="iv-note">備註</label><input id="iv-note" value="${esc(d.note || '')}"></div>` : ''}${d.hand || d.photo || d.files?.length ? attachBox(d) : ''}
       ${d.billId && isNew ? `<div class="f" style="grid-column:span 2"><label for="iv-style">品名寫法（會記住這個客戶）</label><select id="iv-style">${INV_STYLES.map(([k, n]) => `<option value="${k}" ${d.style === k ? 'selected' : ''}>${n}</option>`).join('')}</select></div>` : ''}</div>
+      ${isNew ? `<div style="margin:0 0 8px"><label class="check" style="display:inline-flex;gap:6px;align-items:center;font-weight:600" title="發票已經用手寫本開好了，這裡只登記號碼、金額（列在銷項發票最下面的「手寫本發票」，不用套印）"><input type="checkbox" id="iv-hand" ${d.hand ? 'checked' : ''}> 手寫本發票（已經手寫開好，只登記）</label></div>` : ''}
       ${d.hand && isNew ? '<p class="muted small" style="margin:0 0 8px">手寫發票已經開好的，照發票上的號碼、日期、金額填，按「儲存」就會記到銷項發票（不用套印）。</p>' : ''}
       <div class="tw"><table class="lines"><thead><tr><th>品名</th><th class="r" style="width:90px">數量</th><th class="r" style="width:100px">單價</th><th class="r" style="width:110px">金額</th><th style="width:30px"></th></tr></thead><tbody>${rows}</tbody></table></div>
       <div class="tools"><button class="btn sm" id="iv-add">＋ 加一行</button><span class="sp"></span><label class="check"><input type="checkbox" id="iv-incl" ${d.taxMode === 'in' ? 'checked' : ''}> 金額為含稅（反推）</label></div>
@@ -250,14 +302,15 @@ function editInvoice(inv, isNew) {
       ${(d.items || []).length > FORM_LINES ? `<div class="err">品名有 ${d.items.length} 行，三聯式發票只印得下 ${FORM_LINES} 行，請刪減或分兩張開。</div>` : ''}<div class="muted small" id="iv-cn">${cnMoney(total(d))}</div><div class="err" id="iv-err"></div>`;
   };
   const m = modal({
-    title: isNew ? (d.hand ? '手開發票（登記）' : '開立發票') : `發票 ${d.no}`, width: 760, body: draw2(),
-    footer: `${!isNew ? `<button class="btn danger" id="iv-void">${d.void ? '取消作廢' : '作廢'}</button><button class="btn" id="iv-print">套印</button><button class="btn ghost" id="iv-rm" style="color:var(--bad)">刪除</button>` : ''}<span class="sp"></span><button class="btn" data-close>取消</button><button class="btn pri" id="iv-ok">儲存</button>`,
+    title: isNew ? (d.hand ? '手寫本發票（登記）' : '開立發票') : `發票 ${d.no}`, width: 760, body: draw2(),
+    footer: `${!isNew ? `<button class="btn danger" id="iv-void">${d.void ? '取消作廢' : '作廢'}</button>${d.hand ? '' : '<button class="btn" id="iv-print">套印</button>'}<button class="btn ghost" id="iv-rm" style="color:var(--bad)">刪除</button>` : ''}<span class="sp"></span><button class="btn" data-close>取消</button><button class="btn pri" id="iv-ok">儲存</button>`,
     onOpen(el, close) {
       const recalc = () => {
         let sum = 0; for (const it of d.items) { if (it.qty !== '' && it.price !== '' && it.amount === '') it.amount = Math.round((+it.qty || 0) * (+it.price || 0)); sum += +it.amount || 0; }
         if (sum) { if ($('#iv-incl', el).checked) { d.untaxed = Math.round(sum / 1.05); d.tax = sum - d.untaxed; } else { d.untaxed = sum; d.tax = Math.round(sum * 0.05); } $('#iv-untaxed', el).value = money(d.untaxed); $('#iv-tax', el).value = money(d.tax); }
         $('#iv-total', el).textContent = money(total(d)); $('#iv-cn', el).textContent = cnMoney(total(d));
       };
+      const keepForm = () => { d.no = $('#iv-no', el).value; d.date = $('#iv-date', el).value; d.name = $('#iv-name', el).value; d.buyer = $('#iv-buyer', el).value; if ($('#iv-note', el)) d.note = $('#iv-note', el).value; d.untaxed = parseNum($('#iv-untaxed', el).value) || 0; d.tax = parseNum($('#iv-tax', el).value) || 0; };
       const bind = () => {
         el.querySelectorAll('[data-f]').forEach(inp => inp.addEventListener('input', () => { const it = d.items[+inp.dataset.i]; it[inp.dataset.f] = inp.dataset.f === 'name' ? inp.value : inp.value; if (inp.dataset.f === 'qty' || inp.dataset.f === 'price') { it.amount = ''; } recalc(); }));
         el.querySelectorAll('[data-del]').forEach(b => b.addEventListener('click', () => { d.items.splice(+b.dataset.del, 1); el.querySelector('.mb').innerHTML = draw2(); bind(); }));
@@ -267,6 +320,15 @@ function editInvoice(inv, isNew) {
           d.style = $('#iv-style', el).value; d.items = invItems(b, d.style); d.no = $('#iv-no', el).value; d.date = $('#iv-date', el).value; d.name = $('#iv-name', el).value; d.buyer = $('#iv-buyer', el).value;
           el.querySelector('.mb').innerHTML = draw2(); bind();
         };
+        bindAttach(el, d, isNew, () => { keepForm(); el.querySelector('.mb').innerHTML = draw2(); bind(); });
+        $('#iv-hand', el)?.addEventListener('change', () => {   // 切換手寫本：號碼改成那一本的下一號（沒自己改過號碼才換）
+          const no = $('#iv-no', el).value.trim().toUpperCase(); d.hand = $('#iv-hand', el).checked;
+          if (!no || no === nextInvNo(!d.hand)) d.no = nextInvNo(d.hand); else d.no = no;
+          if (d.hand && !d.note) d.note = '手寫本發票'; if (!d.hand && d.note === '手寫本發票') d.note = '';
+          d.date = $('#iv-date', el).value; d.name = $('#iv-name', el).value; d.buyer = $('#iv-buyer', el).value;
+          d.untaxed = parseNum($('#iv-untaxed', el).value) || 0; d.tax = parseNum($('#iv-tax', el).value) || 0;
+          el.querySelector('.mb').innerHTML = draw2(); bind();
+        });
         $('#iv-incl', el).onchange = () => { d.taxMode = $('#iv-incl', el).checked ? 'in' : 'ex'; d.items.forEach(it => { if (it.qty !== '' && it.price !== '') it.amount = ''; }); recalc(); };
         $('#iv-untaxed', el).addEventListener('change', () => { d.untaxed = parseNum($('#iv-untaxed', el).value) || 0; d.tax = Math.round(d.untaxed * 0.05); $('#iv-tax', el).value = money(d.tax); $('#iv-total', el).textContent = money(total(d)); });
         $('#iv-tax', el).addEventListener('change', () => { d.tax = parseNum($('#iv-tax', el).value) || 0; $('#iv-total', el).textContent = money(total(d)); });
@@ -278,7 +340,7 @@ function editInvoice(inv, isNew) {
         if (!/^[A-Z]{2}\d{8}$/.test(no)) return $('#iv-err', el).textContent = '發票號碼格式：2 個英文字母＋8 碼數字';
         if (isNew && store.get('invoices', no)) return $('#iv-err', el).textContent = '這個發票號碼已經開過';
         if (buyer && !ubnOk(buyer)) { if (!await confirm(`統一編號 ${buyer} 檢查碼不符，仍要儲存？`)) return; }
-        const out = { no, date: $('#iv-date', el).value, buyer, name: $('#iv-name', el).value.trim(), cid: d.cid || null, items: d.items.filter(it => it.name).map(it => ({ name: it.name, qty: it.qty === '' ? null : +it.qty, price: it.price === '' ? null : +it.price, amount: +it.amount || 0 })), untaxed: parseNum($('#iv-untaxed', el).value) || 0, tax: parseNum($('#iv-tax', el).value) || 0, taxMode: d.taxMode || 'ex', billId: d.billId || null, billIds: d.billIds?.length > 1 ? d.billIds : null, hand: !!d.hand, void: d.void || false, createdAt: d.createdAt || Date.now() };
+        const out = { no, date: $('#iv-date', el).value, buyer, name: $('#iv-name', el).value.trim(), cid: d.cid || null, items: d.items.filter(it => it.name).map(it => ({ name: it.name, qty: it.qty === '' ? null : +it.qty, price: it.price === '' ? null : +it.price, amount: +it.amount || 0 })), untaxed: parseNum($('#iv-untaxed', el).value) || 0, tax: parseNum($('#iv-tax', el).value) || 0, taxMode: d.taxMode || 'ex', billId: d.billId || null, billIds: d.billIds?.length > 1 ? d.billIds : null, hand: !!d.hand, void: d.void || false, createdAt: d.createdAt || Date.now(), ...($('#iv-note', el) ? { note: $('#iv-note', el).value.trim() } : d.note ? { note: d.note } : {}), ...(d.photo ? { photo: d.photo } : {}), ...(d.files?.length ? { files: d.files } : {}), ...(d.upId ? { upId: d.upId } : {}) };
         const ops = [{ col: 'invoices', id: no, data: out }];
         for (const id of invBillIds(d)) { const b = store.get('bills', id); if (b && b.invNo !== no) ops.push({ col: 'bills', id: b.id, data: { ...b, invNo: no } }); }
         if (d.cid) {   // 客戶沒有統編的補上；記住這個客戶的品名寫法

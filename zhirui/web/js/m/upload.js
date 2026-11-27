@@ -1,7 +1,8 @@
 // 手機版：拍照上傳。拍進貨單、採購單、廠商報價、手寫訂單、支票 → AI 辨識 → 待確認 → 人工核對後入帳：
-// 進貨單＝建立進貨單（庫存增加）、採購單（志瑞開給廠商的）＝存成採購單、廠商報價＝存成詢價單、手寫訂單＝轉成出貨單草稿、支票＝登記客票。
+// 進貨單＝建立進貨單（庫存增加）、採購單（志瑞開給廠商的）＝存成採購單、廠商報價＝存成詢價單、手寫訂單＝轉成出貨單草稿、支票＝登記客票、
+// 銷項發票（手寫本開的）＝登記到發票作業的銷項發票（列在最下面「手寫本發票」，可一起沖待開的銷貨單）。
 // 每次上傳記在 uploads 集合（照片存伺服器 data/files），狀態：辨識中 → 待確認 → 已入帳（或失敗可重試）。
-import { esc, fmt, fmtQ, today, uid, ls, slash } from '../core/util.js';
+import { esc, fmt, fmtQ, today, uid, ls, slash, ymLabel, ubnOk, toHalf } from '../core/util.js';
 import { api, aiOcr } from '../core/api.js';
 import { store } from '../core/store.js';
 import { calc, nextNo, defWh, cdisp, cname, customers, suppliers, totals, lineAmt, unitFactor, lastSale } from '../core/calc.js';
@@ -13,8 +14,9 @@ import { sendFax } from './po.js';
 import { editGoods } from './goodsedit.js';
 import { stdGoods } from '../core/codegen.js';
 import { faxDial, isTaichung } from '../modules/faxes.js';
+import { pendingGroups, saveHandInvoice } from '../modules/invoices.js';
 
-const KINDS = [['pur', '進貨單', 'S'], ['po', '採購單', 'S'], ['quote', '廠商報價', 'S'], ['order', '手寫訂單', 'C'], ['check', '支票', 'C']];
+const KINDS = [['pur', '進貨單', 'S'], ['po', '採購單', 'S'], ['quote', '廠商報價', 'S'], ['order', '手寫訂單', 'C'], ['check', '支票', 'C'], ['inv', '銷項發票', 'C']];
 const KN = Object.fromEntries(KINDS.map(k => [k[0], k[1]]));
 const ST = { reading: ['辨識中', 'warn'], review: ['待確認', 'warn'], done: ['已入帳', 'good'], failed: ['失敗', 'bad'] };
 const toast = msg => { const t = document.getElementById('toast'); t.textContent = msg; t.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(() => t.hidden = true, 2800); };
@@ -50,7 +52,7 @@ export function uploadPage(view, sub) {
 }
 function rowHtml(u) {
   const [t, c] = ST[u.status] || [u.status, ''];
-  const who = u.cid ? cdisp(store.get('contacts', u.cid)) : u.result?.party || (u.result?.checks ? `${u.result.checks.length} 張支票` : '');
+  const who = u.cid ? cdisp(store.get('contacts', u.cid)) : u.result?.party || u.result?.buyer || (u.result?.checks ? `${u.result.checks.length} 張支票` : '');
   return `<a href="#up/${encodeURIComponent(u.id)}"><img class="thumb" src="${u.file && !/\.pdf$/.test(u.file) ? '/api/files/' + esc(u.file) : ''}" alt="" loading="lazy"><div class="gm"><b>${esc(KN[u.kind] || u.kind)}${who ? '・' + esc(who) : ''}</b><small>${esc(hm(u.at))}・${esc(u.by || '')}${u.msg ? '・' + esc(u.msg) : ''}</small></div><span class="go"><small class="${c}">${t}</small> ›</span></a>`;
 }
 export function onUploadChange(view, ch) {
@@ -84,7 +86,8 @@ async function runOcr(id, url, pdf) {
       catch (e) { if (u.kind !== 'po' || !/不認識的單據類型/.test(e.message || '')) throw e; result = await aiOcr('/api/ocr/doc', { ...body, kind: 'pur' }); }   // 伺服器還沒重新啟動
     }
     const kindParty = (KINDS.find(k => k[0] === u.kind) || [])[2];
-    const p = u.kind === 'check' ? null : matchParty(result.party, kindParty);
+    const tid = u.kind === 'inv' ? String(result.taxid || '').replace(/\D/g, '') : '';
+    const p = u.kind === 'check' ? null : (tid.length === 8 && customers(true).find(c => c.taxId === tid)) || matchParty(result.party, kindParty);
     await upd(id, { status: 'review', result, cid: p?.id || '', msg: '' });
     toast(`${KN[u.kind]}辨識完成，請到「待確認」核對`);
   } catch (e) { await upd(id, { status: 'failed', msg: (e.message || String(e)).slice(0, 120) }); toast('辨識失敗：' + (e.message || e)); }
@@ -136,8 +139,9 @@ function reviewPage(view, id) {
   let body = '';
   if (u.status === 'reading') body = `<div class="card ph"><b>辨識中…</b><span class="muted">約 10～40 秒；超過 3 分鐘還沒好可以按重試</span></div>${Date.now() - (u.at || 0) > 180000 ? '<p><button class="btn ghost" id="rt">重新辨識</button></p>' : ''}`;
   else if (u.status === 'failed') body = `<div class="card"><div class="err">${esc(u.msg || '辨識失敗')}</div></div><p><button class="btn" id="rt">重新辨識</button></p>`;
+  else if (u.status === 'done' && u.kind === 'inv') body = invDone(u);
   else if (u.status === 'done') body = `<div class="card list">${u.billId ? `<div class="row"><span>已建立</span><span class="go">${esc(u.doneText || '')}</span></div>` : `<div class="row">${esc(u.doneText || '已入帳')}</div>`}${u.kind === 'po' && u.billId && store.get('bills', u.billId) ? `<a href="#po/v/${encodeURIComponent(u.billId)}"><span>打開採購單（傳真狀態、傳真這張）</span><span class="go">›</span></a>` : ''}</div>`;
-  else body = u.kind === 'check' ? checkReview(u) : docReview(u);
+  else body = u.kind === 'check' ? checkReview(u) : u.kind === 'inv' ? invReview(u) : docReview(u);
   view.innerHTML = `<div class="hd"><a class="back" href="#up">‹ 拍照上傳</a><span class="sp"></span><small class="${c}">${t}</small></div>
     <div class="hd" style="margin-top:0" data-rv="${esc(u.id)}" data-st="${esc(u.status)}"><h1>${esc(KN[u.kind])}</h1><span class="sub">${esc(hm(u.at))}</span></div>
     ${img}${body}
@@ -145,7 +149,8 @@ function reviewPage(view, id) {
   const $ = q => view.querySelector(q);
   $('#rt')?.addEventListener('click', () => { retry(u.id).catch(e => toast(e.message)); });
   $('#del')?.addEventListener('click', async () => { if (!window.confirm('刪除這筆上傳？（不會影響已經建立的單據）')) return; await store.remove('uploads', u.id); location.hash = '#up'; });
-  if (u.status === 'review') u.kind === 'check' ? bindCheck(view, u) : bindDoc(view, u);
+  if (u.status === 'review') u.kind === 'check' ? bindCheck(view, u) : u.kind === 'inv' ? bindInv(view, u) : bindDoc(view, u);
+  if (u.status === 'done' && u.kind === 'inv') bindInvAtt(view, u);
 }
 const ACT = { pur: '確認入庫（建立進貨單）', po: '存成採購單', quote: '存成詢價單（廠商報價）', order: '轉成出貨單草稿' };
 function docReview(u) {
@@ -219,6 +224,96 @@ async function commit(view, u, fax) {
   await upd(u.id, { status: 'done', billId: id, doneText: `${TN} ${no}・${fmt(totals(doc).total)} 元` });
   if (fax) await sendFax({ ...doc, id }).catch(x => toast('排入傳真失敗：' + x.message));
   delete rv[u.id]; toast(`已建立${type === 'PUR' ? '進貨單（庫存已增加）' : TN} ${no}${fax ? '，已排入傳真' : ''}`);
+}
+// ---------- 銷項發票（手寫本）：核對號碼、買受人、金額 → 登記；同一個客戶有待開的銷貨單可以一起沖 ----------
+const num = v => Math.round(+toHalf(String(v ?? '')).replace(/[,\s]/g, '') || 0);
+function invState(u) {
+  if (rv[u.id] && rv[u.id].cid === u.cid) return rv[u.id];
+  const R = u.result || {}; const c = u.cid ? store.get('contacts', u.cid) : null;
+  let un = num(R.untaxed), tx = num(R.tax); const tot = num(R.total);
+  if (!un && tot) { un = Math.round(tot / 1.05); tx = tot - un; } else if (un && !tx && tot > un) tx = tot - un;
+  const groups = u.cid ? pendingGroups().filter(g => g.cid === u.cid && g.net > 0).sort((a, b) => b.ym.localeCompare(a.ym)).slice(0, 4) : [];
+  const pick = groups.find(g => Math.abs(g.net - un) <= 1);   // 未稅金額一樣就預先勾
+  return rv[u.id] = { cid: u.cid, no: String(R.no || '').replace(/[\s-]/g, '').toUpperCase(), date: R.date || today(), buyer: String(R.taxid || '').replace(/\D/g, '') || c?.taxId || '', untaxed: un, tax: tx, groups, on: new Set(pick ? [pick.key] : []) };
+}
+function invReview(u) {
+  const R = u.result || {}; const st = invState(u); const c = u.cid ? store.get('contacts', u.cid) : null; const dup = st.no && store.get('invoices', st.no);
+  return `<div class="card list">
+      <div class="row"><span>發票號碼</span><input id="ino" class="inl" value="${esc(st.no)}" autocapitalize="characters" style="font-family:monospace"></div>${dup ? `<div class="row bad">發票 ${esc(st.no)} 已經登記過了（${esc(dup.name || '')}）</div>` : ''}
+      <div class="row"><span>日期</span><input type="date" id="idt" class="inl" value="${esc(st.date)}"></div>
+      <a href="#" id="pp"><span>買受人</span><span class="go">${c ? `<b>${esc(cdisp(c))}</b>` : `<span class="bad">請選客戶</span>`} ›</span></a>
+      ${R.buyer ? `<div class="row src">發票上寫：${esc(R.buyer)}</div>` : ''}
+      <div class="row"><span>統一編號</span><input id="ibu" class="inl" inputmode="numeric" maxlength="8" value="${esc(st.buyer)}"></div></div>
+    ${R.doubts ? `<div class="note" style="text-align:left">AI 提醒：${esc(R.doubts)}</div>` : ''}
+    <div class="sec">品名 <span class="muted">${(R.lines || []).length} 行</span></div>
+    <div class="card list">${(R.lines || []).map(l => `<div class="row"><div class="gm"><b>${esc(l.name || '')}</b><small>${l.qty ? fmt(l.qty) : ''}${l.price ? ' × ' + fmt(l.price) : ''}</small></div><span class="go">${l.amount ? fmt(l.amount) : ''}</span></div>`).join('') || '<div class="row muted">沒有讀到品名</div>'}</div>
+    <div class="card list" style="margin-top:10px">
+      <div class="row"><span>銷售額</span><input id="iun" class="inl" inputmode="numeric" value="${esc(st.untaxed)}"></div>
+      <div class="row"><span>稅額</span><input id="itx" class="inl" inputmode="numeric" value="${esc(st.tax)}"></div>
+      <div class="row"><b>總計</b><span class="go"><b id="itot">${fmt(st.untaxed + st.tax)}</b></span></div></div>
+    ${st.groups.length ? `<div class="sec">一起沖待開的銷貨單</div><div class="card list">${st.groups.map(g => `<label class="row"><div class="gm"><b>${esc(ymLabel(g.ym))}・${g.bills.length} 張</b><small>未稅 ${fmt(g.net)}・稅 ${fmt(g.tax)}${Math.abs(g.net - st.untaxed) <= 1 ? '・<span class="good">金額一樣</span>' : ''}</small></div><span class="go"><input type="checkbox" data-g="${esc(g.key)}" ${st.on.has(g.key) ? 'checked' : ''}></span></label>`).join('')}</div><div class="note" style="text-align:left">勾了，那些銷貨單就標上這張發票號碼，不會再出現在「待開」。</div>` : c ? '<div class="note" style="text-align:left">這個客戶沒有待開發票的銷貨單。</div>' : ''}
+    <div id="rerr" class="err"></div>
+    <p><button class="btn" id="ok">登記這張發票（手寫本）</button></p>`;
+}
+function bindInv(view, u) {
+  const $ = q => view.querySelector(q); const st = rv[u.id]; const redraw = () => reviewPage(view, u.id);
+  const keep = () => { st.no = $('#ino').value.replace(/[\s-]/g, '').toUpperCase(); st.date = $('#idt').value; st.buyer = $('#ibu').value.trim(); st.untaxed = num($('#iun').value); st.tax = num($('#itx').value); };
+  $('#pp').onclick = ev => { ev.preventDefault(); keep(); pickParty('C', async id => { const c = store.get('contacts', id); const old = { ...st }; delete rv[u.id]; await upd(u.id, { cid: id }); const n = invState(store.get('uploads', u.id)); Object.assign(n, { no: old.no, date: old.date, untaxed: old.untaxed, tax: old.tax, buyer: old.buyer || c?.taxId || '' }); redraw(); }); };
+  $('#ino').onchange = () => { keep(); redraw(); };
+  $('#iun').onchange = () => { keep(); st.tax = Math.round(st.untaxed * 0.05); redraw(); };
+  $('#itx').oninput = () => { keep(); $('#itot').textContent = fmt(st.untaxed + st.tax); };
+  ['#idt', '#ibu'].forEach(q => $(q).onchange = keep);
+  view.querySelectorAll('[data-g]').forEach(cb => cb.onchange = () => { cb.checked ? st.on.add(cb.dataset.g) : st.on.delete(cb.dataset.g); });
+  $('#ok').onclick = async () => {
+    keep(); const err = m => { $('#rerr').textContent = m; toast(m); };
+    const c = u.cid ? store.get('contacts', u.cid) : null; const R = u.result || {};
+    if (!/^[A-Z]{2}\d{8}$/.test(st.no)) return err('發票號碼格式：2 個英文字母＋8 碼數字');
+    if (store.get('invoices', st.no)) return err(`發票 ${st.no} 已經登記過了`);
+    if (!c && !R.buyer) return err('請選客戶');
+    if (!(st.untaxed > 0)) return err('請填銷售額');
+    if (st.buyer && !ubnOk(st.buyer) && !window.confirm(`統一編號 ${st.buyer} 檢查碼不符，仍要登記？`)) return;
+    const gs = st.groups.filter(g => st.on.has(g.key)); const net = gs.reduce((a, g) => a + g.net, 0);
+    if (gs.length && Math.abs(net - st.untaxed) > 1 && !window.confirm(`勾的銷貨單未稅 ${fmt(net)}，發票銷售額 ${fmt(st.untaxed)}，金額不一樣，仍要一起沖？`)) return;
+    const out = { no: st.no, date: st.date || today(), buyer: st.buyer, name: c?.name || R.buyer || '', cid: c?.id || null, items: (R.lines || []).filter(l => l.name).map(l => ({ name: l.name, qty: +l.qty || null, price: +l.price || null, amount: +l.amount || 0 })), untaxed: st.untaxed, tax: st.tax, taxMode: 'ex', void: false, note: '手寫本發票', photo: u.file || '', upId: u.id, createdAt: Date.now(), createdBy: store.user.id };
+    $('#ok').disabled = true;
+    try { await saveHandInvoice(out, gs.flatMap(g => g.bills.map(b => b.id))); }
+    catch (e) { $('#ok').disabled = false; return err('登記失敗：' + (e.message || e)); }
+    await upd(u.id, { status: 'done', invNo: st.no, attAsk: true, doneText: `發票 ${st.no}・${fmt(st.untaxed + st.tax)} 元${gs.length ? `・沖銷貨單 ${gs.reduce((a, g) => a + g.bills.length, 0)} 張` : ''}` });
+    delete rv[u.id]; toast(`發票 ${st.no} 已登記，要拍明細附件嗎？`); redraw();
+  };
+}
+// 登記好以後：提醒要不要拍明細當附件（存在那張發票的「附件」，電腦版點進發票看得到）
+function invDone(u) {
+  const inv = u.invNo ? store.get('invoices', u.invNo) : null; const fs = inv?.files || [];
+  return `<div class="card list"><div class="row">${esc(u.doneText || '已登記')}</div></div>
+    ${inv ? `<div class="card ${fs.length ? '' : 'warnbox'}" style="margin-top:10px"><b>${fs.length ? `附件 ${fs.length} 個` : '要不要拍明細附件？'}</b>
+      <div class="muted small" style="margin:4px 0 8px">手寫本發票通常有附明細，拍下來（或選 Excel、PDF）存在這張發票，以後到電腦版點進發票就查得到。</div>
+      ${fs.map(f => `<div class="row" style="padding:4px 0"><a href="/api/files/${esc(f.id)}?n=${encodeURIComponent(f.name || f.id)}" target="_blank">${/\.(xlsx|xls|csv)$/i.test(f.id) ? '📊' : /\.pdf$/i.test(f.id) ? '📄' : '🖼'} ${esc(f.name || f.id)}</a></div>`).join('')}
+      <div class="acts" style="margin-top:8px"><button class="btn" id="atc">📷 拍附件</button><button class="btn ghost" id="atl">相簿或檔案</button></div>
+      ${!fs.length && u.attAsk ? '<p style="margin:8px 0 0"><button class="btn ghost" id="atno">不用附件</button></p>' : ''}</div>
+      <input type="file" id="atfc" accept="image/*" capture="environment" hidden><input type="file" id="atfl" accept=".xlsx,.xls,.csv,.pdf,image/*" multiple hidden>` : ''}
+    <div class="note" style="text-align:left">電腦版「發票作業 › 銷項發票」最下面的「手寫本發票」看得到。</div>`;
+}
+function bindInvAtt(view, u) {
+  const $ = q => view.querySelector(q); if (!$('#atc')) return;
+  const go = inp => async () => {
+    const list = [...inp.files]; inp.value = ''; if (!list.length) return; let n = 0;
+    for (const f of list) {
+      try {
+        const img = /^image\//.test(f.type); const body = img ? await (await fetch(await shrink(f, 2400, 0.85))).blob() : f;
+        const name = img ? `明細${(store.get('invoices', u.invNo)?.files || []).length + 1}.jpg` : f.name;
+        toast(`上傳 ${name}…`);
+        const r = await fetch('/api/files?name=' + encodeURIComponent(name), { method: 'POST', body, credentials: 'same-origin' }).then(x => x.json());
+        if (!r.ok) throw new Error(r.error || '上傳失敗');
+        const inv = store.get('invoices', u.invNo); if (!inv) throw new Error('找不到這張發票');
+        await store.save('invoices', inv.no, { ...inv, files: [...(inv.files || []), { id: r.id, name, at: today(), size: r.size }] }); n++;
+      } catch (e) { toast(`${f.name}：${e.message || e}`); }
+    }
+    await upd(u.id, { attAsk: false }); if (n) toast(`已加 ${n} 個附件`); reviewPage(view, u.id);
+  };
+  const fc = $('#atfc'), fl = $('#atfl'); $('#atc').onclick = () => fc.click(); $('#atl').onclick = () => fl.click();
+  fc.onchange = go(fc); fl.onchange = go(fl);
+  $('#atno')?.addEventListener('click', async () => { await upd(u.id, { attAsk: false }); reviewPage(view, u.id); });
 }
 function checkReview(u) {
   const list = (u.result?.checks || []).map(preOf); const done = new Set(u.doneChecks || []);

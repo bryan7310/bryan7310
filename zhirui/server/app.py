@@ -76,7 +76,8 @@ COOKIE = 'zr_session'
 PW_MIN = 8   # 新設密碼最少幾碼（舊密碼不受影響，照樣可以登入）
 LONG_POLL = 25
 # 附檔（客戶圖面）
-FILE_TYPES = {'.jpg': 'image/jpeg', '.png': 'image/png', '.gif': 'image/gif', '.webp': 'image/webp', '.pdf': 'application/pdf'}
+FILE_TYPES = {'.jpg': 'image/jpeg', '.png': 'image/png', '.gif': 'image/gif', '.webp': 'image/webp', '.pdf': 'application/pdf',
+              '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', '.xls': 'application/vnd.ms-excel', '.csv': 'text/csv'}   # Excel：發票附件
 FILE_MAX = 25 * 1024 * 1024
 # 信件附件可以直接在網頁打開的類型（其他一律下載）
 # 只有管理者帳號能呼叫的功能（POST）
@@ -98,7 +99,7 @@ try {
 } finally { $img.Dispose() }
 '''
 START_AT = int(time.time() * 1000)
-FILE_RE = re.compile(r'^/api/files/([0-9a-f]{16}\.(?:jpg|png|gif|webp|pdf))(/delete)?$')
+FILE_RE = re.compile(r'^/api/files/([0-9a-f]{16}\.(?:jpg|png|gif|webp|pdf|xlsx|xls|csv))(/delete)?$')
 
 
 FAX_HELPER = {}
@@ -750,7 +751,7 @@ class Handler(BaseHTTPRequestHandler):
                 data = f.read()
             name = q('n') or m.group(1)
             ext = os.path.splitext(m.group(1))[1].lower()
-            disp = 'attachment' if q('dl') else 'inline'
+            disp = 'attachment' if q('dl') or ext in ('.xlsx', '.xls', '.csv') else 'inline'
             return self.send_bytes(data, FILE_TYPES.get(ext, 'application/octet-stream'), cache=True,
                                    headers={'Content-Disposition': f"{disp}; filename*=UTF-8''{quote(name)}"})
         if path in ADMIN_ONLY and method == 'POST' and me.get('role', 'admin') != 'admin':
@@ -1144,7 +1145,7 @@ class Handler(BaseHTTPRequestHandler):
             ext = '.jpg'
         if ext not in FILE_TYPES:
             self.rfile.read(n)
-            return self.error('只接受圖片（JPG、PNG、GIF、WEBP）或 PDF')
+            return self.error('只接受圖片（JPG、PNG、GIF、WEBP）、PDF 或 Excel')
         data = self.rfile.read(n)
         fid = secrets.token_hex(8) + ext
         with open(os.path.join(self.files_dir(), fid), 'wb') as f:
@@ -2095,9 +2096,38 @@ DOC_SCHEMA = {
                 'unit': {'type': 'string'}, 'price': {'type': 'number'}, 'disc': {'type': 'number'}, 'amount': {'type': 'number'}}}}}}
 
 
+# 志瑞自己用手寫本開的銷項發票（三聯式／二聯式）：拍照 → 登記到銷項發票（不用套印）
+INV_PROMPT = """你在讀「志瑞螺絲企業有限公司」開給客戶的統一發票（手寫的三聯式或二聯式發票，照片）。志瑞是賣方，不要把志瑞填成買受人。
+- no：發票號碼，2 個英文字母＋8 碼數字（例如 GF14518260），照抄，去掉空白和連字號。
+- date：發票日期，一律轉成 YYYY-MM-DD（民國年要轉西元，例如 115 年 11 月 26 日 → 2026-11-26）。
+- buyer：買受人（客戶公司名稱）照抄；taxid：買受人統一編號 8 碼數字，沒有填空字串。
+- lines：每一行品名、數量、單價、金額照抄；數量、單價、金額只填數字（去掉千分位），沒寫填 0。
+- untaxed：銷售額合計；tax：營業稅；total：總計（含稅）。只填數字，看不清楚填 0。
+- tax_incl：如果品名金額寫的是含稅價（二聯式常見）填 true，否則 false。
+- 手寫的字盡量辨識；看不清楚、不確定、或金額加起來對不上的，寫在 doubts，不要猜。"""
+INV_SCHEMA = {
+    'type': 'object', 'additionalProperties': False,
+    'required': ['no', 'date', 'buyer', 'taxid', 'untaxed', 'tax', 'total', 'tax_incl', 'doubts', 'lines'],
+    'properties': {
+        'no': {'type': 'string'}, 'date': {'type': 'string'}, 'buyer': {'type': 'string'}, 'taxid': {'type': 'string'},
+        'untaxed': {'type': 'number'}, 'tax': {'type': 'number'}, 'total': {'type': 'number'}, 'tax_incl': {'type': 'boolean'}, 'doubts': {'type': 'string'},
+        'lines': {'type': 'array', 'items': {
+            'type': 'object', 'additionalProperties': False, 'required': ['name', 'qty', 'price', 'amount'],
+            'properties': {'name': {'type': 'string'}, 'qty': {'type': 'number'}, 'price': {'type': 'number'}, 'amount': {'type': 'number'}}}}}}
+
+
 def doc_extract(data_dir, body):
-    """body：kind（pur 進貨單、po 志瑞開的採購單、quote 廠商報價、order 客戶訂單）、data（base64）、media"""
+    """body：kind（pur 進貨單、po 志瑞開的採購單、quote 廠商報價、order 客戶訂單、inv 手寫本銷項發票）、data（base64）、media"""
     kind = str(body.get('kind') or '')
+    if kind == 'inv':   # 手寫的發票：本機辨識讀不了手寫，直接送 AI
+        if os.environ.get('ZR_DOC_MOCK'):
+            with open(os.environ['ZR_DOC_MOCK'], encoding='utf-8') as f:
+                r = json.load(f).get('inv') or {'no': '', 'date': '', 'buyer': '', 'taxid': '', 'untaxed': 0, 'tax': 0, 'total': 0, 'tax_incl': False, 'doubts': '', 'lines': []}
+        else:
+            r = po_extract(data_dir, body, system=INV_PROMPT, schema=INV_SCHEMA, ask='請讀這張發票，依指定的 JSON 格式回傳。', tag='inv')
+        r['party'] = r.get('buyer') or ''
+        r['_engine'] = 'claude'
+        return r
     if kind not in DOC_PROMPTS:
         raise OcrError('不認識的單據類型')
     media = str(body.get('media') or '')
