@@ -15,7 +15,7 @@ const W = 400, H = 320;
 const CLS = [['S', 'A★常出貨'], ['A', 'A 類'], ['B', 'B 類'], ['C', 'C 類'], ['all', '全部']];
 const SORTS = [['code', '料號'], ['amt', '出貨金額'], ['last', '最近出貨日']];
 const PKEY = 'zr.m.cnt.printed';   // 這支手機印過盤點標籤的商品
-const ui = { cls: ls.get('zr.m.cnt.cls', 'S'), sort: ls.get('zr.m.cnt.sort', 'code'), todo: false, cid: '', cq: '', sel: new Set(), data: null, busy: false, back: '#stock' };
+const ui = { cls: ls.get('zr.m.cnt.cls', 'S'), sort: ls.get('zr.m.cnt.sort', 'code'), todo: false, cid: '', cq: '', gq: '', sel: new Set(), data: null, busy: false, back: '#stock' };
 const toast = msg => { const t = document.getElementById('toast'); t.textContent = msg; t.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(() => t.hidden = true, 2800); };
 const printed = () => new Set(ls.get(PKEY, []) || []);
 
@@ -43,9 +43,11 @@ export async function drawCountLabel(cv, g) {
   toBW(cx); return cv;
 }
 
+const gText = g => g ? [g.code, g.name, g.spec, g.spec2, g.vcode, g.alias].filter(Boolean).join(' ') : '';
+function gFilter(list) { const t = qTerms(ui.gq); return t.length ? list.filter(x => matchQ(gText(store.get('goods', x.gid)), t)) : list; }
 function rows() {
   const D = ui.data; if (!D) return [];
-  let list = (ui.cid ? D.list.filter(x => x.cids?.has(ui.cid)) : D.list).filter(x => ui.cls === 'all' ? true : ui.cls === 'S' ? x.star : x.cls === ui.cls);
+  let list = gFilter(ui.cid ? D.list.filter(x => x.cids?.has(ui.cid)) : D.list).filter(x => ui.cls === 'all' ? true : ui.cls === 'S' ? x.star : x.cls === ui.cls);
   if (ui.todo) list = list.filter(x => !countedOk(store.get('goods', x.gid), x.cls));
   const code = x => String(store.get('goods', x.gid)?.code || '');
   if (ui.sort === 'code') list = [...list].sort((a, b) => code(a).localeCompare(code(b)));
@@ -65,21 +67,39 @@ export async function countPage(view, opt = {}) {
 
 function draw(view) {
   const D = ui.data; const C = calc(); const list = rows(); const pr = curPrinter(); const pd = printed();
-  const custs = abcCustomers(D.list); const base = ui.cid ? D.list.filter(x => x.cids?.has(ui.cid)) : D.list;
+  const custs = abcCustomers(D.list); const base = gFilter(ui.cid ? D.list.filter(x => x.cids?.has(ui.cid)) : D.list);
   const cnt = k => base.filter(x => k === 'all' ? true : k === 'S' ? x.star : x.cls === k).length;
   const sel = list.filter(x => ui.sel.has(x.gid)); const done = list.filter(x => countedOk(store.get('goods', x.gid), x.cls)).length;
   const y = window.scrollY;
-  view.innerHTML = `<div class="hd"><a class="chip" href="${ui.back}">‹ 返回</a><h1>盤點表</h1><span class="sp"></span><span class="sub">${ui.todo ? '' : `已盤 ${done}／${list.length}`}</span></div>
+  view.innerHTML = `<div class="hd"><a class="chip" href="${ui.back}">‹ 返回</a><h1>盤點表</h1><span class="sp"></span><span class="sub" id="csub">${ui.todo ? '' : `已盤 ${done}／${list.length}`}</span></div>
     <div class="btn2"><button class="btn" id="cscan">📷 掃碼盤點</button><button class="btn ${sel.length ? '' : 'ghost'}" id="cprint">🖨 印盤點標籤${sel.length ? `（${sel.length}）` : ''}</button></div>
-    <div class="chips">${CLS.map(([k, n]) => `<button class="chip ${ui.cls === k ? 'on' : ''}" data-cls="${k}">${n} ${cnt(k)}</button>`).join('')}</div>
+    <div class="chips">${CLS.map(([k, n]) => `<button class="chip ${ui.cls === k ? 'on' : ''}" data-cls="${k}">${n} <span data-cn="${k}">${cnt(k)}</span></button>`).join('')}</div>
     <div style="margin:0 0 8px;display:flex;gap:8px"><input id="ccq" type="search" placeholder="打字找客戶" value="${esc(ui.cq)}" autocomplete="off" enterkeyhint="search" aria-label="打字找客戶" style="flex:1;min-width:0;font-size:16px;padding:9px 10px;border:1px solid var(--line);border-radius:10px;background:var(--card, transparent);color:inherit"><select id="ccust" aria-label="客戶篩選" style="flex:1.3;min-width:0;font-size:16px;padding:9px 10px;border:1px solid var(--line);border-radius:10px;background:var(--card, transparent);color:inherit"><option value="">全部客戶</option>${custs.map(c => `<option value="${c.cid}" ${c.cid === ui.cid ? 'selected' : ''}>${esc(c.name)}（${c.n}）</option>`).join('')}</select></div>
+    <div style="margin:0 0 8px;position:relative"><input id="cgq" type="search" placeholder="打字找商品（品名、料號、規格）" value="${esc(ui.gq)}" autocomplete="off" enterkeyhint="search" aria-label="商品篩選" style="width:100%;box-sizing:border-box;font-size:16px;padding:9px 10px;border:1px solid var(--line);border-radius:10px;background:var(--card, transparent);color:inherit"></div>
     <div class="chips seg">${SORTS.map(([k, n]) => `<button class="chip ${ui.sort === k ? 'on' : ''}" data-sort="${k}">${n}</button>`).join('')}</div>
     <div class="chips"><button class="chip ${ui.todo ? 'on' : ''}" id="ctodo">只看還沒盤的</button><button class="chip" id="call">全選</button><button class="chip" id="cnew">選沒印過標籤的</button>${ui.sel.size ? '<button class="chip" id="cnone">取消勾選</button>' : ''}</div>
     <div class="note" style="text-align:left;margin:0 0 8px">近一年有出貨的商品，依出貨金額分類：A 每月盤、B 每季盤、C 半年盤。點商品直接盤點；勾起來可以印盤點標籤（標籤機：<a href="#" id="cpp">${esc(pr.name)}</a>）。</div>
-    <div class="card list" id="cl">${list.map(x => { const g = store.get('goods', x.gid); const q = Object.values(C.stock[g.id] || {}).reduce((a, b) => a + b, 0); const ok = countedOk(g, x.cls);
-      return `<div class="row" data-g="${g.id}"><input type="checkbox" data-ck="${g.id}" ${ui.sel.has(g.id) ? 'checked' : ''} aria-label="勾選印標籤" style="width:22px;height:22px;flex:none;margin-right:10px"><div class="gm"><b>${esc(g.name)}</b><small>${esc(g.code || '')}・${x.cls}${x.star ? '★' : ''}・單重 ${+g.wt > 0 || estWeight(g) ? esc(wtText(g)) : '還沒有'}</small><small>系統 ${fmtQ(q)} ${esc(g.unit || '')}・最近出貨 ${esc(slash(x.last).slice(5))}・${g.cntAt ? `<span class="${ok ? 'good' : ''}">上次盤 ${esc(slash(g.cntAt))}</span>` : '還沒盤過'}${pd.has(g.id) ? '・已印標籤' : ''}</small></div><span class="go">›</span></div>`; }).join('') || '<div class="row muted">這個分類沒有要盤的商品</div>'}</div>`;
+    <div class="card list" id="cl">${listHtml(list, C, pd)}</div>`;
   window.scrollTo(0, y);
   const $ = q => view.querySelector(q); const redraw = () => draw(view);
+  let gt = 0;
+  $('#cgq').oninput = ev => { ui.gq = ev.target.value; clearTimeout(gt); gt = setTimeout(() => {
+    const l = rows(); $('#cl').innerHTML = listHtml(l, C, pd);
+    const dn = l.filter(x => countedOk(store.get('goods', x.gid), x.cls)).length; $('#csub').textContent = ui.todo ? '' : `已盤 ${dn}／${l.length}`;
+    const b2 = gFilter(ui.cid ? D.list.filter(x => x.cids?.has(ui.cid)) : D.list);
+    view.querySelectorAll('[data-cn]').forEach(e => { const k = e.dataset.cn; e.textContent = b2.filter(x => k === 'all' ? true : k === 'S' ? x.star : x.cls === k).length; });
+    const n = l.filter(x => ui.sel.has(x.gid)).length; const b = $('#cprint'); b.textContent = `🖨 印盤點標籤${n ? `（${n}）` : ''}`; b.classList.toggle('ghost', !n);
+  }, 200); };
+  $('#cgq').onkeydown = ev => { if (ev.key === 'Enter') { ev.preventDefault(); ev.target.blur(); } };
+  bindRest(view, D, C, list, pd, custs, $, redraw);
+}
+
+function listHtml(list, C, pd) {
+  return list.map(x => { const g = store.get('goods', x.gid); const q = Object.values(C.stock[g.id] || {}).reduce((a, b) => a + b, 0); const ok = countedOk(g, x.cls);
+      return `<div class="row" data-g="${g.id}"><input type="checkbox" data-ck="${g.id}" ${ui.sel.has(g.id) ? 'checked' : ''} aria-label="勾選印標籤" style="width:22px;height:22px;flex:none;margin-right:10px"><div class="gm"><b>${esc(g.name)}</b><small>${esc(g.code || '')}・${x.cls}${x.star ? '★' : ''}・單重 ${+g.wt > 0 || estWeight(g) ? esc(wtText(g)) : '還沒有'}</small><small>系統 ${fmtQ(q)} ${esc(g.unit || '')}・最近出貨 ${esc(slash(x.last).slice(5))}・${g.cntAt ? `<span class="${ok ? 'good' : ''}">上次盤 ${esc(slash(g.cntAt))}</span>` : '還沒盤過'}${pd.has(g.id) ? '・已印標籤' : ''}</small></div><span class="go">›</span></div>`; }).join('') || `<div class="row muted">${ui.gq.trim() ? '找不到符合的商品（只列近一年有出貨的）' : '這個分類沒有要盤的商品'}</div>`;
+}
+
+function bindRest(view, D, C, list, pd, custs, $, redraw) {
   view.querySelectorAll('[data-cls]').forEach(b => b.onclick = () => { ui.cls = b.dataset.cls; ls.set('zr.m.cnt.cls', ui.cls); ui.sel.clear(); window.scrollTo(0, 0); redraw(); });
   view.querySelectorAll('[data-sort]').forEach(b => b.onclick = () => { ui.sort = b.dataset.sort; ls.set('zr.m.cnt.sort', ui.sort); redraw(); });
   $('#ctodo').onclick = () => { ui.todo = !ui.todo; redraw(); };
@@ -90,8 +110,8 @@ function draw(view) {
   $('#ccq').oninput = ev => { ui.cq = ev.target.value; const h = hits(); $('#ccust').innerHTML = optHtml(h); if (h.length === 1 && ui.cq.trim() && ui.cid !== h[0].cid) { ui.cid = h[0].cid; ui.cq = h[0].name; ui.sel.clear(); ev.target.blur(); window.scrollTo(0, 0); redraw(); } else if (!ui.cq.trim() && ui.cid) { ui.cid = ''; ui.sel.clear(); redraw(); view.querySelector('#ccq')?.focus(); } };
   $('#ccq').onkeydown = ev => { if (ev.key !== 'Enter') return; ev.preventDefault(); const h = hits(); if (ui.cq.trim() && h.length) { ui.cid = h[0].cid; ui.cq = h[0].name; ui.sel.clear(); ev.target.blur(); window.scrollTo(0, 0); redraw(); } else if (ui.cq.trim()) toast('找不到這個客戶（這一年沒有出貨）'); };
   $('#ccust').onchange = ev => { ui.cq = custs.find(c => c.cid === ev.target.value)?.name || ''; ui.cid = ev.target.value; ui.sel.clear(); window.scrollTo(0, 0); redraw(); };
-  $('#call').onclick = () => { list.forEach(x => ui.sel.add(x.gid)); redraw(); };
-  $('#cnew').onclick = () => { ui.sel.clear(); list.forEach(x => { if (!pd.has(x.gid)) ui.sel.add(x.gid); }); redraw(); if (!ui.sel.size) toast('這個清單的標籤都印過了'); };
+  $('#call').onclick = () => { rows().forEach(x => ui.sel.add(x.gid)); redraw(); };
+  $('#cnew').onclick = () => { ui.sel.clear(); rows().forEach(x => { if (!pd.has(x.gid)) ui.sel.add(x.gid); }); redraw(); if (!ui.sel.size) toast('這個清單的標籤都印過了'); };
   $('#cnone')?.addEventListener('click', () => { ui.sel.clear(); redraw(); });
   $('#cpp').onclick = ev => { ev.preventDefault(); pickPrinter(redraw); };
   $('#cl').addEventListener('click', ev => {
