@@ -2,14 +2,14 @@
 import { $, $$, esc, fmt, fmtQ, fp4, today, uid, matchQ, qTerms, roc, slash, thisMonth, money, isoOf, downloadText, ls, dayN, lineSeq, shiftMonth, range25, month25 } from '../core/util.js';
 import { store } from '../core/store.js';
 import { toast, modal, confirm, combo, pager, tabs, printHTML, keepWhile, reserveWin, dropWin } from '../core/ui.js';
-import { TYPES, totals, lineAmt, calc, nextNo, cname, cshort, cdisp, wname, gname, goodsLabel, customers, suppliers, defWh, qtyAt, qtyAll, bqty, uRate, lastSale, unitPrice, unitFactor, setHistPur, setHistSale, histSaleReady, costOf, lineUnit, lineKg, qtyHist, goodsWt, lineRate, wtSrc } from '../core/calc.js';
+import { TYPES, totals, lineAmt, calc, nextNo, cname, cshort, cdisp, wname, gname, goodsLabel, customers, suppliers, defWh, qtyAt, bqty, uRate, lastSale, unitPrice, unitFactor, setHistPur, setHistSale, histSaleReady, costOf, lineUnit, lineKg, qtyHist, goodsWt, lineRate, wtSrc } from '../core/calc.js';
 import { api } from '../core/api.js';
 import { printName } from '../core/names.js';
 import { labelPicker } from './labels.js';
 import { faxDialog } from './faxes.js';
-import { stockBtn, bindStockBtns } from './stockadj.js';
 import { openMaster } from './master.js';
 import { openAsm, asmContent } from './assembly.js';
+import { stockBtn, bindStockBtns } from './stockadj.js';
 import { printShip, shipFormat, shipImportLines, shipTemplateXlsx, stockAdjust, specView, billKg, kgText, songquanParse, songquanLines, printSongquan, ruyangRead, ruyangLines, ruyangTpl, hostPrint, printPrc, fengminTpl } from './ship.js';
 
 export const billText = b => { const C = calc(); const c = C.ct[b.cid]; return [b.no, c?.code, c?.name, c?.short, b.cn, b.note, ...(b.lines || []).flatMap(l => { const g = C.g[l.gid]; return [g?.code, g?.name, g?.spec, l.n, l.memo]; })].filter(Boolean).join(' '); };
@@ -265,7 +265,7 @@ function lineRow(l, i) {
     cost = `<td class="n small c-c">${l.gid && (!r || r.manual) && base ? `<input class="num" data-gcost="${i}" inputmode="decimal" value="${r ? Math.round(r.c * 10000) / 10000 : ''}" placeholder="填成本" title="查無成本時可自行填入，會存到商品資料的手動成本">` : r ? fp4(r.c) : ''}</td><td class="muted small csrc c-src" title="${r ? esc(r.src) : '查無成本'}">${r ? esc(r.src) : l.gid ? '—' : ''}</td>`;
   }
   const no = lineSeq(edit.lines)[i];
-  return `<tr data-i="${i}"><td class="c-no">${no}</td><td class="c-g"><div class="combo"><input data-f="gid" value="${esc(g ? goodsLabel(g, edit.type) : l.n || '')}" placeholder="打料號、品名、客料號搜尋"></div>${have != null ? `<div class="have ${(T.stock === -1 || T.transfer) && bqty(l, g) > have ? 'bad' : ''}">${esc(wname(edit.wid))}庫存 ${fmtQ(have)} ${esc(g?.unit || '')}</div>` : ''}<div class="have" id="lcv-${i}">${convHtml(l, g)}</div>${l._lp ? `<div class="lp">${esc(l._lp)}</div>` : ''}${edit.type === 'PRC' && g && +l.qty && !prcIsKg(l) && prcKg(l, g) ? `<div class="have">約 ${esc(kgText({ kg: prcKg(l, g), miss: 0 }))}（電鍍按重量計價的話，單位選 KG、數量填重量）</div>` : ''}${edit.type === 'PRC' && g ? prcStockHtml(l, g, i) : ''}${g ? `<div class="glinks"><a href="#" data-spec="${i}">規格・圖面${g.dwg ? '（附客戶圖）' : ''}</a><a href="#" data-gedit="${i}">修改商品</a>${edit.cid ? `<a href="#" data-ghist="${i}" title="這個${T.party === 'S' ? '廠商' : '客戶'}、這個商品的歷史交易">歷史明細</a>` : ''}</div>` : ''}</td>
+  return `<tr data-i="${i}"><td class="c-no">${no}</td><td class="c-g"><div class="combo"><input data-f="gid" value="${esc(g ? goodsLabel(g, edit.type) : l.n || '')}" placeholder="打料號、品名、客料號搜尋"></div>${have != null ? `<div class="have ${(T.stock === -1 || T.transfer) && bqty(l, g) > have ? 'bad' : ''}">${esc(wname(edit.wid))}庫存 ${fmtQ(have)} ${esc(g?.unit || '')}</div>` : ''}<div class="have" id="lcv-${i}">${convHtml(l, g)}</div>${l._lp ? `<div class="lp">${esc(l._lp)}</div>` : ''}${edit.type === 'PRC' && g ? prcStockHtml(l, g, i, C) : ''}${edit.type === 'PRC' && g && +l.qty && !prcIsKg(l) && prcKg(l, g) ? `<div class="have">約 ${esc(kgText({ kg: prcKg(l, g), miss: 0 }))}（電鍍按重量計價的話，單位選 KG、數量填重量）</div>` : ''}${g ? `<div class="glinks"><a href="#" data-spec="${i}">規格・圖面${g.dwg ? '（附客戶圖）' : ''}</a><a href="#" data-gedit="${i}">修改商品</a>${edit.cid ? `<a href="#" data-ghist="${i}" title="這個${T.party === 'S' ? '廠商' : '客戶'}、這個商品的歷史交易">歷史明細</a>` : ''}</div>` : ''}</td>
     <td class="c-q"><input data-f="qty" class="num" inputmode="decimal" value="${esc(l.qty)}"></td>
     <td class="c-u">${g ? `<select data-f="unit">${units.map(([v, lb]) => `<option value="${v}" ${(l.unit === 'a' ? 'a' : l.u || g.unit || 'PCS') === v ? 'selected' : ''}>${esc(lb)}</option>`).join('')}</select>` : `<input data-f="nu" value="${esc(l.unit || '')}" placeholder="單位">`}</td>
     ${priced ? `<td class="c-p"><input data-f="price" class="num" inputmode="decimal" value="${esc(l.price)}">${(w => w ? `<div class="pwarn">${esc(w)}</div>` : '')(priceWarn(l, g))}</td><td class="n c-s" id="ls-${i}">${fmt(lineAmt(l))}</td>` : ''}
@@ -306,33 +306,42 @@ export async function lineHistory(gid, cid) {
   m.el.querySelector('#lhSum').textContent = all.length ? `共 ${all.length} 筆・數量合計 ${fmtQ(tq)}${last ? `・最近單價 ${fp4(last.price)}（${slash(last.date)}）` : ''}` : '';
   mb.querySelectorAll('[data-open]').forEach(tr => tr.addEventListener('click', () => { const b = store.get('bills', tr.dataset.open); if (b) { m.close(); openBill(b.type, b.id); } }));
 }
-// 加工單：商品下面顯示庫存（點數字可以調整庫存），並可把這一行的數量開「其他入庫」入庫存（2026-11-28 老闆要的）
-const prcIns = (b, gid) => !b?.no ? [] : store.list('bills').filter(x => x.type === 'IN' && (x.prc === b.id || (x.note || '').includes(b.no)) && (x.lines || []).some(y => y.gid === gid));
-function prcStockHtml(l, g, i) {
-  const done = prcIns(edit, g.id); const got = done.reduce((a, x) => a + x.lines.filter(y => y.gid === g.id).reduce((s, y) => s + (+y.qty || 0), 0), 0);
-  return `<div class="have">庫存 ${stockBtn(g.id, qtyAll(g.id), '', '所有倉庫合計；點一下調整庫存')} ${esc(g.unit || '')}${+l.qty ? `　<a href="#" data-prcin="${i}" title="把這一行的數量開一張其他入庫，加進庫存">＋數量入庫存</a>` : ''}${done.length ? `　<span class="muted">已入庫 ${fmtQ(got)} ${esc(g.unit || '')}（${done.map(x => esc(x.no)).join('、')}）</span>` : ''}</div>`;
+/** 加工單這一行已經入庫多少（其他入庫單記了 prcId＝這張加工單） */
+function prcInOf(gid) {
+  if (!edit?.id) return { qty: 0, list: [] };
+  const list = store.list('bills').filter(b => b.type === 'IN' && (b.prcId === edit.id || b.prc === edit.id)).flatMap(b => (b.lines || []).filter(x => x.gid === gid).map(x => ({ no: b.no, date: b.date, qty: +x.qty || 0 })));
+  return { qty: list.reduce((a, x) => a + x.qty, 0), list };
 }
-function prcStockIn(l, g, done) {
-  if (!edit.no) { toast('請先儲存加工單'); return; }
-  const ws = store.list('warehouses'); const dw = defWh(); const q0 = +bqty(l, g).toPrecision(12);
+function prcStockHtml(l, g, i, C) {
+  const tot = Object.values(C.stock[g.id] || {}).reduce((a, b) => a + b, 0); const q = bqty(l, g); const done = prcInOf(g.id);
+  return `<div class="have prcstk" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;white-space:normal">庫存 ${stockBtn(g.id, tot, tot < 0 ? 'bad' : '', '目前所有倉庫合計；點一下調整庫存')} ${esc(g.unit || '')}
+    ${done.qty ? `<span class="pill ok" title="${esc(done.list.map(x => `${x.no}　${slash(x.date)}　${fmtQ(x.qty)}`).join('\n'))}">已入庫 ${fmtQ(done.qty)}</span>` : ''}
+    ${+l.qty > 0 ? `<button type="button" class="btn xs" data-prcin="${i}" title="加工回來了：把這一行的數量加進庫存（開一張其他入庫單）">${done.qty ? '再入庫' : `數量 ${fmtQ(q)} 入庫`}</button>` : ''}</div>`;
+}
+/** 加工回廠入庫：數量預設這一行的數量（換成商品單位），可以改；開一張其他入庫單 */
+function prcInDialog(el, i) {
+  const l = edit.lines[i]; const g = store.get('goods', l.gid); if (!g) return;
+  if (!edit.id || !store.get('bills', edit.id)) return toast('這張加工單還沒儲存，先按「儲存」再入庫');
+  const whs = store.list('warehouses'); const done = prcInOf(g.id); const q0 = bqty(l, g); const conv = !!(l.u || l.unit === 'a') && q0 !== (+l.qty || 0);
+  const lu = l.unit === 'a' ? g.aunit : l.u || g.unit || '';
   modal({
-    title: '數量入庫存', width: 480,
-    body: `<p style="margin:0 0 4px"><b>${esc(g.name)}</b></p><p class="muted small mono" style="margin:0 0 10px">${esc(g.code || '')}　加工單 ${esc(edit.no)}</p>
-      <div class="grid"><div class="f"><label for="pi-q">入庫數量（${esc(g.unit || 'PCS')}）</label><input id="pi-q" class="num" inputmode="decimal" value="${q0 || ''}"></div>
-      <div class="f"><label for="pi-w">倉庫</label><select id="pi-w">${ws.map(w => `<option value="${esc(w.id)}" ${w.id === dw?.id ? 'selected' : ''}>${esc(w.name)}</option>`).join('')}</select></div></div>
-      <p class="muted small" style="margin:8px 0 0">會開一張「其他入庫」，備註寫加工單號，「庫存數量 › 出入庫」查得到。${l.u && l.u !== (g.unit || 'PCS') ? `這一行的單位是「${esc(l.u)}」，請確認換算成 ${esc(g.unit || 'PCS')} 的數量。` : ''}</p><div class="err" id="pi-e"></div>`,
+    title: '加工回廠入庫', width: 520,
+    body: `<p style="margin:0 0 4px"><b>${esc(g.name)}</b></p><p class="muted small mono" style="margin:0 0 10px">${esc(g.code || '')}・加工單 ${esc(edit.no || '')}</p>
+      ${done.qty ? `<div class="banner info" style="margin-bottom:10px">這一項已經入庫過 ${fmtQ(done.qty)} ${esc(g.unit || '')}：${done.list.map(x => `${esc(x.no)}（${esc(slash(x.date))}，${fmtQ(x.qty)}）`).join('、')}。再入庫會再加一次。</div>` : ''}
+      <div class="grid"><div class="f"><label for="pi-q">入庫數量（${esc(g.unit || 'PCS')}）</label><input id="pi-q" class="num" inputmode="decimal" value="${esc(q0)}"></div>
+        <div class="f"><label for="pi-w">入哪個倉庫</label><select id="pi-w">${whs.map(w => `<option value="${esc(w.id)}" ${w.id === defWh() ? 'selected' : ''}>${esc(w.name)}</option>`).join('')}</select></div>
+        <div class="f"><label for="pi-d">入庫日期</label><input type="date" id="pi-d" value="${today()}"></div></div>
+      <p class="muted small" style="margin:8px 0 0">加工單這一行是 ${fmtQ(+l.qty || 0)} ${esc(lu)}${conv ? `，換算成 ${fmtQ(q0)} ${esc(g.unit || '')}` : ''}${lu && lu !== (g.unit || 'PCS') && !conv ? `；單位「${esc(lu)}」換不成 ${esc(g.unit || 'PCS')}，<b>請自己改成實際的${esc(g.unit || 'PCS')}數</b>` : ''}。會開一張其他入庫單，「庫存數量 › 出入庫」查得到。</p><div class="err" id="pi-e"></div>`,
     footer: '<span class="sp"></span><button class="btn" data-close>取消</button><button class="btn pri" id="pi-ok">確認入庫</button>',
-    onOpen(el, close) {
-      setTimeout(() => el.querySelector('#pi-q')?.select(), 50);
-      el.querySelector('#pi-ok').onclick = async ev => {
-        const q = parseFloat(String(el.querySelector('#pi-q').value).replace(/,/g, '')); const wid = el.querySelector('#pi-w').value; const err = el.querySelector('#pi-e');
-        if (!(q > 0)) { err.textContent = '數量要大於 0'; return; } if (!wid) { err.textContent = '請選倉庫'; return; }
-        const d0 = today(); const no = nextNo('IN', d0, store.list('bills'));
-        ev.target.disabled = true;
-        try { await store.save('bills', uid('b'), { type: 'IN', no, date: d0, wid, lines: [{ gid: g.id, qty: q, price: 0 }], note: `加工單 ${edit.no} 回廠入庫`, prc: edit.id || '', createdAt: Date.now(), updatedAt: Date.now(), createdBy: store.user.id }); }
-        catch (e) { err.textContent = '儲存失敗：' + e.message; ev.target.disabled = false; return; }
-        store.log('新增', `其他入庫 ${no}｜${g.name} ${fmtQ(q)} ${g.unit || ''}（加工單 ${edit.no} 入庫存）`);
-        close(); toast(`已入庫 ${fmtQ(q)} ${g.unit || ''}（${no}）`); done && done();
+    onOpen(m, close) {
+      m.querySelector('#pi-ok').onclick = async ev => {
+        const q = parseFloat(m.querySelector('#pi-q').value.replace(/,/g, '')); const d = m.querySelector('#pi-d').value || today(); const wid = m.querySelector('#pi-w').value;
+        if (!(q > 0)) { m.querySelector('#pi-e').textContent = '請填入庫數量'; return; }
+        const no = nextNo('IN', d, store.list('bills')); ev.target.disabled = true;
+        try { await store.save('bills', uid('b'), { type: 'IN', no, date: d, wid, prcId: edit.id, lines: [{ gid: g.id, qty: q, price: 0 }], note: `加工回廠入庫（加工單 ${edit.no}${edit.cid ? '・' + cshort(edit.cid) : ''}）`, createdAt: Date.now(), updatedAt: Date.now(), createdBy: store.user.id }); }
+        catch (e) { m.querySelector('#pi-e').textContent = '儲存失敗：' + e.message; ev.target.disabled = false; return; }
+        store.log('新增', `其他入庫 ${no}（+${fmtQ(q)}）｜${g.name} 加工回廠入庫（加工單 ${edit.no}）`);
+        close(); toast(`已入庫 ${fmtQ(q)} ${g.unit || ''}（${no}）`); redrawLines(el);
       };
     },
   });
@@ -539,6 +548,7 @@ function showWarn(tr, l) {
 }
 function bindLines(el) {
   const C = calc();
+  if (edit.type === 'PRC') { const tb = el.querySelector('#lines tbody'); bindStockBtns(tb, () => redrawLines(el)); tb.querySelectorAll('[data-prcin]').forEach(b => b.addEventListener('click', () => prcInDialog(el, +b.dataset.prcin))); }
   el.querySelectorAll('#lines tbody tr').forEach(tr => {
     const i = +tr.dataset.i, l = edit.lines[i];
     tr.querySelectorAll('[data-f]').forEach(inp => {
@@ -555,7 +565,6 @@ function bindLines(el) {
     tr.querySelector('[data-spec]')?.addEventListener('click', ev => { ev.preventDefault(); const g = calc().g[l.gid]; if (g) specView(g); });
     tr.querySelector('[data-gedit]')?.addEventListener('click', ev => { ev.preventDefault(); const g = store.get('goods', l.gid); if (g) openMaster('goods', g, null, (id, info) => { if (info?.created) { l.gid = id; edit._dirty = true; } redrawLines(el); }, null, { fromBill: true }); });
     tr.querySelector('[data-ghist]')?.addEventListener('click', ev => { ev.preventDefault(); if (l.gid && edit.cid) lineHistory(l.gid, edit.cid); });
-    if (edit.type === 'PRC') { bindStockBtns(tr, () => redrawLines(el)); tr.querySelector('[data-prcin]')?.addEventListener('click', ev => { ev.preventDefault(); const g = store.get('goods', l.gid); if (g) prcStockIn(l, g, () => redrawLines(el)); }); }
     tr.querySelector('[data-gcost]')?.addEventListener('change', async ev => { const v = +String(ev.target.value).replace(/,/g, ''); const g = store.get('goods', l.gid); if (!g || !(v > 0)) return; const { id, ...rest } = g; await store.save('goods', id, { ...rest, cost: v }); toast(`已存到商品「${g.name}」的手動成本`); redrawLines(el); });
     tr.querySelector('[data-del]')?.addEventListener('click', () => { edit.lines.splice(i, 1); if (!edit.lines.length) edit.lines.push({ gid: '', qty: '', price: '' }); redrawLines(el); });
     tr.querySelectorAll('input').forEach(inp => inp.addEventListener('keydown', ev => {
