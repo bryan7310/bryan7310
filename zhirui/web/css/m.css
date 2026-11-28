@@ -325,15 +325,28 @@ body.pad .card { border: 1px solid var(--line); }
 .pchint.on { color: var(--text); font-weight: 700; }
 .pk.cv { min-height: 56px; font-size: 18px; border-color: var(--text); padding: 0 4px; }
 .pk.cv.pcfill { background: var(--text); color: var(--bg); font-size: 22px; }
-.pcbox { position: absolute; left: 12px; right: 12px; bottom: 12px; max-height: calc(100% - 24px); overflow-y: auto; z-index: 3; border: 3px solid var(--text); border-radius: 16px; background: var(--bg); padding: 14px 16px; display: grid; gap: 10px; box-shadow: 0 -6px 24px rgba(0,0,0,.18); }
+.pcbox { flex: none; border: 3px solid var(--text); border-radius: 14px; background: var(--bg); padding: 8px 12px; display: grid; gap: 6px; }
 .pcbox[hidden] { display: none; }
-.pcbh { display: flex; align-items: center; font-size: 18px; }
-.pcbh .sp { flex: 1; }
-.pcw { display: grid; gap: 4px; font-size: 15px; color: var(--muted); }
-.pcw input { font: inherit; font-size: 26px; font-weight: 700; height: 54px; border: 2px solid var(--line); border-radius: 12px; padding: 0 12px; background: var(--card); color: var(--text); text-align: right; width: 100%; }
-.pcout { text-align: right; font-size: 18px; color: var(--muted); font-variant-numeric: tabular-nums; }
-.pcout b { font-size: 30px; color: var(--text); }
-.pcbox .sbtn.go { margin: 0; min-height: 60px; }
+.padcalc.conv .pcdisp, .padcalc.conv .pcconv, .padcalc.conv .pchist { display: none; }   /* 換算時：上面換成換算框，按鍵留著打單重 */
+.padcalc.conv .pcbox { order: -1; }
+.padcalc.conv .pchd { order: -2; }
+.pcbh { display: flex; align-items: center; gap: 8px; font-size: 18px; }
+.pcbh .pcgn { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pcrow { display: flex; align-items: flex-end; justify-content: space-between; gap: 10px; font-size: 24px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.pcwl { display: grid; gap: 2px; font-size: 13px; font-weight: 400; color: var(--muted); text-align: right; }
+.pcwv { display: block; min-width: 130px; padding: 2px 10px; border: 3px solid var(--text); border-radius: 10px; background: var(--card); color: var(--text); font-size: 26px; font-weight: 700; text-align: right; line-height: 1.3; }
+.pcwv.sel { background: var(--text); color: var(--bg); }
+.pcwv i { font-size: 14px; font-style: normal; font-weight: 400; color: var(--muted); }
+.pcout { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.pcout small { font-size: 13px; }
+.pcout b { font-size: 28px; color: var(--text); white-space: nowrap; }
+.pcact { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.pcsv { display: flex; align-items: center; gap: 6px; font-size: 15px; }
+.pcsv input { width: 24px; height: 24px; }
+.pcact .pk.eq { min-height: 46px; font-size: 20px; padding: 0 18px; }
+.pcact .pk.eq:disabled { opacity: .45; }
+.pcact .pk.eq, .pcsv { white-space: nowrap; }
+.padcalc.conv .pchint:not(.on) { display: none; }
 @media (min-width: 1000px) {
   /* 橫放：計算機整台塞進畫面高度，不用捲（按鍵高度、字的大小跟著畫面高度縮放）；瀏覽器有網址列、畫面比較矮也一樣 */
   body.pad { --calcw: clamp(330px, 34vw, 420px); }
@@ -369,7 +382,7 @@ body.pad .card { border: 1px solid var(--line); }
   .padmain { padding: 10px 16px; }
   body.pad .hd { margin: 0 0 8px; } body.pad .hd h1 { font-size: 22px; }
   body.pad .sbtn { min-height: 54px; margin-bottom: 8px; } body.pad .sgrid .sbtn { min-height: 64px; } body.pad .sgrid { gap: 8px; }
-  .pcbox { padding: 8px 12px; gap: 5px; } .pcw input { height: 42px; font-size: 22px; } .pcout b { font-size: 24px; } .pcbox .sbtn.go { min-height: 46px; }
+  .pcbox { gap: 2px; padding: 5px 10px; } .pcout b { font-size: 22px; } .pcact .pk.eq { min-height: 36px; font-size: 18px; } .pcrow { font-size: 20px; } .pcwv { font-size: 22px; line-height: 1.2; } .pcwl { display: flex; align-items: center; gap: 8px; } .pcout small { display: none; } .pcbh { font-size: 16px; } .pcbh .chip { min-height: 30px; padding: 0 12px; }
 }
 /* 平板橫放的印標籤頁：少捲動——標題收掉（上面分頁已經有）、標籤機和找商品／掃碼排同一列、標籤卡片改橫的（左預覽、右數量）、列印鍵黏在下面 */
 @media (min-width: 1000px) {

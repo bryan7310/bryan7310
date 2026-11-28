@@ -101,6 +101,7 @@ function calcInit(box) {
     $('#pch').innerHTML = C.hist.length ? '<small>剛剛算的（點一下再用）</small>' + C.hist.map((h, i) => `<button type="button" data-h="${i}"><span>${esc(h.e)} =</span><b>${esc(show(h.r))}</b></button>`).join('') : '';
   };
   const press = k => {
+    if (cv) return cvKey(k);
     if (k === 'C') { C.expr = ''; C.just = false; }
     else if (k === '⌫') { if (C.just) { C.just = false; } C.expr = C.expr.slice(0, -1); }
     else if (k === '=') { const r = evaluate(C.expr); if (r === null) return; if (!Number.isNaN(r) && !C.just) { C.hist.unshift({ e: C.expr, r }); C.hist = C.hist.slice(0, 6); } C.expr = Number.isNaN(r) ? '' : String(r); C.just = !Number.isNaN(r); if (Number.isNaN(r)) { $('#pcr').textContent = show(r); return; } }
@@ -120,35 +121,41 @@ function calcInit(box) {
     if (+g.wt > 0) return { g, w: +g.wt, src: '商品資料的單重' };
     const e = estWeight(g); return { g, w: e || '', src: e ? '依規格估算（約）' : '' };
   };
-  let cv = null;   // { dir: 'kg'|'pcs', v, g, w, src }
+  let cv = null;   // { dir: 'kg'|'pcs', v, g, w（字串，用計算機按鍵打）, src, fresh（還沒動過：第一下按鍵整個換掉）, save }
+  const cvW = () => +String(cv.w).replace(/,/g, '') || 0;
+  const cvR = () => { const w = cvW(); return w > 0 ? (cv.dir === 'kg' ? Math.round(cv.v * 1000 / w) : +(cv.v * w / 1000).toPrecision(10)) : null; };
   const cvPaint = () => {
-    const b = $('#pcb'); if (!cv) { b.hidden = true; b.innerHTML = ''; return; }
-    const w = +String(cv.w).replace(/,/g, '') || 0;
-    const r = w > 0 ? (cv.dir === 'kg' ? Math.round(cv.v * 1000 / w) : +(cv.v * w / 1000).toPrecision(10)) : null;
-    cv.r = r;
+    const b = $('#pcb'); box.classList.toggle('conv', !!cv); if (!cv) { b.hidden = true; b.innerHTML = ''; return; }
+    const r = cvR(); const w = cvW(); const canSave = cv.g && w > 0 && w !== +cv.g.wt;
     b.hidden = false;
-    b.innerHTML = `<div class="pcbh"><b>${cv.dir === 'kg' ? '公斤 → 支數' : '支數 → 公斤'}</b><span class="sp"></span><button type="button" class="chip" data-cvx>關閉</button></div>
-      <div class="muted small">${cv.g ? esc(cv.g.name) : '沒有選商品：請自己填單重'}</div>
-      <label class="pcw">單重 g／支<input id="pcw" inputmode="decimal" value="${esc(cv.w)}" placeholder="例如 2.7"></label>
-      ${cv.src ? `<div class="muted small">${esc(cv.src)}</div>` : ''}
-      <div class="pcout">${cv.dir === 'kg' ? `${show(cv.v)} KG` : `${show(cv.v)} 支`}<br><b>${r === null ? '先填單重' : cv.dir === 'kg' ? `＝ ${show(r)} 支` : `＝ ${show(r)} KG`}</b></div>
-      <button type="button" class="sbtn go" data-cvok ${r === null ? 'disabled' : ''}><b>用這個結果</b></button>`;
-    const wi = b.querySelector('#pcw');
-    wi.oninput = () => { cv.w = wi.value; const w2 = +wi.value.replace(/,/g, '') || 0; const r2 = w2 > 0 ? (cv.dir === 'kg' ? Math.round(cv.v * 1000 / w2) : +(cv.v * w2 / 1000).toPrecision(10)) : null; cv.r = r2;
-      b.querySelector('.pcout b').textContent = r2 === null ? '先填單重' : cv.dir === 'kg' ? `＝ ${show(r2)} 支` : `＝ ${show(r2)} KG`; b.querySelector('[data-cvok]').disabled = r2 === null; };
+    b.innerHTML = `<div class="pcbh"><b>${cv.dir === 'kg' ? '公斤 → 支數' : '支數 → 公斤'}</b><span class="muted small pcgn">${cv.g ? esc(cv.g.name) : '沒有選商品'}</span><button type="button" class="chip" data-cvx>關閉</button></div>
+      <div class="pcrow"><span>${show(cv.v)} ${cv.dir === 'kg' ? 'KG' : '支'}</span><span class="pcwl">單重 g／支<output class="pcwv ${cv.fresh ? 'sel' : ''}" id="pcw">${esc(cv.w) || '<i>用下面按鍵打</i>'}</output></span></div>
+      <div class="pcout"><small>${esc(cv.src || (cv.g ? '這個商品還沒有單重' : '用下面的按鍵打單重'))}</small><b>${r === null ? '先打單重' : cv.dir === 'kg' ? `＝ ${show(r)} 支` : `＝ ${show(r)} KG`}</b></div>
+      <div class="pcact">${canSave ? `<label class="pcsv"><input type="checkbox" id="pcsv" ${cv.save ? 'checked' : ''}>存成商品單重</label>` : '<span></span>'}<button type="button" class="pk eq" data-cvok ${r === null ? 'disabled' : ''}>用這個結果</button></div>`;
     b.querySelector('[data-cvx]').onclick = () => { cv = null; cvPaint(); };
-    b.querySelector('[data-cvok]').onclick = () => {
-      if (cv.r === null) return;
-      C.hist.unshift({ e: cv.dir === 'kg' ? `${show(cv.v)}KG÷${cv.w}g` : `${show(cv.v)}支×${cv.w}g`, r: cv.r }); C.hist = C.hist.slice(0, 6);
-      C.expr = String(cv.r); C.just = true; cv = null; cvPaint(); paint();
-      $('#pce').textContent = C.hist[0].e + ' ='; $('#pcr').textContent = show(C.hist[0].r);
-    };
+    b.querySelector('#pcsv')?.addEventListener('change', ev => { cv.save = ev.target.checked; });
+    b.querySelector('[data-cvok]').onclick = cvOk;
+  };
+  const cvOk = async () => {
+    const r = cvR(); if (r === null) { flash('先打單重'); return; }
+    const w = cvW();
+    if (cv.save && cv.g && w > 0) { const g = store.get('goods', cv.g.id); if (g) { try { await store.save('goods', g.id, { ...g, wt: w }); store.log?.('改單重', `${g.name}：${g.wt || '—'} → ${w} g（平板計算機）`); const adw = document.querySelector('.sheet[data-gid] #adw'); if (adw && !adw.value) adw.value = w; flash(`單重 ${w} g 已存到商品`); } catch (e) { flash('單重沒存成功：' + (e.message || e)); } } }
+    C.hist.unshift({ e: cv.dir === 'kg' ? `${show(cv.v)}KG÷${w}g` : `${show(cv.v)}支×${w}g`, r }); C.hist = C.hist.slice(0, 6);
+    C.expr = String(r); C.just = true; cv = null; cvPaint(); paint();
+  };
+  // 換算框開著的時候，計算機按鍵是在打單重（不會跳出平板的鍵盤）
+  const cvKey = k => {
+    if (k === '=') return cvOk();
+    if (k === 'C') { cv.w = ''; cv.fresh = false; }
+    else if (k === '⌫') { cv.w = cv.fresh ? '' : String(cv.w).slice(0, -1); cv.fresh = false; }
+    else if (/^[0-9]+$/.test(k) || k === '.') { let t = cv.fresh ? '' : String(cv.w); cv.fresh = false; if (k === '.') { if (t.includes('.')) return; if (!t) t = '0'; } if (t.length < 10) t += k; cv.w = t; }
+    else { flash('現在在打單重；按「＝」或「用這個結果」完成'); return; }
+    cvPaint();
   };
   box.querySelectorAll('[data-cv]').forEach(btn => btn.onclick = () => {
     const v = C.expr ? (C.just ? C.hist[0]?.r : evaluate(C.expr)) : null;
     if (v === null || v === undefined || Number.isNaN(v) || !(v > 0)) { flash(btn.dataset.cv === 'kg' ? '先用計算機打公斤數，再按換算' : '先用計算機打支數，再按換算'); return; }
-    const c = ctxGoods(); cv = { dir: btn.dataset.cv, v, g: c?.g || null, w: c?.w || '', src: c?.src || '' }; cvPaint();
-    if (!(+cv.w > 0)) setTimeout(() => $('#pcw')?.focus(), 50);
+    const c = ctxGoods(); cv = { dir: btn.dataset.cv, v, g: c?.g || null, w: c?.w ? String(c.w) : '', src: c?.src || '', fresh: true, save: !!(c?.g && !(+c.g.wt > 0)) }; cvPaint();
   });
   $('#pcf').onclick = () => {
     const r = C.expr ? evaluate(C.expr) : null; const inp = curInput();
