@@ -334,6 +334,8 @@ function prcInDialog(el, i) {
       <p class="muted small" style="margin:8px 0 0">加工單這一行是 ${fmtQ(+l.qty || 0)} ${esc(lu)}${conv ? `，換算成 ${fmtQ(q0)} ${esc(g.unit || '')}` : ''}${lu && lu !== (g.unit || 'PCS') && !conv ? `；單位「${esc(lu)}」換不成 ${esc(g.unit || 'PCS')}，<b>請自己改成實際的${esc(g.unit || 'PCS')}數</b>` : ''}。會開一張其他入庫單，「庫存數量 › 出入庫」查得到。</p><div class="err" id="pi-e"></div>`,
     footer: '<span class="sp"></span><button class="btn" data-close>取消</button><button class="btn pri" id="pi-ok">確認入庫</button>',
     onOpen(m, close) {
+      const qi = m.querySelector('#pi-q'); qi.addEventListener('focus', () => qi.select()); qi.addEventListener('mouseup', ev => { if (qi.selectionStart === qi.selectionEnd) { ev.preventDefault(); qi.select(); } }); setTimeout(() => { qi.focus(); qi.select(); }, 50);   // 點進去整個選起來，直接打數字就蓋掉
+      qi.addEventListener('keydown', ev => { if (ev.key === 'Enter') { ev.preventDefault(); m.querySelector('#pi-ok').click(); } });
       m.querySelector('#pi-ok').onclick = async ev => {
         const q = parseFloat(m.querySelector('#pi-q').value.replace(/,/g, '')); const d = m.querySelector('#pi-d').value || today(); const wid = m.querySelector('#pi-w').value;
         if (!(q > 0)) { m.querySelector('#pi-e').textContent = '請填入庫數量'; return; }
