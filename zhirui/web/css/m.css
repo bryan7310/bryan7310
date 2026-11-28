@@ -421,6 +421,17 @@ body.pad .card { border: 1px solid var(--line); }
 .pktag.soon { border-color: var(--warn); color: var(--warn); }
 .pkmain { min-width: 0; display: grid; gap: 2px; }
 .pkmain > b { font-size: 18px; }
+.pkname { appearance: none; border: 0; background: none; padding: 0; margin: 0; color: var(--text); font: inherit; font-size: 18px; font-weight: 700; text-align: left; cursor: pointer; display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; }
+.pkname i { font-style: normal; font-size: 13px; font-weight: 600; color: var(--accent); border: 1px solid var(--accent); border-radius: 999px; padding: 1px 9px; white-space: nowrap; }
+.bomlist { display: grid; gap: 8px; }
+.bomrow { display: grid; grid-template-columns: 26px 1fr; gap: 6px 8px; padding: 10px 12px; }
+.bomrow.short { border: 2px solid var(--bad); }
+.bomno { color: var(--muted); font-variant-numeric: tabular-nums; }
+.bomrow .gm b { font-size: 16px; } .bomrow .gm small { color: var(--muted); display: block; }
+.bomq { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; font-size: 13px; color: var(--muted); }
+.bomq span { display: grid; } .bomq b { font-size: 20px; color: var(--text); font-variant-numeric: tabular-nums; }
+.bomq .bad b, .bomq em { color: var(--bad); } .bomq em { font-style: normal; font-weight: 700; }
+@media (min-width: 1000px) { body.pad .bomlist { grid-template-columns: 1fr 1fr; } }
 .pkmain > small { color: var(--muted); font-size: 13px; }
 .pkqty { font-size: 16px; } .pkqty b { font-size: 24px; font-variant-numeric: tabular-nums; } .pkqty small { color: var(--muted); margin-left: 10px; font-size: 13px; }
 .pknote { font-size: 14px; padding: 4px 8px; border: 1px dashed var(--line); border-radius: 8px; }

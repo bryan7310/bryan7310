@@ -5,6 +5,7 @@ import { $, esc, today, daysLeft, uid, qTerms, matchQ, slash, fmtQ } from '../co
 import { store } from '../core/store.js';
 import { toast, modal, confirm, tabs, combo, onSearch } from '../core/ui.js';
 import { customers, cshort, calc, goodsLabel } from '../core/calc.js';
+import { packBom } from '../core/packbom.js';
 
 const SOON = 3;   // 幾天內到期算「快到了」
 const ui = { tab: 'active', q: '', cust: '' };
@@ -41,7 +42,7 @@ function draw(el) {
       const tag = o.due && !st.done ? (dl < 0 ? `<span class="pill bad">逾期 ${-dl} 天</span>` : dl <= SOON ? `<span class="pill warn">${dl === 0 ? '今天' : dl + ' 天後'}</span>` : '') : '';
       const sq = stockOf(o.gid); const need = parseFloat(String(o.qty).replace(/,/g, '')) || 0; const short = sq !== null && !st.done && need > 0 && sq < need;
       return `<tr data-i="${i}"><td class="nowrap">${o.due ? esc(slash(o.due)) : '<span class="muted">沒填</span>'} ${tag}</td><td class="nowrap"><b>${esc(cn(o)) || '<span class="muted">—</span>'}</b></td>
-        <td>${esc(pname(o))}${pcode(o) ? `<div class="muted small mono">${esc(pcode(o))}</div>` : o.gid ? '' : '<div class="muted small">（沒有對到商品資料）</div>'}</td>
+        <td>${o.gid ? `<button type="button" class="link" data-bom="${i}" title="點一下看這個螺絲包的配方（零件、每包數量、庫存）" style="text-align:left;font:inherit">${esc(pname(o))}</button>` : esc(pname(o))}${pcode(o) ? `<div class="muted small mono">${esc(pcode(o))}</div>` : o.gid ? '' : '<div class="muted small">（沒有對到商品資料）</div>'}</td>
         <td class="n nowrap"><b>${esc(need ? fmtQ(need) : o.qty || '')}</b> ${esc(o.unit || '')}</td>
         <td class="n nowrap">${sq === null ? '<span class="muted">—</span>' : `<span class="${short ? 'bad' : ''}" title="${short ? '庫存不夠這一筆要包的數量' : '目前所有倉庫合計'}">${fmtQ(sq)}</span>`}</td>
         <td class="nowrap">${(() => { const got = packed(o); const logs = o.logs || []; if (!logs.length) return '<span class="muted">還沒登記</span>'; const last = logs[logs.length - 1]; const left = Math.max(0, +(need - got).toPrecision(10)); return `<b>${fmtQ(got)}</b>${need ? `／${fmtQ(need)}` : ''}${st.done ? '' : `　還剩 <b>${fmtQ(left)}</b>`}<div class="muted small" title="${esc(logs.map(l => `${logTime(l)}　${fmtQ(num(l.qty))}　${l.by || ''}`).join('\n'))}">${logs.length} 筆・最後 ${esc(logTime(last))} ${esc(last.by || '')}</div>`; })()}</td>
@@ -59,9 +60,22 @@ function draw(el) {
     try { await store.save('packs', o.id, data); } catch (e) { toast(saveErr(e)); draw(el); }
   }));
   el.querySelectorAll('[data-edit]').forEach(b => b.addEventListener('click', () => editPack(list[+b.dataset.edit])));
+  el.querySelectorAll('[data-bom]').forEach(b => b.addEventListener('click', () => showBom(list[+b.dataset.bom])));
 }
 const saveErr = e => /不認識|集合|col/i.test(e.message || '') ? '存不進去：伺服器還是舊版，請到「設定備份 › 備份」按「重新啟動伺服器」' : '儲存失敗：' + (e.message || e);
 
+/** 點品名：看配方（每包幾個、這筆共需、還要用、庫存） */
+function showBom(o) {
+  const B = packBom(o); const g = B.g; const u = o.unit || '';
+  modal({
+    title: `配方：${g?.name || pname(o)}`, width: 760,
+    body: `<p class="muted small" style="margin:0 0 8px">${esc(g?.code || '')}　排程 <b>${fmtQ(B.need)}</b> ${esc(u)}${B.left !== B.need ? `，還剩 <b>${fmtQ(B.left)}</b> ${esc(u)}` : ''}${cn(o) ? `　客戶 ${esc(cn(o))}` : ''}${o.due ? `　預交 ${esc(slash(o.due))}` : ''}</p>
+      ${B.rows.length ? `<div class="tw"><table><thead><tr><th>#</th><th>零件</th><th class="n">每包</th><th class="n">共需</th><th class="n">還要用</th><th class="n">庫存</th></tr></thead><tbody>${B.rows.map((r, i) => `<tr><td class="muted">${i + 1}</td><td>${esc(r.name)}${r.cust ? ' <span class="pill blue">客供</span>' : ''}<div class="muted small mono">${esc(r.code)}</div></td><td class="n">${fmtQ(r.per)}</td><td class="n">${fmtQ(r.total)}</td><td class="n"><b>${fmtQ(r.rest)}</b></td><td class="n nowrap"><span class="${r.short ? 'bad' : ''}">${fmtQ(r.stock)}</span>${r.short ? ` <span class="pill bad">不夠 ${fmtQ(+(r.rest - Math.max(0, r.stock)).toPrecision(10))}</span>` : ''}</td></tr>`).join('')}</tbody></table></div>
+        <p class="muted small" style="margin:8px 0 0">共 ${B.rows.length} 種零件${B.rows.some(r => r.short) ? `，<b class="bad">${B.rows.filter(r => r.short).length} 種庫存不夠</b>` : '，庫存都夠'}${B.labor ? `　工錢每包 ${B.labor}` : ''}。「還要用」＝每包數量 × 還剩的包數；客供件看客供倉的庫存。配方在「基本資料 › 商品」裡改。</p>`
+        : '<div class="banner info">這個商品還沒有設定配方。到「基本資料 › 商品」打開這個商品，在「配方（螺絲包／組合品）」加零件。</div>'}`,
+    footer: '<span class="sp"></span><button class="btn pri" data-close>關閉</button>',
+  });
+}
 function editPack(o) {
   const d = o ? { ...o } : { gid: '', prod: '', qty: '', unit: '', due: '', cid: '', cust: ui.cust || '', note: '', date: today(), steps: {} };
   modal({

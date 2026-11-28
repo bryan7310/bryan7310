@@ -5,6 +5,7 @@ import { esc, today, daysLeft, slash, fmtQ, qTerms, matchQ } from '../core/util.
 import { store } from '../core/store.js';
 import { calc, cshort } from '../core/calc.js';
 import { addStaffLabel } from './staff.js';
+import { packBom } from '../core/packbom.js';
 
 const SOON = 3;
 const ui = { tab: 'active', q: '', open: new Set() };   // open：展開看登記紀錄的排程
@@ -44,7 +45,7 @@ function listHtml(list) {
     const u = esc(o.unit || '');
     return `<div class="card pkcard ${st.done ? 'done' : got > 0 || st.pack ? 'doing' : ''}" data-id="${esc(o.id)}">
       <div class="pkdue"><b>${o.due ? esc(slash(o.due).slice(5)) : '—'}</b><small>預交</small>${tag}</div>
-      <div class="pkmain"><b>${esc(pname(o))}</b><small>${esc(g(o)?.code || '')}${cn(o) ? `${g(o)?.code ? '・' : ''}客戶 ${esc(cn(o))}` : ''}</small>
+      <div class="pkmain">${o.gid ? `<button type="button" class="pkname" data-a="bom">${esc(pname(o))}<i>${(g(o)?.bom || []).length ? `配方 ${g(o).bom.length} 種 ›` : '看配方 ›'}</i></button>` : `<b>${esc(pname(o))}</b>`}<small>${esc(g(o)?.code || '')}${cn(o) ? `${g(o)?.code ? '・' : ''}客戶 ${esc(cn(o))}` : ''}</small>
         <div class="pkqty"><b>${esc(need ? fmtQ(need) : o.qty || '')}</b> ${u}${sq === null ? '' : `<small>庫存 ${fmtQ(sq)}${!st.done && left > 0 && sq < left ? '（不夠）' : ''}</small>`}</div>
         ${o.note ? `<div class="pknote">${esc(o.note)}</div>` : ''}</div>
       <div class="pkprog"><div class="pkbarr"><i style="width:${pct}%"></i></div>
@@ -79,6 +80,7 @@ export function packPage(view, opt = {}) {
     const card = b.closest('[data-id]'); const o = store.get('packs', card.dataset.id); if (!o) return;
     const need = num(o.qty), got = packedQty(o), left = Math.max(0, +(need - got).toPrecision(10)); const u = o.unit || ''; const who = store.user?.name || '';
     if (a === 'lbl') { addStaffLabel(o.gid); toast('已加到「印標籤」清單'); return; }
+    if (a === 'bom') return bomSheet(o);
     if (a === 'logs') { ui.open.has(o.id) ? ui.open.delete(o.id) : ui.open.add(o.id); redraw(); return; }
     if (a === 'add') {
       const inp = card.querySelector('[data-n]'); const v = num(inp.value);
@@ -102,6 +104,20 @@ export function packPage(view, opt = {}) {
   };
   $('#pkl').addEventListener('click', ev => { const b = ev.target.closest('[data-a]'); if (b) act1(b, b.dataset.a); });
   $('#pkl').addEventListener('keydown', ev => { if (ev.key === 'Enter' && ev.target.matches('[data-n]')) { ev.preventDefault(); const b = ev.target.closest('[data-id]').querySelector('[data-a="add"]'); act1(b, 'add'); } });
+}
+/** 點品名：看配方（全螢幕；每包幾個、還要用多少、庫存夠不夠） */
+function bomSheet(o) {
+  const B = packBom(o); const u = esc(o.unit || '');
+  const el = document.createElement('div'); el.className = 'sheet';
+  el.innerHTML = `<div class="sheet-hd"><button class="link" data-x>關閉</button><b>配方</b><span style="width:40px"></span></div>
+    <div class="card"><b>${esc(B.g?.name || pname(o))}</b><div class="muted mono">${esc(B.g?.code || '')}</div>
+      <div style="margin-top:4px">排程 <b>${fmtQ(B.need)}</b> ${u}${B.left !== B.need ? `・還剩 <b>${fmtQ(B.left)}</b> ${u}` : ''}${cn(o) ? `・客戶 ${esc(cn(o))}` : ''}</div></div>
+    ${B.rows.length ? `<div class="note" style="text-align:left;margin:8px 0">共 ${B.rows.length} 種零件${B.rows.some(r => r.short) ? `，${B.rows.filter(r => r.short).length} 種庫存不夠` : '，庫存都夠'}。「還要用」＝每包數量 × 還剩的包數。</div>
+      <div class="bomlist">${B.rows.map((r, i) => `<div class="card bomrow ${r.short ? 'short' : ''}"><span class="bomno">${i + 1}</span><div class="gm"><b>${esc(r.name)}${r.cust ? ' <span class="pktag">客供</span>' : ''}</b><small>${esc(r.code)}</small></div>
+        <div class="bomq"><span>每包<b>${fmtQ(r.per)}</b></span><span>還要用<b>${fmtQ(r.rest)}</b></span><span class="${r.short ? 'bad' : ''}">庫存<b>${fmtQ(r.stock)}</b>${r.short ? '<em>不夠</em>' : ''}</span></div></div>`).join('')}</div>`
+      : '<div class="card ph" style="margin-top:10px"><b>這個商品還沒有設定配方</b><span class="muted">請管理者在電腦版「基本資料 › 商品」設定。</span></div>'}`;
+  document.body.append(el); document.body.classList.add('noscroll');
+  el.querySelector('[data-x]').onclick = () => { el.remove(); document.body.classList.remove('noscroll'); };
 }
 /** 排程有變動（電腦版新增、別人登記了）：正在打字（搜尋、數量）就先不重畫，免得打到一半被清掉 */
 export function onPackChange(view, ch) {
