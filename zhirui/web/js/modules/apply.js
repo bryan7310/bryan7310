@@ -17,9 +17,9 @@ export default {
   render(el, { sub, params }) { draw(el, String(params.f || sub || '')); },   // #apply?f=名稱 或 #apply/名稱（手機點連結時 ? 後面常被吃掉）
 };
 
-const FIELD = { fmt: '支票欄位位置', hist: '歷史', lines: '明細', mkPlate: '交黑身另加電鍍', bom: '配方', spec: '客料號', date: '日期', no: '單號', note: '備註', name: '品名', code: '料號', cat: '類別', oldCodes: '舊料號', addr: '地址', zip: '郵遞區號' };
+const FIELD = { type: '種類', cid: '對象', fmt: '支票欄位位置', hist: '歷史', lines: '明細', mkPlate: '交黑身另加電鍍', bom: '配方', spec: '客料號', date: '日期', no: '單號', note: '備註', name: '品名', code: '料號', cat: '類別', oldCodes: '舊料號', addr: '地址', zip: '郵遞區號' };
 let NEWG = [];   // 這份資料要新建的商品（預覽時用 id 找料號）
-const show = (k, v) => k === 'fmt' ? (v?.list || []).filter(f => f.on).map(f => `${({ year: '年', month: '月', day: '日', payee: '抬頭', words: '大寫', num: 'NT$' })[f.k] || f.k} 上 ${f.y}mm`).join('、') : k === 'hist' ? `${(v || []).length} 則${(v || []).length ? '：' + v.map(x => String(x.text || '').replace(/\s+/g, ' ').slice(0, 14)).join('、') : ''}` : k === 'lines' ? (v || []).filter(l => l.txt === undefined).map(l => `${store.get('goods', l.gid)?.code || l.n || ''}×${l.qty}@${l.price}`).join('、') : k === 'bom' ? (v || []).map(x => `${store.get('goods', x.gid)?.code || NEWG.find(n => n.id === x.gid)?.code || x.gid}×${x.qty}${x.cust ? '(客供)' : ''}`).join('、') : k === 'date' ? slash(v) : Array.isArray(v) ? v.join('、') : v === true ? '是' : v === false ? '否' : String(v ?? '');
+const show = (k, v) => k === 'cid' ? (store.get('contacts', v)?.name || (v ? v : '（沒有）')) : k === 'type' ? ({ OUT: '其他出庫（扣庫存）', PRC: '加工單（不扣庫存）' })[v] || String(v ?? '') : k === 'fmt' ? (v?.list || []).filter(f => f.on).map(f => `${({ year: '年', month: '月', day: '日', payee: '抬頭', words: '大寫', num: 'NT$' })[f.k] || f.k} 上 ${f.y}mm`).join('、') : k === 'hist' ? `${(v || []).length} 則${(v || []).length ? '：' + v.map(x => String(x.text || '').replace(/\s+/g, ' ').slice(0, 14)).join('、') : ''}` : k === 'lines' ? (v || []).filter(l => l.txt === undefined).map(l => `${store.get('goods', l.gid)?.code || l.n || ''}×${l.qty}@${l.price}`).join('、') : k === 'bom' ? (v || []).map(x => `${store.get('goods', x.gid)?.code || NEWG.find(n => n.id === x.gid)?.code || x.gid}×${x.qty}${x.cust ? '(客供)' : ''}`).join('、') : k === 'date' ? slash(v) : Array.isArray(v) ? v.join('、') : v === true ? '是' : v === false ? '否' : String(v ?? '');
 async function draw(el, f) {
   el.innerHTML = '<div class="head"><h1>待確認匯入</h1></div><div class="panel"><div class="muted">載入中…</div></div>';
   if (!/^[\w-]+$/.test(f)) { el.querySelector('.panel').innerHTML = '<div class="banner">網址少了資料名稱</div>'; return; }
@@ -86,7 +86,7 @@ async function draw(el, f) {
   panel.innerHTML = `<p style="margin-top:0"><b>${esc(P.title || f)}</b></p>
     ${errs.length ? `<div class="banner">${errs.map(esc).join('<br>')}</div>` : ''}
     ${P.newgoods?.length ? `<h3>新建商品（${P.newgoods.length}）</h3><div class="tw"><table><thead><tr><th>料號</th><th>品名</th><th>類別</th><th>單位</th><th class="n">進價</th></tr></thead><tbody>${P.newgoods.map(g => `<tr><td class="mono">${esc(g.code)}</td><td>${esc(g.name)}</td><td>${esc(g.cat)}</td><td>${esc(g.unit)}</td><td class="n">${fp4(g.purPrice)}</td></tr>`).join('')}</tbody></table></div>` : ''}
-    ${P.docs?.length ? `<h3>新增單據（${P.docs.length}）</h3>${P.note ? `<p class="muted small">${esc(P.note)}</p>` : ''}<div class="tw"><table><thead><tr><th>單據</th><th>明細</th><th>狀態</th></tr></thead><tbody>${P.docs.map(x => { const ex = store.get(x.col, x.id); const ls = (x.data.lines || []).map(l => l.txt !== undefined ? `<span class="muted">［${esc(l.txt)}］</span>` : `${esc(C.g[l.gid]?.name || (P.newgoods || []).find(g => g.id === l.gid)?.name || l.n || '（沒對到商品）')} × ${l.qty}${l.u ? ' ' + esc(l.u) : ''} @${l.price}`).join('<br>'); return `<tr><td class="nowrap">${esc(x.label)}</td><td class="small">${ls || esc(x.sub || '')}</td><td>${ex ? '<span class="pill">已經有了，略過</span>' : '<span class="pill ok">新增</span>'}</td></tr>`; }).join('')}</tbody></table></div>` : ''}
+    ${P.docs?.length ? `<h3>新增單據（${P.docs.length}）</h3>${P.note ? `<p class="muted small">${esc(P.note)}</p>` : ''}<div class="tw"><table><thead><tr><th>單據</th><th>明細</th><th>狀態</th></tr></thead><tbody>${P.docs.map(x => { const ex = store.get(x.col, x.id); const ls = (x.data.lines || []).map(l => l.txt !== undefined ? `<span class="muted">［${esc(l.txt)}］</span>` : `${esc(C.g[l.gid]?.name || (P.newgoods || []).find(g => g.id === l.gid)?.name || l.n || '（沒對到商品）')} × ${l.qty}${l.u ? ' ' + esc(l.u) : ''} @${l.price}`).join('<br>'); return `<tr><td class="nowrap">${esc(x.label)}</td><td class="small">${ls || esc(x.sub || '')}</td><td>${ex ? '<span class="pill">已經有了，略過</span>' : P.pick ? `<label class="check" style="display:inline-flex"><input type="checkbox" data-pd="${esc(x.id)}" ${x.on ? 'checked' : ''}> 新增</label>${x.why ? `<br><span class="muted small">${esc(x.why)}</span>` : ''}` : '<span class="pill ok">新增</span>'}</td></tr>`; }).join('')}</tbody></table></div>` : ''}
     ${P.hist?.length ? `<h3>${esc(P.histTitle || '更正舊系統歷史單據的客戶')}（${P.hist.length}）</h3>${P.note ? `<p class="muted small">${esc(P.note)}</p>` : ''}<ul>${P.hist.map(h => `<li>${esc(h.label)}</li>`).join('')}</ul>` : ''}
     ${P.skipped?.length ? `<h3>略過（${P.skipped.length}）</h3><ul class="small">${P.skipped.map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}
     ${P.wt ? `<h3>修改商品</h3><p>${esc(C.g[P.wt.gid]?.code + ' ' + C.g[P.wt.gid]?.name)}：單重填 ${P.wt.wt} g／支</p>` : ''}
@@ -107,8 +107,8 @@ async function draw(el, f) {
     <div class="tools" style="margin-top:12px"><span class="muted small">按下之前不會寫入任何資料。</span><span class="sp"></span><button class="btn pri" id="apGo" ${errs.length || rows.some(r => !r.ok) ? 'disabled' : ''}>確認寫入</button></div>
     <div id="apOut"></div>`;
   $('#apGo', el)?.addEventListener('click', async ev => {
-    if (P.pick) { upTodo = upAll.filter((u, i) => el.querySelector(`[data-pk="${i}"]`)?.checked); if (!upTodo.length) return toast('一筆都沒有勾'); }
-    const docTodo = (P.docs || []).filter(x => !store.get(x.col, x.id));
+    const docTodo = (P.docs || []).filter(x => !store.get(x.col, x.id) && (!P.pick || el.querySelector(`[data-pd="${CSS.escape(x.id)}"]`)?.checked));
+    if (P.pick) { upTodo = upAll.filter((u, i) => el.querySelector(`[data-pk="${i}"]`)?.checked); if (!upTodo.length && !docTodo.length && !P.hist?.length) return toast('一筆都沒有勾'); }
     const what = [docTodo.length ? `新增 ${docTodo.length} 張單據` : '', P.newgoods?.length ? `新建 ${P.newgoods.length} 個商品` : '', P.wt ? '修改 1 個商品' : '', rows.length ? `建立 ${rows.length} 張進貨單` : '', upTodo.length ? `修改 ${upTodo.length} 筆資料` : '', dwTodo.length ? `掛 ${dwTodo.length} 張客戶圖面` : '', whTodo.length ? `新建 ${whTodo.length} 個倉庫` : '', P.kits?.length ? `設定 ${P.kits.length} 個螺絲包配方` : '', delTodo.length ? `刪除 ${delTodo.length} 個沒用過的商品` : '', P.hist?.length ? `更正 ${P.hist.length} 張舊系統單據` : '', mgTodo.length ? `合併 ${mgTodo.length} 組商品（${mgTodo.reduce((a, m) => a + m.merge.length, 0)} 個料號會刪除，無法一鍵復原；每天的自動備份仍可還原）` : ''].filter(Boolean).join('、');
     if (!await confirm(`確定寫入？\n${what}。`, { ok: '確認寫入' })) return;
     ev.target.disabled = true; ev.target.textContent = '寫入中…';
@@ -149,7 +149,7 @@ async function draw(el, f) {
         const g = { ...store.get('goods', d.gid), dwg: { id: j.id, name: j.name, type: j.type, size: j.size, at: Date.now() } }; delete g.id;
         await store.save('goods', d.gid, g); store.log('上傳圖面', `商品「${g.name}」${j.name}（${P.title || f}）`); dwN++;
       }
-      for (const x of P.docs || []) { if (store.get(x.col, x.id)) continue; if (x.autoNo && !x.data.no) x.data.no = nextNo(x.autoNo, today());   // 單號留到寫入當下才取，才不會跟這段時間新開的單撞號
+      for (const x of docTodo) { if (store.get(x.col, x.id)) continue; if (x.autoNo && !x.data.no) x.data.no = nextNo(x.autoNo, today());   // 單號留到寫入當下才取，才不會跟這段時間新開的單撞號
         const lines =(x.data.lines || []).map(l => l.gid && !store.get('goods', l.gid) && newId[(P.newgoods || []).find(g => g.id === l.gid)?.code] ? { ...l, gid: newId[(P.newgoods || []).find(g => g.id === l.gid).code] } : l); await store.save(x.col, x.id, { ...x.data, lines, createdBy: x.data.createdBy || store.user.id }); store.log('匯入', `${x.label}（${P.title || f}）`); }
       let hN = 0; const hSkip = [];
       for (const h of P.hist || []) {
@@ -158,7 +158,7 @@ async function draw(el, f) {
         if (!d) { hSkip.push(`${h.label}（找不到）`); continue; }
         const set = { ...(h.set || {}), ...(h.to ? { cid: h.to } : {}) };
         if (Object.keys(set).every(k => d[k] === set[k])) continue;
-        if (h.to && d.cid !== h.from && d.cid !== h.to) { hSkip.push(`${h.label}（客戶已被改成別的，沒動）`); continue; }
+        if (h.to && (d.cid || '') !== (h.from || '') && d.cid !== h.to) { hSkip.push(`${h.label}（客戶已被改成別的，沒動）`); continue; }
         await api.post('/api/hist/save', { ...d, ...set });
         store.log('修改', `舊系統單據 ${h.label}（${P.title || f}）`); hN++;
       }
