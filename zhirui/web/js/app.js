@@ -22,6 +22,7 @@ async function boot() {
   try { st = await api.status(); } catch (e) { return showLogin('連不到伺服器，請確認伺服器程式有開著。'); }
   if (st.needSetup) return showSetup();
   try { await store.boot(); } catch (e) { if (e.status === 401) return showLogin(); return showLogin('載入資料失敗：' + e.message); }
+  if (String(store.user?.login || '').toLowerCase() === 'tcl') { location.replace('/m/'); return; }   // 打包區平板帳號：只用平板版（/m/）
   $('#app').hidden = false;
   renderNav(); renderMe(); paintSync();
   store.subscribe(onChange);

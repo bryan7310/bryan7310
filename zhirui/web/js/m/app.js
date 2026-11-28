@@ -20,6 +20,7 @@ import { soPage, soOpenCount, soLateCount } from './so.js';
 import { memoBoard, bindMemoBoard } from '../modules/memos.js';
 import { staffPage, onStaffChange } from './staff.js';
 import { countPage } from './count.js';
+import { padBoot, isPad } from './pad.js';
 const MU = { showDone: false };
 
 const $ = s => document.querySelector(s);
@@ -52,6 +53,7 @@ const TABS = [
 async function boot() {
   try { await store.boot(); }
   catch (e) { return e.status === 401 ? showLogin() : showLogin('載入資料失敗：' + (e.message || e)); }
+  if (isPad(store.user)) { bar.hidden = true; return padBoot(view); }   // 打包區平板（帳號 tcl）：印標籤＋盤點＋計算機
   if (store.user.role !== 'admin') {   // 員工帳號：員工版（目前只有印標籤），沒有下面的選單
     bar.hidden = true; document.body.classList.add('staff');
     const sroute = () => { if (location.hash.startsWith('#count')) countPage(view, { back: '#' }); else staffPage(view); window.scrollTo(0, 0); };   // 員工版：印標籤（首頁）、盤點表

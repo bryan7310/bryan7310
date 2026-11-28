@@ -278,3 +278,59 @@ body.staff #view, body.staff main { padding-bottom: 24px; }
 .rlist a:first-child { border-top: 0; }
 .rlist .rn { flex: 1; min-width: 0; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rlist .go { flex: none; font-size: 14px; }
+/* ---------- 打包區平板版（TCL 護眼平板 11 吋，pad.js）----------
+   護眼：米白紙色、不用純白、低反光；選中狀態用粗框（墨水紙黑白模式也分得出來）。
+   橫放（≥1000px）：右邊固定計算機；直放：計算機收在右下角按鈕。 */
+body.pad { --bg: #EFEBE1; --card: #F8F5EC; --text: #1C1A16; --muted: #5E584C; --line: #CFC7B5; --accent: #2F4A3A; --accent-ink: #F8F5EC; --calcw: 400px; font-size: 18px; }
+:root[data-theme="dark"] body.pad { --bg: #1B1A17; --card: #262420; --text: #ECE6D8; --muted: #A79F8E; --line: #3B3830; --accent: #9CC5A6; --accent-ink: #1B1A17; }
+body.pad .view { max-width: none; padding: 0 0 24px; }
+.padhd { position: sticky; top: 0; z-index: 25; display: flex; align-items: center; gap: 14px; padding: calc(env(safe-area-inset-top) + 10px) 20px 10px; background: var(--bg); border-bottom: 2px solid var(--line); }
+.padlogo { font-size: 20px; white-space: nowrap; }
+.padtabs { display: flex; gap: 10px; }
+.padtabs a { display: flex; align-items: center; gap: 8px; min-height: 58px; padding: 0 26px; border: 2px solid var(--line); border-radius: 16px; background: var(--card); color: var(--text); font-size: 22px; font-weight: 700; }
+.padtabs a.on { background: var(--accent); color: var(--accent-ink); border-color: var(--text); border-width: 3px; }
+.padhd .sp { flex: 1; }
+.padclock { font-size: 20px; font-variant-numeric: tabular-nums; color: var(--muted); }
+.padme { font-size: 16px; color: var(--muted); }
+.padhd .chip { min-height: 44px; padding: 0 16px; font-size: 16px; }
+.padmain { padding: 16px 20px; min-width: 0; }
+.padmain > .hd .chip[href], .padmain #slo, .padmain #scnt, .padmain .hd .sub:not(#csub) { display: none; }
+body.pad .hd h1 { font-size: 28px; }
+body.pad #sli { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 14px; }
+body.pad #sli .card { margin: 0; }
+body.pad .sgrid .sbtn { min-height: 96px; }
+body.pad .sbtn b { font-size: 24px; }
+body.pad .list .row { padding: 14px 18px; }
+body.pad .card { border: 1px solid var(--line); }
+/* 計算機 */
+.padcalc { background: var(--card); border-left: 2px solid var(--line); padding: 14px 16px 20px; display: flex; flex-direction: column; gap: 10px; overflow-y: auto; }
+.pchd { display: flex; align-items: center; gap: 8px; font-size: 20px; }
+.pchd .sp { flex: 1; }
+.pcdisp { border: 2px solid var(--text); border-radius: 14px; background: var(--bg); padding: 10px 14px; text-align: right; }
+.pcexpr { min-height: 24px; font-size: 18px; color: var(--muted); overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.pcres { font-size: 44px; font-weight: 700; line-height: 1.15; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.pckeys { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.pk { appearance: none; min-height: 68px; border: 2px solid var(--line); border-radius: 14px; background: var(--bg); color: var(--text); font-family: inherit; font-size: 30px; font-weight: 700; cursor: pointer; touch-action: manipulation; }
+.pk:active { filter: brightness(.9); transform: scale(.97); }
+.pk.op { border-color: var(--text); }
+.pk.fn { font-size: 24px; color: var(--muted); }
+.pk.eq { background: var(--accent); color: var(--accent-ink); border-color: var(--text); }
+.pcfill { margin: 0; min-height: 64px; border: 2px solid var(--text); }
+.pchist { display: grid; gap: 6px; }
+.pchist small { color: var(--muted); font-size: 14px; }
+.pchist button { appearance: none; display: flex; justify-content: space-between; gap: 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); color: var(--text); font: inherit; font-size: 16px; padding: 8px 12px; cursor: pointer; font-variant-numeric: tabular-nums; }
+.pchist button span { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.padfab { display: none; }
+@media (min-width: 1000px) {
+  .padcalc { position: fixed; top: var(--padhd, 80px); right: 0; bottom: 0; width: var(--calcw); z-index: 35; }
+  .padmain { margin-right: var(--calcw); }
+  #pcx { display: none; }
+  body.pad .sheet, body.pad .toast { right: var(--calcw); }
+}
+@media (max-width: 999.98px) {
+  .padcalc { position: fixed; top: 0; right: 0; bottom: 0; width: min(400px, 92vw); z-index: 45; transform: translateX(105%); transition: transform .2s; box-shadow: -6px 0 18px rgba(0,0,0,.18); }
+  .padcalc.open { transform: none; }
+  .padfab { display: grid; place-items: center; position: fixed; right: 20px; bottom: calc(env(safe-area-inset-bottom) + 20px); width: 76px; height: 76px; border-radius: 50%; border: 3px solid var(--text); background: var(--accent); color: var(--accent-ink); font-size: 36px; z-index: 44; box-shadow: 0 4px 12px rgba(0,0,0,.2); }
+  .padtabs a { padding: 0 16px; font-size: 20px; }
+  .padme { display: none; }
+}
