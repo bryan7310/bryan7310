@@ -9,13 +9,14 @@ import { adjustStock } from './stock.js';
 import { packBom } from '../core/packbom.js';
 
 const SOON = 3;
-const ui = { tab: 'active', q: '', open: new Set() };   // open：展開看登記紀錄的排程
+const ui = { tab: 'active', q: '', cust: '', open: new Set(), exp: new Set() };   // open：展開看登記紀錄的排程；exp：點開看內容的排程；cust：客戶篩選
 const toast = msg => { const t = document.getElementById('toast'); t.textContent = msg; t.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(() => t.hidden = true, 2600); };
 const num = v => parseFloat(String(v ?? '').replace(/,/g, '')) || 0;
 const isDone = o => !!(o.steps || {}).done;
 const cn = o => o.cid ? cshort(o.cid) : (o.cust || '');
 const g = o => o.gid ? store.get('goods', o.gid) : null;
 const pname = o => g(o)?.name || o.prod || '';
+const ckey = o => cn(o) || '（沒填客戶）';
 /** 已經包了多少（登記紀錄加總） */
 export const packedQty = o => (o.logs || []).reduce((a, l) => a + num(l.qty), 0);
 /** 登記時間顯示：11/28 14:05 */
@@ -29,9 +30,11 @@ export function withLog(o, qty, who) {
   return { ...o, logs, steps };
 }
 
+/** 目前分頁（要包裝／已完成）的排程，還沒套客戶、關鍵字篩選 */
+const tabList = () => store.list('packs').filter(o => (ui.tab === 'active') === !isDone(o));
 function rows() {
-  const all = store.list('packs'); const q = qTerms(ui.q);
-  const list = all.filter(o => (ui.tab === 'active') === !isDone(o) && (!q.length || matchQ([cn(o), o.cust, pname(o), g(o)?.code, g(o)?.alias, o.note].join(' '), q)));
+  const all = tabList(); const q = qTerms(ui.q);
+  const list = all.filter(o => (!ui.cust || ckey(o) === ui.cust) && (!q.length || matchQ([cn(o), o.cust, pname(o), g(o)?.code, g(o)?.alias, o.note].join(' '), q)));
   if (ui.tab === 'active') list.sort((a, b) => (a.due || '9').localeCompare(b.due || '9') || (a.date || '').localeCompare(b.date || ''));
   else list.sort((a, b) => ((b.steps || {}).doneTime || (b.steps || {}).doneAt || '').localeCompare((a.steps || {}).doneTime || (a.steps || {}).doneAt || ''));
   return ui.tab === 'active' ? list : list.slice(0, 40);
@@ -44,8 +47,10 @@ function listHtml(list) {
     const sq = o.gid ? Object.values(C.stock[o.gid] || {}).reduce((a, b) => a + b, 0) : null;
     const pct = need > 0 ? Math.min(100, Math.round(got / need * 100)) : 0; const logs = o.logs || []; const todayQ = logs.filter(l => l.date === today()).reduce((a, l) => a + num(l.qty), 0);
     const u = esc(o.unit || '');
-    return `<div class="card pkcard ${st.done ? 'done' : got > 0 || st.pack ? 'doing' : ''}" data-id="${esc(o.id)}">
-      <div class="pkdue"><b>${o.due ? esc(slash(o.due).slice(5)) : '—'}</b><small>預交</small>${tag}</div>
+    const ex = ui.exp.has(o.id);
+    const head = `<button type="button" class="pkhead" data-a="exp" aria-expanded="${ex}"><span class="pkhd-d"><b>${o.due ? esc(slash(o.due).slice(5)) : '—'}</b>${tag}</span><span class="pkhd-n">${esc(pname(o))}</span><span class="pkhd-q"><b>${esc(need ? fmtQ(need) : o.qty || '')}</b> ${u}${got > 0 && !st.done ? `<small>已包 ${fmtQ(got)}</small>` : ''}</span><span class="pkhd-c" aria-hidden="true">${ex ? '▴' : '▾'}</span></button>`;
+    if (!ex) return `<div class="card pkcard pkshut ${st.done ? 'done' : got > 0 || st.pack ? 'doing' : ''}" data-id="${esc(o.id)}">${head}</div>`;
+    return `<div class="card pkcard pkopen ${st.done ? 'done' : got > 0 || st.pack ? 'doing' : ''}" data-id="${esc(o.id)}">${head}
       <div class="pkmain">${o.gid ? `<button type="button" class="pkname" data-a="bom">${esc(pname(o))}<i>${(g(o)?.bom || []).length ? `配方 ${g(o).bom.length} 種 ›` : '看配方 ›'}</i></button>` : `<b>${esc(pname(o))}</b>`}<small>${esc(g(o)?.code || '')}${cn(o) ? `${g(o)?.code ? '・' : ''}客戶 ${esc(cn(o))}` : ''}</small>
         <div class="pkqty"><b>${esc(need ? fmtQ(need) : o.qty || '')}</b> ${u}${sq === null ? '' : `<button type="button" class="pkstk ${!st.done && left > 0 && sq < left ? 'bad' : ''}" data-a="stk" aria-label="調整庫存">庫存 ${fmtQ(sq)}${!st.done && left > 0 && sq < left ? '（不夠）' : ''} ›</button>`}</div>
         ${o.note ? `<div class="pknote">${esc(o.note)}</div>` : ''}</div>
@@ -63,13 +68,18 @@ export function packPage(view, opt = {}) {
   const all = store.list('packs'); const act = all.filter(o => !isDone(o)); const t = today();
   const late = act.filter(o => o.due && o.due < t).length, soon = act.filter(o => o.due && o.due >= t && daysLeft(o.due) <= SOON).length;
   const y = window.scrollY;
+  const tl = tabList(); const cc = {}; for (const o of tl) cc[ckey(o)] = (cc[ckey(o)] || 0) + 1;
+  if (ui.cust && !cc[ui.cust]) ui.cust = '';   // 那家客戶的排程都包完了：回到全部
+  const custs = Object.entries(cc).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'zh-Hant'));
   view.innerHTML = `${BACK ? `<div class="hd"><a class="chip" href="${BACK}">‹ 返回</a><h1>包裝排程</h1></div>` : ''}<div class="pkbar"><div class="chips seg" style="margin:0"><button class="chip ${ui.tab === 'active' ? 'on' : ''}" data-t="active">要包裝 ${act.length}</button><button class="chip ${ui.tab === 'done' ? 'on' : ''}" data-t="done">已完成</button></div>
       <input id="pkq" type="search" placeholder="打字找商品、客戶" value="${esc(ui.q)}" autocomplete="off" enterkeyhint="search" aria-label="搜尋排程">
       <span class="pksum">${late ? `<b class="late">逾期 ${late}</b>` : ''}${soon ? `<b>${SOON} 天內 ${soon}</b>` : ''}</span></div>
+    ${custs.length > 1 || ui.cust ? `<div class="chips pkcust"><button class="chip ${ui.cust ? '' : 'on'}" data-c="">全部客戶 ${tl.length}</button>${custs.map(([c, n]) => `<button class="chip ${ui.cust === c ? 'on' : ''}" data-c="${esc(c)}">${esc(c)} ${n}</button>`).join('')}</div>` : ''}
     <div id="pkl" class="pklist">${listHtml(rows())}</div>`;
   window.scrollTo(0, y);
   const $ = q => view.querySelector(q); const redraw = () => packPage(view);
-  view.querySelectorAll('[data-t]').forEach(b => b.onclick = () => { ui.tab = b.dataset.t; window.scrollTo(0, 0); redraw(); });
+  view.querySelectorAll('[data-t]').forEach(b => b.onclick = () => { ui.tab = b.dataset.t; ui.cust = ''; window.scrollTo(0, 0); redraw(); });
+  view.querySelectorAll('[data-c]').forEach(b => b.onclick = () => { ui.cust = b.dataset.c; window.scrollTo(0, 0); redraw(); });
   let tm = 0; $('#pkq').oninput = ev => { ui.q = ev.target.value; clearTimeout(tm); tm = setTimeout(() => { $('#pkl').innerHTML = listHtml(rows()); }, 200); };
   $('#pkq').onkeydown = ev => { if (ev.key === 'Enter') { ev.preventDefault(); ev.target.blur(); } };
   const save = async (o, data, okMsg) => {
@@ -83,6 +93,7 @@ export function packPage(view, opt = {}) {
     if (a === 'lbl') { addStaffLabel(o.gid); toast('已加到「印標籤」清單'); return; }
     if (a === 'bom') return bomSheet(o);
     if (a === 'stk') { const gg = g(o); if (gg) adjustStock(gg, redraw); return; }
+    if (a === 'exp') { ui.exp.has(o.id) ? ui.exp.delete(o.id) : ui.exp.add(o.id); redraw(); return; }
     if (a === 'logs') { ui.open.has(o.id) ? ui.open.delete(o.id) : ui.open.add(o.id); redraw(); return; }
     if (a === 'add') {
       const inp = card.querySelector('[data-n]'); const v = num(inp.value);
