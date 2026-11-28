@@ -423,6 +423,10 @@ body.pad .card { border: 1px solid var(--line); }
 .pkmain > b { font-size: 18px; }
 .pkname { appearance: none; border: 0; background: none; padding: 0; margin: 0; color: var(--text); font: inherit; font-size: 18px; font-weight: 700; text-align: left; cursor: pointer; display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; }
 .pkname i { font-style: normal; font-size: 13px; font-weight: 600; color: var(--accent); border: 1px solid var(--accent); border-radius: 999px; padding: 1px 9px; white-space: nowrap; }
+.pkstk { appearance: none; margin-left: 10px; padding: 2px 10px; border: 1px solid var(--line); border-radius: 999px; background: none; color: var(--muted); font: inherit; font-size: 13px; cursor: pointer; white-space: nowrap; }
+.pkstk.bad { color: var(--bad); border-color: var(--bad); }
+.bomstk { appearance: none; display: grid; text-align: left; padding: 0; border: 0; background: none; color: var(--muted); font: inherit; font-size: 13px; cursor: pointer; text-decoration: underline dotted; text-underline-offset: 3px; }
+.bomstk.bad { color: var(--bad); } .bomstk.bad b { color: var(--bad); }
 .bomlist { display: grid; gap: 8px; }
 .bomrow { display: grid; grid-template-columns: 26px 1fr; gap: 6px 8px; padding: 10px 12px; }
 .bomrow.short { border: 2px solid var(--bad); }
