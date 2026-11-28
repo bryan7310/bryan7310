@@ -8,12 +8,13 @@ import { store } from '../core/store.js';
 import { api } from '../core/api.js';
 import { staffPage, onStaffChange } from './staff.js';
 import { countPage } from './count.js';
+import { packPage, onPackChange, packOpen } from './packlist.js';
 import { goodsWt, wtSrc } from '../core/calc.js';
 
 /** 這個帳號要不要用平板版：帳號 tcl，或使用者資料裡標 pad */
 export const isPad = u => !!u && (String(u.login || '').toLowerCase() === 'tcl' || u.pad === true || u.role === 'pad');
 
-const TABS = [['lbl', '🏷', '印標籤'], ['count', '📋', '盤點']];
+const TABS = [['lbl', '🏷', '印標籤'], ['packs', '📦', '包裝排程'], ['count', '📋', '盤點']];
 let pv = null, lastInput = null, lastAt = null;
 // 畫面重畫後（例如改了每張數量）原本的欄位會換新的：用「第幾張卡片＋哪一欄」再找回來
 const curInput = () => {
@@ -27,7 +28,7 @@ const curInput = () => {
 export function padBoot(view) {
   document.body.classList.add('staff', 'pad');
   view.innerHTML = `<header class="padhd"><b class="padlogo">志瑞・打包區</b>
-      <nav class="padtabs">${TABS.map(([k, i, n]) => `<a href="#${k === 'lbl' ? '' : k}" data-tab="${k}"><span>${i}</span>${n}</a>`).join('')}</nav>
+      <nav class="padtabs">${TABS.map(([k, i, n]) => `<a href="#${k === 'lbl' ? '' : k}" data-tab="${k}"><span>${i}</span>${n}${k === 'packs' ? '<i class="padn" id="ppn" hidden></i>' : ''}</a>`).join('')}</nav>
       <span class="sp"></span><span class="padclock" id="pclk"></span><span class="padme">${esc(store.user.name)}</span><button class="chip" id="plo">登出</button></header>
     <div class="padgrid"><section id="pv" class="padmain"></section>
       <aside class="padcalc" id="pcalc" aria-label="計算機"></aside></div>
@@ -43,13 +44,15 @@ export function padBoot(view) {
   const clk = () => { const e = view.querySelector('#pclk'); if (!e) return; const d = new Date(); e.textContent = `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
   clk(); setInterval(clk, 20000);
   const route = () => {
-    const k = location.hash.startsWith('#count') ? 'count' : 'lbl';
+    const k = location.hash.startsWith('#count') ? 'count' : location.hash.startsWith('#packs') ? 'packs' : 'lbl';
     view.querySelectorAll('[data-tab]').forEach(a => a.classList.toggle('on', a.dataset.tab === k));
     lastInput = null; lastAt = null;
-    if (k === 'count') countPage(pv, { back: '#' }); else staffPage(pv);
+    if (k === 'count') countPage(pv, { back: '#' }); else if (k === 'packs') packPage(pv, { back: '' }); else staffPage(pv);
     window.scrollTo(0, 0);
   };
-  store.subscribe(ch => { if (!location.hash.startsWith('#count')) onStaffChange(pv, ch); });
+  const pbadge = () => { const e = view.querySelector('#ppn'); if (!e) return; const p = packOpen(); e.hidden = !p.n; e.textContent = p.n; e.classList.toggle('late', p.late); };
+  pbadge();
+  store.subscribe(ch => { if (ch.has('packs')) pbadge(); if (location.hash.startsWith('#packs')) onPackChange(pv, ch); else if (!location.hash.startsWith('#count')) onStaffChange(pv, ch); });
   window.addEventListener('hashchange', route);
   route();
 }

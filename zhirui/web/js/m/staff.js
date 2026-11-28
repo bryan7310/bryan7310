@@ -19,8 +19,11 @@ const keep = () => ls.set(KEY, st);
 const wtOf = x => { if (x.wt !== undefined) return x.wt; const w = goodsWt(store.get('goods', x.gid)); return w > 0 ? String(+(+w).toPrecision(3)) : ''; };
 const wtEst = x => x.wt === undefined && !(+store.get('goods', x.gid)?.wt > 0) && !!wtOf(x);
 const itOf = x => itemOf({ ...x, wt: wtOf(x) ? (wtEst(x) ? '約' : '') + wtOf(x) : '' }, today());
+const packHint = () => { const a = store.list('packs').filter(o => !(o.steps || {}).done); const late = a.filter(o => o.due && o.due < today()).length; return a.length ? `要包裝 ${a.length} 筆${late ? `・逾期 ${late}` : ''}` : '目前沒有要包裝的'; };
 const add = gid => { const g = store.get('goods', gid); if (!g) return; load().items.unshift({ gid, per: '', n: 1, unit: g.unit || 'PCS' }); keep(); };
 
+/** 從別頁（包裝排程）把商品加進印標籤清單 */
+export function addStaffLabel(gid) { add(gid); }
 export function staffPage(view) {
   const s = load(); const pr = curPrinter(); const many = printers().length > 1;
   const total = s.items.reduce((a, x) => a + (Math.round(+x.n) || 0), 0);
@@ -28,6 +31,7 @@ export function staffPage(view) {
     <button type="button" class="sbtn pick" id="spr"><small>標籤機${many ? '（按這裡換）' : ''}</small><b>🖨 ${esc(pr.name)}</b></button>
     <div class="sgrid"><button type="button" class="sbtn" id="sadd"><b>🔍 找商品</b></button><button type="button" class="sbtn" id="sscan"><b>📷 掃 QR 碼</b></button></div>
     <button type="button" class="sbtn pick" id="scnt"><small>盤點表、掃碼盤點、印盤點標籤</small><b>📋 盤點</b></button>
+    <button type="button" class="sbtn pick" id="spk"><small>${packHint()}</small><b>📦 包裝排程</b></button>
     <div id="sli">${s.items.map((x, i) => card(x, i)).join('') || '<div class="card ph"><b>還沒有標籤</b><span class="muted">按上面「找商品」或「掃 QR 碼」加進來。</span></div>'}</div>
     <div id="serr" class="err"></div>
     ${s.items.length ? `<button type="button" class="sbtn go" id="sgo"><b>列印 ${total} 張</b><small>印到「${esc(pr.name)}」</small></button><p><button class="btn ghost danger" id="sclr">全部清掉</button></p>` : ''}
@@ -38,6 +42,7 @@ export function staffPage(view) {
   $('#slo').onclick = async () => { if (!window.confirm('要登出嗎？')) return; try { await api.logout(); } catch (e) {} await store.clearCache(); location.reload(); };
   $('#spr').onclick = () => pickPrinter(redraw);
   $('#scnt').onclick = () => { location.hash = '#count'; };
+  $('#spk').onclick = () => { location.hash = '#packs'; };
   $('#sadd').onclick = () => pickGoods(redraw, gid => add(gid));
   $('#sscan').onclick = () => scanQR(text => { const g = findByCode(text); if (!g) { toast('找不到料號：' + text); return; } add(g.id); redraw(); }, { title: '掃商品 QR 碼' });
   const li = $('#sli');
@@ -89,5 +94,5 @@ async function status(view) {
 /** 資料有變動（列印狀態、商品、標籤機設定）時更新畫面；正在打字就只更新狀態 */
 export function onStaffChange(view, ch) {
   if (ch.has('printjobs')) status(view);
-  if ((ch.has('settings') || ch.has('goods')) && !view.contains(document.activeElement)) staffPage(view);
+  if ((ch.has('settings') || ch.has('goods') || ch.has('packs')) && !view.contains(document.activeElement)) staffPage(view);
 }

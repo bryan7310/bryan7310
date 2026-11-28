@@ -21,6 +21,7 @@ import { memoBoard, bindMemoBoard } from '../modules/memos.js';
 import { staffPage, onStaffChange } from './staff.js';
 import { countPage } from './count.js';
 import { padBoot, isPad } from './pad.js';
+import { packPage, onPackChange } from './packlist.js';
 const MU = { showDone: false };
 
 const $ = s => document.querySelector(s);
@@ -56,8 +57,8 @@ async function boot() {
   if (isPad(store.user)) { bar.hidden = true; return padBoot(view); }   // 打包區平板（帳號 tcl）：印標籤＋盤點＋計算機
   if (store.user.role !== 'admin') {   // 員工帳號：員工版（目前只有印標籤），沒有下面的選單
     bar.hidden = true; document.body.classList.add('staff');
-    const sroute = () => { if (location.hash.startsWith('#count')) countPage(view, { back: '#' }); else staffPage(view); window.scrollTo(0, 0); };   // 員工版：印標籤（首頁）、盤點表
-    store.subscribe(ch => { if (!location.hash.startsWith('#count')) onStaffChange(view, ch); });
+    const sroute = () => { if (location.hash.startsWith('#count')) countPage(view, { back: '#' }); else if (location.hash.startsWith('#packs')) packPage(view, { back: '#' }); else staffPage(view); window.scrollTo(0, 0); };   // 員工版：印標籤（首頁）、盤點表
+    store.subscribe(ch => { if (location.hash.startsWith('#packs')) onPackChange(view, ch); else if (!location.hash.startsWith('#count')) onStaffChange(view, ch); });
     window.addEventListener('hashchange', sroute);
     sroute(); return;
   }
