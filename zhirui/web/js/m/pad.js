@@ -89,9 +89,9 @@ function calcInit(box) {
   box.innerHTML = `<div class="pchd"><b>🧮 計算機</b><span class="sp"></span><button type="button" class="chip" id="pcx" aria-label="收起計算機">收起</button></div>
     <div class="pcdisp"><div class="pcexpr" id="pce"></div><div class="pcres" id="pcr">0</div></div>
     <div class="pckeys">${KEYS.map(([k, c]) => `<button type="button" class="pk ${c || ''}" data-k="${k}">${k}</button>`).join('')}</div>
-    <div class="pcconv"><button type="button" class="pk cv" data-cv="kg">⚖ 公斤 → 支數</button><button type="button" class="pk cv" data-cv="pcs">支數 → 公斤</button></div>
+    <div class="pcconv"><button type="button" class="pk cv" data-cv="kg">公斤→支數</button><button type="button" class="pk cv" data-cv="pcs">支數→公斤</button><button type="button" class="pk cv pcfill" id="pcf">填入</button></div>
+    <div class="pchint" id="pcfh">先點一下要填的數量欄，算好按「填入」</div>
     <div class="pcbox" id="pcb" hidden></div>
-    <button type="button" class="sbtn pcfill" id="pcf"><b>填入</b><small id="pcfh">先點一下要填的數量欄</small></button>
     <div class="pchist" id="pch"></div>`;
   const $ = q => box.querySelector(q);
   const paint = () => {
@@ -158,7 +158,7 @@ function calcInit(box) {
     inp.value = v; inp.dispatchEvent(new Event('input', { bubbles: true })); inp.dispatchEvent(new Event('change', { bubbles: true }));
     flash(`已填入 ${show(+v)}`); box.classList.remove('open');
   };
-  const flash = msg => { const h = $('#pcfh'); h.textContent = msg; clearTimeout(flash.t); flash.t = setTimeout(() => h.textContent = '先點一下要填的數量欄', 2600); };
+  const flash = msg => { const h = $('#pcfh'); h.textContent = msg; clearTimeout(flash.t); h.classList.add('on'); flash.t = setTimeout(() => { h.textContent = '先點一下要填的數量欄，算好按「填入」'; h.classList.remove('on'); }, 2600); };
   // 實體鍵盤（藍牙鍵盤）：游標不在輸入框時可以直接打
   document.addEventListener('keydown', ev => {
     if (ev.target.matches?.('input,textarea,select') || ev.ctrlKey || ev.metaKey || ev.altKey) return;
