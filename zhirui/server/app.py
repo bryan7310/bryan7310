@@ -71,7 +71,7 @@ def web_version():
 # 用戶端一開始就整批載入、之後即時同步的集合
 LIVE_COLS = ['settings', 'contacts', 'goods', 'warehouses', 'accounts', 'bills',
              'pricing_cats', 'pricing', 'discounts', 'receivables', 'payables', 'invoices', 'purch_invoices',
-             'checks_out', 'checks_in', 'orders', 'drawings', 'labels', 'mail', 'logs', 'faxjobs', 'printjobs', 'drafts', 'uploads']
+             'checks_out', 'checks_in', 'orders', 'packs', 'drawings', 'labels', 'mail', 'logs', 'faxjobs', 'printjobs', 'drafts', 'uploads']
 COOKIE = 'zr_session'
 PW_MIN = 8   # 新設密碼最少幾碼（舊密碼不受影響，照樣可以登入）
 LONG_POLL = 25

@@ -22,6 +22,8 @@
 | 客戶訂單、訂單匯入（豐餘 Excel）、傳真轉訂單、合併出貨（勾多張訂單轉一張銷貨單） | 客戶訂單 `#custorders` | `custorders.js`（mergeShip）、`so_import.js`、`order_in.js`；App `m/so.js`。合併出貨的銷貨單記 `fromSOs`（訂單 id 陣列），每一行的 `so` 記它是哪張訂單的；出貨進度看 `_bills.js` 的 soShipped |
 | 委託加工、加工單 | 委託加工 `#processing` | `processing.js` |
 | 訂貨排程 | `#orders` | `orders.js` |
+| 包裝螺絲排程（商品、數量、預交日期、客戶；勾包裝中／已完成） | 包裝螺絲 `#packs` | `packs.js`（資料存 packs 集合） |
+| 打包區平板（帳號 tcl：印標籤、盤點、計算機、公斤換支數） | App `/m/`（tcl 登入自動進） | `web/js/m/pad.js`（外殼＋計算機）；內容用 `m/staff.js`、`m/count.js` |
 | 庫存、出入庫、調撥；App 的查商品、盤點 | 庫存數量 `#stock` | `stock.js`；App 查商品 `m/stock.js`（盤點模式、新增商品）、`m/goodsedit.js` |
 | 盤點表、ABC 分類、盤點標籤（50×40，QR＋品名＋單重）、掃碼盤點 | 庫存數量 › 盤點表 `#stock/count`；App `#count`（員工版首頁「盤點」） | `core/abc.js`（分類、客戶篩選 abcCustomers）、`stock.js` 的 drawCount（電腦版盤點表、印盤點標籤）、`m/count.js`（清單、標籤、列印）、`m/stock.js` 的 adjustStock（盤點表單：數量、單重、盤點日 cntAt） |
 | 應收帳款、收款沖帳、未收、應收月份 | 應收帳款 `#receivables` | `receivables.js`；App `m/ar.js` |

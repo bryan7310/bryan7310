@@ -152,7 +152,7 @@ class DB:
         return out
 
     # ---------- 客戶／供應商：重複檢查與合併 ----------
-    REF_COLS = ('bills', 'receivables', 'payables', 'checks_in', 'checks_out', 'invoices', 'purch_invoices', 'orders', 'mail', 'labels')
+    REF_COLS = ('bills', 'receivables', 'payables', 'checks_in', 'checks_out', 'invoices', 'purch_invoices', 'orders', 'packs', 'mail', 'labels')
 
     @staticmethod
     def _cname_strict(s):
