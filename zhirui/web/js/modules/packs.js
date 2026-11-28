@@ -40,7 +40,7 @@ function draw(el) {
       const dl = o.due ? daysLeft(o.due) : null; const st = o.steps || {};
       const tag = o.due && !st.done ? (dl < 0 ? `<span class="pill bad">逾期 ${-dl} 天</span>` : dl <= SOON ? `<span class="pill warn">${dl === 0 ? '今天' : dl + ' 天後'}</span>` : '') : '';
       const sq = stockOf(o.gid); const need = parseFloat(String(o.qty).replace(/,/g, '')) || 0; const short = sq !== null && !st.done && need > 0 && sq < need;
-      return `<tr data-i="${i}"><td class="nowrap">${o.due ? esc(slash(o.due)) : '<span class="muted">沒填</span>'} ${tag}</td><td><b>${esc(cn(o)) || '<span class="muted">—</span>'}</b></td>
+      return `<tr data-i="${i}"><td class="nowrap">${o.due ? esc(slash(o.due)) : '<span class="muted">沒填</span>'} ${tag}</td><td class="nowrap"><b>${esc(cn(o)) || '<span class="muted">—</span>'}</b></td>
         <td>${esc(pname(o))}${pcode(o) ? `<div class="muted small mono">${esc(pcode(o))}</div>` : o.gid ? '' : '<div class="muted small">（沒有對到商品資料）</div>'}</td>
         <td class="n nowrap"><b>${esc(need ? fmtQ(need) : o.qty || '')}</b> ${esc(o.unit || '')}</td>
         <td class="n nowrap">${sq === null ? '<span class="muted">—</span>' : `<span class="${short ? 'bad' : ''}" title="${short ? '庫存不夠這一筆要包的數量' : '目前所有倉庫合計'}">${fmtQ(sq)}</span>`}</td>
