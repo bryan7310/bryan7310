@@ -85,7 +85,7 @@ export async function drawLabel(cv, it, opt = {}) {
   const P = 14; const full = W - P * 2;
   let qrW = 0;
   if (c.qr && it.code) {
-    const m = await qrMatrix(it.code, 'M'); const n = m.length; const s = Math.max(2, Math.floor(104 / n)); qrW = n * s;
+    const m = await qrMatrix(it.code, 'M'); const n = m.length; const s = Math.max(2, Math.floor(150 / n)); qrW = n * s;   // QR 碼最大 150 點（原本 104，2026-11-28 放大，比較好掃）
     const x0 = W - P - qrW, y0 = H - P - qrW;
     for (let r = 0; r < n; r++) for (let k = 0; k < n; k++) if (m[r][k]) cx.fillRect(x0 + k * s, y0 + r * s, s, s);
   }
