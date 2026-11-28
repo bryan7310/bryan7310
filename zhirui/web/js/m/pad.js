@@ -8,7 +8,7 @@ import { store } from '../core/store.js';
 import { api } from '../core/api.js';
 import { staffPage, onStaffChange } from './staff.js';
 import { countPage } from './count.js';
-import { estWeight } from '../core/spec.js';
+import { goodsWt, wtSrc } from '../core/calc.js';
 
 /** 這個帳號要不要用平板版：帳號 tcl，或使用者資料裡標 pad */
 export const isPad = u => !!u && (String(u.login || '').toLowerCase() === 'tcl' || u.pad === true || u.role === 'pad');
@@ -119,7 +119,7 @@ function calcInit(box) {
     const adw = el.querySelector?.('#adw'); const typed = adw ? +String(adw.value).replace(/,/g, '') : 0;
     if (typed > 0) return { g, w: typed, src: '盤點表單填的單重' };
     if (+g.wt > 0) return { g, w: +g.wt, src: '商品資料的單重' };
-    const e = estWeight(g); return { g, w: e || '', src: e ? '依規格估算（約）' : '' };
+    const e = goodsWt(g); return { g, w: e ? +(+e).toPrecision(4) : '', src: e ? wtSrc(g) + '（約）' : '' };
   };
   let cv = null;   // { dir: 'kg'|'pcs', v, g, w（字串，用計算機按鍵打）, src, fresh（還沒動過：第一下按鍵整個換掉）, save }
   const cvW = () => +String(cv.w).replace(/,/g, '') || 0;

@@ -4,6 +4,7 @@
 import { esc, today, ls } from '../core/util.js';
 import { store } from '../core/store.js';
 import { api } from '../core/api.js';
+import { goodsWt, wtSrc } from '../core/calc.js';
 import { scanQR } from '../core/qr.js';
 import { findByCode } from './stock.js';
 import { lblParse, drawLabel, itemOf, queueLabels, pickGoods, fixSheet, pickPrinter, curPrinter, printers, STT, recentLabels, rememberLabels, recentHTML } from './label.js';
@@ -14,8 +15,10 @@ let st = null, lastJob = '', busy = false;
 const load = () => { if (!st) { const x = ls.get(KEY, null); st = x && Array.isArray(x.items) ? x : { items: [] }; } return st; };
 const keep = () => ls.set(KEY, st);
 // 標籤上的單重：沒改過就跟商品資料的單重走（商品沒有單重就不印）；作業員在卡片上改過（或清空）就照改的
-const wtOf = x => x.wt !== undefined ? x.wt : (+store.get('goods', x.gid)?.wt > 0 ? String(+store.get('goods', x.gid).wt) : '');
-const itOf = x => itemOf({ ...x, wt: wtOf(x) }, today());
+// 商品沒登錄單重時用估的（螺絲查價的單重參考 → 依規格估算），標籤上印「約」
+const wtOf = x => { if (x.wt !== undefined) return x.wt; const w = goodsWt(store.get('goods', x.gid)); return w > 0 ? String(+(+w).toPrecision(3)) : ''; };
+const wtEst = x => x.wt === undefined && !(+store.get('goods', x.gid)?.wt > 0) && !!wtOf(x);
+const itOf = x => itemOf({ ...x, wt: wtOf(x) ? (wtEst(x) ? '約' : '') + wtOf(x) : '' }, today());
 const add = gid => { const g = store.get('goods', gid); if (!g) return; load().items.unshift({ gid, per: '', n: 1, unit: g.unit || 'PCS' }); keep(); };
 
 export function staffPage(view) {
@@ -60,7 +63,7 @@ function card(x, i) {
     ${p.ok ? '' : `<div class="err" style="margin:6px 0 0">這個品名的標籤文字還沒確認：${esc(p.why)} <button class="chip" data-fix>確認文字</button></div>`}
     <div class="srow"><label>每張數量（${esc(x.unit)}）<input data-f="per" inputmode="decimal" value="${esc(x.per)}" placeholder="例如 1000"></label>
       <div class="scnt"><span>張數</span><div><button type="button" data-step="-1" aria-label="少一張">−</button><input data-f="n" inputmode="numeric" value="${esc(x.n)}"><button type="button" data-step="1" aria-label="多一張">＋</button></div></div></div>
-    <label class="swt">單重 g／支（印在標籤上；空白就不印）<input data-f="wt" inputmode="decimal" value="${esc(wtOf(x))}" placeholder="沒有單重"></label></div>`;
+    <label class="swt"><span>單重 g／支${wtEst(x) ? `<b class="west">估算（${esc(wtSrc(store.get('goods', x.gid)))}）</b>秤過請改成實際的` : '（印在標籤上；空白就不印）'}</span><input data-f="wt" inputmode="decimal" value="${esc(wtOf(x))}" placeholder="沒有單重"></label></div>`;
 }
 async function print(view) {
   if (busy) return; const s = load(); const err = view.querySelector('#serr'); err.textContent = '';
