@@ -13,6 +13,7 @@ const W = 400, H = 320;   // 50×40 mm @ 203 dpi
 const KEY = 'zr.m.lbl';
 const NMAX = 10;   // 品名最多幾個字（第 1 行字會自動縮小）
 const PRINTER_DEF = 'Gprinter GP-1324D';
+const MODELS = ['Gprinter GP-1324D', 'Gprinter GP-1326D'];   // 印表機名稱的快速選項（主機 Windows 上的名稱；不一樣可以自己打）
 const CJK = '\\u3400-\\u9fff\\uf900-\\ufaff';
 const RE_LEAD = new RegExp(`^[${CJK}]+`), RE_CJK = new RegExp(`[${CJK}]`);
 const FINS = ['三價白鋅', '三價黑鋅', '三價鋅', '鍍錏黑', '錏黑', '鍍鋅', '染黑', '五彩', '黑鎳', '鍍鎳', '鍍鉻', '紅古銅', '青古銅', '古銅', '磷酸', '達克羅', '黑身', '白皮', '原色', '洗油', '耐落', '防鬆'];
@@ -21,10 +22,12 @@ const fixes = () => store.setting('lblfix').fix || {};
 const CFG0 = { printer: PRINTER_DEF, mode: 'tspl', rot: 'port', invert: false, dir: 1, dx: 0, dy: 0, qr: true, gap: 2 };
 /** 所有標籤機：[{ id, name, printer, mode, rot, … }]；第一台 id＝main */
 export function printers() {
-  const { list, ...base } = store.setting('mlabel');
+  const { list, def: _d, ...base } = store.setting('mlabel');
   return [{ ...CFG0, ...base, id: 'main', name: base.name || '辦公室' }, ...(Array.isArray(list) ? list : []).map(x => ({ ...CFG0, ...x }))];
 }
-export const curPrinter = () => { const all = printers(); return all.find(x => x.id === ls.get('zr.m.lblp', 'main')) || all[0]; };
+/** 預設標籤機（全公司共用，存 settings/mlabel.def）：這台手機／平板自己沒選過，就用這台 */
+export const defPrinterId = () => { const d = store.setting('mlabel').def; return d && printers().some(x => x.id === d) ? d : 'main'; };
+export const curPrinter = () => { const all = printers(); return all.find(x => x.id === ls.get('zr.m.lblp', '')) || all.find(x => x.id === defPrinterId()) || all[0]; };
 export const setPrinter = id => ls.set('zr.m.lblp', id);
 const cfg = () => curPrinter();
 /** 存這一台的設定（main 存在 mlabel 本身，其他存在 list 裡） */
@@ -38,7 +41,7 @@ async function savePrinter(id, patch) {
 export function pickPrinter(done) {
   const el = document.createElement('div'); el.className = 'sheet'; const cur = curPrinter().id;
   el.innerHTML = `<div class="sheet-hd"><button class="link" data-x>取消</button><b>印到哪一台標籤機</b><span style="width:40px"></span></div>
-    <div class="plist">${printers().map(x => `<button type="button" class="pbtn ${x.id === cur ? 'on' : ''}" data-p="${esc(x.id)}"><b>${esc(x.name)}</b><small>${esc(x.printer)}</small></button>`).join('')}</div>
+    <div class="plist">${printers().map(x => `<button type="button" class="pbtn ${x.id === cur ? 'on' : ''}" data-p="${esc(x.id)}"><b>${esc(x.name)}</b><small>${esc(x.printer)}${x.id === defPrinterId() ? '・預設' : ''}</small></button>`).join('')}</div>
     <div class="note" style="text-align:left">新增標籤機：請管理者帳號到「印標籤 › 標籤機設定」加一台（那台印表機要先裝在主機電腦上）。</div>`;
   document.body.append(el); document.body.classList.add('noscroll');
   const close = () => { el.remove(); document.body.classList.remove('noscroll'); };
@@ -181,6 +184,7 @@ export function labelPage(view, sub, arg) {
     <div class="note" id="ph"></div>
     <details class="card set"><summary>標籤機設定（目前：${esc(c.name)}）</summary>
       <div class="f2"><div class="f"><label for="lpn">顯示名稱（例如 辦公室、現場）</label><input id="lpn" value="${esc(c.name)}"></div><div class="f"><label for="lp">印表機名稱（主機上的）</label><input id="lp" value="${esc(c.printer)}"></div></div>
+      <div class="f"><label>型號（按一下帶入上面的印表機名稱）</label><div class="chips" id="lmod">${MODELS.map(m => `<button type="button" class="chip ${c.printer === m ? 'on' : ''}" data-mod="${esc(m)}">${esc(m.replace('Gprinter ', ''))}</button>`).join('')}</div></div>
       <div class="f"><label>列印方式</label><div class="chips" id="lm">${[['tspl', 'TSPL 直送（建議）'], ['driver', 'Windows 驅動']].map(([k, n]) => `<button type="button" class="chip ${c.mode === k ? 'on' : ''}" data-m="${k}">${n}</button>`).join('')}</div></div>
       <div class="f2"><div class="f"><label for="ldx">往右移（點，8 點＝1 mm）</label><input id="ldx" inputmode="numeric" value="${esc(c.dx)}"></div><div class="f"><label for="ldy">往下移（點）</label><input id="ldy" inputmode="numeric" value="${esc(c.dy)}"></div></div>
       <div class="f2"><div class="f"><label for="lgap">標籤間距（mm）</label><input id="lgap" inputmode="decimal" value="${esc(c.gap)}"></div><div class="f"><label>&nbsp;</label><label class="check"><input type="checkbox" id="lqr" ${c.qr ? 'checked' : ''}> 印料號 QR 碼</label></div></div>
@@ -188,6 +192,8 @@ export function labelPage(view, sub, arg) {
       <div class="f"><label>標籤怎麼放在標籤機裡</label><div class="chips" id="lrot">${[['port', '直放：40 mm 那邊橫過印字頭（目前這台）'], ['land', '橫放：50 mm 那邊橫過印字頭']].map(([k, n]) => `<button type="button" class="chip ${c.rot === k ? 'on' : ''}" data-r="${k}">${n}</button>`).join('')}</div></div>
       <label class="check"><input type="checkbox" id="ldir" ${c.dir ? '' : 'checked'}> 上下顛倒（印出來倒過來時勾）</label>
       <p><button class="btn ghost" id="lsave">儲存設定</button></p>
+      <p>${c.id === defPrinterId() ? '<span class="chip on">✓ 這台是預設標籤機</span>' : '<button class="btn ghost" id="lpdef">把這台設成預設標籤機</button>'}</p>
+      <div class="note" style="text-align:left;margin-top:-4px">預設標籤機：手機、平板沒有自己選過標籤機的，都印到預設這台。</div>
       <div class="btn2"><button class="btn ghost" id="lpadd">＋ 新增一台標籤機</button>${c.id === 'main' ? '' : '<button class="btn ghost danger" id="lpdel">刪除這一台</button>'}</div>
       <div class="note" style="text-align:left">每一台各自記自己的設定。新的標籤機要先裝在主機電腦上（Windows 印表機清單看得到），這裡的「印表機名稱」要跟 Windows 上的名稱一模一樣。</div></details>
     <div id="lrc">${recentHTML()}</div>`;
@@ -196,15 +202,20 @@ export function labelPage(view, sub, arg) {
   s.items.forEach((x, i) => { const cv = view.querySelector(`[data-cv="${i}"]`); if (cv) drawLabel(cv, itemOf(x, date)).catch(() => {}); });
   $('#ld').onchange = ev => { s.date = ev.target.value; keep(); redraw(); };
   $('#lpp').onclick = ev => { ev.preventDefault(); pickPrinter(redraw); };
+  view.querySelectorAll('[data-mod]').forEach(b => b.onclick = () => { $('#lp').value = b.dataset.mod; view.querySelectorAll('[data-mod]').forEach(x => x.classList.toggle('on', x === b)); toast('已帶入，記得按「儲存設定」'); });
+  $('#lpdef')?.addEventListener('click', async () => {
+    if (!window.confirm(`把「${c.name}」（${c.printer}）設成預設標籤機？\n沒有自己選過標籤機的手機、平板都會印到這台。`)) return;
+    try { await store.save('settings', 'mlabel', { ...store.setting('mlabel'), def: c.id }); toast(`預設標籤機改成「${c.name}」`); redraw(); } catch (e) { toast('儲存失敗：' + e.message); }
+  });
   $('#lpadd').onclick = async () => {
-    const name = (window.prompt('這台標籤機要叫什麼？（例如 現場）') || '').trim(); if (!name) return;
-    const pn = (window.prompt('主機電腦上的印表機名稱（要跟 Windows 印表機清單一模一樣）', 'Gprinter GP-1326D') || '').trim(); if (!pn) return;
+    const name = (window.prompt('這台標籤機要叫什麼？（例如 打包區）') || '').trim(); if (!name) return;
+    const pn = (window.prompt('主機電腦上的印表機名稱（要跟 Windows 印表機清單一模一樣）\n常用型號：' + MODELS.join('、'), 'Gprinter GP-1326D') || '').trim(); if (!pn) return;
     const cur = store.setting('mlabel'); const id = uid('lp'); const { id: _i, name: _n, printer: _p, ...same } = curPrinter();
     try { await store.save('settings', 'mlabel', { ...cur, list: [...(cur.list || []), { ...same, id, name, printer: pn }] }); setPrinter(id); toast(`已新增「${name}」，設定先照目前這台，印歪了再調`); redraw(); } catch (e) { toast('新增失敗：' + e.message); }
   };
   $('#lpdel')?.addEventListener('click', async () => {
     if (!window.confirm(`刪除標籤機「${c.name}」？`)) return; const cur = store.setting('mlabel');
-    try { await store.save('settings', 'mlabel', { ...cur, list: (cur.list || []).filter(x => x.id !== c.id) }); setPrinter('main'); toast('已刪除'); redraw(); } catch (e) { toast('刪除失敗：' + e.message); }
+    try { await store.save('settings', 'mlabel', { ...cur, list: (cur.list || []).filter(x => x.id !== c.id), ...(cur.def === c.id ? { def: 'main' } : {}) }); setPrinter(''); toast('已刪除'); redraw(); } catch (e) { toast('刪除失敗：' + e.message); }
   });
   const li = $('#li');
   // 張數：點進去先清空（灰字顯示原本的數字），直接打新的；沒打就恢復原本的
