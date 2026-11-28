@@ -232,7 +232,7 @@ async function recentSales(box, g, C) {
 // ---------- 修改庫存（盤點）：填實際數量，差異開一張其他入庫／其他出庫（跟電腦版「調整即時庫存」同一種做法） ----------
 export function adjustStock(g, done) {
   const C = calc(); const whs = store.list('warehouses'); const wt0 = +g.wt > 0 ? +g.wt : ''; const est = wt0 === '' ? estWeight(g) : 0;
-  const el = document.createElement('div'); el.className = 'sheet';
+  const el = document.createElement('div'); el.className = 'sheet'; el.dataset.gid = g.id;   // data-gid：平板計算機「公斤換支數」抓單重用
   el.innerHTML = `<div class="sheet-hd"><button class="link" data-x>取消</button><b>盤點庫存</b><span style="width:40px"></span></div>
     <div class="card"><b>${esc(g.name)}</b><div class="muted mono">${esc(g.code)}${g.cntAt ? `・上次盤點 ${esc(slash(g.cntAt))}` : ''}</div></div>
     <div class="note" style="text-align:left">在「實際數量」填點到的數量，差異會自動開一張其他入庫或其他出庫補平，電腦版「庫存 › 出入庫」查得到。沒填的倉庫不調整。</div>

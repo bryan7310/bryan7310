@@ -51,7 +51,7 @@ export function staffPage(view) {
 }
 function card(x, i) {
   const g = store.get('goods', x.gid) || {}; const p = lblParse(g);
-  return `<div class="card scard ${p.ok ? '' : 'warnbox'}" data-i="${i}">
+  return `<div class="card scard ${p.ok ? '' : 'warnbox'}" data-i="${i}" data-gid="${esc(x.gid)}">
     <div class="lnh"><div class="gm"><b>${esc(g.name || '（商品已刪除）')}</b><small>${esc(g.code || '')}</small></div><button class="x" data-del aria-label="拿掉">×</button></div>
     <canvas class="lblcv" data-cv="${i}" width="400" height="320"></canvas>
     ${p.ok ? '' : `<div class="err" style="margin:6px 0 0">這個品名的標籤文字還沒確認：${esc(p.why)} <button class="chip" data-fix>確認文字</button></div>`}

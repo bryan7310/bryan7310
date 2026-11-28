@@ -321,6 +321,17 @@ body.pad .card { border: 1px solid var(--line); }
 .pchist button { appearance: none; display: flex; justify-content: space-between; gap: 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); color: var(--text); font: inherit; font-size: 16px; padding: 8px 12px; cursor: pointer; font-variant-numeric: tabular-nums; }
 .pchist button span { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .padfab { display: none; }
+.pcconv { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.pk.cv { min-height: 56px; font-size: 19px; border-color: var(--text); }
+.pcbox { position: absolute; left: 16px; right: 16px; bottom: 16px; z-index: 3; border: 3px solid var(--text); border-radius: 16px; background: var(--bg); padding: 14px 16px; display: grid; gap: 10px; box-shadow: 0 -6px 24px rgba(0,0,0,.18); }
+.pcbox[hidden] { display: none; }
+.pcbh { display: flex; align-items: center; font-size: 18px; }
+.pcbh .sp { flex: 1; }
+.pcw { display: grid; gap: 4px; font-size: 15px; color: var(--muted); }
+.pcw input { font: inherit; font-size: 26px; font-weight: 700; height: 54px; border: 2px solid var(--line); border-radius: 12px; padding: 0 12px; background: var(--card); color: var(--text); text-align: right; width: 100%; }
+.pcout { text-align: right; font-size: 18px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.pcout b { font-size: 30px; color: var(--text); }
+.pcbox .sbtn.go { margin: 0; min-height: 60px; }
 @media (min-width: 1000px) {
   .padcalc { position: fixed; top: var(--padhd, 80px); right: 0; bottom: 0; width: var(--calcw); z-index: 35; }
   .padmain { margin-right: var(--calcw); }

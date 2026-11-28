@@ -8,12 +8,21 @@ import { store } from '../core/store.js';
 import { api } from '../core/api.js';
 import { staffPage, onStaffChange } from './staff.js';
 import { countPage } from './count.js';
+import { estWeight } from '../core/spec.js';
 
 /** 這個帳號要不要用平板版：帳號 tcl，或使用者資料裡標 pad */
 export const isPad = u => !!u && (String(u.login || '').toLowerCase() === 'tcl' || u.pad === true || u.role === 'pad');
 
 const TABS = [['lbl', '🏷', '印標籤'], ['count', '📋', '盤點']];
-let pv = null, lastInput = null;
+let pv = null, lastInput = null, lastAt = null;
+// 畫面重畫後（例如改了每張數量）原本的欄位會換新的：用「第幾張卡片＋哪一欄」再找回來
+const curInput = () => {
+  if (lastInput && lastInput.isConnected) return lastInput;
+  if (!lastAt) return null;
+  const card = document.querySelector(`[data-i="${lastAt.i}"][data-gid="${lastAt.gid}"]`); const f = card && lastAt.f ? card.querySelector(`[data-f="${lastAt.f}"]`) : null;
+  if (f) return (lastInput = f);
+  return null;
+};
 
 export function padBoot(view) {
   document.body.classList.add('staff', 'pad');
@@ -30,13 +39,13 @@ export function padBoot(view) {
   const calc = view.querySelector('#pcalc');
   view.querySelector('#pfab').onclick = () => calc.classList.toggle('open');
   // 記住最後點的數字欄（計算機「填入」用）；不記計算機自己
-  document.addEventListener('focusin', ev => { const t = ev.target; if (t.matches?.('input') && !calc.contains(t) && (t.inputMode === 'decimal' || t.inputMode === 'numeric' || t.type === 'number')) lastInput = t; });
+  document.addEventListener('focusin', ev => { const t = ev.target; if (t.matches?.('input') && !calc.contains(t) && (t.inputMode === 'decimal' || t.inputMode === 'numeric' || t.type === 'number')) { lastInput = t; const c = t.closest('[data-gid]'); lastAt = c ? { gid: c.dataset.gid, i: c.dataset.i, f: t.dataset.f } : null; } });
   const clk = () => { const e = view.querySelector('#pclk'); if (!e) return; const d = new Date(); e.textContent = `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
   clk(); setInterval(clk, 20000);
   const route = () => {
     const k = location.hash.startsWith('#count') ? 'count' : 'lbl';
     view.querySelectorAll('[data-tab]').forEach(a => a.classList.toggle('on', a.dataset.tab === k));
-    lastInput = null;
+    lastInput = null; lastAt = null;
     if (k === 'count') countPage(pv, { back: '#' }); else staffPage(pv);
     window.scrollTo(0, 0);
   };
@@ -80,6 +89,8 @@ function calcInit(box) {
   box.innerHTML = `<div class="pchd"><b>🧮 計算機</b><span class="sp"></span><button type="button" class="chip" id="pcx" aria-label="收起計算機">收起</button></div>
     <div class="pcdisp"><div class="pcexpr" id="pce"></div><div class="pcres" id="pcr">0</div></div>
     <div class="pckeys">${KEYS.map(([k, c]) => `<button type="button" class="pk ${c || ''}" data-k="${k}">${k}</button>`).join('')}</div>
+    <div class="pcconv"><button type="button" class="pk cv" data-cv="kg">⚖ 公斤 → 支數</button><button type="button" class="pk cv" data-cv="pcs">支數 → 公斤</button></div>
+    <div class="pcbox" id="pcb" hidden></div>
     <button type="button" class="sbtn pcfill" id="pcf"><b>填入</b><small id="pcfh">先點一下要填的數量欄</small></button>
     <div class="pchist" id="pch"></div>`;
   const $ = q => box.querySelector(q);
@@ -100,8 +111,47 @@ function calcInit(box) {
   box.querySelector('.pckeys').addEventListener('click', ev => { const b = ev.target.closest('[data-k]'); if (b) press(b.dataset.k); });
   $('#pch').addEventListener('click', ev => { const b = ev.target.closest('[data-h]'); if (!b) return; const h = C.hist[+b.dataset.h]; C.expr = String(h.r); C.just = false; paint(); });
   $('#pcx').onclick = () => box.classList.remove('open');
+  // ---- 公斤 ⇄ 支數：數字用計算機目前的結果；單重先抓正在處理的商品（標籤卡片、盤點表單），沒有就自己填 ----
+  const ctxGoods = () => {
+    const el = document.querySelector('.sheet[data-gid]') || curInput()?.closest('[data-gid]') || (lastAt && document.querySelector(`[data-gid="${lastAt.gid}"]`));
+    const g = el ? store.get('goods', el.dataset.gid) : null; if (!g) return null;
+    const adw = el.querySelector?.('#adw'); const typed = adw ? +String(adw.value).replace(/,/g, '') : 0;
+    if (typed > 0) return { g, w: typed, src: '盤點表單填的單重' };
+    if (+g.wt > 0) return { g, w: +g.wt, src: '商品資料的單重' };
+    const e = estWeight(g); return { g, w: e || '', src: e ? '依規格估算（約）' : '' };
+  };
+  let cv = null;   // { dir: 'kg'|'pcs', v, g, w, src }
+  const cvPaint = () => {
+    const b = $('#pcb'); if (!cv) { b.hidden = true; b.innerHTML = ''; return; }
+    const w = +String(cv.w).replace(/,/g, '') || 0;
+    const r = w > 0 ? (cv.dir === 'kg' ? Math.round(cv.v * 1000 / w) : +(cv.v * w / 1000).toPrecision(10)) : null;
+    cv.r = r;
+    b.hidden = false;
+    b.innerHTML = `<div class="pcbh"><b>${cv.dir === 'kg' ? '公斤 → 支數' : '支數 → 公斤'}</b><span class="sp"></span><button type="button" class="chip" data-cvx>關閉</button></div>
+      <div class="muted small">${cv.g ? esc(cv.g.name) : '沒有選商品：請自己填單重'}</div>
+      <label class="pcw">單重 g／支<input id="pcw" inputmode="decimal" value="${esc(cv.w)}" placeholder="例如 2.7"></label>
+      ${cv.src ? `<div class="muted small">${esc(cv.src)}</div>` : ''}
+      <div class="pcout">${cv.dir === 'kg' ? `${show(cv.v)} KG` : `${show(cv.v)} 支`}<br><b>${r === null ? '先填單重' : cv.dir === 'kg' ? `＝ ${show(r)} 支` : `＝ ${show(r)} KG`}</b></div>
+      <button type="button" class="sbtn go" data-cvok ${r === null ? 'disabled' : ''}><b>用這個結果</b></button>`;
+    const wi = b.querySelector('#pcw');
+    wi.oninput = () => { cv.w = wi.value; const w2 = +wi.value.replace(/,/g, '') || 0; const r2 = w2 > 0 ? (cv.dir === 'kg' ? Math.round(cv.v * 1000 / w2) : +(cv.v * w2 / 1000).toPrecision(10)) : null; cv.r = r2;
+      b.querySelector('.pcout b').textContent = r2 === null ? '先填單重' : cv.dir === 'kg' ? `＝ ${show(r2)} 支` : `＝ ${show(r2)} KG`; b.querySelector('[data-cvok]').disabled = r2 === null; };
+    b.querySelector('[data-cvx]').onclick = () => { cv = null; cvPaint(); };
+    b.querySelector('[data-cvok]').onclick = () => {
+      if (cv.r === null) return;
+      C.hist.unshift({ e: cv.dir === 'kg' ? `${show(cv.v)}KG÷${cv.w}g` : `${show(cv.v)}支×${cv.w}g`, r: cv.r }); C.hist = C.hist.slice(0, 6);
+      C.expr = String(cv.r); C.just = true; cv = null; cvPaint(); paint();
+      $('#pce').textContent = C.hist[0].e + ' ='; $('#pcr').textContent = show(C.hist[0].r);
+    };
+  };
+  box.querySelectorAll('[data-cv]').forEach(btn => btn.onclick = () => {
+    const v = C.expr ? (C.just ? C.hist[0]?.r : evaluate(C.expr)) : null;
+    if (v === null || v === undefined || Number.isNaN(v) || !(v > 0)) { flash(btn.dataset.cv === 'kg' ? '先用計算機打公斤數，再按換算' : '先用計算機打支數，再按換算'); return; }
+    const c = ctxGoods(); cv = { dir: btn.dataset.cv, v, g: c?.g || null, w: c?.w || '', src: c?.src || '' }; cvPaint();
+    if (!(+cv.w > 0)) setTimeout(() => $('#pcw')?.focus(), 50);
+  });
   $('#pcf').onclick = () => {
-    const r = C.expr ? evaluate(C.expr) : null; const inp = lastInput && lastInput.isConnected ? lastInput : null;
+    const r = C.expr ? evaluate(C.expr) : null; const inp = curInput();
     if (r === null || Number.isNaN(r)) { flash('先算出一個數字'); return; }
     if (!inp) { flash('先點一下要填的數量欄，再按填入'); return; }
     const v = inp.inputMode === 'numeric' ? String(Math.round(r)) : String(r);
