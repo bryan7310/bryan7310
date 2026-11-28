@@ -13,6 +13,9 @@ const toast = msg => { const t = document.getElementById('toast'); t.textContent
 let st = null, lastJob = '', busy = false;
 const load = () => { if (!st) { const x = ls.get(KEY, null); st = x && Array.isArray(x.items) ? x : { items: [] }; } return st; };
 const keep = () => ls.set(KEY, st);
+// 標籤上的單重：沒改過就跟商品資料的單重走（商品沒有單重就不印）；作業員在卡片上改過（或清空）就照改的
+const wtOf = x => x.wt !== undefined ? x.wt : (+store.get('goods', x.gid)?.wt > 0 ? String(+store.get('goods', x.gid).wt) : '');
+const itOf = x => itemOf({ ...x, wt: wtOf(x) }, today());
 const add = gid => { const g = store.get('goods', gid); if (!g) return; load().items.unshift({ gid, per: '', n: 1, unit: g.unit || 'PCS' }); keep(); };
 
 export function staffPage(view) {
@@ -28,7 +31,7 @@ export function staffPage(view) {
     <div class="note" id="sph"></div>
     <div id="src">${recentHTML()}</div>`;
   const $ = q => view.querySelector(q); const redraw = () => staffPage(view);
-  s.items.forEach((x, i) => { const cv = view.querySelector(`[data-cv="${i}"]`); if (cv) drawLabel(cv, itemOf(x, today())).catch(() => {}); });
+  s.items.forEach((x, i) => { const cv = view.querySelector(`[data-cv="${i}"]`); if (cv) drawLabel(cv, itOf(x)).catch(() => {}); });
   $('#slo').onclick = async () => { if (!window.confirm('要登出嗎？')) return; try { await api.logout(); } catch (e) {} await store.clearCache(); location.reload(); };
   $('#spr').onclick = () => pickPrinter(redraw);
   $('#scnt').onclick = () => { location.hash = '#count'; };
@@ -36,7 +39,7 @@ export function staffPage(view) {
   $('#sscan').onclick = () => scanQR(text => { const g = findByCode(text); if (!g) { toast('找不到料號：' + text); return; } add(g.id); redraw(); }, { title: '掃商品 QR 碼' });
   const li = $('#sli');
   li.addEventListener('change', ev => { const x = s.items[+ev.target.closest('[data-i]')?.dataset.i]; if (!x) return; const f = ev.target.dataset.f;
-    if (f === 'per') x.per = ev.target.value; if (f === 'n') x.n = Math.max(1, Math.round(+ev.target.value) || 1); keep(); redraw(); });
+    if (f === 'per') x.per = ev.target.value; if (f === 'wt') x.wt = ev.target.value.trim().replace(/,/g, ''); if (f === 'n') x.n = Math.max(1, Math.round(+ev.target.value) || 1); keep(); redraw(); });
   li.addEventListener('focusin', ev => { if (ev.target.dataset.f) ev.target.select(); });
   li.addEventListener('click', ev => {
     const card0 = ev.target.closest('[data-i]'); if (!card0) return; const i = +card0.dataset.i; const x = s.items[i];
@@ -56,7 +59,8 @@ function card(x, i) {
     <canvas class="lblcv" data-cv="${i}" width="400" height="320"></canvas>
     ${p.ok ? '' : `<div class="err" style="margin:6px 0 0">這個品名的標籤文字還沒確認：${esc(p.why)} <button class="chip" data-fix>確認文字</button></div>`}
     <div class="srow"><label>每張數量（${esc(x.unit)}）<input data-f="per" inputmode="decimal" value="${esc(x.per)}" placeholder="例如 1000"></label>
-      <div class="scnt"><span>張數</span><div><button type="button" data-step="-1" aria-label="少一張">−</button><input data-f="n" inputmode="numeric" value="${esc(x.n)}"><button type="button" data-step="1" aria-label="多一張">＋</button></div></div></div></div>`;
+      <div class="scnt"><span>張數</span><div><button type="button" data-step="-1" aria-label="少一張">−</button><input data-f="n" inputmode="numeric" value="${esc(x.n)}"><button type="button" data-step="1" aria-label="多一張">＋</button></div></div></div>
+    <label class="swt">單重 g／支（印在標籤上；空白就不印）<input data-f="wt" inputmode="decimal" value="${esc(wtOf(x))}" placeholder="沒有單重"></label></div>`;
 }
 async function print(view) {
   if (busy) return; const s = load(); const err = view.querySelector('#serr'); err.textContent = '';
@@ -66,10 +70,10 @@ async function print(view) {
   busy = true; const btn = view.querySelector('#sgo'); btn.disabled = true;
   try {
     const labels = [];
-    for (const x of s.items) { const cv = document.createElement('canvas'); await drawLabel(cv, itemOf(x, today())); labels.push({ cv, copies: Math.max(1, Math.round(+x.n) || 1) }); }
+    for (const x of s.items) { const cv = document.createElement('canvas'); await drawLabel(cv, itOf(x)); labels.push({ cv, copies: Math.max(1, Math.round(+x.n) || 1) }); }
     const n = labels.reduce((a, l) => a + l.copies, 0);
     lastJob = await queueLabels(labels, `標籤 ${n} 張`);
-    rememberLabels([...s.items].reverse()); s.items = []; keep(); toast(`已送出 ${n} 張，到「${curPrinter().name}」拿標籤`); staffPage(view); window.scrollTo(0, 0);
+    rememberLabels([...s.items].reverse().map(x => ({ ...x, wt: wtOf(x) }))); s.items = []; keep(); toast(`已送出 ${n} 張，到「${curPrinter().name}」拿標籤`); staffPage(view); window.scrollTo(0, 0);
   } catch (e) { err.textContent = e.message || String(e); toast(e.message || String(e)); btn.disabled = false; }
   busy = false;
 }

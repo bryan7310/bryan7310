@@ -261,6 +261,8 @@ body.staff #view, body.staff main { padding-bottom: 24px; }
 .srow label { display: grid; gap: 4px; font-size: 13px; color: var(--muted); }
 .srow input { font-family: inherit; font-size: 24px; font-weight: 600; height: 54px; border: 1px solid var(--line); border-radius: 12px; padding: 0 12px; background: var(--card); color: var(--text); width: 100%; min-width: 0; text-align: right; }
 .scnt { display: grid; gap: 4px; font-size: 13px; color: var(--muted); }
+.swt { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 10px; font-size: 13px; color: var(--muted); }
+.swt input { font-family: inherit; font-size: 20px; font-weight: 600; height: 46px; width: 130px; flex: none; border: 1px solid var(--line); border-radius: 12px; padding: 0 12px; background: var(--card); color: var(--text); text-align: right; }
 .scnt > div { display: flex; gap: 6px; align-items: center; }
 .scnt button { appearance: none; width: 54px; height: 54px; border-radius: 12px; border: 1px solid var(--line); background: var(--card); color: var(--text); font-family: inherit; font-size: 30px; font-weight: 700; line-height: 1; cursor: pointer; }
 .scnt button:active { filter: brightness(.92); }

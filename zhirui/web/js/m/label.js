@@ -153,7 +153,7 @@ export function rememberLabels(items) {
 }
 /** 最近印過的按鈕（data-rc＝第幾項） */
 export const recentHTML = () => { const r = recentLabels(); return r.length ? `<div class="sec">最近印過 <span class="muted">按一下加回清單</span></div><div class="card list rlist">${r.map((x, i) => { const g = store.get('goods', x.gid); return `<a href="#" data-rc="${i}"><span class="rn">${esc(g.name)}</span><span class="go">${esc(qtyText(x.per, x.unit))} × ${x.n} 張</span></a>`; }).join('')}</div>` : ''; };
-export const itemOf = (x, date) => { const g = store.get('goods', x.gid) || {}; const p = lblParse(g); return { name: p.name, spec: p.spec, fin: p.fin, qty: qtyText(x.per, x.unit), wt: String(x.wt || '').trim() ? `${String(x.wt).trim()}g` : '', date, code: g.code || '', p, g }; };
+export const itemOf = (x, date) => { const g = store.get('goods', x.gid) || {}; const p = lblParse(g); return { name: p.name, spec: p.spec, fin: p.fin, qty: qtyText(x.per, x.unit), wt: String(x.wt || '').trim() ? `單重 ${String(x.wt).trim()}g` : '', date, code: g.code || '', p, g }; };
 
 const MODES = [['goods', '商品標籤'], ['addr', '地址標籤']];
 const modeTabs = m => `<div class="chips">${MODES.map(([k, n]) => `<button class="chip ${m === k ? 'on' : ''}" data-mode="${k}">${n}</button>`).join('')}</div>`;
